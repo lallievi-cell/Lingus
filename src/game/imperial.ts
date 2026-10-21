@@ -1,0 +1,2337 @@
+import { BASE_HOUSING, BUILDING_SPECS, RESOURCE_SPECS, SPEC_ASSUMPTIONS, WORDS } from './content';
+import {
+  birthProbability,
+  cognitiveTension,
+  corruptionRate,
+  effectiveDamage,
+  mutualIntelligibility,
+  resourceSpoilage,
+} from './math';
+import {
+  activeUnits,
+  adult,
+  canPay,
+  clamp,
+  copy,
+  distance,
+  hasWord,
+  log,
+  nextId,
+  pay,
+  random,
+  totalFood,
+} from './runtime';
+import { forbiddenByDogma, getDogmaEffects, protectedByDogma } from './dogmas';
+import { evaluateDiscoveries, killUnit, recordCraft, recordEvent } from './simulation';
+import type {
+  Battalion,
+  Building,
+  BuildingKind,
+  Caravan,
+  City,
+  Cohorts,
+  Faction,
+  GameState,
+  Inventory,
+  Law,
+  Resource,
+  Target,
+  Tradition,
+  Unit,
+} from './types';
+
+/** These parameters are deliberately explicit: the source gives no prices or AI policy. */
+export const IMPERIAL_ASSUMPTIONS = {
+  barterRatio: 1,
+  coinPrice: { ingot: 100, food: 1, slave: 100 },
+  extractionPerWorkerCycle: 1,
+  extractionCycleSeconds: 2,
+  delegationSize: 1,
+  foreignRecruitmentMinimum: 20,
+  cohortAdultShare: 1,
+  militaryStrength: 7,
+  foreignRepresentativeIntelligence: 5,
+  firstGiftUnits: 1,
+  firstGiftContactWeight: 100,
+} as const;
+
+const PLAYER = 'player';
+const RESOURCES: Resource[] = [
+  'food',
+  'meat',
+  'cooked',
+  'wood',
+  'stone',
+  'pelt',
+  'seed',
+  'ore',
+  'ingot',
+  'tool',
+  'spear',
+  'pottery',
+  'metalArms',
+  'coin',
+];
+const FOOD: Resource[] = ['cooked', 'meat', 'food'];
+const INCENTIVES = ['M_05', 'M_04', 'S_03', 'S_04'];
+const SANCTIONS = ['O_06', 'S_06', 'V_03', 'O_12', 'O_11', 'O_10', 'M_03', ...INCENTIVES];
+const known = (s: GameState) => Object.keys(s.words).filter((w) => hasWord(s, w));
+const emptyInventory = (): Inventory =>
+  Object.fromEntries(RESOURCES.map((r) => [r, 0])) as Inventory;
+const ownCities = (s: GameState) => s.cities.filter((c) => c.factionId === PLAYER);
+const playerHas = (s: GameState, kind: BuildingKind) =>
+  s.buildings.some(
+    (b) =>
+      b.kind === kind &&
+      b.hp > 0 &&
+      b.active &&
+      b.completed !== false &&
+      (!b.cityId || s.cities.some((c) => c.id === b.cityId && c.factionId === PLAYER)),
+  );
+const cityBuildings = (s: GameState, c: City) =>
+  s.buildings.filter((b) => b.cityId === c.id && b.hp > 0 && b.completed !== false);
+const cityHas = (s: GameState, c: City, k: BuildingKind) =>
+  cityBuildings(s, c).some((b) => b.kind === k && b.active);
+const capital = (s: GameState) => ownCities(s).find((c) => c.capital) ?? ownCities(s)[0];
+const phase = (s: GameState) => ({ season: Math.floor(s.time / 90) % 4, night: s.time % 90 >= 60 });
+export const cityPopulation = (c: City) =>
+  c.cohorts.workers + c.cohorts.warriors + c.cohorts.sages + c.cohorts.slaves;
+export const playerPopulation = (s: GameState) =>
+  s.urbanized
+    ? ownCities(s).reduce((n, c) => n + cityPopulation(c), 0) +
+      s.battalions
+        .filter((b) => b.factionId === PLAYER)
+        .reduce((n, b) => n + Math.max(0, b.hp) / 100, 0) +
+      s.caravans
+        .filter(
+          (c) =>
+            c.factionId === PLAYER &&
+            ['colonists', 'delegate'].includes(c.kind) &&
+            !c.arrived &&
+            c.hp > 0,
+        )
+        .reduce((n, c) => n + c.population, 0)
+    : activeUnits(s).length;
+export const getIntelligibility = (s: GameState, words: Iterable<string>) =>
+  mutualIntelligibility(known(s), words);
+
+function inventoryFor(s: GameState, c?: City): Inventory {
+  return !c || c.capital ? s.resources : c.resources;
+}
+function bindCapital(s: GameState) {
+  const c = capital(s);
+  if (c) c.resources = s.resources;
+}
+function addLog(
+  s: GameState,
+  message: string,
+  tone: 'info' | 'good' | 'warning' | 'danger' | 'discovery' = 'info',
+) {
+  log(s, message, tone);
+}
+function foodCost(r: Inventory, quantity: number): boolean {
+  return totalFood(r) + 1e-9 >= quantity;
+}
+function takeFood(r: Inventory, quantity: number): number {
+  let need = quantity;
+  for (const key of FOOD) {
+    const n = Math.min(r[key], need);
+    r[key] -= n;
+    need -= n;
+    if (need <= 1e-9) break;
+  }
+  return quantity - need;
+}
+function consumeNutrition(r: Inventory, hunger: number): number {
+  let need = hunger;
+  for (const key of FOOD) {
+    const nutrition = RESOURCE_SPECS[key].nutrition,
+      n = Math.min(r[key], need / nutrition);
+    r[key] -= n;
+    need -= n * nutrition;
+    if (need <= 1e-9) break;
+  }
+  return hunger - need;
+}
+function resourceFromTokens(tokens: string[]): Resource {
+  if (tokens.includes('O_12')) return 'coin';
+  if (tokens.includes('O_07')) return 'ingot';
+  if (tokens.includes('O_02')) return 'stone';
+  if (tokens.includes('O_03')) return 'wood';
+  return 'food';
+}
+function removePopulation(c: City, amount: number): number {
+  let left = amount;
+  for (const k of ['workers', 'slaves', 'warriors', 'sages'] as const) {
+    const removed = Math.min(c.cohorts[k], left);
+    c.cohorts[k] -= removed;
+    left -= removed;
+    if (left <= 0) break;
+  }
+  return amount - left;
+}
+function changePopulation(c: City, amount: number, cohort: keyof Cohorts) {
+  c.cohorts[cohort] = Math.max(0, c.cohorts[cohort] + amount);
+}
+/** Materials stay local; a player city's monetary expenses use the sole imperial treasury. */
+function canPayCity(s: GameState, c: City, cost: Partial<Inventory>) {
+  return Object.entries(cost).every(
+    ([r, n]) =>
+      (r === 'coin' && c.factionId === PLAYER
+        ? s.resources.coin
+        : inventoryFor(s, c)[r as Resource]) +
+        1e-9 >=
+      n,
+  );
+}
+function payCity(s: GameState, c: City, cost: Partial<Inventory>) {
+  for (const [r, n] of Object.entries(cost)) {
+    const inv = r === 'coin' && c.factionId === PLAYER ? s.resources : inventoryFor(s, c);
+    inv[r as Resource] -= n;
+  }
+}
+function subjectUnits(s: GameState, subject: string): Unit[] {
+  const units = activeUnits(s).filter(adult);
+  if (subject === 'S_03') return units.filter((u) => u.strength >= 7);
+  if (subject === 'S_04') return units.filter((u) => u.intelligence >= 7);
+  if (subject === 'S_06') return units.filter((u) => u.caste === 'slave');
+  if (subject === 'S_07') return units.filter((u) => u.id === s.kingId);
+  return units;
+}
+function findCity(s: GameState, target?: Target, foreign = false): City | undefined {
+  const explicit = target?.type === 'city' ? s.cities.find((c) => c.id === target.id) : undefined;
+  if (explicit) return explicit;
+  const pool = foreign ? s.cities.filter((c) => c.factionId !== PLAYER) : ownCities(s);
+  if (target) return pool.slice().sort((a, b) => distance(a, target) - distance(b, target))[0];
+  return foreign ? pool[0] : capital(s);
+}
+function moveTo(
+  point: { x: number; y: number },
+  target: { x: number; y: number },
+  speed: number,
+  dt: number,
+): boolean {
+  const d = distance(point, target),
+    step = speed * dt;
+  if (d <= step) {
+    point.x = target.x;
+    point.y = target.y;
+    return true;
+  }
+  point.x += ((target.x - point.x) / d) * step;
+  point.y += ((target.y - point.y) / d) * step;
+  return false;
+}
+
+export function condenseCities(s: GameState) {
+  if (s.urbanized || !hasWord(s, 'S_09') || activeUnits(s).length < 150) return;
+  const cohorts: Cohorts = { workers: 0, warriors: 0, sages: 0, slaves: 0 };
+  const home = s.home;
+  for (const u of activeUnits(s)) {
+    const caste =
+      u.caste === 'slave'
+        ? 'slaves'
+        : u.strength >= 7 && adult(u)
+          ? 'warriors'
+          : u.intelligence >= 7 && adult(u)
+            ? 'sages'
+            : 'workers';
+    cohorts[caste]++;
+  }
+  const c: City = {
+    id: nextId(s, 'city'),
+    name: 'La Capitale',
+    x: home.x,
+    y: home.y,
+    sectorX: Math.floor(home.x / 100),
+    sectorY: Math.floor(home.y / 100),
+    factionId: PLAYER,
+    cohorts,
+    resources: s.resources,
+    words: known(s),
+    dogmas: copy(s.dogmas),
+    revoltTension: s.revoltTension,
+    housing: Math.max(
+      BASE_HOUSING,
+      s.buildings
+        .filter((b) => b.hp > 0)
+        .reduce((n, b) => n + (BUILDING_SPECS[b.kind].housing ?? 0), BASE_HOUSING),
+    ),
+    buildingIds: [],
+    vocations: [],
+    loyalty: 100,
+    assimilation: { delegateCount: 0, active: false },
+    production: emptyInventory(),
+    capital: true,
+    garrisonHp: cohorts.warriors * 100,
+    occupation: 0,
+    foundedAt: s.time,
+  };
+  s.cities.push(c);
+  for (const b of s.buildings.filter((b) => !b.cityId)) {
+    b.cityId = c.id;
+    c.buildingIds.push(b.id);
+  }
+  for (const u of activeUnits(s)) {
+    u.cityId = c.id;
+    u.action = 'idle';
+    u.command = undefined;
+    u.jobBuildingId = undefined;
+  }
+  const sector = s.sectors.find((z) => z.x === c.sectorX && z.y === c.sectorY);
+  if (sector) sector.cityId = c.id;
+  s.urbanized = true;
+  addLog(
+    s,
+    'La comunità supera centocinquanta persone. Le vite diventano coorti; la valle diventa una città.',
+    'discovery',
+  );
+  allocateCityWorkers(s, c);
+}
+
+export function allocateCityWorkers(s: GameState, c: City) {
+  const buildings = cityBuildings(s, c),
+    vocation = c.vocations.flatMap((v) => v.tokens);
+  const pools = { ...c.cohorts };
+  const primary = vocation.includes('V_09')
+    ? 'farm'
+    : vocation.includes('V_12')
+      ? 'foundry'
+      : vocation.includes('V_11')
+        ? 'market'
+        : vocation.includes('O_09')
+          ? 'archive'
+          : null;
+  const ordered = buildings
+    .slice()
+    .sort((a, b) => Number(b.kind === primary) - Number(a.kind === primary));
+  const grainWorkers =
+    primary === 'farm' ? Math.floor((pools.workers + pools.slaves) * 0.8) : Infinity;
+  let primaryAllocated = 0;
+  for (const b of ordered) {
+    const spec = BUILDING_SPECS[b.kind];
+    if (!b.active) {
+      b.lastEfficiency = 0;
+      continue;
+    }
+    if (spec.workers === 0) {
+      b.lastEfficiency = 1;
+      continue;
+    }
+    let slots = spec.workers,
+      weighted = 0;
+    if (spec.workerKind === 'sage') {
+      const n = Math.min(slots, pools.sages);
+      pools.sages -= n;
+      weighted = n;
+    } else if (spec.workerKind === 'warrior') {
+      const n = Math.min(slots, pools.warriors);
+      pools.warriors -= n;
+      weighted = n;
+    } else {
+      if (b.kind === 'farm' && primary === 'farm')
+        slots = Math.min(slots, Math.max(0, grainWorkers - primaryAllocated));
+      const slaves = Math.min(slots, pools.slaves);
+      pools.slaves -= slaves;
+      slots -= slaves;
+      weighted = slaves * 1.2;
+      const workers = Math.min(slots, pools.workers);
+      pools.workers -= workers;
+      slots -= workers;
+      weighted += workers;
+      primaryAllocated += b.kind === 'farm' ? slaves + workers : 0;
+    }
+    b.lastEfficiency = Math.min(1.2, weighted / spec.workers);
+  }
+}
+export function cityBuildingEfficiency(s: GameState, c: City, kind: BuildingKind) {
+  return cityBuildings(s, c)
+    .filter((b) => b.kind === kind && b.active)
+    .reduce((n, b) => n + (b.lastEfficiency ?? 0), 0);
+}
+
+function cityCapacity(s: GameState, c: City, r: Resource): number {
+  if (r === 'coin') return Infinity;
+  const food = RESOURCE_SPECS[r].category === 'food';
+  const b = cityBuildings(s, c);
+  const stores = b.filter((z) => z.kind === (food ? 'storage' : 'depot')).length;
+  if (stores) return stores * (food ? 200 : 500);
+  return Math.max(
+    0,
+    30 -
+      RESOURCES.filter(
+        (k) => k !== 'coin' && RESOURCE_SPECS[k].category !== RESOURCE_SPECS[r].category,
+      ).reduce((n, k) => n + inventoryFor(s, c)[k], 0),
+  );
+}
+function addCityResource(s: GameState, c: City, r: Resource, amount: number): number {
+  const inv = inventoryFor(s, c),
+    category = RESOURCE_SPECS[r].category,
+    total = RESOURCES.filter((k) => RESOURCE_SPECS[k].category === category).reduce(
+      (n, k) => n + inv[k],
+      0,
+    ),
+    room = r === 'coin' ? Infinity : Math.max(0, cityCapacity(s, c, r) - total);
+  const n = Math.min(room, Math.max(0, amount));
+  inv[r] += n;
+  c.production[r] += n;
+  return n;
+}
+function cityConstruction(
+  s: GameState,
+  c: City,
+  tokens: string[],
+): { valid: boolean; message: string } {
+  let kind: BuildingKind | undefined;
+  const tail = tokens.slice(2);
+  if (tail.includes('O_02') && tail.includes('O_01')) kind = 'house';
+  else if (tail.includes('O_03') && tail.includes('O_01')) kind = 'hut';
+  else if (tail.includes('O_03') && tail.includes('M_01')) kind = 'palisade';
+  else if (tail.includes('O_02') && tail.includes('O_06')) kind = 'grave';
+  else if (tail.includes('O_02') && tail.includes('M_03')) kind = 'temple';
+  else if (tail.includes('O_02') && tail.includes('O_10')) kind = 'walls';
+  else if (tail.includes('O_02') && tail.includes('O_09')) kind = 'archive';
+  else if (tail.includes('O_02') && tail.includes('S_07')) kind = 'palace';
+  else if (tail.includes('O_12') && tail.includes('V_11')) kind = 'market';
+  else if (tail.includes('O_02') && tail.includes('O_14')) kind = 'court';
+  else if (tail.includes('O_02') && tail.includes('S_04')) kind = 'school';
+  else if (tail.includes('O_13') && tail.includes('O_01')) kind = 'workshop';
+  if (!kind) return { valid: false, message: 'La frase non identifica un edificio urbano.' };
+  const spec = BUILDING_SPECS[kind],
+    quantity = kind === 'house' ? 4 : 1;
+  if (spec.unique && cityBuildings(s, c).some((b) => b.kind === kind))
+    return { valid: false, message: `${spec.label} è già presente in questa città.` };
+  const cost = Object.fromEntries(
+    Object.entries(spec.cost).map(([key, n]) => [key, n * quantity]),
+  ) as Partial<Inventory>;
+  if (!canPayCity(s, c, cost))
+    return { valid: false, message: `La città non possiede i materiali per ${spec.label}.` };
+  if (cityPopulation(c) <= 0)
+    return { valid: false, message: 'La città non ha abitanti in grado di costruire.' };
+  payCity(s, c, cost);
+  for (let i = 0; i < quantity; i++) {
+    const b: Building = {
+      id: nextId(s, 'building'),
+      kind,
+      x: c.x + (i % 2) * 3,
+      y: c.y + Math.floor(i / 2) * 3,
+      hp: spec.maxHp,
+      active: true,
+      completed: true,
+      cityId: c.id,
+      workerIds: [],
+    };
+    s.buildings.push(b);
+    c.buildingIds.push(b.id);
+    c.housing += spec.housing ?? 0;
+  }
+  allocateCityWorkers(s, c);
+  return {
+    valid: true,
+    message:
+      quantity === 4
+        ? 'Quattro case in muratura: 80 pietra, 40 legno, 48 nuovi alloggi.'
+        : `${spec.label} sorge a ${c.name}.`,
+  };
+}
+
+const traditionCap = (s: GameState) => (s.tier >= 5 ? 8 : s.tier === 4 ? 5 : s.tier === 3 ? 3 : 0);
+export function registerTradition(state: GameState, tokens: string[], target?: Target): GameState {
+  const s = copy(state),
+    city = tokens.includes('S_09') ? findCity(s, target) : undefined;
+  const restriction = forbiddenByDogma(s, tokens, target);
+  if (restriction) {
+    log(s, restriction, 'warning');
+    return s;
+  }
+  if (!['C_01', 'C_02'].includes(tokens[0]) || tokens.some((w) => !hasWord(s, w))) {
+    log(s, 'La tradizione richiede una condizione e parole conosciute.', 'warning');
+    return s;
+  }
+  if (city && tokens[1] === 'S_09') {
+    const valid =
+      (tokens[2] === 'V_09' && tokens[3] === 'O_04') ||
+      (tokens[2] === 'V_12' && tokens[3] === 'O_07') ||
+      (tokens[2] === 'V_11' && tokens[3] === 'O_12') ||
+      (tokens[2] === 'V_05' && tokens[3] === 'O_09');
+    if (!valid) {
+      log(s, 'Questa frase non descrive una vocazione cittadina.', 'warning');
+      return s;
+    }
+    if (city.factionId !== PLAYER || city.vocations.length >= 2) {
+      log(s, 'Ogni tua città può custodire due vocazioni.', 'warning');
+      return s;
+    }
+    if (city.vocations.some((v) => v.tokens.join('|') === tokens.join('|'))) return s;
+    const tr: Tradition = {
+      id: nextId(s, 'vocation'),
+      tokens: [...tokens],
+      target: { type: 'city', id: city.id, x: city.x, y: city.y },
+      createdAt: s.time,
+      name:
+        tokens[2] === 'V_09'
+          ? 'Granaio dell’Impero'
+          : tokens[2] === 'V_12'
+            ? 'Polo siderurgico'
+            : tokens[2] === 'V_11'
+              ? 'Emporio'
+              : 'Città universitaria',
+    };
+    city.vocations.push(tr);
+    allocateCityWorkers(s, city);
+    log(s, `${city.name}: ${tr.name}.`, 'good');
+    return s;
+  }
+  if (s.traditions.length >= traditionCap(s)) {
+    log(s, 'La capacità di tradizioni di questa epoca è esaurita.', 'warning');
+    return s;
+  }
+  if (
+    s.traditions.some((t) => t.tokens.join('|') === tokens.join('|') && t.target?.id === target?.id)
+  )
+    return s;
+  s.traditions.push({
+    id: nextId(s, 'tradition'),
+    tokens: [...tokens],
+    target: target ? copy(target) : undefined,
+    subjectId: tokens[1],
+    createdAt: s.time,
+    name: tokens.map((t) => WORDS[t]?.label ?? t).join(' · '),
+  });
+  log(s, 'La frase diventa un lavoro tramandato, senza consumare altra voce.', 'good');
+  return s;
+}
+export function removeTradition(state: GameState, id: string): GameState {
+  const s = copy(state);
+  s.traditions = s.traditions.filter((t) => t.id !== id);
+  for (const c of s.cities) c.vocations = c.vocations.filter((v) => v.id !== id);
+  return s;
+}
+
+function lawName(tokens: string[]): string {
+  return tokens.map((t) => WORDS[t]?.label ?? t).join(' · ');
+}
+export function inscribeLaw(state: GameState, tokens: string[]): GameState {
+  const s = copy(state),
+    limit = s.tier >= 5 ? 6 : s.tier >= 4 ? 3 : 0;
+  if (
+    tokens.length !== 6 ||
+    tokens[4] !== 'C_03' ||
+    !tokens[0].startsWith('S_') ||
+    !tokens[1].startsWith('V_') ||
+    !SANCTIONS.includes(tokens[5]) ||
+    tokens.some((w) => !hasWord(s, w))
+  ) {
+    log(
+      s,
+      'La legge richiede sei parole: soggetto, azione, oggetto, misura, Altrimenti, sanzione.',
+      'warning',
+    );
+    return s;
+  }
+  if (!playerHas(s, 'palace') || !hasWord(s, 'C_03') || !limit) {
+    log(s, 'Serve un Palazzo Reale e il pensiero giuridico dell’Età del Bronzo.', 'warning');
+    return s;
+  }
+  if (s.laws.length >= limit) {
+    log(s, 'Il Palazzo non può custodire altre leggi in questa epoca.', 'warning');
+    return s;
+  }
+  if (s.laws.some((l) => l.tokens.join('|') === tokens.join('|'))) return s;
+  const law: Law = {
+    id: nextId(s, 'law'),
+    tokens: [...tokens],
+    name: lawName(tokens),
+    subjectId: tokens[0],
+    verbId: tokens[1],
+    objectId: tokens[2],
+    modifierId: tokens[3],
+    sanctionId: tokens[5],
+    prohibitive: tokens[3] === 'M_01',
+    age: 0,
+    description:
+      tokens[3] === 'M_01'
+        ? 'Il gesto è un reato: il Tribunale applica la sanzione.'
+        : 'Un dovere stagionale; Altrimenti stabilisce la sanzione o il premio.',
+  };
+  s.laws.push(law);
+  for (const d of s.dogmas) {
+    if (!tokens.slice(0, 4).includes(d.targetId)) continue;
+    if (law.prohibitive && d.vectorId === 'M_01') {
+      s.revoltTension = clamp(s.revoltTension - 20);
+      s.cohesion = 100;
+      s.corruption = 0;
+    } else if (law.prohibitive && ['C_02', 'O_01', 'S_01'].includes(d.vectorId)) {
+      s.revoltTension = clamp(s.revoltTension + d.weight * 0.5);
+      log(s, `Scisma: la legge punisce ciò che « ${d.name} » santifica.`, 'danger');
+    }
+  }
+  log(s, 'Una nuova legge è incisa nel Palazzo Reale.', 'good');
+  return s;
+}
+export function removeLaw(state: GameState, id: string): GameState {
+  const s = copy(state);
+  s.laws = s.laws.filter((l) => l.id !== id);
+  return s;
+}
+
+function unitCohort(u: Unit): keyof Cohorts {
+  return u.caste === 'slave'
+    ? 'slaves'
+    : u.caste === 'warrior' || u.strength >= 7
+      ? 'warriors'
+      : u.caste === 'sage' || u.intelligence >= 7
+        ? 'sages'
+        : 'workers';
+}
+function removeCustodian(s: GameState, u: Unit) {
+  for (const [id, m] of Object.entries(s.words)) {
+    if (!m.custodians.includes(u.id)) continue;
+    if (WORDS[id].tier > 0) m.retention *= 1 - 1 / m.custodians.length;
+    m.custodians = m.custodians.filter((id) => id !== u.id);
+  }
+}
+function exile(s: GameState, u: Unit) {
+  const previous = s.cities.find((c) => c.id === u.cityId);
+  if (previous) changePopulation(previous, -1, unitCohort(u));
+  removeCustodian(s, u);
+  const faction = s.factions[0];
+  u.factionId = faction?.id ?? 'exile';
+  u.cityId = undefined;
+  u.action = 'moving';
+  u.tx = 15;
+  u.ty = 15;
+  u.command = undefined;
+  if (faction) faction.words = [...new Set([...faction.words, ...u.knows])];
+  s.revoltTension = 0;
+}
+function killByLaw(s: GameState, u: Unit) {
+  if (u.hp <= 0 || protectedByDogma(s, u.caste === 'slave' ? 'S_06' : 'S_02', u)) return;
+  killUnit(s, u, 'O_14');
+}
+export function applySanction(s: GameState, law: Law, unit?: Unit, city?: City, fulfilled = false) {
+  const targetCity =
+      city ?? (unit?.cityId ? s.cities.find((c) => c.id === unit.cityId) : undefined),
+    inv = targetCity ? inventoryFor(s, targetCity) : s.resources;
+  if (INCENTIVES.includes(law.sanctionId)) {
+    if (!fulfilled) return;
+    const counter = `lawful:${law.id}:${unit?.id ?? targetCity?.id ?? 'none'}`,
+      seasons = (s.eventTimes[counter] ?? 0) + 1;
+    s.eventTimes[counter] = seasons;
+    if (unit) unit.lawfulSeasons = Math.max(unit.lawfulSeasons ?? 0, seasons);
+    else if (targetCity)
+      targetCity.lawfulSeasons = Math.max(targetCity.lawfulSeasons ?? 0, seasons);
+    if (law.sanctionId === 'M_05' && seasons >= 10 && !getDogmaEffects(s).emancipationForbidden) {
+      if (unit) {
+        if (targetCity && unit.caste === 'slave') {
+          targetCity.cohorts.slaves = Math.max(0, targetCity.cohorts.slaves - 1);
+          targetCity.cohorts.workers++;
+        }
+        unit.caste = 'citizen';
+        unit.emancipated = true;
+      } else if (targetCity) {
+        targetCity.cohorts.workers += targetCity.cohorts.slaves;
+        targetCity.cohorts.slaves = 0;
+        targetCity.revoltTension *= 0.5;
+      }
+      s.revoltTension *= 0.5;
+    }
+    if (law.sanctionId === 'M_04') {
+      if (unit) {
+        unit.wealth = (unit.wealth ?? 0) + 1;
+        unit.lastEventAt ??= {};
+        unit.lastEventAt.LAW_PRIVATE_BONUS = 1;
+      }
+      s.inequality = clamp(s.inequality + 0.5);
+    }
+    if (law.sanctionId === 'S_03' || law.sanctionId === 'S_04') {
+      if (unit) {
+        if (targetCity) changePopulation(targetCity, -1, unitCohort(unit));
+        unit.caste = law.sanctionId === 'S_03' ? 'warrior' : 'sage';
+        if (law.sanctionId === 'S_03') unit.strength = Math.max(7, unit.strength);
+        else unit.intelligence = Math.max(7, unit.intelligence);
+        if (targetCity)
+          changePopulation(targetCity, 1, unit.caste === 'warrior' ? 'warriors' : 'sages');
+      } else if (targetCity && targetCity.cohorts.workers > 0) {
+        targetCity.cohorts.workers--;
+        targetCity.cohorts[law.sanctionId === 'S_03' ? 'warriors' : 'sages']++;
+      }
+      s.inequality = clamp(s.inequality - 15);
+    }
+    return;
+  }
+  if (fulfilled) return;
+  switch (law.sanctionId) {
+    case 'O_06':
+      if (unit) killByLaw(s, unit);
+      else if (targetCity) removePopulation(targetCity, 1);
+      s.revoltTension = clamp(s.revoltTension + 5);
+      break;
+    case 'S_06':
+      if (getDogmaEffects(s).slaveryForbidden) break;
+      if (unit) {
+        if (targetCity) changePopulation(targetCity, -1, unitCohort(unit));
+        unit.caste = 'slave';
+        if (targetCity) targetCity.cohorts.slaves++;
+      } else if (targetCity && targetCity.cohorts.workers > 0) {
+        targetCity.cohorts.workers--;
+        targetCity.cohorts.slaves++;
+      }
+      s.revoltTension = clamp(s.revoltTension + 10);
+      break;
+    case 'V_03':
+      if (unit) {
+        unit.hp = Math.max(1, unit.hp - 40);
+        unit.lastEventAt ??= {};
+        unit.lastEventAt.LAW_PRODUCTIVITY_UNTIL = s.time + 90;
+      }
+      s.cohesion = clamp(s.cohesion - 2);
+      break;
+    case 'O_12': {
+      const amount = Math.min(50, unit ? (unit.wealth ?? 0) : inv.coin);
+      if (unit) unit.wealth = (unit.wealth ?? 0) - amount;
+      else inv.coin -= amount;
+      s.resources.coin += amount;
+      s.inequality = clamp(s.inequality - 2);
+      break;
+    }
+    case 'O_11':
+      if (targetCity && !targetCity.capital) {
+        for (const r of ['stone', 'wood', 'meat'] as const) {
+          const amount = inv[r] * 0.5;
+          inv[r] -= amount;
+          s.resources[r] += amount;
+        }
+      } else if (unit) {
+        const amount = (unit.wealth ?? 0) * 0.5;
+        unit.wealth = (unit.wealth ?? 0) - amount;
+        s.resources.coin += amount;
+      }
+      break;
+    case 'O_10':
+      if (unit) exile(s, unit);
+      else if (targetCity) {
+        const faction = s.factions[0]?.id ?? 'exile';
+        targetCity.factionId = faction;
+        targetCity.revoltTension = 0;
+      }
+      s.revoltTension = 0;
+      break;
+    case 'M_03':
+      if (unit) unit.factionId = 'pariah';
+      s.cohesion = clamp(s.cohesion + 10);
+      break;
+  }
+  if (targetCity)
+    targetCity.revoltTension = clamp(
+      targetCity.revoltTension +
+        (law.sanctionId === 'S_06' ? 10 : law.sanctionId === 'O_06' ? 5 : 0),
+    );
+}
+/** Guards apply penalties to the actual offender; doctrine remains the higher-priority constraint. */
+export function enforceActionLaws(
+  s: GameState,
+  tokens: string[],
+  target?: Target,
+  selectedIds?: string[],
+): boolean {
+  const predicate = tokens[0] === 'C_01' || tokens[0] === 'C_02' ? tokens.slice(1) : tokens;
+  const laws = s.laws.filter(
+    (l) =>
+      l.prohibitive &&
+      l.verbId === predicate[1] &&
+      (predicate.includes(l.objectId) ||
+        (l.objectId === 'S_05' &&
+          target?.type === 'city' &&
+          s.cities.find((c) => c.id === target.id)?.factionId !== PLAYER)),
+  );
+  if (!laws.length || !playerHas(s, 'court')) return true;
+  const offenders = selectedIds
+    ? activeUnits(s).filter((u) => selectedIds.includes(u.id))
+    : subjectUnits(s, predicate[0]);
+  for (const law of laws) {
+    for (const u of offenders.slice(0, 1)) applySanction(s, law, u);
+    log(s, 'Il Tribunale applica la sanzione prevista per questo gesto.', 'warning');
+  }
+  return false;
+}
+
+function makeCaravan(
+  s: GameState,
+  kind: Caravan['kind'],
+  from: City | undefined,
+  to: Target,
+  resources: Inventory,
+  population = 0,
+): Caravan {
+  const origin = from ?? { x: s.home.x, y: s.home.y, id: 'village' };
+  const caravan: Caravan = {
+    id: nextId(s, 'caravan'),
+    kind,
+    x: origin.x,
+    y: origin.y,
+    fromCityId: origin.id,
+    toCityId: to.type === 'city' ? to.id : undefined,
+    factionId: PLAYER,
+    resources,
+    population,
+    target: copy(to),
+    hp: 100,
+    corruption: 0,
+  };
+  s.caravans.push(caravan);
+  return caravan;
+}
+function contactKnowledge(s: GameState, foreignWords: string[]) {
+  const effects = getDogmaEffects(s);
+  if (effects.isolated || s.dogmas.some((d) => d.targetId === 'O_09' && d.vectorId === 'M_01'))
+    return;
+  const word = foreignWords.find((w) => !hasWord(s, w));
+  if (!word) return;
+  const learner = activeUnits(s)
+    .filter((u) => u.caste !== 'slave')
+    .sort((a, b) => b.intelligence - a.intelligence)[0];
+  if (!learner) return;
+  learner.tension ??= {};
+  learner.tension[word] = (learner.tension[word] ?? 0) + 50;
+  learner.eventMemory ??= [];
+  learner.eventMemory.push({ tag: 'ENV_CONTACT', time: s.time, weight: 0, wordIds: [word] });
+  log(s, 'Il contatto con un’altra lingua accende una domanda nuova.', 'discovery');
+}
+function emancipate(s: GameState): { valid: boolean; message: string } {
+  if (!hasWord(s, 'M_05') || !hasWord(s, 'C_02'))
+    return { valid: false, message: 'La tribù non comprende ancora libertà e permanenza.' };
+  if (getDogmaEffects(s).emancipationForbidden)
+    return {
+      valid: false,
+      message: 'Un dogma considera sacra la schiavitù. Deve essere riformato prima.',
+    };
+  for (const u of activeUnits(s)) {
+    if (u.caste === 'slave') {
+      u.caste = 'citizen';
+      u.emancipated = true;
+    }
+  }
+  for (const c of ownCities(s)) {
+    c.cohorts.workers += c.cohorts.slaves;
+    c.cohorts.slaves = 0;
+    c.revoltTension = 0;
+  }
+  s.emancipated = true;
+  s.revoltTension = 0;
+  return {
+    valid: true,
+    message: 'Nessuna persona appartiene più a un’altra. La schiavitù è abolita.',
+  };
+}
+function startGift(
+  s: GameState,
+  tokens: string[],
+  target?: Target,
+): { valid: boolean; message: string } {
+  const destination = findCity(s, target, true);
+  if (!destination || destination.factionId === PLAYER)
+    return { valid: false, message: 'Indica un insediamento straniero a cui portare il dono.' };
+  if (getDogmaEffects(s).isolated)
+    return { valid: false, message: 'Il dogma vieta il contatto e lo scambio con gli stranieri.' };
+  const source = capital(s),
+    inventory = inventoryFor(s, source),
+    resource = resourceFromTokens(tokens);
+  if (inventory[resource] < IMPERIAL_ASSUMPTIONS.firstGiftUnits)
+    return {
+      valid: false,
+      message: 'Il dono richiede una unità reale della risorsa scelta, cibo se non è specificata.',
+    };
+  inventory[resource] -= IMPERIAL_ASSUMPTIONS.firstGiftUnits;
+  const load = emptyInventory();
+  load[resource] = IMPERIAL_ASSUMPTIONS.firstGiftUnits;
+  const car = makeCaravan(
+    s,
+    'trade',
+    source,
+    { type: 'city', id: destination.id, x: destination.x, y: destination.y },
+    load,
+  );
+  car.gift = true;
+  car.sourceResource = resource;
+  return {
+    valid: true,
+    message: 'Il dono parte verso gli stranieri. Il contatto avverrà alla consegna.',
+  };
+}
+function witnessExchange(s: GameState, city: City, tag: string) {
+  const learner = activeUnits(s)
+    .filter((u) => u.caste !== 'slave')
+    .sort((a, b) => b.intelligence - a.intelligence)[0];
+  if (learner) {
+    recordEvent(s, learner, tag, IMPERIAL_ASSUMPTIONS.firstGiftContactWeight, ['V_11']);
+    recordCraft(s, learner, 'O_08');
+    evaluateDiscoveries(s, learner);
+  }
+  const faction = s.factions.find((f) => f.id === city.factionId);
+  if (faction) {
+    foreignEvent(s, faction, tag, IMPERIAL_ASSUMPTIONS.firstGiftContactWeight, ['V_11']);
+    foreignComprehension(s, faction, city);
+  }
+}
+function startTrade(
+  s: GameState,
+  tokens: string[],
+  target?: Target,
+): { valid: boolean; message: string } {
+  const enemy = findCity(s, target, true);
+  if (!enemy) return { valid: false, message: 'Non è stato incontrato un altro insediamento.' };
+  const faction = s.factions.find((f) => f.id === enemy.factionId),
+    source = capital(s),
+    inv = inventoryFor(s, source),
+    offered = resourceFromTokens(tokens);
+  if (getDogmaEffects(s).isolated)
+    return { valid: false, message: 'L’isolazionismo vieta il commercio estero.' };
+  if (tokens.includes('S_06')) {
+    if (getDogmaEffects(s).slaveryForbidden)
+      return { valid: false, message: 'La schiavitù è proibita dalla Pietra Sacra.' };
+    if (inv.coin < IMPERIAL_ASSUMPTIONS.coinPrice.slave || enemy.cohorts.slaves < 1)
+      return {
+        valid: false,
+        message: 'Il mercato richiede 100 monete e una persona della casta servile disponibile.',
+      };
+    inv.coin -= 100;
+    enemy.resources.coin += 100;
+    enemy.cohorts.slaves--;
+    if (source) source.cohorts.slaves++;
+    else {
+      const base = activeUnits(s)[0];
+      if (base)
+        s.units.push({
+          ...copy(base),
+          id: nextId(s, 'unit'),
+          name: 'Prigioniero',
+          caste: 'slave',
+          x: s.home.x,
+          y: s.home.y,
+          isKing: false,
+          knows: [],
+          age: 6,
+          hp: 100,
+          hunger: 20,
+        });
+    }
+    contactKnowledge(s, enemy.words);
+    return { valid: true, message: 'Una persona della casta servile è stata acquistata.' };
+  }
+  const send = emptyInventory();
+  if (offered === 'coin') {
+    const buying = enemy.resources.ingot > 0 ? 'ingot' : 'food';
+    const price = buying === 'ingot' ? 100 : 1;
+    if (inv.coin < price || enemy.resources[buying] < 1)
+      return { valid: false, message: 'Mancano monete o beni disponibili per questa rotta.' };
+    inv.coin -= price;
+    send.coin = price;
+  } else {
+    const amount = Math.min(10, inv[offered]);
+    if (amount <= 0)
+      return { valid: false, message: 'Non possiedi la risorsa da offrire nello scambio.' };
+    inv[offered] -= amount;
+    send[offered] = amount;
+  }
+  const caravan = makeCaravan(
+    s,
+    'trade',
+    source,
+    { type: 'city', id: enemy.id, x: enemy.x, y: enemy.y },
+    send,
+  );
+  caravan.sourceResource = offered;
+  if (faction) faction.peaceUntil = Math.max(faction.peaceUntil ?? 0, s.time + 90);
+  return {
+    valid: true,
+    message: 'La carovana parte. Lo scambio avverrà quando raggiungerà l’altro insediamento.',
+  };
+}
+
+export function handleImperialCommand(
+  s: GameState,
+  tokens: string[],
+  target?: Target,
+  executorId?: string,
+): { handled: boolean; valid: boolean; message?: string } {
+  const output = (valid: boolean, message: string) => ({ handled: true, valid, message });
+  if (tokens.length === 3 && tokens[0] === 'C_02' && tokens[1] === 'S_01' && tokens[2] === 'M_05') {
+    const result = emancipate(s);
+    return output(result.valid, result.message);
+  }
+  const p = ['C_01', 'C_02'].includes(tokens[0]) ? tokens.slice(1) : tokens,
+    subject = p[0],
+    verb = p[1],
+    args = p.slice(2);
+  if (verb === 'V_04' && args.includes('S_05')) {
+    const result = startGift(s, p, target);
+    return output(result.valid, result.message);
+  }
+  if (verb === 'V_14') {
+    if (subject !== 'S_04' || !playerHas(s, 'school'))
+      return output(false, 'La riforma richiede Saggi e una Scuola Filosofica attiva.');
+    if (s.laws.some((l) => l.prohibitive && l.verbId === 'V_14'))
+      return output(
+        false,
+        'Il codice penale vieta il dubbio: revoca la legge prima di avviare una riforma.',
+      );
+    if (args.includes('S_07') && args.includes('M_05')) {
+      if (getDogmaEffects(s).kingDeathCollapse)
+        return output(false, 'Il Re-Dio non può essere deposto finché il suo dogma resta attivo.');
+      s.government = 'republic';
+      s.kingId = null;
+      s.philosophy = true;
+      return output(
+        true,
+        'La monarchia cede il posto alla Repubblica: i cittadini liberi producono il 25% in più.',
+      );
+    }
+    const dogma = s.dogmas.find((d) => args.includes(d.targetId));
+    if (!dogma) return output(false, 'Indica il concetto di un dogma da esaminare.');
+    dogma.reforming = true;
+    s.philosophy = true;
+    s.dogmaReformTargets ??= [];
+    if (!s.dogmaReformTargets.includes(dogma.id)) s.dogmaReformTargets.push(dogma.id);
+    return output(true, 'I filosofi ridurranno di 15 il peso culturale del dogma a ogni stagione.');
+  }
+  if (verb === 'V_11' && (args.includes('S_05') || args.includes('S_06'))) {
+    const result = startTrade(s, p, target);
+    return output(result.valid, result.message);
+  }
+  if (subject === 'S_04' && verb === 'V_04' && args.includes('O_09') && args.includes('S_09')) {
+    const city = findCity(s, target),
+      source = capital(s);
+    if (!city || city.factionId !== PLAYER || !source)
+      return output(false, 'Scegli una provincia del tuo Impero da alfabetizzare.');
+    if (source.cohorts.sages < 1) return output(false, 'La capitale non ha un Saggio disponibile.');
+    source.cohorts.sages--;
+    const car = makeCaravan(
+      s,
+      'delegate',
+      source,
+      { type: 'city', id: city.id, x: city.x, y: city.y },
+      emptyInventory(),
+      1,
+    );
+    car.delegateCount = 1;
+    return output(
+      true,
+      'Un Saggio parte verso la provincia per insegnare due parole per stagione.',
+    );
+  }
+  if (verb === 'V_08' && args.includes('O_01') && args.includes('O_10')) {
+    const source = capital(s);
+    if (!source || !s.urbanized)
+      return output(false, 'La fondazione di colonie richiede una capitale urbana.');
+    if (!target) return output(false, 'Indica un settore libero.');
+    const sx = Math.floor(target.x / 100),
+      sy = Math.floor(target.y / 100);
+    if (s.cities.some((c) => c.sectorX === sx && c.sectorY === sy))
+      return output(false, 'Questo settore ospita già una città.');
+    const inv = inventoryFor(s, source);
+    if (source.cohorts.workers < 30 || inv.wood < 50 || inv.stone < 50 || !foodCost(inv, 50))
+      return output(
+        false,
+        'Servono trenta lavoratori, cinquanta legno, cinquanta pietra e cinquanta cibo.',
+      );
+    source.cohorts.workers -= 30;
+    inv.wood -= 50;
+    inv.stone -= 50;
+    const send = emptyInventory();
+    send.wood = 50;
+    send.stone = 50;
+    let left = 50;
+    for (const r of FOOD) {
+      const n = Math.min(left, inv[r]);
+      inv[r] -= n;
+      send[r] = n;
+      left -= n;
+    }
+    const car = makeCaravan(
+      s,
+      'colonists',
+      source,
+      { type: 'point', x: sx * 100 + 50, y: sy * 100 + 50 },
+      send,
+      30,
+    );
+    car.words = known(s);
+    car.dogmas = copy(s.dogmas);
+    return output(true, 'Trenta cittadini portano la lingua della capitale verso una nuova terra.');
+  }
+  if (subject === 'S_08') {
+    const army =
+      s.battalions.find((b) => b.id === executorId && b.factionId === PLAYER && b.hp > 0) ??
+      (target?.type === 'battalion'
+        ? s.battalions.find((b) => b.id === target.id && b.factionId === PLAYER)
+        : s.battalions.find((b) => b.factionId === PLAYER && b.hp > 0));
+    if (!army) return output(false, 'Non possiedi battaglioni da comandare.');
+    if (verb === 'V_01') {
+      const destination = args.includes('O_01') ? s.home : target;
+      if (!destination) return output(false, 'Indica una destinazione per il battaglione.');
+      army.tx = destination.x;
+      army.ty = destination.y;
+      army.action = 'moving';
+      army.target = target;
+      return output(true, 'Il battaglione avanza.');
+    }
+    if (verb === 'V_13' || verb === 'V_03') {
+      const enemy = findCity(s, target, true);
+      if (!enemy || enemy.factionId === PLAYER)
+        return output(false, 'Indica un insediamento straniero.');
+      const f = s.factions.find((z) => z.id === enemy.factionId);
+      if (getDogmaEffects(s).pacifism && !f?.hostile)
+        return output(false, 'Il pacifismo vieta di attaccare per primi.');
+      army.targetId = enemy.id;
+      army.target = { type: 'city', id: enemy.id, x: enemy.x, y: enemy.y };
+      army.action = verb === 'V_13' ? 'conquering' : 'attacking';
+      army.occupation = 0;
+      if (f) {
+        f.hostile = true;
+        f.relation = -100;
+      }
+      return output(
+        true,
+        verb === 'V_13'
+          ? 'Il battaglione marcia verso l’assedio e l’annessione.'
+          : 'Il battaglione attacca l’insediamento.',
+      );
+    }
+    if (verb === 'V_08' && args.includes('O_13')) {
+      if (getDogmaEffects(s).machinesForbidden)
+        return output(false, 'Il dogma vieta le macchine da assedio.');
+      const source = s.cities.find((c) => c.id === army.cityId),
+        inv = inventoryFor(s, source);
+      if (!canPay(inv, { wood: 40, ingot: 20 }))
+        return output(false, 'Una catapulta richiede quaranta legno e venti metallo.');
+      pay(inv, { wood: 40, ingot: 20 });
+      army.catapult = true;
+      return output(true, 'La catapulta si aggrega al battaglione.');
+    }
+    if (verb === 'V_10' && args.includes('O_04')) {
+      if (getDogmaEffects(s).vegetarian)
+        return output(false, 'Il dogma animale vieta la cavalleria da guerra.');
+      army.cavalry = true;
+      return output(
+        true,
+        'Il battaglione diventa cavalleria: velocità doppia e venti danni aggiuntivi.',
+      );
+    }
+  }
+  if (subject === 'S_09') {
+    const c =
+      s.cities.find((city) => city.id === executorId && city.factionId === PLAYER) ??
+      findCity(s, target);
+    if (!c || c.factionId !== PLAYER) return output(false, 'Scegli una città del tuo Impero.');
+    if (verb === 'V_08') {
+      const result = cityConstruction(s, c, p);
+      return output(result.valid, result.message);
+    }
+    if (verb === 'V_12' && args.includes('S_08')) {
+      if (c.cohorts.warriors < 20 || inventoryFor(s, c).metalArms < 20)
+        return output(false, 'Servono venti guerrieri e venti armi metalliche.');
+      c.cohorts.warriors -= 20;
+      c.garrisonHp = c.cohorts.warriors * 100;
+      inventoryFor(s, c).metalArms -= 20;
+      s.battalions.push({
+        id: nextId(s, 'army'),
+        name: `Battaglione di ${c.name}`,
+        x: c.x,
+        y: c.y,
+        cityId: c.id,
+        factionId: PLAYER,
+        hp: 2000,
+        maxHp: 2000,
+        morale: 1,
+        action: 'idle',
+        catapult: false,
+        occupation: 0,
+        attackProgress: 0,
+        lastSoldierLoss: 0,
+        metalWeapons: 20,
+      });
+      return output(true, 'Venti guerrieri formano un battaglione professionale.');
+    }
+    if (verb === 'V_04') {
+      const r = resourceFromTokens(args),
+        inv = inventoryFor(s, c),
+        cap =
+          target?.type === 'city' && target.id !== c.id
+            ? s.cities.find((city) => city.id === target.id && city.factionId === PLAYER)
+            : capital(s);
+      if (!cap || cap.id === c.id)
+        return output(false, 'Scegli una provincia e una città di destinazione diversa.');
+      if (inv[r] < 100)
+        return output(false, 'Il convoglio richiede cento unità della risorsa indicata.');
+      inv[r] -= 100;
+      const send = emptyInventory();
+      send[r] = 100;
+      makeCaravan(s, 'tax', c, { type: 'city', id: cap.id, x: cap.x, y: cap.y }, send);
+      return output(true, 'Cento unità partono fisicamente verso la città indicata.');
+    }
+    if (['V_09', 'V_10', 'V_12'].includes(verb)) {
+      const kind: BuildingKind = verb === 'V_09' ? 'farm' : verb === 'V_10' ? 'pen' : 'foundry',
+        spec = BUILDING_SPECS[kind],
+        inv = inventoryFor(s, c);
+      if (!canPay(inv, spec.cost)) return output(false, `Mancano i materiali per ${spec.label}.`);
+      const resourceNodes = s.entities.filter(
+        (e) =>
+          Math.floor(e.x / 100) === c.sectorX &&
+          Math.floor(e.y / 100) === c.sectorY &&
+          (kind === 'foundry'
+            ? e.kind === 'ore'
+            : kind === 'pen'
+              ? e.kind === 'deer'
+              : e.kind === 'berries' || e.kind === 'seedling'),
+      );
+      if (!resourceNodes.length)
+        return output(false, 'Il settore non offre risorse naturali per questo impianto.');
+      pay(inv, spec.cost);
+      const b: Building = {
+        id: nextId(s, 'building'),
+        kind,
+        x: c.x + 6,
+        y: c.y + 6,
+        hp: spec.maxHp,
+        active: true,
+        completed: true,
+        cityId: c.id,
+        workerIds: [],
+        livestock: kind === 'pen' ? 1 : undefined,
+      };
+      s.buildings.push(b);
+      c.buildingIds.push(b.id);
+      allocateCityWorkers(s, c);
+      return output(true, `${spec.label} entra nei distretti della città.`);
+    }
+    if (verb === 'V_05' && args.includes('O_09')) {
+      allocateCityWorkers(s, c);
+      return output(true, 'La casta sapiente presidia la memoria scritta della città.');
+    }
+  }
+  return { handled: false, valid: true };
+}
+
+function completeCaravan(s: GameState, c: Caravan) {
+  const destination = c.toCityId ? s.cities.find((city) => city.id === c.toCityId) : undefined;
+  const from = s.cities.find((city) => city.id === c.fromCityId);
+  if (c.kind === 'colonists') {
+    if (
+      s.cities.some(
+        (city) => city.sectorX === Math.floor(c.x / 100) && city.sectorY === Math.floor(c.y / 100),
+      )
+    ) {
+      if (from) {
+        from.cohorts.workers += c.population;
+        for (const r of RESOURCES) inventoryFor(s, from)[r] += c.resources[r];
+      }
+      c.arrived = true;
+      return;
+    }
+    const city: City = {
+      id: nextId(s, 'city'),
+      name: `Colonia ${ownCities(s).length + 1}`,
+      x: c.x,
+      y: c.y,
+      sectorX: Math.floor(c.x / 100),
+      sectorY: Math.floor(c.y / 100),
+      factionId: PLAYER,
+      cohorts: { workers: c.population, warriors: 0, sages: 0, slaves: 0 },
+      resources: c.resources,
+      words: c.words ?? known(s),
+      dogmas: c.dogmas ?? copy(s.dogmas),
+      revoltTension: 0,
+      housing: c.population,
+      buildingIds: [],
+      vocations: [],
+      loyalty: 100,
+      assimilation: { delegateCount: 0, active: false },
+      production: emptyInventory(),
+      garrisonHp: 0,
+      foundedAt: s.time,
+    };
+    s.cities.push(city);
+    const sector = s.sectors.find((z) => z.x === city.sectorX && z.y === city.sectorY);
+    if (sector) sector.cityId = city.id;
+    log(s, `${city.name} è fondata: la lingua della capitale vive in un altro luogo.`, 'good');
+    c.arrived = true;
+    return;
+  }
+  if (c.kind === 'delegate') {
+    if (destination && destination.factionId === PLAYER) {
+      destination.assimilation.active = true;
+      destination.assimilation.delegateCount += c.delegateCount ?? 1;
+      destination.cohorts.sages += c.population;
+    }
+    c.arrived = true;
+    return;
+  }
+  if (c.kind === 'tax') {
+    if (destination && destination.factionId === PLAYER) {
+      const inv = inventoryFor(s, destination);
+      for (const r of RESOURCES) inv[r] += c.resources[r] * (1 - (c.corruption ?? 0));
+      log(s, 'Una carovana fiscale raggiunge la capitale.', 'good');
+    }
+    c.arrived = true;
+    return;
+  }
+  if (c.kind === 'trade') {
+    if (c.returning) {
+      const inv = inventoryFor(s, from);
+      for (const r of RESOURCES) inv[r] += c.resources[r];
+      c.arrived = true;
+      return;
+    }
+    if (!destination) {
+      c.arrived = true;
+      return;
+    }
+    const faction = s.factions.find((f) => f.id === destination.factionId),
+      received = emptyInventory(),
+      offered = c.sourceResource ?? 'food',
+      foreign = destination.resources;
+    if (c.gift) {
+      for (const r of RESOURCES) foreign[r] += c.resources[r];
+      c.resources = emptyInventory();
+      c.arrived = true;
+      if (faction) {
+        faction.relation = clamp(faction.relation + 10, -100, 100);
+        faction.peaceUntil = Math.max(faction.peaceUntil ?? 0, s.time + 90);
+      }
+      witnessExchange(s, destination, 'ENV_FIRST_GIFT');
+      contactKnowledge(s, destination.words);
+      log(
+        s,
+        'Il dono raggiunge un altro popolo. Portare ciò che è mio può diventare uno scambio.',
+        'discovery',
+      );
+      return;
+    }
+    if (offered === 'coin') {
+      const buy = foreign.ingot > 0 ? 'ingot' : 'food',
+        price = buy === 'ingot' ? 100 : 1;
+      let quantity = Math.min(foreign[buy], Math.floor(c.resources.coin / price));
+      const trade = getDogmaEffects(s, { againstForeign: true }).trade;
+      // Hospitality doubles monetary yield, not physical goods created from nothing.
+      quantity = Math.min(foreign[buy], quantity);
+      foreign[buy] -= quantity;
+      received[buy] = quantity;
+      foreign.coin += c.resources.coin;
+      const bonus = Math.min(foreign.coin, c.resources.coin * Math.max(0, trade - 1));
+      foreign.coin -= bonus;
+      received.coin += bonus;
+    } else {
+      const source = inventoryFor(s, from),
+        choices = (['food', 'stone', 'wood', 'ingot'] as Resource[])
+          .filter((r) => r !== offered && foreign[r] > 0)
+          .sort((a, b) => source[a] - source[b]),
+        buy = choices[0];
+      if (buy) {
+        const amount = Math.min(c.resources[offered], foreign[buy]);
+        foreign[buy] -= amount;
+        foreign[offered] += amount;
+        received[buy] = amount;
+        received[offered] = c.resources[offered] - amount;
+      } else received[offered] = c.resources[offered];
+    }
+    c.resources = received;
+    c.returning = true;
+    c.toCityId = from?.id;
+    c.target = {
+      type: from ? 'city' : 'point',
+      id: from?.id,
+      x: from?.x ?? s.home.x,
+      y: from?.y ?? s.home.y,
+    };
+    if (faction) {
+      faction.relation = clamp(faction.relation + 10, -100, 100);
+      faction.lastTradeAt = s.time;
+      faction.intelligibility = getIntelligibility(s, faction.words);
+    }
+    s.stats.trades = (s.stats.trades ?? 0) + 1;
+    witnessExchange(s, destination, 'ENV_TRADE');
+    contactKnowledge(s, destination.words);
+    log(s, 'Lo scambio è riuscito. La carovana ritorna con ciò che manca alla comunità.', 'good');
+  }
+}
+
+function loseSoldiers(s: GameState, b: Battalion, previousHp: number) {
+  const before = Math.floor((b.maxHp - previousHp) / 100),
+    after = Math.floor((b.maxHp - Math.max(0, b.hp)) / 100),
+    lost = Math.max(0, after - before);
+  // Soldiers left the resident warrior cohort at recruitment. Do not subtract them twice.
+  if (lost) {
+    if (b.factionId === PLAYER) s.stats.deaths += lost;
+    b.lastSoldierLoss = (b.lastSoldierLoss ?? 0) + lost;
+  }
+}
+function doctrineFor(s: GameState, factionId: string, homeCity?: City): GameState {
+  if (factionId === PLAYER) return s;
+  const faction = s.factions.find((f) => f.id === factionId),
+    city = homeCity ?? s.cities.find((c) => c.factionId === factionId);
+  return {
+    ...s,
+    dogmas: city?.dogmas ?? faction?.dogmas ?? [],
+    home: city ? { x: city.x, y: city.y } : s.home,
+    buildings: s.buildings.filter((b) =>
+      s.cities.some((c) => c.id === b.cityId && c.factionId === factionId),
+    ),
+    eventTimes: {},
+  };
+}
+function armyRepresentative(b: Battalion): Unit {
+  return {
+    id: b.id,
+    name: b.name,
+    x: b.x,
+    y: b.y,
+    hp: b.hp,
+    hunger: 0,
+    temp: 100,
+    age: 8,
+    strength: 7,
+    intelligence: 5,
+    action: b.action,
+    progress: 0,
+    knows: [],
+    isolation: 0,
+    caste: 'warrior',
+    factionId: b.factionId,
+    cityId: b.cityId,
+    command: ['S_08', b.action === 'conquering' ? 'V_13' : 'V_03'],
+  };
+}
+function armyEffects(s: GameState, b: Battalion) {
+  const scoped = doctrineFor(s, b.factionId),
+    unit = armyRepresentative(b),
+    inBorders = s.cities.some(
+      (c) =>
+        c.factionId === b.factionId &&
+        c.sectorX === Math.floor(b.x / 100) &&
+        c.sectorY === Math.floor(b.y / 100),
+    );
+  const effects = getDogmaEffects(scoped, {
+    unit,
+    subjectId: 'S_08',
+    targetId: 'S_08',
+    againstForeign: !inBorders,
+    inBorders,
+  });
+  // Weapons blessed by sage-founders benefit the soldiers who actually bear those arms.
+  if (b.metalWeapons && scoped.dogmas.some((d) => d.targetId === 'O_05' && d.vectorId === 'S_04'))
+    effects.morale *= 1.3;
+  return effects;
+}
+function armyMorale(s: GameState, b: Battalion) {
+  const fx = armyEffects(s, b);
+  return b.morale * fx.combat * fx.morale * (b.factionId === PLAYER && s.cohesion < 30 ? 0.7 : 1);
+}
+function damageGarrison(s: GameState, city: City, damage: number) {
+  const previous = city.garrisonHp ?? 0;
+  city.garrisonHp = Math.max(0, previous - damage);
+  const lost = Math.max(0, Math.ceil(previous / 100) - Math.ceil(city.garrisonHp / 100));
+  const represented = s.units
+    .filter((u) => u.hp > 0 && u.cityId === city.id && (u.caste === 'warrior' || u.strength >= 7))
+    .slice(0, lost);
+  for (const u of represented) {
+    if (city.factionId === PLAYER) {
+      killUnit(s, u, 'V_03');
+      continue;
+    }
+    city.cohorts.warriors = Math.max(0, city.cohorts.warriors - 1);
+    u.hp = 0;
+    u.action = 'dead';
+    removeCustodian(s, u);
+    s.entities.push({
+      id: nextId(s, 'corpse'),
+      kind: 'corpse',
+      x: u.x,
+      y: u.y,
+      amount: 1,
+      hp: 0,
+      maxHp: 1,
+    });
+  }
+  const unrepresented = lost - represented.length;
+  city.cohorts.warriors = Math.max(0, city.cohorts.warriors - unrepresented);
+  if (city.factionId === PLAYER) s.stats.deaths += unrepresented;
+}
+function attackCity(s: GameState, b: Battalion, city: City, dt: number) {
+  if (distance(b, city) > 3) {
+    moveTo(b, city, b.cavalry ? 8 : 4, dt);
+    return;
+  }
+  const effect = armyEffects(s, b),
+    defenderState = doctrineFor(s, city.factionId, city),
+    defender = armyRepresentative({
+      ...b,
+      id: city.id,
+      x: city.x,
+      y: city.y,
+      cityId: city.id,
+      factionId: city.factionId,
+    }),
+    defense = getDogmaEffects(defenderState, {
+      unit: defender,
+      subjectId: 'S_08',
+      targetId: 'S_08',
+      inBorders: true,
+    }),
+    walls = cityBuildings(s, city).find((z) => z.kind === 'walls' && z.hp > 0);
+  b.attackProgress = (b.attackProgress ?? 0) + dt;
+  if (b.attackProgress < 1) return;
+  b.attackProgress -= 1;
+  if (walls) {
+    const damage = b.catapult
+      ? 200
+      : effectiveDamage(
+          (b.metalWeapons ? 40 : 15) + (b.cavalry ? 20 : 0),
+          IMPERIAL_ASSUMPTIONS.militaryStrength,
+          armyMorale(s, b),
+          0,
+          0.8,
+        ) * Math.ceil(b.hp / 100);
+    walls.hp = Math.max(0, walls.hp - damage);
+    if (walls.hp <= 0) log(s, `Le mura di ${city.name} sono cadute.`, 'warning');
+  } else if ((city.garrisonHp ?? 0) > 0) {
+    if (!defense.protected && !protectedByDogma(defenderState, 'S_08', defender)) {
+      const dmg =
+        effectiveDamage(
+          (b.metalWeapons ? 40 : 15) + (b.cavalry ? 20 : 0),
+          7,
+          armyMorale(s, b),
+          city.resources.metalArms > 0 ? 0.5 : 0,
+          0,
+        ) * Math.ceil(b.hp / 100);
+      damageGarrison(s, city, dmg);
+    }
+  } else if (b.action === 'conquering') {
+    b.occupation += 1;
+    city.occupation = b.occupation;
+    if (b.occupation >= 30) {
+      const old = city.factionId;
+      city.factionId = b.factionId;
+      city.revoltTension = getDogmaEffects(s).trade >= 2 ? 25 : 50;
+      city.loyalty = 50;
+      city.assimilation = { delegateCount: 0, active: false };
+      b.action = 'idle';
+      b.occupation = 0;
+      city.occupation = 0;
+      if (b.factionId === PLAYER) {
+        s.stats.conquests = (s.stats.conquests ?? 0) + 1;
+        s.cohesion = clamp(s.cohesion + effect.conquestCohesion);
+      }
+      const faction = s.factions.find((f) => f.id === old);
+      if (faction) faction.subjugated = !s.cities.some((c) => c.factionId === old);
+      log(
+        s,
+        `${city.name} è annessa. La sua lingua e i suoi dogmi sopravvivono alla conquista.`,
+        'good',
+      );
+    }
+  } else {
+    removePopulation(city, 1);
+    if (cityPopulation(city) <= 0) {
+      city.factionId = 'ruins';
+      b.action = 'idle';
+      log(s, `${city.name} è stata distrutta.`, 'danger');
+    }
+  }
+  if (
+    (city.garrisonHp ?? 0) > 0 &&
+    !effect.protected &&
+    !protectedByDogma(doctrineFor(s, b.factionId), 'S_08', armyRepresentative(b))
+  ) {
+    const previous = b.hp,
+      defenders = Math.ceil((city.garrisonHp ?? 0) / 100),
+      counter =
+        effectiveDamage(
+          city.resources.metalArms > 0 ? 40 : 5,
+          7,
+          defense.defense * defense.combat * defense.morale,
+          b.metalWeapons ? 0.5 : 0,
+          0,
+        ) * defenders;
+    b.hp = Math.max(0, b.hp - counter);
+    loseSoldiers(s, b, previous);
+  }
+}
+function battleArmies(s: GameState, dt: number) {
+  for (const b of s.battalions.filter((z) => z.hp > 0)) {
+    if (b.factionId === PLAYER && getDogmaEffects(s).nightTaboo && phase(s).night) {
+      b.action = 'moving';
+      b.tx = s.home.x;
+      b.ty = s.home.y;
+    }
+    if (b.action === 'moving') {
+      moveTo(b, { x: b.tx ?? b.x, y: b.ty ?? b.y }, b.cavalry ? 8 : 4, dt);
+      if (distance(b, { x: b.tx ?? b.x, y: b.ty ?? b.y }) < 0.01) b.action = 'idle';
+    }
+    if (['conquering', 'attacking'].includes(b.action)) {
+      const city = s.cities.find((c) => c.id === b.targetId);
+      if (city && city.factionId !== b.factionId) attackCity(s, b, city, dt);
+      else b.action = 'idle';
+    }
+    const enemy = s.battalions.find(
+      (other) => other.hp > 0 && other.factionId !== b.factionId && distance(b, other) <= 3,
+    );
+    if (enemy) {
+      const previous = enemy.hp,
+        enemyState = doctrineFor(s, enemy.factionId),
+        defense = armyEffects(s, enemy);
+      if (!defense.protected && !protectedByDogma(enemyState, 'S_08', armyRepresentative(enemy))) {
+        enemy.hp = Math.max(
+          0,
+          enemy.hp -
+            effectiveDamage(
+              (b.metalWeapons ? 40 : 15) + (b.cavalry ? 20 : 0),
+              7,
+              armyMorale(s, b),
+              enemy.metalWeapons ? 0.5 : 0,
+            ) *
+              Math.ceil(b.hp / 100) *
+              dt,
+        );
+        loseSoldiers(s, enemy, previous);
+      }
+      if (b.metalWeapons) b.metalWeapons = Math.max(0, b.metalWeapons - 0.02 * dt);
+    }
+    if (
+      b.factionId === PLAYER &&
+      b.hp <= b.maxHp * 0.2 &&
+      !s.dogmas.some((d) => d.targetId === 'V_03' && d.vectorId === 'O_06') &&
+      !s.laws.some((l) => l.sanctionId === 'O_06' && l.objectId === 'S_08')
+    ) {
+      b.action = 'moving';
+      b.tx = s.home.x;
+      b.ty = s.home.y;
+    }
+  }
+  for (const car of s.caravans.filter((c) => !c.arrived && c.hp > 0)) {
+    const enemy = s.battalions.find(
+      (b) => b.hp > 0 && b.factionId !== car.factionId && distance(b, car) < 4,
+    );
+    if (enemy) car.hp = Math.max(0, car.hp - 40 * dt);
+  }
+  for (const car of s.caravans.filter((c) => !c.arrived && c.hp <= 0)) {
+    car.arrived = true;
+    log(
+      s,
+      'Una carovana è stata intercettata. Il suo carico non raggiungerà la destinazione.',
+      'danger',
+    );
+  }
+}
+
+export function updateImperial(s: GameState, dt: number) {
+  bindCapital(s);
+  condenseCities(s);
+  const effects = getDogmaEffects(s),
+    slaves = s.urbanized
+      ? ownCities(s).reduce((n, c) => n + c.cohorts.slaves, 0)
+      : activeUnits(s).filter((u) => u.caste === 'slave').length;
+  s.revoltTension = clamp(s.revoltTension + ((slaves * 0.5) / 60) * dt * effects.slaveRevolt);
+  if (hasWord(s, 'M_04'))
+    s.inequality = clamp(s.inequality + (Math.max(0, effects.inequality - 1) * dt) / 60);
+  for (const c of ownCities(s))
+    c.revoltTension = clamp(
+      c.revoltTension + ((c.cohorts.slaves * 0.5) / 60) * dt * effects.slaveRevolt,
+    );
+  for (const car of s.caravans.filter((c) => !c.arrived && c.hp > 0)) {
+    if (moveTo(car, car.target, hasWord(s, 'O_13') ? 6 : 4, dt)) completeCaravan(s, car);
+  }
+  battleArmies(s, dt);
+  for (const f of s.factions) {
+    f.intelligibility = getIntelligibility(s, f.words);
+    if (f.peaceUntil && f.peaceUntil > s.time) f.hostile = false;
+  }
+  if (s.revoltTension >= 100 && !s.eventTimes.rebellion) {
+    s.eventTimes.rebellion = s.time;
+    s.recentTrauma = { tag: 'ENV_REBELLION', time: s.time };
+    for (const u of activeUnits(s)) {
+      u.eventMemory ??= [];
+      u.eventMemory.push({ tag: 'ENV_REBELLION', time: s.time, weight: 100, wordIds: ['M_05'] });
+    }
+    log(
+      s,
+      'La tensione diventa rivolta. La casta servile insorge contro il centro della comunità.',
+      'danger',
+    );
+    for (const u of s.units.filter((u) => u.caste === 'slave' && u.hp > 0)) {
+      u.factionId = 'rebels';
+      u.action = 'hunting';
+      u.tx = s.home.x;
+      u.ty = s.home.y;
+    }
+  }
+  for (const c of ownCities(s)) {
+    if (c.revoltTension >= 100 && !c.rebelling) {
+      c.rebelling = true;
+      c.factionId = 'rebels';
+      log(s, `${c.name} si ribella all’Impero.`, 'danger');
+    }
+  }
+  if (s.urbanized && !ownCities(s).length)
+    s.gameOver = 'Tutte le città sono state perdute. L’Impero non ha più una casa.';
+  evaluateVictory(s, false);
+}
+
+function produceCity(s: GameState, c: City, spentCycles = 0) {
+  const inv = inventoryFor(s, c),
+    effects =
+      c.factionId === PLAYER ? getDogmaEffects(s) : getDogmaEffects({ ...s, dogmas: c.dogmas }),
+    buildings = cityBuildings(s, c),
+    season = phase(s).season;
+  allocateCityWorkers(s, c);
+  c.production = emptyInventory();
+  const vocation = c.vocations.flatMap((v) => v.tokens),
+    workshop = buildings.some(
+      (b) => b.kind === 'workshop' && b.active && (b.lastEfficiency ?? 0) > 0,
+    )
+      ? 3
+      : 1,
+    republic = c.factionId === PLAYER && s.government === 'republic' ? 1.25 : 1;
+  for (const b of buildings.filter((z) => z.active)) {
+    const efficiency = b.lastEfficiency ?? 0,
+      base = efficiency * effects.production * republic;
+    if (b.kind === 'farm' && season === 2) {
+      const drought = s.disasters.drought && workshop === 1 ? 0.5 : 1;
+      addCityResource(
+        s,
+        c,
+        'food',
+        50 *
+          base *
+          effects.agriculture *
+          workshop *
+          (vocation.includes('V_09') ? 1.5 : 1) *
+          drought,
+      );
+    }
+    if (b.kind === 'pen' && (b.livestock ?? 0) > 0) {
+      addCityResource(s, c, 'meat', 20 * base * effects.herding);
+      addCityResource(s, c, 'pelt', 5 * base * effects.herding);
+    }
+    if (b.kind === 'foundry' && efficiency > 0) {
+      const output = Math.min(
+        inv.ore,
+        inv.wood / 2,
+        (90 / 5) * base * (vocation.includes('V_12') ? 1.5 : 1),
+      );
+      if (output > 0) {
+        inv.ore -= output;
+        inv.wood -= output * 2;
+        addCityResource(s, c, 'ingot', output);
+      }
+    }
+    if (b.kind === 'market' && efficiency > 0) {
+      for (const r of RESOURCES.filter((k) => RESOURCE_SPECS[k].category !== 'currency')) {
+        const limit = cityCapacity(s, c, r) * 0.8;
+        if (inv[r] > limit) {
+          const excess = (inv[r] - limit) * Math.min(1, efficiency),
+            revenue = excess * (vocation.includes('V_11') ? 1.35 : 1) * effects.trade;
+          inv[r] -= excess;
+          inv.coin += revenue;
+          c.production.coin += revenue;
+        }
+      }
+    }
+    if (b.kind === 'temple' && c.factionId === PLAYER)
+      s.attention = Math.min(effects.attentionCap, s.attention + 20 * efficiency);
+    if (b.kind === 'archive' && efficiency > 0 && c.factionId === PLAYER)
+      for (const m of Object.values(s.words))
+        m.support = Math.max(m.support ?? 0, efficiency >= 1 ? 1 : efficiency);
+    if (b.kind === 'school' && efficiency > 0) {
+      for (const u of activeUnits(s).filter((u) => u.cityId === c.id && u.age < 4))
+        u.intelligence = Math.min(10, (u.initialIntelligence ?? u.intelligence) + 2 * efficiency);
+    }
+  }
+  // Unassigned workers use the same 2-second extraction cycle as village labour.
+  const occupied = buildings.reduce(
+      (n, b) => n + BUILDING_SPECS[b.kind].workers * (b.lastEfficiency ?? 0),
+      0,
+    ),
+    free = Math.max(0, c.cohorts.workers + c.cohorts.slaves - occupied),
+    nodes = s.entities.filter(
+      (e) =>
+        Math.floor(e.x / 100) === c.sectorX &&
+        Math.floor(e.y / 100) === c.sectorY &&
+        ['tree', 'stone', 'ore'].includes(e.kind) &&
+        e.amount > 0,
+    );
+  let cycles = Math.max(0, (free * 90) / IMPERIAL_ASSUMPTIONS.extractionCycleSeconds - spentCycles);
+  for (const node of nodes) {
+    const r: Resource = node.kind === 'tree' ? 'wood' : node.kind === 'ore' ? 'ore' : 'stone',
+      available = Math.min(node.amount, cycles),
+      produced = addCityResource(s, c, r, available * effects.production * workshop);
+    node.amount -= Math.min(node.amount, produced);
+    cycles -= produced;
+    const faction = s.factions.find((f) => f.id === c.factionId);
+    if (faction && produced > 0) {
+      if (node.kind === 'tree') foreignEvent(s, faction, 'ENV_TREE_NODE', 50, ['O_03']);
+      if (node.kind === 'stone') foreignEvent(s, faction, 'ENV_ROCK_NODE', 50, ['O_02']);
+      for (let i = 0; i < Math.floor(produced); i++)
+        foreignEvent(
+          s,
+          faction,
+          'ENV_CRAFT',
+          20,
+          node.kind === 'stone' ? ['V_06'] : node.kind === 'tree' ? ['V_08', 'V_05'] : ['V_12'],
+          true,
+        );
+    }
+    if (cycles <= 0) break;
+  }
+  if (c.factionId === PLAYER && vocation.includes('O_09'))
+    s.attention = Math.min(effects.attentionCap, s.attention + 30);
+}
+
+function cityNutritionAndBirths(s: GameState, c: City) {
+  const population = cityPopulation(c),
+    represented = activeUnits(s).filter((u) => u.cityId === c.id).length,
+    unrepresented = Math.max(0, population - represented),
+    inv = inventoryFor(s, c);
+  const fullNeed = unrepresented * 90 * 0.8,
+    foraged = c.seasonFoodConsumed ?? 0,
+    needed = Math.max(0, fullNeed - foraged),
+    provided = consumeNutrition(inv, needed);
+  c.seasonFoodConsumed = provided + foraged;
+  if (needed > provided && unrepresented > 0) {
+    const hungerMissing = (needed - provided) / unrepresented,
+      deaths = Math.min(
+        unrepresented,
+        Math.floor((Math.max(0, hungerMissing - 20) / 100) * unrepresented),
+      );
+    if (deaths) {
+      removePopulation(c, deaths);
+      s.stats.deaths += deaths;
+      if (c.factionId === PLAYER) s.cohesion = clamp(s.cohesion - 18);
+    }
+  }
+  const effects =
+      c.factionId === PLAYER ? getDogmaEffects(s) : getDogmaEffects({ ...s, dogmas: c.dogmas }),
+    hut = cityHas(s, c, 'hut') ? SPEC_ASSUMPTIONS.hutBirthBonus : 0;
+  const fertile =
+    activeUnits(s).filter(
+      (u) =>
+        u.cityId === c.id &&
+        u.age >= 4 &&
+        u.age < 14 &&
+        u.hunger <= 50 &&
+        !(effects.celibateSages && u.intelligence >= 7),
+    ).length + unrepresented;
+  if ((needed - provided) / Math.max(1, unrepresented) > 50) return;
+  const chance =
+    birthProbability(cityPopulation(c), c.housing, hut, effects.birthAdd) * effects.growth;
+  let births = 0;
+  for (
+    let pair = 0;
+    pair < Math.floor(fertile / 2) && cityPopulation(c) + births < c.housing;
+    pair++
+  )
+    if (random(s) < chance) births++;
+  c.cohorts.workers += births;
+  if (c.factionId === PLAYER) s.stats.births += births;
+}
+
+function payArmyUpkeep(s: GameState) {
+  for (const b of s.battalions.filter((z) => z.hp > 0)) {
+    const c = s.cities.find((city) => city.id === b.cityId),
+      inv = c ? inventoryFor(s, c) : s.resources,
+      coinInventory = b.factionId === PLAYER ? s.resources : inv,
+      coinKnown =
+        b.factionId === PLAYER
+          ? hasWord(s, 'O_12')
+          : (s.factions.find((f) => f.id === b.factionId)?.words.includes('O_12') ?? false),
+      internal = s.cities.some(
+        (city) =>
+          city.factionId === b.factionId &&
+          city.sectorX === Math.floor(b.x / 100) &&
+          city.sectorY === Math.floor(b.y / 100),
+      ),
+      factor = internal ? armyEffects(s, b).upkeep : 1,
+      food = (coinKnown ? 20 : 30) * factor;
+    const feudal =
+        b.factionId === PLAYER &&
+        s.laws.some((l) => l.verbId === 'V_13' && l.sanctionId === 'M_04') &&
+        ['attacking', 'conquering'].includes(b.action),
+      coin = coinKnown && !feudal ? 10 * factor : 0;
+    if (foodCost(inv, food) && coinInventory.coin >= coin) {
+      takeFood(inv, food);
+      coinInventory.coin -= coin;
+    } else {
+      const previous = b.hp;
+      b.morale = Math.max(0, b.morale * 0.7);
+      b.hp = Math.max(0, b.hp - 250);
+      loseSoldiers(s, b, previous);
+      if (b.factionId === PLAYER)
+        log(
+          s,
+          'Un battaglione non riceve il mantenimento: perde morale e duecentocinquanta salute.',
+          'warning',
+        );
+    }
+  }
+}
+
+function taxCities(s: GameState) {
+  const cap = capital(s);
+  if (!cap) return;
+  const taxes = s.laws.filter((l) => l.verbId === 'V_04' && l.objectId === 'O_11');
+  if (!taxes.length) return;
+  for (const city of ownCities(s).filter((c) => c.id !== cap.id))
+    for (const law of taxes) {
+      const r = resourceFromTokens([law.modifierId]),
+        inventory = inventoryFor(s, city),
+        production = city.production[r],
+        required = production * 0.25;
+      const understands = law.tokens.every((w) => city.words.includes(w)),
+        intelligibility = getIntelligibility(s, city.words) / 100;
+      if (!understands) {
+        city.revoltTension = clamp(city.revoltTension + 10);
+        log(s, `${city.name} non comprende interamente il codice tributario.`, 'warning');
+      }
+      const payable = Math.min(inventory[r], required) * (understands ? 1 : intelligibility);
+      if (payable > 0) {
+        inventory[r] -= payable;
+        const load = emptyInventory();
+        load[r] = payable;
+        const car = makeCaravan(
+          s,
+          'tax',
+          city,
+          { type: 'city', id: cap.id, x: cap.x, y: cap.y },
+          load,
+        );
+        const d = Math.abs(city.sectorX - cap.sectorX) + Math.abs(city.sectorY - cap.sectorY);
+        car.corruption =
+          corruptionRate(d, cityHas(s, city, 'court'), hasWord(s, 'O_13')) *
+          getDogmaEffects(s).corruption;
+        city.corruption = car.corruption;
+        city.lastTax = payable;
+        city.loyalty = Math.min(100, city.loyalty + 2);
+      }
+      if (payable + 1e-9 < required) {
+        city.revoltTension = clamp(city.revoltTension + 25);
+        applySanction(s, law, undefined, city);
+      }
+    }
+}
+
+function applySeasonalLaws(s: GameState) {
+  for (const law of s.laws) {
+    law.age++;
+    if (law.objectId === 'O_11' && law.verbId === 'V_04') continue;
+    if (law.prohibitive) {
+      // Crime-triggered sanctions are applied by enforceActionLaws; idle seasons are not crimes.
+      if (law.verbId === 'V_05' && law.objectId === 'M_04' && law.sanctionId === 'O_06') {
+        const poor = activeUnits(s).filter((u) => (u.wealth ?? 0) <= 0),
+          count = Math.floor(poor.length * 0.01);
+        for (const u of poor.slice(0, count)) killByLaw(s, u);
+        s.revoltTension = clamp(s.revoltTension + 5);
+      }
+      continue;
+    }
+    if (s.urbanized) {
+      for (const city of ownCities(s)) {
+        const r = resourceFromTokens([law.objectId, law.modifierId]),
+          fulfilled =
+            city.production[r] > 0 ||
+            city.vocations.some((v) => v.tokens.includes(law.verbId)) ||
+            cityBuildings(s, city).some(
+              (b) =>
+                (b.lastEfficiency ?? 0) > 0 && BUILDING_SPECS[b.kind].recipe.includes(law.verbId),
+            );
+        applySanction(s, law, undefined, city, fulfilled);
+      }
+    } else
+      for (const u of subjectUnits(s, law.subjectId)) {
+        const fulfilled = !!u.command?.includes(law.verbId) || (u.workCycles ?? 0) > 0;
+        applySanction(s, law, u, undefined, fulfilled);
+      }
+    if (law.verbId === 'V_09' && law.sanctionId === 'M_04')
+      s.revoltTension = clamp(s.revoltTension - 20);
+  }
+}
+function teachProvinces(s: GameState) {
+  for (const city of ownCities(s).filter(
+    (c) => !c.capital && c.assimilation.active && c.assimilation.delegateCount > 0,
+  )) {
+    const missing = known(s)
+      .filter((w) => !city.words.includes(w))
+      .slice(0, 2);
+    city.words.push(...missing);
+    const originalFaction = s.factions.find((f) => f.cityId === city.id);
+    if (originalFaction) {
+      originalFaction.words = [...city.words];
+      originalFaction.intelligibility = getIntelligibility(s, city.words);
+    }
+    if (
+      city.dogmas.length &&
+      !s.dogmas.some(
+        (d) => d.targetId === city.dogmas[0].targetId && d.vectorId === city.dogmas[0].vectorId,
+      )
+    )
+      city.dogmas.shift();
+    else if (city.dogmas.length < s.dogmas.length)
+      city.dogmas.push(copy(s.dogmas[city.dogmas.length]));
+    city.revoltTension = Math.max(0, city.revoltTension - missing.length * 2);
+    log(s, `${city.name} apprende ${missing.length} parole della capitale.`, 'good');
+  }
+}
+function theftAndInequality(s: GameState) {
+  if (!hasWord(s, 'M_04')) return;
+  const units = activeUnits(s),
+    avg = units.reduce((n, u) => n + (u.wealth ?? 0), 0) / Math.max(1, units.length),
+    rich = units.filter((u) => (u.wealth ?? 0) > avg).length;
+  s.inequality = clamp(s.inequality + rich * 0.5);
+  const immune =
+    getDogmaEffects(s).collectiveFood ||
+    s.laws.some(
+      (l) =>
+        l.prohibitive && l.verbId === 'V_05' && l.objectId === 'M_04' && l.sanctionId === 'O_06',
+    );
+  const court = playerHas(s, 'court') ? 0.5 : 1;
+  if (!immune && s.inequality >= 40 && random(s) < ((s.inequality - 30) / 100) * court) {
+    s.cohesion = clamp(s.cohesion - 5);
+    const thief = units.find((u) => (u.wealth ?? 0) < avg);
+    if (thief && s.resources.coin >= 1) {
+      s.resources.coin--;
+      thief.wealth = (thief.wealth ?? 0) + 1;
+    }
+    s.recentTrauma = { tag: 'ENV_THEFT', time: s.time };
+    for (const u of units) {
+      u.eventMemory ??= [];
+      u.eventMemory.push({ tag: 'ENV_THEFT', time: s.time, weight: 20, wordIds: ['C_03'] });
+    }
+    log(s, 'Un furto divide la comunità. La coesione perde cinque punti.', 'warning');
+  }
+}
+function foreignEvent(
+  s: GameState,
+  f: Faction,
+  tag: string,
+  weight: number,
+  wordIds: string[],
+  craft = false,
+) {
+  f.eventMemory ??= [];
+  f.tension ??= {};
+  f.craftCycles ??= {};
+  f.eventMemory.push({ tag, time: s.time, weight: craft ? 0 : weight, wordIds });
+  f.eventMemory = f.eventMemory.filter((e) => s.time - e.time <= 60);
+  if (craft)
+    for (const word of wordIds) {
+      f.craftCycles[word] = (f.craftCycles[word] ?? 0) + 1;
+      f.tension[word] = (f.tension[word] ?? 0) + 20;
+    }
+}
+function foreignComprehension(s: GameState, f: Faction, c: City) {
+  const tension = cognitiveTension(
+    f.eventMemory ?? [],
+    IMPERIAL_ASSUMPTIONS.foreignRepresentativeIntelligence,
+    s.time,
+  );
+  for (const [id, word] of Object.entries(WORDS)) {
+    if (f.words.includes(id)) continue;
+    const recipes = [word.recipe, ...(word.alternatives ?? [])];
+    if (!recipes.some((recipe) => recipe.every((w) => f.words.includes(w)))) continue;
+    const witnessed = (f.eventMemory ?? []).some((e) => e.wordIds.includes(id));
+    if (!witnessed) continue;
+    if (tension + (f.tension?.[id] ?? 0) < 100) continue;
+    f.words.push(id);
+    if (!c.words.includes(id)) c.words.push(id);
+    if (f.tension) f.tension[id] = 0;
+    // The AI solves the same already-witnessed recipe, rather than buying technology.
+    if (id === 'S_06' && getDogmaEffects({ ...s, dogmas: f.dogmas }).slaveryForbidden)
+      f.words = f.words.filter((w) => w !== id);
+  }
+}
+/** Foreign citizens first satisfy the same food need using physical, finite local nodes. */
+function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
+  const inv = c.resources,
+    nodes = s.entities.filter(
+      (e) => Math.floor(e.x / 100) === c.sectorX && Math.floor(e.y / 100) === c.sectorY,
+    ),
+    season = phase(s).season;
+  c.seasonFoodConsumed = 0;
+  const population = cityPopulation(c),
+    storedNutrition = FOOD.reduce((n, r) => n + inv[r] * RESOURCE_SPECS[r].nutrition, 0);
+  let needed = Math.max(0, population * 90 * 0.8 - storedNutrition),
+    cycles =
+      ((c.cohorts.workers + c.cohorts.slaves) * 90) / IMPERIAL_ASSUMPTIONS.extractionCycleSeconds;
+  for (const node of nodes.filter((e) => e.kind === 'berries' && e.amount > 0 && season !== 3)) {
+    if (needed <= 0 || cycles <= 0) break;
+    const amount = Math.min(node.amount, Math.ceil(needed / 25), cycles);
+    node.amount -= amount;
+    needed = Math.max(0, needed - amount * 25);
+    c.seasonFoodConsumed += amount * 25;
+    cycles -= amount;
+    for (let i = 0; i < Math.ceil(amount); i++) foreignEvent(s, f, 'ENV_CRAFT', 20, ['V_04'], true);
+    if (f.words.includes('V_04'))
+      for (let i = 0; i < Math.floor(amount); i++) if (random(s) < 0.1) inv.seed++;
+  }
+  for (const prey of nodes.filter((e) => e.kind === 'deer' && e.hp > 0 && !e.domesticated)) {
+    if (needed <= 0 || cycles <= 0) break;
+    // All initial tribes know Colpire: the real herd loses the killed animal.
+    const requiredAttacks = Math.ceil(prey.hp / effectiveDamage(inv.spear >= 1 ? 15 : 5, 5));
+    if (cycles < requiredAttacks) break;
+    cycles -= requiredAttacks;
+    prey.hp = 0;
+    const amount = Math.min(prey.amount, Math.ceil(needed / 40));
+    prey.amount -= amount;
+    needed = Math.max(0, needed - amount * 40);
+    c.seasonFoodConsumed += amount * 40;
+    if (inv.spear >= 1) inv.spear = Math.max(0, inv.spear - 0.05);
+    if (f.words.includes('V_06')) inv.pelt++;
+    for (let i = 0; i < Math.ceil(amount); i++) foreignEvent(s, f, 'ENV_CRAFT', 20, ['O_04'], true);
+  }
+  if (needed > 0) foreignEvent(s, f, 'ENV_STARVATION', 15, ['M_02']);
+  // Seasonal workers actually travel for food; a nocturnal trip is witnessed, once per night.
+  if (c.seasonFoodConsumed > 0) foreignEvent(s, f, 'ENV_NIGHTFALL', 25, ['C_01']);
+  if (s.nightCount >= 3) foreignEvent(s, f, 'ENV_SLEEP_CLUSTER', 100, ['O_01']);
+  if (season === 0 && inv.seed > 0) foreignEvent(s, f, 'ENV_SEED_SPROUT', 60, ['V_09']);
+  const make = (kind: BuildingKind) => {
+    const spec = BUILDING_SPECS[kind];
+    if (cityBuildings(s, c).some((b) => b.kind === kind) || !canPay(inv, spec.cost)) return false;
+    const animal =
+      kind === 'pen'
+        ? nodes.find((e) => e.kind === 'deer' && e.hp > 0 && !e.domesticated)
+        : undefined;
+    pay(inv, spec.cost);
+    const b: Building = {
+      id: nextId(s, 'foreign-building'),
+      kind,
+      x: c.x + 5,
+      y: c.y + 5,
+      hp: spec.maxHp,
+      active: true,
+      completed: true,
+      workerIds: [],
+      cityId: c.id,
+      livestock: kind === 'pen' ? (animal ? 1 : 0) : undefined,
+    };
+    if (animal) {
+      animal.domesticated = true;
+      animal.x = b.x;
+      animal.y = b.y;
+      foreignEvent(s, f, 'ENV_CRAFT', 20, ['V_10'], true);
+    }
+    s.buildings.push(b);
+    c.buildingIds.push(b.id);
+    c.housing += spec.housing ?? 0;
+    return true;
+  };
+  if (f.words.includes('V_05')) {
+    make('storage');
+    make('depot');
+  }
+  if (f.words.includes('O_05')) make('campfire');
+  if (f.words.includes('V_09')) make('farm');
+  if (f.words.includes('V_10')) make('pen');
+  if (f.words.includes('V_12')) make('foundry');
+  if (f.words.includes('O_09')) make('archive');
+  if (f.words.includes('S_07')) make('palace');
+  if (f.words.includes('O_14')) make('court');
+  if (f.words.includes('V_14')) make('school');
+  if (f.words.includes('V_06') && inv.stone >= 1) {
+    inv.stone--;
+    inv.tool++;
+    foreignEvent(s, f, 'ENV_CRAFT', 20, ['O_05'], true);
+  }
+  if (cityHas(s, c, 'campfire') && inv.wood >= 10 && nodes.some((e) => e.kind === 'ore'))
+    foreignEvent(s, f, 'ENV_HIGH_HEAT', 50, ['O_07']);
+  if (f.words.includes('O_05') && inv.meat >= 1 && inv.wood >= 1) {
+    inv.meat--;
+    inv.wood--;
+    inv.cooked++;
+    foreignEvent(s, f, 'ENV_CRAFT', 20, ['V_07'], true);
+  }
+  if (f.words.includes('O_12') && inv.ingot >= 1) {
+    inv.ingot--;
+    inv.coin += 100;
+    foreignEvent(s, f, 'ENV_CRAFT', 20, ['O_08'], true);
+  }
+  foreignComprehension(s, f, c);
+  return (
+    ((c.cohorts.workers + c.cohorts.slaves) * 90) / IMPERIAL_ASSUMPTIONS.extractionCycleSeconds -
+    cycles
+  );
+}
+function foreignAI(s: GameState) {
+  for (const faction of s.factions) {
+    const city = s.cities.find((c) => c.id === faction.cityId);
+    if (!city || city.factionId === PLAYER) continue;
+    city.words = [...new Set([...city.words, ...faction.words])];
+    // Foreign societies obey the same inventories and construction costs; no free armies.
+    if (
+      faction.hostile &&
+      city.cohorts.warriors >= 20 &&
+      city.resources.metalArms >= 20 &&
+      !s.battalions.some((b) => b.factionId === faction.id && b.hp > 0)
+    ) {
+      const target = capital(s);
+      if (!target) continue;
+      city.cohorts.warriors -= 20;
+      city.resources.metalArms -= 20;
+      s.battalions.push({
+        id: nextId(s, 'foreign-army'),
+        name: `Guerrieri di ${faction.name}`,
+        x: city.x,
+        y: city.y,
+        cityId: city.id,
+        factionId: faction.id,
+        hp: 2000,
+        maxHp: 2000,
+        morale: 1,
+        action: 'conquering',
+        targetId: target.id,
+        target: { type: 'city', id: target.id, x: target.x, y: target.y },
+        catapult: false,
+        occupation: 0,
+        metalWeapons: 20,
+      });
+    }
+    faction.intelligibility = getIntelligibility(s, faction.words);
+  }
+}
+
+function maintainForeignCity(s: GameState, c: City) {
+  const effects = getDogmaEffects(doctrineFor(s, c.factionId, c)),
+    season = phase(s).season;
+  for (const b of cityBuildings(s, c)) {
+    const spec = BUILDING_SPECS[b.kind];
+    if (spec.upkeepSeason !== undefined && spec.upkeepSeason !== season) continue;
+    const cost = Object.fromEntries(
+      Object.entries(spec.upkeep).map(([r, n]) => [r, n * effects.upkeep]),
+    ) as Partial<Inventory>;
+    if (canPay(c.resources, cost)) {
+      pay(c.resources, cost);
+      b.active = true;
+    } else {
+      b.active = false;
+      b.hp = Math.max(0, b.hp - spec.maxHp * 0.2);
+    }
+  }
+}
+export function seasonalImperial(s: GameState) {
+  bindCapital(s);
+  condenseCities(s);
+  for (const city of s.cities.filter((c) => c.factionId !== 'ruins')) {
+    city.seasonFoodConsumed = 0;
+    if (city.factionId !== PLAYER) maintainForeignCity(s, city);
+    const faction = s.factions.find((f) => f.id === city.factionId),
+      spentCycles =
+        faction && city.factionId !== PLAYER ? prepareForeignEconomy(s, city, faction) : 0;
+    produceCity(s, city, spentCycles);
+    cityNutritionAndBirths(s, city);
+    if (faction) foreignComprehension(s, faction, city);
+    const inv = inventoryFor(s, city),
+      summer = phase(s).season === 1;
+    // Core handles the capital and village stores; provinces have independent food stocks.
+    if (!city.capital) {
+      for (const r of RESOURCES) {
+        const base = RESOURCE_SPECS[r].spoil;
+        if (base > 0) {
+          const rate = resourceSpoilage(base, summer, cityHas(s, city, 'storage'), inv.pottery > 0);
+          inv[r] *= 1 - rate;
+        }
+      }
+    }
+  }
+  for (const d of s.dogmas.filter((d) => d.reforming)) {
+    const school = s.buildings.find(
+      (b) =>
+        b.kind === 'school' &&
+        b.active &&
+        b.hp > 0 &&
+        (!b.cityId || ownCities(s).some((c) => c.id === b.cityId)) &&
+        (b.cityId ? (b.lastEfficiency ?? 0) > 0 : (b.workerIds?.length ?? 0) > 0),
+    );
+    if (school) {
+      d.weight = Math.max(0, d.weight - 15);
+      s.philosophy = true;
+      if (d.weight === 0) s.eventTimes[`reformed:${d.id}`] = 1;
+    }
+  }
+  for (const faction of s.factions) {
+    const city = s.cities.find((c) => c.id === faction.cityId);
+    if (city && city.factionId === PLAYER) faction.subjugated = true;
+  }
+  teachProvinces(s);
+  applySeasonalLaws(s);
+  taxCities(s);
+  payArmyUpkeep(s);
+  theftAndInequality(s);
+  foreignAI(s);
+  if (
+    hasWord(s, 'O_12') &&
+    activeUnits(s).some((u) => u.action === 'saving' && u.command?.includes('O_12'))
+  )
+    s.resources.coin *= 1.05;
+  s.corruption = ownCities(s).length
+    ? ownCities(s).reduce((n, c) => n + (c.corruption ?? 0), 0) / ownCities(s).length
+    : 0;
+  evaluateVictory(s, true);
+}
+
+export function evaluateVictory(s: GameState, seasonal = false) {
+  if (s.victory || s.tier < 5) return;
+  const cities = s.cities.filter((c) => c.factionId !== 'ruins'),
+    owned = ownCities(s),
+    allControlled =
+      cities.length > 0 &&
+      cities.every(
+        (c) => c.factionId === PLAYER || s.factions.find((f) => f.id === c.factionId)?.subjugated,
+      ),
+    lowTension = s.revoltTension < 30 && owned.every((c) => c.revoltTension < 30);
+  if (seasonal) {
+    if (allControlled && lowTension && s.laws.length >= 5 && playerHas(s, 'palace'))
+      s.victoryProgress.imperialSeasons++;
+    else s.victoryProgress.imperialSeasons = 0;
+  }
+  if (s.victoryProgress.imperialSeasons >= 16) {
+    s.victory = 'imperial';
+    log(s, 'Pax Universalis: sedici stagioni di dominio, leggi e pace interna.', 'discovery');
+    return;
+  }
+  const archive = s.buildings.some(
+      (b) =>
+        b.kind === 'archive' &&
+        b.active &&
+        b.hp > 0 &&
+        (!b.cityId || owned.some((c) => c.id === b.cityId && c.capital)) &&
+        (b.lastEfficiency ?? (b.workerIds?.length ?? 0) / 4) >= 1,
+    ),
+    allWords =
+      Object.keys(WORDS).length === 45 &&
+      Object.keys(WORDS).every((w) => s.words[w]?.retention === 100),
+    lingua = s.factions.every((f) => getIntelligibility(s, f.words) >= 80);
+  if (archive && allWords && lingua) {
+    s.victory = 'cultural';
+    log(
+      s,
+      'La Biblioteca Universale: quarantacinque parole, una memoria completa e una lingua condivisa.',
+      'discovery',
+    );
+    return;
+  }
+  const noSlaves =
+      activeUnits(s).every((u) => u.caste !== 'slave') &&
+      owned.every((c) => c.cohorts.slaves === 0),
+    targets = s.dogmaReformTargets ?? [],
+    reformsComplete =
+      s.philosophy &&
+      s.dogmas.length === 0 &&
+      targets.length > 0 &&
+      targets.every((id) => s.eventTimes[`reformed:${id}`] === 1);
+  if (reformsComplete && s.emancipated && noSlaves && s.cohesion >= 90) {
+    s.victory = 'philosophical';
+    log(
+      s,
+      'Il Grande Risveglio: libertà, ragione e coesione senza dogmi della paura.',
+      'discovery',
+    );
+  }
+}
