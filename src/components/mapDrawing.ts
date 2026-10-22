@@ -1206,6 +1206,10 @@ function drawBuilding(
           `rgba(119,122,104,${(1 - p) * 0.14})`,
         );
       }
+    } else {
+      // Cenere grigia fredda nel focolare spento
+      oval(ctx, x, y, 14, 7, 'rgba(48, 42, 32, 0.45)');
+      oval(ctx, x, y - 1, 9, 4, 'rgba(35, 30, 22, 0.55)');
     }
   } else if (building.kind === 'hut' || building.kind === 'house') {
     const stoneHouse = building.kind === 'house';

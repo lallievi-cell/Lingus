@@ -79,10 +79,17 @@ function targetLabel(state: GameState, target: WorldTarget | null) {
     if (!entity) return null;
     return entityTargetPresentation(state, entity)?.label ?? null;
   }
-  if (target.type === 'building')
-    return (
-      entityNames[state.buildings.find((b) => b.id === target.id)?.kind ?? ''] ?? 'Insediamento'
-    );
+  if (target.type === 'building') {
+    const building = state.buildings.find((b) => b.id === target.id);
+    if (!building) return 'Insediamento';
+    const name = entityNames[building.kind] ?? 'Insediamento';
+    if (building.kind === 'campfire') {
+      return building.active
+        ? `${name} · Acceso (riscalda e protegge la tribù)`
+        : `${name} · Spento (richiede 1 legna per riaccenderlo)`;
+    }
+    return building.active ? name : `${name} · Inattivo`;
+  }
   if (target.type === 'point' && state.home && Math.hypot(target.x - state.home.x, target.y - state.home.y) <= 10) {
     return 'Giaciglio della tribù · Luogo del riposo notturno';
   }
