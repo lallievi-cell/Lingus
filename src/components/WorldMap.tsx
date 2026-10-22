@@ -219,10 +219,16 @@ export function WorldMap({
         if (d < radius) candidates.push({ target: { type, id, x, y }, distance: d });
       };
       current.units
-        .filter((u) => u.hp > 0 && (!current.urbanized || u.isKing || u.action === 'delegating'))
+        .filter(
+          (u) =>
+            u.hp > 0 &&
+            (!current.urbanized ||
+              u.isKing ||
+              ['delegating', 'frontline', 'frontline-returning'].includes(u.action)),
+        )
         .forEach((u) => add('unit', u.id, u.x, u.y, 13, 9));
       current.entities.forEach((e) => {
-        if (e.kind === 'ore' && (current.tier < 4 || !hasConcept(current, 'O_07'))) return;
+        if (e.kind === 'ore' && !hasConcept(current, 'O_07')) return;
         if (
           e.kind === 'wolf' &&
           current.time % 90 < 60 &&
@@ -352,7 +358,13 @@ export function WorldMap({
         }
       miniCtx.fillStyle = '#61764a';
       current.units
-        .filter((u) => u.hp > 0 && !current.urbanized)
+        .filter(
+          (u) =>
+            u.hp > 0 &&
+            (!current.urbanized ||
+              u.isKing ||
+              ['delegating', 'frontline', 'frontline-returning'].includes(u.action)),
+        )
         .forEach((u) => {
           miniCtx.beginPath();
           miniCtx.arc((u.x / WORLD_SIZE) * mw, (u.y / WORLD_SIZE) * mh, 1.5, 0, Math.PI * 2);
@@ -545,7 +557,7 @@ export function WorldMap({
         <div className="lingus-world__scale" aria-hidden="true">
           <span>0</span>
           <i />
-          <span>{mapSpan} m</span>
+          <span>{hasConcept(state, 'O_08') ? `${mapSpan} m` : 'Nelle vicinanze'}</span>
         </div>
       </div>
       <button

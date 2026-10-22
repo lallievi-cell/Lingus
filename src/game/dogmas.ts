@@ -1,6 +1,20 @@
 import { BUILDING_SPECS, RESOURCE_SPECS, WORDS } from './content';
 import { dogmaWeight } from './math';
 import {
+  DOGMA_TARGETS,
+  DOGMA_VECTOR_TOKENS,
+  DOGMA_OPPOSITES,
+  dogmaFamily,
+  getDogmaPolicy,
+  getDogmaConflict,
+} from './dogmaPolicy';
+export {
+  DOGMA_POLICY_MATRIX,
+  getDogmaPolicy,
+  getDogmaConflict,
+  dogmaDiplomaticPenalty,
+} from './dogmaPolicy';
+import {
   activeUnits,
   clamp,
   copy,
@@ -14,71 +28,13 @@ import {
 } from './runtime';
 import type { Dogma, DogmaVector, GameState, MapEntity, Resource, Target, Unit } from './types';
 
-export const SACRED_TARGETS = [
-  'S_01',
-  'S_02',
-  'S_03',
-  'S_04',
-  'S_05',
-  'S_06',
-  'S_07',
-  'S_08',
-  'O_02',
-  'O_03',
-  'O_04',
-  'O_05',
-  'O_07',
-  'O_12',
-  'O_01',
-  'O_06',
-  'O_09',
-  'O_10',
-  'O_13',
-  'O_14',
-  'C_01',
-  'M_05',
-  'V_03',
-  'V_09',
-  'V_11',
-  'V_13',
-];
-export const VECTOR_TOKENS = [
-  'M_01',
-  'C_02',
-  'S_01',
-  'S_02',
-  'S_03',
-  'S_04',
-  'S_05',
-  'S_06',
-  'S_07',
-  'S_08',
-  'S_09',
-  'V_02',
-  'O_05',
-  'V_05',
-  'O_01',
-  'M_04',
-  'O_06',
-];
+export const SACRED_TARGETS: string[] = [...DOGMA_TARGETS];
+export const VECTOR_TOKENS = DOGMA_VECTOR_TOKENS;
 export function getDogmaVectors(target: string) {
-  if (!SACRED_TARGETS.includes(target)) return [];
-  return VECTOR_TOKENS.filter(
-    (vector) =>
-      !['V_02', 'O_05'].includes(vector) ||
-      target.startsWith('S_') ||
-      ['O_02', 'O_03', 'O_04', 'O_05', 'O_07', 'O_12', 'O_06'].includes(target),
-  );
+  return VECTOR_TOKENS.filter((vector) => getDogmaPolicy(target, vector)?.allowed);
 }
 export function vectorFamily(vector: string): DogmaVector {
-  if (vector === 'M_01') return 'prohibition';
-  if (vector === 'C_02') return 'veneration';
-  if (vector === 'S_01' || vector === 'M_04') return 'property';
-  if (vector.startsWith('S_')) return 'monopoly';
-  if (vector === 'V_02' || vector === 'O_05') return 'sacrifice';
-  if (vector === 'V_05') return 'protection';
-  if (vector === 'O_01') return 'sanctuary';
-  return 'martyr';
+  return dogmaFamily(vector) ?? 'martyr';
 }
 const resourceFor = (token: string): Resource | undefined =>
   token === 'O_02'
@@ -139,6 +95,7 @@ function touchesDogma(s: GameState, a: string, ctx: DogmaContext): boolean {
   const tokens = ctx.tokens ?? ctx.unit?.command ?? [];
   return (
     ctx.targetId === a ||
+    ctx.subjectId === a ||
     tokens.includes(a) ||
     inferredTarget(s, ctx) === a ||
     (a === 'O_05' && (tokens.includes('V_07') || tokens.includes('V_12'))) ||
@@ -186,6 +143,147 @@ export interface DogmaEffects {
   writingForbidden: boolean;
   moneyForbidden: boolean;
   monarchSelection: null | 'strength' | 'intelligence';
+}
+function applyOppositeBonus(s: GameState, target: string, ctx: DogmaContext, f: DogmaEffects) {
+  // Explicit historical archetypes override the generic compensation rather than stacking it.
+  if (['O_04', 'S_05', 'O_07', 'O_09', 'O_12', 'O_13', 'V_03', 'V_09'].includes(target)) return;
+  const tokens = ctx.tokens ?? ctx.unit?.command ?? [],
+    subject = ctx.subjectId ?? tokens.find((t) => t.startsWith('S_')),
+    inferred = inferredTarget(s, ctx),
+    day = !(ctx.isNight ?? s.time % 90 >= 60);
+  if (target === 'O_06') {
+    f.growth *= 1.25;
+    return;
+  }
+  if (target === 'V_11') {
+    f.agriculture *= 1.25;
+    return;
+  }
+  if (target === 'V_13') {
+    f.defense *= 1.25;
+    return;
+  }
+  if (target === 'S_08') {
+    f.trade *= 1.25;
+    return;
+  }
+  if (target === 'C_01') {
+    if (day) f.production *= 1.25;
+    return;
+  }
+  if (target === 'S_06') {
+    if ((ctx.unit && ctx.unit.caste !== 'slave') || tokens.includes('M_05')) f.production *= 1.25;
+    return;
+  }
+  if (target === 'S_07') {
+    if (s.government === 'republic' && ctx.unit && !ctx.unit.isKing) f.production *= 1.25;
+    return;
+  }
+  if (target === 'O_14') {
+    if (tokens.length && !tokens.includes('O_14') && !tokens.includes('C_03')) f.production *= 1.25;
+    return;
+  }
+  if (target === 'O_01' || target === 'O_10') {
+    const point = ctx.unit ?? ctx.target;
+    if (tokens.includes('V_01') && point && distance(point, s.home) > 35) f.movement *= 1.25;
+    return;
+  }
+  if (target === 'O_05') {
+    if (tokens.includes('V_06') && !tokens.includes('O_05') && !tokens.includes('V_12'))
+      f.production *= 1.25;
+    return;
+  }
+  const opposite = DOGMA_OPPOSITES[target]?.tokens ?? [];
+  if (target.startsWith('S_')) {
+    if (opposite.includes(subject ?? '')) f.production *= 1.25;
+  } else if (opposite.some((t) => tokens.includes(t) || inferred === t)) f.production *= 1.25;
+}
+
+/** Presence of an abstract target is a real institution or an action in the last season. */
+export function dogmaTargetPresent(s: GameState, target: string): boolean {
+  const r = resourceFor(target),
+    ownBuildings = s.buildings.filter((b) => isPlayerBuilding(s, b) && b.hp > 0);
+  if (target === 'O_04') return totalFood(s.resources) > 0;
+  if (target === 'O_07') return s.resources.ore + s.resources.ingot + s.resources.metalArms > 0;
+  if (target === 'O_05') return ownBuildings.some((b) => b.kind === 'campfire' && b.active);
+  if (r) return s.resources[r] > 0;
+  if (target === 'S_07') return !!s.kingId && activeUnits(s).some((u) => u.id === s.kingId);
+  if (target === 'S_08') return s.battalions.some((b) => b.factionId === 'player' && b.hp > 0);
+  if (target === 'S_05') {
+    const radius = hasBuilding(s, 'palace') ? 100 : 35;
+    const places = [s.home, ...s.cities.filter((c) => c.factionId === 'player')];
+    const present = (visitor: { x: number; y: number; hp: number; factionId?: string }) =>
+      visitor.hp > 0 &&
+      visitor.factionId !== undefined &&
+      visitor.factionId !== 'player' &&
+      places.some((place) => distance(place, visitor) <= radius);
+    return (
+      s.units.some(present) ||
+      s.caravans.some((c) => !c.arrived && present(c)) ||
+      s.battalions.some(present)
+    );
+  }
+  if (target.startsWith('S_')) {
+    const cities = s.cities.filter((c) => c.factionId === 'player');
+    if (
+      s.urbanized &&
+      cities.some((c) =>
+        target === 'S_03'
+          ? c.cohorts.warriors > 0
+          : target === 'S_04'
+            ? c.cohorts.sages > 0
+            : target === 'S_06'
+              ? c.cohorts.slaves > 0
+              : ['S_01', 'S_02'].includes(target) && Object.values(c.cohorts).some((n) => n > 0),
+      )
+    )
+      return true;
+    return activeUnits(s).some((u) => matchesCaste(s, u, target));
+  }
+  if (target === 'O_01')
+    return (
+      activeUnits(s).some((u) => distance(u, s.home) <= 35) ||
+      s.cities.some((c) => c.factionId === 'player')
+    );
+  if (target === 'O_06')
+    return s.entities.some((e) => e.kind === 'corpse' && e.amount > 0 && distance(e, s.home) <= 35);
+  if (target === 'O_09')
+    return ownBuildings.some((b) => b.kind === 'stele' || b.kind === 'archive');
+  if (target === 'O_10') return hasWord(s, 'O_10') && dogmaTargetPresent(s, 'O_01');
+  if (target === 'O_13')
+    return (
+      ownBuildings.some((b) => b.kind === 'workshop') ||
+      s.battalions.some((b) => b.factionId === 'player' && b.hp > 0 && b.catapult)
+    );
+  if (target === 'O_14') return s.laws.length > 0 || ownBuildings.some((b) => b.kind === 'court');
+  if (target === 'M_05')
+    return (
+      activeUnits(s).some((u) => u.caste !== 'slave') ||
+      s.cities.some((c) => c.factionId === 'player' && c.cohorts.workers > 0)
+    );
+  if (target === 'C_01') return s.time % 90 >= 60 || s.time >= 60;
+  if (
+    target === 'V_09' &&
+    ownBuildings.some(
+      (b) => b.kind === 'farm' && b.active && (b.lastEfficiency ?? (b.workerIds ?? []).length) > 0,
+    )
+  )
+    return true;
+  if (
+    target === 'V_11' &&
+    (s.caravans.some(
+      (c) => c.kind === 'trade' && c.factionId === 'player' && !c.arrived && c.hp > 0,
+    ) ||
+      s.factions.some((f) => f.lastTradeAt !== undefined && s.time - f.lastTradeAt <= 90))
+  )
+    return true;
+  if (
+    target === 'V_13' &&
+    s.battalions.some((b) => b.factionId === 'player' && b.hp > 0 && b.action === 'attacking')
+  )
+    return true;
+  const last = s.eventTimes[`dogmaUse:${target}`];
+  return last !== undefined && s.time - last <= 90;
 }
 export function getDogmaEffects(s: GameState, ctx: DogmaContext = {}): DogmaEffects {
   const f: DogmaEffects = {
@@ -237,14 +335,21 @@ export function getDogmaEffects(s: GameState, ctx: DogmaContext = {}): DogmaEffe
       touches = touchesDogma(s, a, ctx);
     if (
       vectorFamily(b) === 'sanctuary' &&
+      a.startsWith('S_') &&
       touches &&
       ctx.unit &&
       distance(ctx.unit, s.home) <= (hasBuilding(s, 'palace') ? 100 : 35)
     )
       f.protected = true;
-    if (b === 'C_02' && touches) f.production *= 1.3;
+    if (b === 'C_02' && touches && !['C_01', 'M_05', 'O_12'].includes(a)) f.production *= 1.3;
+    if (b === 'M_01') applyOppositeBonus(s, a, ctx, f);
     if (b === 'M_04' && touches) f.production *= 1.35;
-    if (b.startsWith('S_') && b !== 'S_01' && touches && ctx.unit && matchesCaste(s, ctx.unit, b))
+    if (
+      b.startsWith('S_') &&
+      b !== 'S_01' &&
+      touches &&
+      (ctx.subjectId === b || (ctx.unit && matchesCaste(s, ctx.unit, b)))
+    )
       f.production *= 1.3;
     if (a === 'C_01' && b === 'M_01') f.nightTaboo = true;
     if (a === 'O_04' && b === 'M_01') {
@@ -278,7 +383,7 @@ export function getDogmaEffects(s: GameState, ctx: DogmaContext = {}): DogmaEffe
     }
     if (a === 'O_13' && b === 'M_01') {
       f.machinesForbidden = true;
-      f.production *= 1.25;
+      if (!(ctx.tokens ?? ctx.unit?.command ?? []).includes('O_13')) f.production *= 1.25;
     }
     if (['O_02', 'O_03'].includes(a) && b === 'V_05') f.machinesForbidden = true;
     if (a === 'V_09' && b === 'M_01') {
@@ -350,6 +455,12 @@ function matchesCaste(s: GameState, u: Unit, subject: string) {
 export function previewDogma(target: string, vector: string): Pick<Dogma, 'name' | 'description'> {
   const a = WORDS[target]?.label ?? 'Concetto',
     family = vectorFamily(vector);
+  const policy = getDogmaPolicy(target, vector);
+  if (!policy?.allowed)
+    return {
+      name: 'Combinazione non applicabile',
+      description: policy?.reason ?? 'Vettore dogmatico sconosciuto.',
+    };
   const specials: Record<string, [string, string]> = {
     'C_01|M_01': [
       'Tabù delle Tenebre',
@@ -418,7 +529,7 @@ export function previewDogma(target: string, vector: string): Pick<Dogma, 'name'
   const special = specials[`${target}|${vector}`];
   if (special) return { name: special[0], description: special[1] };
   const descriptions: Record<DogmaVector, string> = {
-    prohibition: `L’interazione con ${a} è vietata. L’attività opposta riceve +25%, se esiste un opposto definito.`,
+    prohibition: `L’interazione con ${a} è vietata. La rinuncia favorisce ${DOGMA_OPPOSITES[target]?.description ?? 'l’attività opposta'}.`,
     veneration: `${a} riceve +30% efficienza. La sua assenza costa cinque coesione al minuto.`,
     monopoly: `Solo «${WORDS[vector]?.label}» può usare ${a}: efficienza +30% e +0,5 coesione per uso.`,
     sacrifice: target.startsWith('S_')
@@ -439,6 +550,16 @@ export function previewDogma(target: string, vector: string): Pick<Dogma, 'name'
 }
 export function inscribeDogma(state: GameState, targetId: string, vectorId: string) {
   const s = copy(state);
+  const policy = getDogmaPolicy(targetId, vectorId);
+  if (!policy?.allowed) {
+    log(s, policy?.reason ?? 'Vettore dogmatico sconosciuto.', 'warning');
+    return s;
+  }
+  const conflict = getDogmaConflict(s.dogmas, targetId, vectorId);
+  if (conflict) {
+    log(s, conflict, 'warning');
+    return s;
+  }
   if (
     !hasWord(s, 'M_03') ||
     !hasBuilding(s, 'menhir') ||
@@ -526,11 +647,17 @@ export function forbiddenByDogma(
     target?.type === 'city'
       ? s.cities.find((c) => c.id === target.id)?.factionId !== 'player'
       : tokens.includes('S_05');
+  const humanTarget = target?.type === 'unit' ? s.units.find((u) => u.id === target.id) : undefined;
+  const humanInteraction = foreign || !!humanTarget;
   const hostile =
     target?.type === 'city'
       ? s.factions.find((f) => f.id === s.cities.find((c) => c.id === target.id)?.factionId)
           ?.hostile
-      : entity?.attacked;
+      : humanTarget
+        ? (humanTarget.lastEventAt?.CIVIL_AGGRESSOR_UNTIL ?? 0) > s.time ||
+          (humanTarget.action === 'combat' && !!humanTarget.command?.includes('V_03')) ||
+          !!s.factions.find((f) => f.id === humanTarget.factionId)?.hostile
+        : entity?.attacked;
   for (const d of s.dogmas) {
     const a = d.targetId,
       b = d.vectorId,
@@ -552,7 +679,7 @@ export function forbiddenByDogma(
       continue;
     }
     if (a === 'V_03' && b === 'M_01') {
-      if (tokens.includes('V_03') && foreign && !hostile)
+      if (tokens.includes('V_03') && humanInteraction && !hostile)
         return 'Il Pacifismo vieta di attaccare per primi altri esseri umani.';
       continue;
     }
@@ -587,6 +714,17 @@ export function forbiddenByDogma(
   }
   return null;
 }
+/** Sanctuary protects the target itself, not an artisan merely working that material. */
+export function sanctuaryProtected(
+  s: GameState,
+  targetId: string,
+  position: { x: number; y: number },
+) {
+  return (
+    distance(position, s.home) <= (hasBuilding(s, 'palace') ? 100 : 35) &&
+    s.dogmas.some((d) => d.targetId === targetId && d.vectorId === 'O_01')
+  );
+}
 export function protectedByDogma(s: GameState, targetId: string, unit?: Unit) {
   return s.dogmas.some(
     (d) =>
@@ -604,6 +742,7 @@ export function resourcePreservationFloor(s: GameState, e: MapEntity) {
     : 0;
 }
 export function onDogmaticUse(s: GameState, tokens: string[], u?: Unit, target?: Target) {
+  for (const token of tokens) s.eventTimes[`dogmaUse:${token}`] = s.time;
   for (const d of s.dogmas)
     if (
       vectorFamily(d.vectorId) === 'monopoly' &&
@@ -639,17 +778,7 @@ export function handleDogmaticDeath(s: GameState, u: Unit, cause: string) {
 export function updateDogmas(s: GameState, dt: number) {
   for (const d of s.dogmas) {
     if (d.vectorId === 'C_02') {
-      const r = resourceFor(d.targetId),
-        present =
-          d.targetId === 'O_04'
-            ? totalFood(s.resources) > 0
-            : r
-              ? s.resources[r] > 0
-              : d.targetId === 'S_07'
-                ? !!s.kingId
-                : d.targetId.startsWith('S_')
-                  ? activeUnits(s).some((u) => matchesCaste(s, u, d.targetId))
-                  : true;
+      const present = dogmaTargetPresent(s, d.targetId);
       if (!present) s.cohesion = clamp(s.cohesion - (5 / 60) * dt);
     }
     if (d.vectorId === 'M_04') s.inequality = clamp(s.inequality + dt / 60);

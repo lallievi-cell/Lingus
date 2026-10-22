@@ -574,7 +574,10 @@ describe('normal-play first chapter', () => {
     for (let step = 0; step < 2400 && !s.gameOver && !s.milestone; step++) {
       const time = s.time;
       for (const idea of [...s.sparks]) {
-        if (idea.wordId === 'O_05') {
+        if (
+          idea.wordId === 'O_05' &&
+          !s.buildings.some((b) => b.kind === 'campfire' && !b.cityId)
+        ) {
           const artisan = s.units.find((u) => u.id === idea.unitId)!;
           if (Math.hypot(artisan.x - 252, artisan.y - 235.2) > 0.1) continue;
         }
@@ -582,9 +585,27 @@ describe('normal-play first chapter', () => {
       }
       if (s.campfirePending) {
         while (s.attention >= 10) {
-          const priority = (id: string) => (id === 'O_05' ? -2 : id === 'M_02' ? -1 : 0);
+          const priority = (id: string) =>
+            id === 'O_05' && s.words[id].custodians.length < 3
+              ? -3
+              : id === 'M_02' && s.words[id].custodians.length < 2
+                ? -2
+                : 0;
           const word = Object.keys(s.words)
-            .filter((id) => WORDS[id].tier > 0 && hasWord(s, id) && s.words[id].retention < 100)
+            .filter(
+              (id) =>
+                WORDS[id].tier > 0 &&
+                hasWord(s, id) &&
+                s.words[id].retention < 100 &&
+                s.units.some(
+                  (u) =>
+                    u.hp > 0 &&
+                    u.factionId === 'player' &&
+                    u.age < 14 &&
+                    u.caste !== 'slave' &&
+                    !s.words[id].custodians.includes(u.id),
+                ),
+            )
             .sort(
               (a, b) =>
                 priority(a) - priority(b) ||
@@ -643,6 +664,13 @@ describe('normal-play first chapter', () => {
       if (time === 70 || time === 85)
         say(['S_02', 'V_01'], { type: 'point', x: 252, y: 235.2 }, 'unit-5');
       if ([80, 100, 110, 120].includes(time)) say(['S_02', 'V_06', 'O_02'], undefined, 'unit-5');
+      // A second artisan practices the real craft before the third season ends,
+      // so forgetting Fire can be followed by a fresh, earned intuition.
+      // Repeat a useful fire-related craft, then reserve real fuel before building stores.
+      if (time === 210) say(['S_02', 'V_03', 'O_02'], undefined, 'unit-2');
+      if (time === 220 || time === 235) say(['S_02', 'V_07', 'O_02', 'O_05'], undefined, 'unit-2');
+      if (time === 250) say(['S_02', 'V_01'], { type: 'point', x: 252, y: 235.2 }, 'unit-2');
+      if (time === 260) say(['S_02', 'V_06', 'O_02'], undefined, 'unit-2');
       if (time === 200) {
         const deer = s.entities.find((e) => e.kind === 'deer' && e.hp > 0)!;
         say(['S_01', 'V_03'], { type: 'entity', id: deer.id, x: deer.x, y: deer.y });
@@ -658,35 +686,48 @@ describe('normal-play first chapter', () => {
       if (time === 271 && hasWord(s, 'S_02')) say(['S_02', 'V_03', 'O_04'], undefined, 'unit-0');
       if (time > 270 && hasWord(s, 'V_04') && s.voice >= 1 && time >= nextOrder && fire) {
         const group: Target = { type: 'building', id: fire.id, x: fire.x, y: fire.y };
-        if (
+        if (s.resources.wood < 12 && hasWord(s, 'O_05')) {
+          say(['S_01', 'V_04', 'O_03', 'O_05'], undefined, undefined, group);
+          nextOrder = time + 17;
+        } else if (
           hasWord(s, 'V_05') &&
           !ownStorage() &&
           (s.resources.stone >= 10 || s.resources.wood >= 10)
         ) {
-          say(['S_01', 'V_05', 'O_04', 'M_02']);
-          nextOrder = time + 10;
+          const builder = s.units
+            .filter((u) => u.hp > 0 && u.age >= 4 && u.factionId === 'player')
+            .sort((a, b) => a.hunger - b.hunger)[0];
+          say(
+            ['S_02', 'V_05', 'O_04', 'M_02'],
+            { type: 'point', x: fire.x + 1, y: fire.y },
+            builder?.id,
+            group,
+          );
+          nextOrder = time + 15;
         } else if (!ownStorage()) {
           say(['S_01', 'V_04', 'O_02'], undefined, undefined, group);
           nextOrder = time + 17;
         } else if (time % 15 === 0) {
-          const deer = s.entities
-            .filter((e) => e.kind === 'deer' && e.hp > 0)
+          const carcass = s.entities
+            .filter((e) => ['deer', 'wolf', 'alpha'].includes(e.kind) && e.hp <= 0 && e.amount > 0)
             .sort(
               (a, b) =>
-                Math.hypot(a.x - HOME.x, a.y - HOME.y) - Math.hypot(b.x - HOME.x, b.y - HOME.y),
+                Math.hypot(a.x - fire.x, a.y - fire.y) - Math.hypot(b.x - fire.x, b.y - fire.y),
             )[0];
-          if (deer)
+          if (carcass)
             say(
-              ['S_01', 'V_03', 'O_04'],
-              { type: 'entity', id: deer.id, x: deer.x, y: deer.y },
+              ['S_01', 'V_02'],
+              { type: 'entity', id: carcass.id, x: carcass.x, y: carcass.y },
               undefined,
               group,
             );
+          else say(['S_01', 'V_01'], { type: 'point', x: fire.x, y: fire.y }, undefined, group);
           nextOrder = time + 15;
         }
       }
       s = tick(s, 0.25);
     }
+
     expect(s.gameOver).toBeNull();
     expect(s.milestone).toBe(true);
     expect(s.time).toBeGreaterThanOrEqual(360);

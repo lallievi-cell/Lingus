@@ -12,11 +12,13 @@ Questa pagina non tratta più Bronzo e Ferro come semplici etichette future del 
 - Conservare le regole finali su sei slot, manutenzione percentuale, lavoratori, usura e città.
 - Impedire duplicazione di merci o moneta, estrazione a magazzino pieno e accredito prematuro dei tributi.
 
-## 2. Risolvere i punti che la fonte non determina
+## 2. Decisioni adottate per i punti che la fonte non determina
 
-Gli identificatori A-01 e successivi del registro descrivono conflitti e valori mancanti. Le scelte correnti devono rimanere esplicite e modificabili: non vanno ribattezzate “formule esatte del documento”.
+Gli identificatori A-01 e successivi del registro descrivono conflitti e valori mancanti, ora risolti in [DECISIONS.md](DECISIONS.md). Le scelte correnti devono rimanere esplicite e modificabili: non vanno ribattezzate “formule esatte del documento”.
 
 Sono particolarmente rilevanti la relazione fra kernel ambientale e impulsi craft, le unità dell'Attenzione nel sovraccarico orale, i materiali fisici del primo fuoco prima di Portare e gli effetti dei vettori dogmatici applicati a concetti astratti. I casi senza un effetto definito non devono essere esposti come pulsanti funzionanti solo per completare un catalogo.
+
+Mercanti IA in entrata, dazi, eventi civili e danno speculare del Taglione sono ora implementati e verificati. [REMAINING.md](REMAINING.md) separa questi completamenti dalle campagne e dalle interazioni ancora da esercitare.
 
 ## 3. Dimostrare la progressione ordinaria
 

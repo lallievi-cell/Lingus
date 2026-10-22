@@ -1,6 +1,7 @@
 import {
   ACTION_NAMES,
   ADULT_AGE,
+  LEARNING_AGE_LIMIT,
   BUILDING_SPECS,
   RESOURCE_ORDER,
   RESOURCE_SPECS,
@@ -11,6 +12,7 @@ import { createInitialState } from './state';
 import { validSave } from './saveValidation';
 import { cognitiveSlots, compileSentence, getPredicate, resolveConstruction } from './grammar';
 import { inscribeDogma } from './dogmas';
+import { recordLawWork } from './imperialLawPolicy';
 import {
   activeUnits,
   adult,
@@ -82,26 +84,30 @@ function chooseSubjects(
   executorId?: string,
   selectionCenter?: Target,
 ) {
-  const units = activeUnits(s).filter(adult);
+  const living = activeUnits(s);
+  const units = living.filter(adult);
   if (subject === 'S_02') {
     const chosen = units.find((u) => u.id === executorId) ?? units.find((u) => u.id === target?.id);
     return chosen ? [chosen] : [];
   }
   if (subject === 'S_03') return units.filter((u) => u.strength >= 7);
-  if (subject === 'S_04') return units.filter((u) => u.intelligence >= 7);
+  if (subject === 'S_04') return living.filter((u) => u.intelligence >= 7);
   if (subject === 'S_06') return units.filter((u) => u.caste === 'slave');
   if (subject === 'S_07') return units.filter((u) => u.id === s.kingId);
   if (subject === 'S_05')
     return s.units.filter(
       (u) =>
         u.hp > 0 &&
+        u.factionId !== undefined &&
         u.factionId !== 'player' &&
-        distance(u, s.home) < (hasBuilding(s, 'palace') ? 100 : 35),
+        distance(u, s.home) <= (hasBuilding(s, 'palace') ? 100 : 35),
     );
   const anchor = selectionCenter ?? { ...s.home, type: 'point' as const };
   if (
     anchor.type === 'building' &&
-    s.buildings.some((b) => b.id === anchor.id && b.kind === 'campfire')
+    s.buildings.some(
+      (b) => b.id === anchor.id && b.kind === 'campfire' && b.hp > 0 && isPlayerBuilding(s, b),
+    )
   )
     return units;
   return units.filter((u) => distance(u, anchor) <= 15);
@@ -112,20 +118,38 @@ function nearest<T extends { x: number; y: number }>(items: T[], p: { x: number;
     undefined,
   );
 }
-function assignBuildingJob(s: GameState, u: Unit, kind: BuildingKind, tokens: string[]) {
+function assignBuildingJob(
+  s: GameState,
+  u: Unit,
+  kind: BuildingKind,
+  tokens: string[],
+  buildingId?: string,
+) {
+  const spec = BUILDING_SPECS[kind];
+  if (
+    spec.workers === 0 ||
+    (spec.workerKind === 'sage' && u.intelligence < 7) ||
+    (spec.workerKind === 'warrior' && u.strength < 7)
+  )
+    return false;
   const b = nearest(
     s.buildings.filter(
       (b) =>
         isPlayerBuilding(s, b) &&
+        (!buildingId || b.id === buildingId) &&
         b.kind === kind &&
         b.hp > 0 &&
         b.active &&
-        (b.workerIds ?? []).filter((id) => s.units.find((u) => u.id === id)?.jobBuildingId === b.id)
-          .length < BUILDING_SPECS[kind].workers,
+        (b.workerIds ?? []).filter(
+          (id) =>
+            id !== u.id && s.units.find((u) => u.id === id && u.hp > 0)?.jobBuildingId === b.id,
+        ).length < BUILDING_SPECS[kind].workers,
     ),
     u,
   );
   if (!b) return false;
+  for (const old of s.buildings) old.workerIds = old.workerIds?.filter((id) => id !== u.id);
+  resetUnit(u);
   u.action = 'working';
   u.jobBuildingId = b.id;
   u.targetId = b.id;
@@ -199,6 +223,10 @@ export function issueCommand(
     log(s, 'Questo ordine attende la notte.', 'warning');
     return s;
   }
+  const workers = chooseSubjects(s, subject, target, executorId, selectionCenter);
+  const selectedIds =
+    ['S_08', 'S_09'].includes(subject) && executorId ? [executorId] : workers.map((u) => u.id);
+  if (!enforceActionLaws(s, tokens, target, selectedIds)) return s;
   const imperial = handleImperialCommand(s, tokens, target, executorId);
   if (imperial.handled) {
     if (imperial.valid) {
@@ -209,7 +237,6 @@ export function issueCommand(
     } else log(s, imperial.message ?? 'L’ordine non può essere eseguito.', 'warning');
     return s;
   }
-  const workers = chooseSubjects(s, subject, target, executorId, selectionCenter);
   if (!workers.length) {
     log(
       s,
@@ -220,16 +247,39 @@ export function issueCommand(
     );
     return s;
   }
-  if (
-    !enforceActionLaws(
-      s,
-      tokens,
-      target,
-      workers.map((u) => u.id),
-    )
-  )
-    return s;
   const recipe = resolveConstruction(tokens);
+  // Repeating the building's own phrase on that building assigns its real workers.
+  // Material payment remains attached to actual construction, not reassigning a job.
+  const workplace =
+    target?.type === 'building' &&
+    recipe &&
+    s.buildings.find(
+      (b) =>
+        b.id === target.id &&
+        b.kind === recipe.kind &&
+        b.hp > 0 &&
+        b.active &&
+        b.completed !== false &&
+        isPlayerBuilding(s, b),
+    );
+  if (workplace && BUILDING_SPECS[workplace.kind].workers > 0) {
+    let assigned = 0;
+    for (const u of workers)
+      if (assignBuildingJob(s, u, workplace.kind, tokens, workplace.id)) assigned++;
+    if (!assigned) {
+      log(s, 'Non ci sono posti liberi o persone con le competenze richieste.', 'warning');
+      return s;
+    }
+    s.voice--;
+    s.stats.commands++;
+    for (const id of tokens) s.words[id].uses++;
+    log(
+      s,
+      `${BUILDING_SPECS[workplace.kind].label}: ${assigned} persone hanno ricevuto il lavoro.`,
+      'good',
+    );
+    return s;
+  }
   let cost: Partial<Inventory> = { ...compiled.cost },
     kind: BuildingKind | undefined = compiled.buildingKind;
   if (recipe) {
@@ -463,9 +513,11 @@ export function teachWord(state: GameState, id: string): GameState {
     s.attention < 10
   )
     return s;
-  const pupils = activeUnits(s).filter(
-    (u) => u.age < ADULT_AGE && u.caste !== 'slave' && !m.custodians.includes(u.id),
+  const eligible = activeUnits(s).filter(
+    (u) => u.age < LEARNING_AGE_LIMIT && u.caste !== 'slave' && !m.custodians.includes(u.id),
   );
+  const children = eligible.filter((u) => u.age < ADULT_AGE);
+  const pupils = children.length ? children : eligible;
   if (!pupils.length) {
     log(s, 'Nessun giovane può ancora apprendere questa parola.', 'warning');
     return s;
@@ -480,6 +532,7 @@ export function teachWord(state: GameState, id: string): GameState {
   m.custodians.push(pupil.id);
   pupil.knows.push(id);
   pupil.intelligence = clamp(pupil.intelligence + 0.2, 1, 10);
+  if (id === 'O_09') recordLawWork(s, pupil.id, ['S_01', 'V_05', 'O_09', 'M_02']);
   log(
     s,
     `«${WORDS[id].label}» viene tramandata a ${pupil.name}: dieci memoria e un nuovo custode.`,

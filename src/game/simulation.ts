@@ -48,9 +48,13 @@ import {
   onDogmaticUse,
   protectedByDogma,
   resourcePreservationFloor,
+  sanctuaryProtected,
   updateDogmas,
   updateDogmasSeason,
 } from './dogmas';
+import { imperialLawEffects, recordLawWork } from './imperialLawPolicy';
+import { enforceActionLaws } from './imperial';
+import { applyCivilAssault, CIVIL_LAW_ASSUMPTIONS, updateCivilConflicts } from './civilLaw';
 import type {
   Building,
   BuildingKind,
@@ -67,8 +71,16 @@ export const CORE_DEFAULTS = {
   workSeconds: 2,
   constructionSeconds: 5,
   deathTrauma: 18,
+  attackTrauma: 5,
+  famineTrauma: 8,
+  traumaCooldownSeconds: 90,
   initialHousing: BASE_HOUSING,
   faunaRate: 0.2,
+  adultAgeSeasons: ADULT_AGE,
+  elderAgeSeasons: ELDER_AGE,
+  sageDiscoveryAgeSeasons: 16,
+  heavyWorkHungerPerSecond: 0.8,
+  inheritance: 'parent-mean-plus-or-minus-one',
 };
 export const seasonOf = (s: GameState) => ({
   index: Math.floor(s.time / 90) % 4,
@@ -221,9 +233,6 @@ export function createBuilding(
   };
   s.buildings.push(b);
   if (cityId) s.cities.find((c) => c.id === cityId)?.buildingIds.push(b.id);
-  if (kind === 'school')
-    for (const u of activeUnits(s).filter((u) => u.age < ADULT_AGE))
-      u.intelligence = clamp(u.intelligence + 2, 1, 10);
   log(s, `${spec.label}: la costruzione è terminata.`, 'good');
   return b;
 }
@@ -267,6 +276,24 @@ export function tryIgnite(s: GameState, x = s.home.x, y = s.home.y) {
   if (fire) fire.active = true;
   else createBuilding(s, 'campfire', x, y);
   return true;
+}
+function recordSurvivalTrauma(s: GameState, tag: string, penalty: number) {
+  const key = `TRAUMA_COOLDOWN:${tag}`;
+  if (s.time - (s.eventTimes[key] ?? -Infinity) < CORE_DEFAULTS.traumaCooldownSeconds) return false;
+  s.eventTimes[key] = s.time;
+  s.cohesion = clamp(s.cohesion - penalty);
+  s.recentTrauma = { tag, time: s.time };
+  log(
+    s,
+    tag === 'ENV_STARVATION'
+      ? 'La fame diffusa incrina la fiducia della comunità.'
+      : 'Un attacco ferisce la sicurezza della comunità.',
+    'warning',
+  );
+  return true;
+}
+export function recordAttackTrauma(s: GameState) {
+  return recordSurvivalTrauma(s, 'ENV_ALLY_DAMAGED', CORE_DEFAULTS.attackTrauma);
 }
 export function killUnit(s: GameState, u: Unit, cause = 'trauma') {
   if (u.hp <= 0 && u.action === 'dead') return;
@@ -340,7 +367,7 @@ export function resetUnit(u: Unit) {
 }
 function move(s: GameState, u: Unit, x: number, y: number, dt: number, speed = 4) {
   const effects = getDogmaEffects(s, { unit: u, tokens: u.command }),
-    slow = (u.temp <= 20 ? 0.5 : 1) * (u.parasiteUntil && u.parasiteUntil > s.time ? 0.5 : 1),
+    slow = u.temp <= 20 ? 0.5 : 1,
     d = distance(u, { x, y }),
     step = speed * slow * effects.movement * dt;
   if (d <= step) {
@@ -408,6 +435,21 @@ export function consume(s: GameState, u: Unit, e?: MapEntity) {
   }
   if (!resource) return false;
   if (
+    e &&
+    sanctuaryProtected(
+      s,
+      resource === 'wood'
+        ? 'O_03'
+        : resource === 'stone'
+          ? 'O_02'
+          : resource === 'ore'
+            ? 'O_07'
+            : 'O_04',
+      e,
+    )
+  )
+    return false;
+  if (
     forbiddenByDogma(
       s,
       [
@@ -420,16 +462,17 @@ export function consume(s: GameState, u: Unit, e?: MapEntity) {
     )
   )
     return false;
-  let amount = Math.min(1, e ? e.amount : source![resource]);
+  const ration = e?.kind === 'corpse' ? 1 : imperialLawEffects(s).foodConsumptionMultiplier;
+  let amount = Math.min(ration, e ? e.amount : source![resource]);
   if (e?.kind === 'corpse') {
     amount = 1;
     u.hunger = clamp(u.hunger - 50);
     if (!effects.cannibalism) s.cohesion = clamp(s.cohesion - 15);
-  } else u.hunger = clamp(u.hunger - RESOURCE_SPECS[resource].nutrition * amount);
+  } else u.hunger = clamp(u.hunger - (RESOURCE_SPECS[resource].nutrition * amount) / ration);
   if (e) e.amount -= amount;
   else source![resource] -= amount;
   if (resource === 'meat' && random(s) < 0.1) {
-    u.hp -= 15;
+    u.hp -= 15 * (u.caste === 'slave' ? imperialLawEffects(s).slaveMortalityMultiplier : 1);
     u.parasiteUntil = s.time + 45;
     log(s, `${u.name} si ammala dopo un pasto di carne cruda.`, 'warning');
   }
@@ -497,7 +540,9 @@ function onHuntKill(s: GameState, u: Unit, e: MapEntity) {
   e.hp = 0;
   s.stats.hunts++;
   s.lastHunt = s.time;
+  recordLawWork(s, u.id, [...(u.command ?? ['S_01', 'V_03']), 'O_04']);
   u.huntCount = (u.huntCount ?? 0) + 1;
+  trainStrength(u);
   const drop = FAUNA_SPECS[e.kind as keyof typeof FAUNA_SPECS];
   if (drop) e.amount = drop.meat;
   const equipment = weaponFor(s, u);
@@ -506,6 +551,11 @@ function onHuntKill(s: GameState, u: Unit, e: MapEntity) {
   if ((u.huntCount ?? 0) >= 10) recordEvent(s, u, 'ENV_HUNT_SUCCESS', 100, ['S_03']);
   onDogmaticUse(s, u.command ?? ['S_01', 'V_03', 'O_04'], u);
   log(s, 'La preda è abbattuta. La carne deve essere raccolta o consumata.', 'good');
+}
+
+function trainStrength(u: Unit) {
+  u.workCycles = (u.workCycles ?? 0) + 1;
+  if (u.workCycles % 5 === 0) u.strength = clamp(u.strength + 0.1, 1, 10);
 }
 
 function workCycle(s: GameState, u: Unit, dt: number, seconds = CORE_DEFAULTS.workSeconds) {
@@ -517,7 +567,9 @@ function workCycle(s: GameState, u: Unit, dt: number, seconds = CORE_DEFAULTS.wo
         : 1;
   u.progress +=
     dt *
+    (u.action !== 'eating' && (u.parasiteUntil ?? 0) > s.time ? 0.5 : 1) *
     f.production *
+    (u.action === 'building' ? imperialLawEffects(s).constructionMultiplier : 1) *
     (u.isKing ? 1.5 : 1) *
     (u.caste === 'slave' ? 1.2 : 1) *
     (s.government === 'republic' && u.caste !== 'slave' ? 1.25 : 1) *
@@ -525,6 +577,11 @@ function workCycle(s: GameState, u: Unit, dt: number, seconds = CORE_DEFAULTS.wo
     property;
   if (u.progress < seconds) return false;
   u.progress -= seconds;
+  const verb = u.command?.find((id) => WORDS[id]?.kind === 'V');
+  if (verb) {
+    initializeUnit(u);
+    u.lastEventAt![`WORK:${verb}`] = s.time;
+  }
   return true;
 }
 function drop(s: GameState, u: Unit, r: Resource, amount: number) {
@@ -544,9 +601,14 @@ function drop(s: GameState, u: Unit, r: Resource, amount: number) {
 }
 function finishConstruction(s: GameState, u: Unit) {
   if (!u.buildingKind) return;
+  trainStrength(u);
+  recordLawWork(s, u.id, u.command ?? []);
+  const command = [...(u.command ?? [])],
+    completed: Building[] = [];
   const count = u.command?.[0] === 'S_09' && u.buildingKind === 'house' ? 4 : 1;
   for (let i = 0; i < count; i++) {
     const b = createBuilding(s, u.buildingKind, u.x + i * 2, u.y, u.cityId);
+    completed.push(b);
     if (b.kind === 'stele')
       b.fixedWordId =
         s.lastCraftWord && hasWord(s, s.lastCraftWord)
@@ -566,6 +628,35 @@ function finishConstruction(s: GameState, u: Unit) {
     }
   }
   resetUnit(u);
+  for (const b of completed) {
+    const spec = BUILDING_SPECS[b.kind];
+    if (spec.workers === 0 || b.cityId) continue;
+    const candidates = [u, ...activeUnits(s).filter((v) => v.id !== u.id)];
+    for (const v of candidates) {
+      if ((b.workerIds ?? []).length >= spec.workers) break;
+      if (
+        v.age < ADULT_AGE ||
+        !['idle', 'sleeping'].includes(v.action) ||
+        distance(v, b) > 15 ||
+        (command[0] === 'S_02' && v.id !== u.id) ||
+        (command[0] === 'S_03' && v.strength < 7) ||
+        (command[0] === 'S_04' && v.intelligence < 7) ||
+        (command[0] === 'S_06' && v.caste !== 'slave') ||
+        (command[0] === 'S_07' && !v.isKing) ||
+        (spec.workerKind === 'sage' && v.intelligence < 7) ||
+        (spec.workerKind === 'warrior' && v.strength < 7)
+      )
+        continue;
+      v.action = 'working';
+      v.command = [...command];
+      v.jobBuildingId = b.id;
+      v.targetId = b.id;
+      v.tx = b.x;
+      v.ty = b.y;
+      b.workerIds ??= [];
+      b.workerIds.push(v.id);
+    }
+  }
 }
 function assignWork(s: GameState, u: Unit, kind: BuildingKind) {
   const b = closest(
@@ -590,6 +681,21 @@ function assignWork(s: GameState, u: Unit, kind: BuildingKind) {
   if (!b.workerIds.includes(u.id)) b.workerIds.push(u.id);
   return true;
 }
+/** Civil blows share the real equipment and damage equation with ordinary combat. */
+export function civilStrike(s: GameState, attacker: Unit, victim: Unit, requestedDamage?: number) {
+  const weapon = weaponFor(s, attacker),
+    armour = weaponFor(s, victim).armor,
+    effect = getDogmaEffects(s, { unit: attacker, tokens: attacker.command });
+  const damage =
+    requestedDamage ??
+    effectiveDamage(
+      weapon.damage || CIVIL_LAW_ASSUMPTIONS.basicBlowDamage,
+      attacker.strength,
+      (s.cohesion < 30 ? 0.7 : 1) * effect.combat * effect.morale,
+      armour,
+    );
+  return applyCivilAssault(s, attacker, victim, damage, killUnit, () => recordAttackTrauma(s));
+}
 export function processWork(s: GameState, u: Unit, dt: number) {
   const e = s.entities.find((e) => e.id === u.targetId),
     tokens = u.command ?? [],
@@ -597,6 +703,24 @@ export function processWork(s: GameState, u: Unit, dt: number) {
   const foreign = s.units.find(
     (v) => v.id === u.targetId && v.hp > 0 && v.factionId && v.factionId !== 'player',
   );
+  const citizen = s.units.find(
+    (v) =>
+      v.id === u.targetId &&
+      v.id !== u.id &&
+      v.hp > 0 &&
+      (v.factionId === undefined || v.factionId === 'player'),
+  );
+  if (citizen && verb === 'V_03') {
+    u.action = 'combat';
+    if (distance(u, citizen) > 1.5) {
+      move(s, u, citizen.x, citizen.y, dt);
+      return;
+    }
+    if (!workCycle(s, u, dt, 1)) return;
+    civilStrike(s, u, citizen);
+    if (citizen.hp <= 0 && u.hp > 0) resetUnit(u);
+    return;
+  }
   if (foreign && verb === 'V_03') {
     u.action = 'combat';
     if (protectedByDogma(s, 'S_05', foreign)) {
@@ -659,6 +783,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     if (!fx.protected) {
       u.hp -= effectiveDamage(5, foreign.strength, 1, weapon.armor);
       u.lastDamageCause = 'V_03';
+      recordAttackTrauma(s);
     }
     return;
   }
@@ -675,6 +800,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       const n = addResource(s, carried.resource, carried.amount);
       if (n < carried.amount) drop(s, u, carried.resource, carried.amount - n);
       if (n > 0) {
+        recordLawWork(s, u.id, tokens, n);
         recordCraft(s, u, 'V_08');
         recordCraft(s, u, 'V_05');
         if (tokens.includes('S_02')) {
@@ -719,6 +845,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       else addResource(s, 'cooked', 1);
       recordCraft(s, u, 'V_12');
     }
+    recordLawWork(s, u.id, tokens);
     onDogmaticUse(s, tokens, u);
     resetUnit(u);
     return;
@@ -799,11 +926,13 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       if (canPay(s.resources, cost) && freeCapacity(s, out) > 0) {
         pay(s.resources, cost);
         addResource(s, out, coin ? 100 : 1);
+        recordLawWork(s, u.id, tokens, coin ? 100 : 1);
         recordCraft(s, u, coin ? 'O_12' : 'V_12');
         recordCraft(s, u, 'O_13');
       }
     }
     if (b.kind === 'archive' && workCycle(s, u, dt, 5)) {
+      recordLawWork(s, u.id, tokens);
       recordCraft(s, u, 'O_14');
       recordCraft(s, u, 'V_14');
     }
@@ -825,7 +954,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       u.progress = 0;
       return;
     }
-    if (protectedByDogma(s, 'O_04')) {
+    if (protectedByDogma(s, 'O_04') || sanctuaryProtected(s, 'O_04', e)) {
       resetUnit(u);
       return;
     }
@@ -855,6 +984,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
         weapon.armor,
       );
       u.lastDamageCause = 'V_03';
+      recordAttackTrauma(s);
     }
     return;
   }
@@ -892,6 +1022,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
         e.y = pen.y;
       }
     }
+    recordLawWork(s, u.id, tokens);
     recordCraft(s, u, 'V_10');
     resetUnit(u);
     return;
@@ -899,6 +1030,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
   if (u.action === 'planting') {
     if (!move(s, u, u.tx ?? s.home.x, u.ty ?? s.home.y, dt)) return;
     if (!workCycle(s, u, dt, 5)) return;
+    recordLawWork(s, u.id, tokens);
     s.entities.push({
       id: nextId(s, 'tree'),
       kind: 'tree',
@@ -925,8 +1057,31 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     }
     if (!move(s, u, e.x, e.y, dt)) return;
     const resource = entityResource(e),
-      gatherTool = s.resources.tool >= 1 && ['wood', 'stone'].includes(resource),
+      gatherers = activeUnits(s).filter(
+        (v) => v.action === 'gathering' && v.command?.some((w) => ['O_02', 'O_03'].includes(w)),
+      ),
+      toolIndex = Math.max(
+        0,
+        gatherers.findIndex((v) => v.id === u.id),
+      ),
+      gatherTool = toolIndex < Math.floor(s.resources.tool) && ['wood', 'stone'].includes(resource),
       speed = gatherTool ? 1.5 : 1;
+    if (
+      sanctuaryProtected(
+        s,
+        resource === 'wood'
+          ? 'O_03'
+          : resource === 'stone'
+            ? 'O_02'
+            : resource === 'ore'
+              ? 'O_07'
+              : 'O_04',
+        e,
+      )
+    ) {
+      resetUnit(u);
+      return;
+    }
     if (!workCycle(s, u, dt, CORE_DEFAULTS.workSeconds / speed)) return;
     if (e.kind === 'tree') recordEvent(s, u, 'ENV_TREE_NODE', 50, ['O_03']);
     if (e.kind === 'stone') {
@@ -944,6 +1099,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
         resetUnit(u);
         return;
       }
+      if (gatherTool) s.resources.tool = Math.max(0, s.resources.tool - 0.1);
       e.amount -= amount;
       u.carry = { resource, amount };
       u.action = 'returning';
@@ -962,6 +1118,21 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       // Material exists on the ground: striking does not teleport it into storage.
       const n = Math.min(1, e.amount - resourcePreservationFloor(s, e));
       e.amount -= n;
+      recordLawWork(
+        s,
+        u.id,
+        [
+          ...tokens,
+          resource === 'wood'
+            ? 'O_03'
+            : resource === 'stone'
+              ? 'O_02'
+              : resource === 'ore'
+                ? 'O_07'
+                : 'O_04',
+        ],
+        n,
+      );
       drop(s, u, resource, n);
       if (gatherTool) s.resources.tool = Math.max(0, s.resources.tool - 0.1);
       if (s.sparks.some((p) => p.unitId === u.id && ['O_02', 'O_03'].includes(p.wordId)))
@@ -1018,6 +1189,8 @@ function assignTradition(s: GameState, u: Unit) {
   for (const t of s.traditions) {
     const tokens = t.tokens,
       condition = tokens[0];
+    initializeUnit(u);
+    if ((u.cooldowns![`law-order:${t.id}`] ?? 0) > s.time) continue;
     if (condition === 'C_01' && !seasonOf(s).isNight) continue;
     const subject = tokens[1];
     if (
@@ -1034,6 +1207,11 @@ function assignTradition(s: GameState, u: Unit) {
           ? s.entities.find((e) => e.id === target.id)
           : closest(matchingEntities(s, tokens, u), u);
     if (forbiddenByDogma(s, tokens, target, u)) continue;
+    if (!enforceActionLaws(s, tokens, target, [u.id])) {
+      u.cooldowns![`law-order:${t.id}`] = s.time + 90;
+      if (u.hp <= 0 || u.factionId !== 'player') return false;
+      continue;
+    }
     u.command = [...tokens];
     u.progress = 0;
     u.targetId = e?.id;
@@ -1058,6 +1236,26 @@ function assignTradition(s: GameState, u: Unit) {
   }
   return false;
 }
+function applyEducation(s: GameState) {
+  const lawBonus = imperialLawEffects(s).educationIntelligenceBonus;
+  for (const u of activeUnits(s)) {
+    initializeUnit(u);
+    const previousLaw = u.lastEventAt!.STATE_EDUCATION_BONUS ?? 0;
+    if (lawBonus > previousLaw) {
+      u.intelligence = clamp(u.intelligence + lawBonus - previousLaw, 1, 10);
+      u.lastEventAt!.STATE_EDUCATION_BONUS = lawBonus;
+    }
+    if (u.age >= ADULT_AGE) continue;
+    const schoolBonus = s.buildings
+      .filter((b) => isPlayerBuilding(s, b) && b.kind === 'school' && distance(u, b) <= 15)
+      .reduce((best, b) => Math.max(best, 2 * buildingEfficiency(s, b)), 0);
+    const previousSchool = u.lastEventAt!.SCHOOL_EDUCATION_BONUS ?? 0;
+    if (schoolBonus > previousSchool) {
+      u.intelligence = clamp(u.intelligence + schoolBonus - previousSchool, 1, 10);
+      u.lastEventAt!.SCHOOL_EDUCATION_BONUS = schoolBonus;
+    }
+  }
+}
 export function updateUnits(s: GameState, dt: number) {
   for (const u of activeUnits(s)) {
     initializeUnit(u);
@@ -1065,8 +1263,9 @@ export function updateUnits(s: GameState, dt: number) {
       const city = s.cities.find((c) => c.id === u.cityId && c.factionId === 'player');
       if (!city) continue;
       u.hunger = clamp(u.hunger + 0.8 * dt);
-      if (u.plagueUntil && u.plagueUntil > s.time) u.hp -= 1.5 * dt;
-      if (u.hunger >= 100) u.hp -= 2 * dt;
+      const mortality = u.caste === 'slave' ? imperialLawEffects(s).slaveMortalityMultiplier : 1;
+      if (u.plagueUntil && u.plagueUntil > s.time) u.hp -= 1.5 * dt * mortality;
+      if (u.hunger >= 100) u.hp -= 2 * dt * mortality;
       if (u.hunger <= 20) u.hp = clamp(u.hp + 0.5 * dt);
       if (u.hp <= 0) {
         killUnit(s, u, u.hunger >= 100 ? 'ENV_STARVATION' : 'STAT_PLAGUE');
@@ -1097,9 +1296,10 @@ export function updateUnits(s: GameState, dt: number) {
         ? -10
         : SEASON_TEMPERATURES[phase.index][phase.isNight ? 'night' : 'day'];
     u.temp = clamp(u.temp + bodyTemperatureDelta(ambient, fire ? 3 : 0, clothing) * dt);
-    if (u.temp <= 20) u.hp -= 1.5 * dt;
-    if (u.hunger >= 100) u.hp -= 2 * dt;
-    if (u.plagueUntil && u.plagueUntil > s.time) u.hp -= 1.5 * dt;
+    const mortality = u.caste === 'slave' ? imperialLawEffects(s).slaveMortalityMultiplier : 1;
+    if (u.temp <= 20) u.hp -= 1.5 * dt * mortality;
+    if (u.hunger >= 100) u.hp -= 2 * dt * mortality;
+    if (u.plagueUntil && u.plagueUntil > s.time) u.hp -= 1.5 * dt * mortality;
     if (u.hunger <= 20 && distance(u, s.home) <= 10) u.hp = clamp(u.hp + 0.5 * dt);
     if (u.hp <= 0) {
       killUnit(s, u, u.hunger >= 100 ? 'ENV_STARVATION' : u.temp <= 20 ? 'C_01' : 'trauma');
@@ -1133,7 +1333,7 @@ export function updateUnits(s: GameState, dt: number) {
     if (u.hp <= 30 && u.lastDamageCause === 'V_03')
       for (const observer of activeUnits(s).filter((o) => distance(u, o) <= 20))
         recordEvent(s, observer, 'ENV_ALLY_DAMAGED', 60, ['M_01'], 1);
-    if (u.age >= 16 && hasWord(s, 'O_05') && hasWord(s, 'M_02'))
+    if (u.age >= CORE_DEFAULTS.sageDiscoveryAgeSeasons && hasWord(s, 'O_05') && hasWord(s, 'M_02'))
       recordEvent(s, u, 'ENV_ELDER', 100, ['S_04'], 30);
     const foreigners = s.cities.filter((c) => c.factionId !== 'player' && distance(u, c) <= 30);
     if (foreigners.length) recordEvent(s, u, 'ENV_OTHER_TRIBE', 70, ['S_05'], 1);
@@ -1192,7 +1392,14 @@ export function updateUnits(s: GameState, dt: number) {
         startInstinct(s, u, dt);
       }
     }
-    if (!martial && hasWord(s, 'M_01') && u.hp <= 30 && ['hunting', 'combat'].includes(u.action)) {
+    if (
+      !martial &&
+      hasWord(s, 'M_01') &&
+      u.hp <= 30 &&
+      u.lastDamageCause === 'V_03' &&
+      u.hunger < 95 &&
+      u.temp > 15
+    ) {
       u.action = 'fleeing';
       u.tx = s.home.x;
       u.ty = s.home.y;
@@ -1204,14 +1411,9 @@ export function updateUnits(s: GameState, dt: number) {
       resetUnit(u);
     }
     if (['idle', 'sleeping'].includes(u.action)) {
-      if (
-        u.hunger < 75 &&
-        u.temp > 30 &&
-        !phase.isNight &&
-        u.action === 'idle' &&
-        assignTradition(s, u)
-      )
-        processWork(s, u, dt);
+      const assigned = u.hunger < 75 && u.temp > 30 && assignTradition(s, u);
+      if (u.hp <= 0 || u.factionId !== 'player') continue;
+      if (assigned) processWork(s, u, dt);
       else startInstinct(s, u, dt);
     } else processWork(s, u, dt);
     const sx = Math.min(4, Math.floor(u.x / 100)),
@@ -1221,6 +1423,7 @@ export function updateUnits(s: GameState, dt: number) {
     if (!s.explored.some((p) => distance(p, u) < 20)) s.explored.push({ x: u.x, y: u.y });
     evaluateDiscoveries(s, u);
   }
+  applyEducation(s);
 }
 export function updateAnimals(s: GameState, dt: number) {
   for (const e of s.entities.filter(
@@ -1248,6 +1451,7 @@ export function updateAnimals(s: GameState, dt: number) {
       } else {
         human.hp -= fa.damage * dt;
         human.lastDamageCause = 'V_03';
+        if (dt > 0) recordAttackTrauma(s);
         if (human.hp <= 0) killUnit(s, human, 'V_03');
       }
     } else if (e.kind === 'deer' && distance(e, human) <= 15 && !e.attacked) {
@@ -1275,6 +1479,7 @@ export function seasonalCore(s: GameState) {
   s.stats.seasonsSurvived++;
   s.nightCount++;
   const slept = live.filter((u) => u.sleptThisNight && distance(u, s.home) <= 10);
+  const rested = new Set(slept.map((u) => u.id));
   s.nightSleeping = slept.length >= Math.ceil(live.length * 0.75) ? s.nightSleeping + 1 : 0;
   for (const u of live) u.sleptThisNight = false;
   if (s.nightSleeping >= 3)
@@ -1370,16 +1575,28 @@ export function seasonalCore(s: GameState) {
     b.lastEfficiency = efficiency;
     if (b.kind === 'farm' && season.index === 2) {
       const workshop = hasBuilding(s, 'workshop') ? 3 : 1;
-      addResource(
+      const harvested = addResource(
         s,
         'food',
         50 *
           efficiency *
           workshop *
           fx.agriculture *
+          imperialLawEffects(s).agricultureMultiplier *
           fx.production *
           (s.disasters.drought && !hasBuilding(s, 'workshop') ? 0.5 : 1),
       );
+      if (harvested > 0)
+        for (const id of b.workerIds ?? []) {
+          const worker = s.units.find((u) => u.id === id && u.hp > 0 && u.jobBuildingId === b.id);
+          if (worker)
+            recordLawWork(
+              s,
+              worker.id,
+              worker.command ?? ['S_01', 'V_09', 'O_04'],
+              harvested / Math.max(1, (b.workerIds ?? []).length),
+            );
+        }
     }
     if (b.kind === 'pen' && (b.livestock ?? 0) > 0) {
       addResource(s, 'meat', 20 * efficiency * fx.herding);
@@ -1419,10 +1636,17 @@ export function seasonalCore(s: GameState) {
           Math.floor(e.x / 100) === sector.x &&
           Math.floor(e.y / 100) === sector.y,
       );
-      const growth = Math.max(
-        0,
-        Math.floor(faunaGrowth(animals.length, CORE_DEFAULTS.faunaRate, 20)),
-      );
+      const fractionKey = `FAUNA_FRACTION:${sector.id}`;
+      const expected =
+        animals.length === 0
+          ? 0
+          : Math.max(
+              0,
+              faunaGrowth(animals.length, CORE_DEFAULTS.faunaRate, 20) +
+                (s.eventTimes[fractionKey] ?? 0),
+            );
+      const growth = Math.min(Math.max(0, 20 - animals.length), Math.floor(expected));
+      s.eventTimes[fractionKey] = animals.length === 0 ? 0 : expected - Math.floor(expected);
       for (let i = 0; i < growth; i++) {
         const parent = animals[i % animals.length];
         if (parent)
@@ -1433,6 +1657,10 @@ export function seasonalCore(s: GameState) {
             amount: FAUNA_SPECS[parent.kind as keyof typeof FAUNA_SPECS].meat,
           });
       }
+    }
+    if (s.resources.food > 0 && !hasBuilding(s, 'storage')) {
+      for (const u of activeUnits(s).filter((u) => distance(u, s.home) <= 20))
+        recordEvent(s, u, 'ENV_SEED_SPROUT', 60, ['V_09']);
     }
     for (const e of s.entities) {
       const preserve = resourcePreservationFloor(s, e) > 0 ? 2 : 1;
@@ -1456,6 +1684,7 @@ export function seasonalCore(s: GameState) {
           u.age >= ADULT_AGE &&
           u.age < ELDER_AGE &&
           u.hunger <= 50 &&
+          rested.has(u.id) &&
           distance(u, s.home) <= 10 &&
           !(fx.celibateSages && u.intelligence >= 7),
       );
@@ -1465,7 +1694,9 @@ export function seasonalCore(s: GameState) {
         housing,
         hasBuilding(s, 'hut') ? 0.25 : 0,
         fx.birthAdd,
-      ) * fx.growth;
+      ) *
+      fx.growth *
+      imperialLawEffects(s).birthMultiplier;
     for (
       let pair = 0;
       pair < Math.floor(fertile.length / 2) && activeUnits(s).length < housing;
@@ -1473,6 +1704,7 @@ export function seasonalCore(s: GameState) {
     )
       if (random(s) < chance) {
         const p = fertile[pair * 2],
+          q = fertile[pair * 2 + 1],
           u: Unit = {
             id: nextId(s, 'unit'),
             name: `Voce ${s.stats.births + 1}`,
@@ -1482,8 +1714,12 @@ export function seasonalCore(s: GameState) {
             hunger: 10,
             temp: 100,
             age: 0,
-            strength: clamp(p.strength + (random(s) < 0.5 ? -1 : 1), 1, 10),
-            intelligence: clamp(p.intelligence + (random(s) < 0.5 ? -1 : 1), 1, 10),
+            strength: clamp((p.strength + q.strength) / 2 + (random(s) < 0.5 ? -1 : 1), 1, 10),
+            intelligence: clamp(
+              (p.intelligence + q.intelligence) / 2 + (random(s) < 0.5 ? -1 : 1),
+              1,
+              10,
+            ),
             action: 'idle',
             progress: 0,
             knows: [...INNATE_WORDS],
@@ -1583,9 +1819,16 @@ export function simulationStep(s: GameState, dt: number) {
     };
     s.units.push(foreign);
   }
+  updateCivilConflicts(s, dt, civilStrike);
   updateUnits(s, dt);
   updateAnimals(s, dt);
   updateDogmas(s, dt);
+  const survivors = activeUnits(s);
+  if (
+    survivors.length > 0 &&
+    survivors.filter((u) => u.hunger >= 100).length >= Math.ceil(survivors.length / 2)
+  )
+    recordSurvivalTrauma(s, 'ENV_STARVATION', CORE_DEFAULTS.famineTrauma);
   const corpseCount = s.entities.filter(
     (e) => e.kind === 'corpse' && e.amount > 0 && distance(e, s.home) <= 30,
   ).length;

@@ -68,7 +68,8 @@ const city = (v: unknown) => {
     number(v.loyalty, 0, 100) &&
     number(v.housing) &&
     flag(v.assimilation.active) &&
-    number(v.assimilation.delegateCount)
+    number(v.assimilation.delegateCount) &&
+    optional(v.frontlineSageIds, ids)
   );
 };
 const unit = (v: unknown) =>
@@ -253,6 +254,7 @@ export function validSave(value: unknown): value is GameState {
         text(v.action) &&
         flag(v.catapult) &&
         number(v.occupation) &&
+        optional(v.frontlineSageIds, ids) &&
         optional(v.target, target),
     )
   )
@@ -270,6 +272,8 @@ export function validSave(value: unknown): value is GameState {
         number(v.population) &&
         number(v.hp) &&
         target(v.target) &&
+        optional(v.customsPaid, number) &&
+        optional(v.customsRefused, flag) &&
         optional(v.words, words) &&
         optional(v.dogmas, (x) => list(x, dogma)),
     )

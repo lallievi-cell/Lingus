@@ -270,6 +270,7 @@ export interface Cohorts {
   slaves: number;
 }
 export interface City {
+  frontlineSageIds?: string[];
   id: string;
   name: string;
   x: number;
@@ -316,6 +317,7 @@ export interface Faction {
   intelligibility?: number;
 }
 export interface Battalion {
+  frontlineSageIds?: string[];
   id: string;
   name: string;
   x: number;
@@ -338,6 +340,8 @@ export interface Battalion {
   metalWeapons?: number;
 }
 export interface Caravan {
+  customsPaid?: number;
+  customsRefused?: boolean;
   gift?: boolean;
   id: string;
   kind: 'trade' | 'tax' | 'colonists' | 'delegate';

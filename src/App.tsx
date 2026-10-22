@@ -43,7 +43,7 @@ import { playerPopulation } from './game/imperial';
 import { isPlayerBuilding } from './game/runtime';
 import {
   ACTION_NAMES,
-  ADULT_AGE,
+  LEARNING_AGE_LIMIT,
   BUILDING_NAMES,
   ERA_NAMES,
   INNATE_WORDS,
@@ -91,6 +91,10 @@ const KIND_NAMES: Record<WordKind, string> = {
   C: 'Condizione',
 };
 const ENTITY_NAMES: Record<string, string> = {
+  ore: 'Vena mineraria',
+  alpha: 'Predatore alfa',
+  ground: 'Risorse a terra',
+  seedling: 'Germoglio',
   berries: 'Cespuglio di bacche',
   tree: 'Albero',
   stone: 'Affioramento di selce',
@@ -1481,8 +1485,23 @@ function App() {
                         <span className="meter">
                           <span style={{ width: `${memory.retention}%` }} />
                         </span>
-                        <span>{Math.round(memory.retention)}% memoria</span>
-                        <span>{memory.custodians.length} custodi</span>
+                        <span>
+                          {numbered
+                            ? `${Math.round(memory.retention)}% memoria`
+                            : memory.retention > 70
+                              ? 'Memoria salda'
+                              : memory.retention >= 30
+                                ? 'Memoria fragile'
+                                : 'Memoria in pericolo'}
+                        </span>
+                        <span>
+                          {numbered
+                            ? memory.custodians.length
+                            : memory.custodians.length > 3
+                              ? 'Molti'
+                              : 'Pochi'}{' '}
+                          custodi
+                        </span>
                       </div>
                     )}
                     {!unlocked && <small>{word.hint}</small>}
@@ -1549,7 +1568,12 @@ function App() {
                   <div>
                     <strong>{WORDS[id].label}</strong>
                     <span>
-                      {game.words[id].custodians.length} custodi · Memoria{' '}
+                      {numbered
+                        ? game.words[id].custodians.length
+                        : game.words[id].custodians.length > 3
+                          ? 'Molti'
+                          : 'Pochi'}{' '}
+                      custodi · Memoria{' '}
                       {numbered
                         ? `${Math.round(game.words[id].retention)}%`
                         : game.words[id].retention > 70
@@ -1569,7 +1593,7 @@ function App() {
                       game.attention < 10 ||
                       !livingUnits.some(
                         (u) =>
-                          u.age < ADULT_AGE &&
+                          u.age < LEARNING_AGE_LIMIT &&
                           u.caste !== 'slave' &&
                           !game.words[id].custodians.includes(u.id),
                       ) ||
@@ -1692,16 +1716,25 @@ function App() {
                 <div>
                   <h3>{d.name}</h3>
                   <span>
-                    {d.age} stagioni · Peso culturale {d.weight.toFixed(1)}
+                    {numbered
+                      ? `${d.age} stagioni · Peso culturale ${d.weight.toFixed(1)}`
+                      : `Radicamento ${d.weight >= 30 ? 'profondo' : d.weight >= 15 ? 'forte' : 'recente'}`}
                   </span>
                   <p>{d.description}</p>
                 </div>
                 <button
                   className="text-button text-danger"
-                  title={`Abolire costa ${Math.ceil(d.weight)} coesione`}
+                  title={
+                    numbered
+                      ? `Abolire costa ${Math.ceil(d.weight)} coesione`
+                      : 'Abolire indebolisce la coesione: più il dogma è radicato, maggiore è il costo.'
+                  }
                   onClick={() => setGame((g) => removeDogma(g, d.id))}
                 >
-                  Abolisci <small>−{Math.ceil(d.weight)} coesione</small>
+                  Abolisci{' '}
+                  <small>
+                    {numbered ? `−${Math.ceil(d.weight)} coesione` : 'Indebolisce la coesione'}
+                  </small>
                 </button>
               </article>
             ))}

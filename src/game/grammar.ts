@@ -1,5 +1,5 @@
 import { BUILDING_SPECS, WORDS } from './content';
-import { forbiddenByDogma, getDogmaVectors, SACRED_TARGETS } from './dogmas';
+import { forbiddenByDogma, getDogmaConflict, getDogmaVectors, SACRED_TARGETS } from './dogmas';
 import { hasBuilding, hasWord } from './runtime';
 import type { BuildingKind, Compilation, GameState, Inventory, Target } from './types';
 
@@ -101,6 +101,8 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
       !getDogmaVectors(remaining[0]).includes(remaining[1])
     )
       return no('Concetto non sacralizzabile: scegli un bersaglio e un vettore dogmatico validi.');
+    const conflict = getDogmaConflict(s.dogmas, remaining[0], remaining[1]);
+    if (conflict) return no(conflict);
     return {
       valid: true,
       message: 'Incidere una regola sulla Pietra Sacra.',
@@ -194,7 +196,20 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
   }
   if (p.verb === 'V_03') {
     if (
-      !allArgs(a, ['O_02', 'O_03', 'O_04', 'O_07', 'M_01', 'M_02', 'S_05', 'S_06', 'V_05', 'S_08'])
+      !allArgs(a, [
+        'O_02',
+        'O_03',
+        'O_04',
+        'O_07',
+        'M_01',
+        'M_02',
+        'S_01',
+        'S_02',
+        'S_05',
+        'S_06',
+        'V_05',
+        'S_08',
+      ])
     )
       return no('Il bersaglio non può essere colpito con questa frase.');
     if (

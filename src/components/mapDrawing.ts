@@ -1,4 +1,7 @@
 import type { GameState, WorldTarget } from '../game/types';
+import { hasBuilding } from '../game/runtime';
+
+export const visibleBorderRadius = (state: GameState) => (hasBuilding(state, 'palace') ? 100 : 35);
 
 export const MAP_WIDTH = 1200;
 export const MAP_HEIGHT = 800;
@@ -1497,7 +1500,7 @@ export function drawWorld(
     if (
       entity.amount <= 0 ||
       !isVisibleAt(state, entity.x, entity.y) ||
-      (entity.kind === 'ore' && (state.tier < 4 || !hasConcept(state, 'O_07')))
+      (entity.kind === 'ore' && !hasConcept(state, 'O_07'))
     )
       continue;
     if (
@@ -1539,7 +1542,12 @@ export function drawWorld(
     for (const b of state.buildings.filter((b) => b.hp > 0 && isVisibleAt(state, b.x, b.y)))
       objects.push({ y: b.y, draw: () => sprite(b, () => drawBuilding(ctx, b, time)) });
   for (const unit of state.units.filter(
-    (u) => u.hp > 0 && isVisibleAt(state, u.x, u.y) && (!state.urbanized || u.isKing),
+    (u) =>
+      u.hp > 0 &&
+      isVisibleAt(state, u.x, u.y) &&
+      (!state.urbanized ||
+        u.isKing ||
+        ['delegating', 'frontline', 'frontline-returning'].includes(u.action)),
   ))
     objects.push({
       y: unit.y + 0.3,
@@ -1699,7 +1707,7 @@ export function drawWorld(
   }
   if (hasConcept(state, 'O_10')) {
     const p = worldPoint(state.home.x, state.home.y),
-      radius = state.buildings.some((b) => b.kind === 'palace' && b.hp > 0) ? 100 : 35;
+      radius = visibleBorderRadius(state);
     ctx.strokeStyle = '#a5ae6a99';
     ctx.setLineDash([3, 3]);
     ctx.lineWidth = 0.6;

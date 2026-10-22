@@ -535,6 +535,9 @@ export const SEASON_TEMPERATURES = [
 ];
 export const ADULT_AGE = 4;
 export const ELDER_AGE = 14;
+// The guide says a young learner, not exclusively a minor: children have priority,
+// then any non-elder who does not yet know this word may become a custodian.
+export const LEARNING_AGE_LIMIT = ELDER_AGE;
 /** These parameters are absent from the GDD and are recorded explicitly in CONFORMANCE.md. */
 export const SPEC_ASSUMPTIONS = {
   adultAgeSeasons: ADULT_AGE,
@@ -922,6 +925,8 @@ export const ACTION_NAMES: Record<string, string> = {
   researching: 'Riflette',
   teaching: 'Insegna',
   working: 'Lavora',
+  frontline: 'In prima linea',
+  'frontline-returning': 'Ritorna dalla battaglia',
   patrolling: 'Pattuglia',
   besieging: 'Assedia',
   occupying: 'Occupa',

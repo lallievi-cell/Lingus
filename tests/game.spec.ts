@@ -30,7 +30,19 @@ async function worldClick(page: Page, x: number, y: number, zoom = 4.5, offset =
 }
 async function seed(
   page: Page,
-  scenario: 'campfire' | 'dogma' | 'empire' | 'cultural' | 'qualitative' | 'spark-error',
+  scenario:
+    | 'campfire'
+    | 'dogma'
+    | 'empire'
+    | 'cultural'
+    | 'qualitative'
+    | 'spark-error'
+    | 'cognitive'
+    | 'metallurgy'
+    | 'dogma-qualitative'
+    | 'border-foreign'
+    | 'border-inactive'
+    | 'border-active',
 ) {
   await page.goto('/');
   const fixture = await page.evaluate(
@@ -80,7 +92,8 @@ async function seed(
         game.attention = 30;
         game.campfirePending = true;
       }
-      if (scenario === 'dogma') {
+      if (scenario === 'dogma' || scenario === 'dogma-qualitative') {
+        if (scenario === 'dogma') learn('O_08');
         for (const word of ['O_02', 'M_03', 'M_01', 'C_01', 'V_05']) learn(word);
         game.tier = 2;
         game.time = 65;
@@ -93,6 +106,28 @@ async function seed(
           hp: 500,
           active: true,
         });
+      }
+      if (scenario.startsWith('border-')) {
+        learn('O_10');
+        game.tier = 2;
+        const foreign = game.cities[0];
+        game.buildings.push({
+          id: 'fixture-palace',
+          kind: 'palace',
+          x: 250,
+          y: 250,
+          hp: 1200,
+          active: scenario !== 'border-inactive',
+          cityId: scenario === 'border-foreign' ? foreign.id : undefined,
+        });
+      }
+      if (scenario === 'cognitive' || scenario === 'metallurgy') {
+        game.tier = 2;
+        learn('O_03', 40);
+        const ore = game.entities.find((e) => e.kind === 'ore')!;
+        ore.x = 260;
+        ore.y = 250;
+        if (scenario === 'metallurgy') learn('O_07');
       }
       if (scenario === 'qualitative') {
         learn('M_02');
@@ -240,6 +275,7 @@ test('a real physical order discovers Legno and the version-two save survives re
   await expect(page.getByRole('button', { name: /^Legno:/ })).toBeVisible();
   await expect(page.locator('.word-shelf .word-tile')).toHaveCount(5);
   const saved = await saveAndRead(page);
+
   expect(saved.version).toBe(2);
   expect(saved.words.O_03.retention).toBe(50);
   expect(saved.stats.commands).toBe(1);
@@ -453,4 +489,74 @@ test('mobile layout preserves map interactions and six-slot composition without 
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
     .toBe(true);
   await page.screenshot({ path: '/tmp/lingus-fidelity-mobile.png', fullPage: true });
+});
+
+test('cognitive panels hide unknown recipes and exact memory before Numero', async ({ page }) => {
+  await seed(page, 'cognitive');
+  await page.getByRole('button', { name: /Le frasi della materia/ }).click();
+  const codex = page.getByRole('dialog', { name: 'La civiltà delle parole' });
+  await expect(codex.locator('.building-codex article')).toHaveCount(0);
+  await expect(codex).not.toContainText('Archivio reale');
+  await expect(codex).not.toContainText('Metallo');
+  await closePanel(page);
+  await page.getByRole('button', { name: /Il lessico della tribù/ }).click();
+  const memory = page
+    .locator('.dictionary-entry')
+    .filter({ hasText: 'Legno' })
+    .locator('.dictionary-memory');
+  await expect(memory).toContainText('Memoria fragile');
+  await expect(memory).not.toContainText('%');
+  await expect(memory).toContainText('Pochi custodi');
+  await closePanel(page);
+  await worldClick(page, 238, 233);
+  await expect(page.locator('.map-toolbar')).toContainText('Un ostacolo senza nome');
+  await worldClick(page, 260, 250);
+  await expect(page.locator('.map-toolbar')).not.toContainText('Vena mineraria');
+  await seed(page, 'metallurgy');
+  await worldClick(page, 260, 250);
+  await expect(page.locator('.map-toolbar')).toContainText('Vena mineraria');
+});
+
+test('a dogma shows qualitative roots and abolition cost before Numero', async ({ page }) => {
+  await seed(page, 'dogma-qualitative');
+  await page.getByRole('button', { name: /^La Pietra Sacra/ }).click();
+  const stone = page.getByRole('dialog', { name: 'La Pietra Sacra' });
+  await stone.getByLabel('Un concetto').selectOption('C_01');
+  await stone.getByLabel('Una regola').selectOption('M_01');
+  await stone.getByRole('button', { name: 'Scolpisci il dogma' }).click();
+  await expect(stone.locator('.dogma-list')).toContainText('Radicamento recente');
+  await expect(stone.locator('.dogma-list')).not.toContainText('10.0');
+  await expect(stone.locator('.dogma-list')).not.toContainText('−10');
+  await expect(stone.getByRole('button', { name: /Abolisci/ })).toContainText(
+    'Indebolisce la coesione',
+  );
+});
+
+test('drawn borders expand only for an active palace belonging to the player', async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = CanvasRenderingContext2D.prototype.ellipse;
+    CanvasRenderingContext2D.prototype.ellipse = function (...args: Parameters<typeof original>) {
+      if (
+        args[0] === 600 &&
+        args[1] === 400 &&
+        Math.abs(this.lineWidth - 0.6) < 0.0001 &&
+        this.getLineDash().join(',') === '3,3'
+      ) {
+        (window as unknown as { observedBorder: number }).observedBorder = args[2] / 2.4;
+      }
+      return original.apply(this, args);
+    };
+  });
+  for (const [scenario, expected] of [
+    ['border-foreign', 35],
+    ['border-inactive', 35],
+    ['border-active', 100],
+  ] as const) {
+    await seed(page, scenario);
+    await expect
+      .poll(() =>
+        page.evaluate(() => (window as unknown as { observedBorder: number }).observedBorder),
+      )
+      .toBe(expected);
+  }
 });

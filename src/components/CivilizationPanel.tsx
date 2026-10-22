@@ -457,37 +457,58 @@ export function CivilizationPanel({
             Gli edifici nascono da combinazioni di parole. Questo registro spiega le ricette; ogni
             costruzione viene ordinata attraverso la barra del linguaggio.
           </p>
+          {!BUILDING_ORDER.some((kind) => known(['S_01', ...BUILDING_SPECS[kind].recipe])) && (
+            <p className="guide-note">
+              Le esperienze e le nuove parole riveleranno come trasformare questo luogo.
+            </p>
+          )}
           <div className="building-codex">
-            {BUILDING_ORDER.map((kind) => {
-              const b = BUILDING_SPECS[kind],
-                tokens = ['S_01', ...b.recipe];
-              return (
-                <article key={kind} className={known(tokens) ? '' : 'unlearned'}>
-                  <div className="building-codex-name">
-                    <Building2 size={20} />
-                    <h3>{b.label}</h3>
-                    <span>{b.id}</span>
-                  </div>
-                  <div className="token-sentence">{sentence(tokens)}</div>
-                  <p>{b.description}</p>
-                  <small>
-                    {Object.entries(b.cost)
-                      .map(([r, n]) => `${n} ${RESOURCE_SPECS[r as Resource].label}`)
-                      .join(' · ')}{' '}
-                    · {b.workers} lavoratori
-                  </small>
-                  {kind !== 'campfire' && (
-                    <button
-                      className="text-button"
-                      disabled={!known(tokens)}
-                      onClick={() => prepare(tokens)}
-                    >
-                      Componi la ricetta <ArrowRight size={13} />
-                    </button>
-                  )}
-                </article>
-              );
-            })}
+            {BUILDING_ORDER.filter((kind) => known(['S_01', ...BUILDING_SPECS[kind].recipe])).map(
+              (kind) => {
+                const b = BUILDING_SPECS[kind],
+                  tokens = ['S_01', ...b.recipe];
+                return (
+                  <article key={kind} className={known(tokens) ? '' : 'unlearned'}>
+                    <div className="building-codex-name">
+                      <Building2 size={20} />
+                      <h3>{b.label}</h3>
+                    </div>
+                    <div className="token-sentence">{sentence(tokens)}</div>
+                    <p>
+                      {numbered
+                        ? b.description
+                        : 'Questa costruzione prende forma dalle parole che conosci.'}
+                    </p>
+                    <small>
+                      {Object.entries(b.cost)
+                        .map(
+                          ([r, n]) =>
+                            `${describeQuantity(n, numbered)} ${RESOURCE_SPECS[r as Resource].label}`,
+                        )
+                        .join(' · ')}{' '}
+                      ·{' '}
+                      {numbered
+                        ? b.workers
+                        : b.workers === 0
+                          ? 'Nessun'
+                          : b.workers < 5
+                            ? 'Pochi'
+                            : 'Molti'}{' '}
+                      lavoratori
+                    </small>
+                    {kind !== 'campfire' && (
+                      <button
+                        className="text-button"
+                        disabled={!known(tokens)}
+                        onClick={() => prepare(tokens)}
+                      >
+                        Componi la ricetta <ArrowRight size={13} />
+                      </button>
+                    )}
+                  </article>
+                );
+              },
+            )}
           </div>
         </>
       )}

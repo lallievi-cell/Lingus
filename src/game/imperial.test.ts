@@ -8,6 +8,7 @@ import {
   cityPopulation,
   condenseCities,
   evaluateVictory,
+  enforceActionLaws,
   handleImperialCommand,
   inscribeLaw,
   playerPopulation,
@@ -15,6 +16,7 @@ import {
   seasonalImperial,
   updateImperial,
 } from './imperial';
+import { recordLawWork } from './imperialLawPolicy';
 import type { Battalion, BuildingKind, City, Dogma, GameState, Law } from './types';
 
 function fixture() {
@@ -667,5 +669,235 @@ describe('battles and final conditions', () => {
         .filter((w) => !original.includes(w))
         .every((w) => f.eventMemory?.some((e) => e.wordIds.includes(w))),
     ).toBe(true);
+  });
+});
+
+describe('resolved legal rules and actual Valhalla service', () => {
+  it('enacts the stated Fire inquisition and stops an already running reform', () => {
+    const s = isolate(fixture()),
+      c = city(s);
+    building(s, c, 'palace');
+    building(s, c, 'school');
+    s.cohesion = 40;
+    s.dogmas = [{ ...dogma('O_03', 'M_01'), reforming: true }];
+    const n = inscribeLaw(s, ['S_02', 'V_14', 'M_03', 'M_01', 'C_03', 'O_05']);
+    expect(n.laws).toHaveLength(1);
+    expect(n.cohesion).toBe(50);
+    expect(n.dogmas[0].reforming).toBe(false);
+    const weight = n.dogmas[0].weight;
+    seasonalImperial(n);
+    expect(n.dogmas[0].weight).toBe(weight);
+  });
+  it('only punishes the caste named by the law, including implicit clicked targets', () => {
+    const s = isolate(fixture()),
+      c = city(s);
+    building(s, c, 'court');
+    const u = s.units[0];
+    const rule = {
+      ...law('V_03'),
+      subjectId: 'S_06',
+      verbId: 'V_03',
+      objectId: 'O_03',
+      prohibitive: true,
+    };
+    s.laws = [rule];
+    expect(enforceActionLaws(s, ['S_02', 'V_03', 'O_03'], undefined, [u.id])).toBe(true);
+    expect(u.hp).toBe(100);
+    u.caste = 'slave';
+    expect(enforceActionLaws(s, ['S_02', 'V_03', 'O_03'], undefined, [u.id])).toBe(false);
+    expect(u.hp).toBe(60);
+  });
+  it('does not count a pending command or lifetime work as a completed legal season', () => {
+    const s = isolate(fixture());
+    const u = s.units[0];
+    s.units = [u];
+    u.caste = 'slave';
+    u.workCycles = 999;
+    u.command = ['S_06', 'V_08', 'O_02'];
+    const l = { ...law('M_05'), subjectId: 'S_06', verbId: 'V_08', objectId: 'O_02' };
+    s.laws = [l];
+    s.time = 90;
+    seasonalImperial(s);
+    expect(s.eventTimes[`lawful:${l.id}:${u.id}`]).toBeUndefined();
+    expect(u.caste).toBe('slave');
+    for (let i = 1; i <= 10; i++) {
+      s.time = (i + 1) * 90;
+      recordLawWork(s, u.id, ['S_06', 'V_08', 'O_02'], 1, s.time - 1);
+      seasonalImperial(s);
+    }
+    expect(u.caste).toBe('citizen');
+    expect(s.eventTimes[`lawful:${l.id}:${u.id}`]).toBe(10);
+  });
+  it('moves a material confiscation on a real caravan rather than crediting remote goods immediately', () => {
+    const s = isolate(fixture()),
+      cap = city(s),
+      province = city(s, 'province', 350, 250);
+    province.resources.wood = 100;
+    applySanction(s, law('O_11'), undefined, province);
+    expect(province.resources.wood).toBe(50);
+    expect(s.resources.wood).toBe(0);
+    expect(s.caravans[0].resources.wood).toBe(50);
+    updateImperial(s, 10);
+    expect(s.resources.wood).toBe(0);
+    updateImperial(s, 7);
+    expect(cap.resources.wood).toBe(50);
+  });
+  it('covers an assessed fiscal deficit by its declared value rather than enslaving one person for every deficit', () => {
+    const s = isolate(fixture());
+    city(s);
+    const p = city(s, 'province', 350, 250);
+    p.cohorts.workers = 20;
+    p.resources.ore = 100;
+    p.resources.wood = 200;
+    p.resources.food = 100;
+    p.words = [];
+    building(s, p, 'foundry');
+    building(s, p, 'depot');
+    building(s, p, 'storage');
+    s.laws = [
+      { ...law('S_06'), subjectId: 'S_09', verbId: 'V_04', objectId: 'O_11', modifierId: 'O_07' },
+    ];
+    s.time = 90;
+    seasonalImperial(s);
+    expect(s.eventTimes[`fiscalDeficit:${p.id}`]).toBe(450);
+    expect(p.cohorts.slaves).toBe(5);
+    expect(p.cohorts.workers).toBe(15);
+  });
+  it('makes scholars physically take the first wounds and lose custody when the frontline kills them', () => {
+    const s = isolate(fixture());
+    s.urbanized = true;
+    const own = city(s),
+      enemy = city(s, 'enemy', 250, 250);
+    enemy.factionId = 'enemy';
+    enemy.cohorts.warriors = 50;
+    enemy.garrisonHp = 5000;
+    const sage = s.units.find((u) => u.name === 'Ayla')!;
+    s.units = [sage];
+    sage.cityId = own.id;
+    sage.caste = 'sage';
+    sage.x = 250;
+    sage.y = 250;
+    own.cohorts.sages = 1;
+    own.cohorts.warriors = 20;
+    s.cohesion = 50;
+    s.words.O_02 = { retention: 80, custodians: [sage.id], uses: 0 };
+    s.dogmas = [dogma('V_03', 'O_06')];
+    const a = army(s, own);
+    a.action = 'attacking';
+    a.targetId = enemy.id;
+    building(s, own, 'archive');
+    const control = structuredClone(s);
+    control.units = [];
+    control.cities.find((c) => c.id === own.id)!.cohorts.sages = 0;
+    updateImperial(s, 1);
+    updateImperial(control, 1);
+    expect(sage.hp).toBe(0);
+    expect(sage.action).toBe('dead');
+    expect(own.cohorts.sages).toBe(0);
+    expect(s.words.O_02.retention).toBe(0);
+    expect(s.cohesion).toBe(55);
+    expect(a.frontlineSageIds).toContain(sage.id);
+    expect(a.hp - control.battalions[0].hp).toBeCloseTo(100);
+  });
+  it('withdraws scholars from archives until they physically return from their assigned army', () => {
+    const s = isolate(fixture());
+    s.urbanized = true;
+    const c = city(s),
+      enemy = city(s, 'enemy', 450, 250);
+    enemy.factionId = 'enemy';
+    const sage = s.units.find((u) => u.name === 'Ayla')!;
+    s.units = [sage];
+    sage.cityId = c.id;
+    sage.caste = 'sage';
+    sage.x = 250;
+    sage.y = 250;
+    c.cohorts.sages = 1;
+    s.dogmas = [dogma('V_03', 'O_06')];
+    const archive = building(s, c, 'archive'),
+      a = army(s, c);
+    a.action = 'attacking';
+    a.targetId = enemy.id;
+    updateImperial(s, 1);
+    expect(sage.action).toBe('frontline');
+    expect(sage.x).toBe(250);
+    expect(a.x).toBe(254);
+    expect(archive.lastEfficiency).toBe(0);
+    updateImperial(s, 1);
+    expect(sage.x).toBe(254);
+    a.action = 'idle';
+    updateImperial(s, 1);
+    expect(sage.x).toBe(250);
+    expect(sage.action).toBe('idle');
+    expect(archive.lastEfficiency).toBe(0.25);
+  });
+  it('uses only scholarly workers for a fire monopoly and applies its contextual production bonus', () => {
+    const s = isolate(fixture()),
+      c = city(s);
+    c.cohorts.workers = 4;
+    c.resources.ore = 100;
+    c.resources.wood = 200;
+    c.resources.food = 100;
+    const furnace = building(s, c, 'foundry');
+    building(s, c, 'depot');
+    building(s, c, 'storage');
+    s.dogmas = [dogma('O_05', 'S_04')];
+    allocateCityWorkers(s, c);
+    expect(furnace.lastEfficiency).toBe(0);
+    c.cohorts.sages = 4;
+    s.time = 90;
+    seasonalImperial(s);
+    expect(furnace.lastEfficiency).toBe(1);
+    expect(c.production.ingot).toBeCloseTo(18 * 1.3);
+  });
+  it('does not repeatedly subtract the opposing-doctrine diplomatic penalty every tick', () => {
+    const s = fixture();
+    s.dogmas = [dogma('O_04', 'M_01')];
+    const f = s.factions[0];
+    f.dogmas = [dogma('O_04', 'C_02')];
+    updateImperial(s, 0.25);
+    expect(f.relation).toBe(-50);
+    updateImperial(s, 0.25);
+    expect(f.relation).toBe(-50);
+    s.dogmas = [];
+    updateImperial(s, 0.25);
+    expect(f.relation).toBe(0);
+  });
+  it('applies the canonical synergy only for a law enforcing the taboo and adds the exact schism cost for a sanctified target', () => {
+    const s = isolate(fixture()),
+      c = city(s);
+    building(s, c, 'palace');
+    s.cohesion = 25;
+    s.corruption = 0.8;
+    s.revoltTension = 40;
+    s.dogmas = [{ ...dogma('O_04', 'M_01'), weight: 24 }];
+    const canonical = inscribeLaw(s, ['S_02', 'V_02', 'O_04', 'M_01', 'C_03', 'O_06']);
+    expect(canonical.cohesion).toBe(100);
+    expect(canonical.corruption).toBe(0);
+    expect(canonical.revoltTension).toBe(20);
+    s.dogmas = [{ ...dogma('S_05', 'O_01'), weight: 24 }];
+    const schism = inscribeLaw(s, ['S_05', 'V_01', 'O_10', 'M_01', 'C_03', 'S_06']);
+    expect(schism.revoltTension).toBe(52);
+    expect(schism.cohesion).toBe(25);
+    expect(schism.corruption).toBe(0.8);
+    const independent = inscribeLaw(s, ['S_02', 'V_04', 'O_03', 'M_02', 'C_03', 'V_03']);
+    expect(independent.revoltTension).toBe(40);
+    expect(independent.cohesion).toBe(25);
+    expect(independent.corruption).toBe(0.8);
+  });
+  it('removes a physically represented debtor from citizen custody when a fiscal sanction enslaves them', () => {
+    const s = isolate(fixture()),
+      c = city(s);
+    c.cohorts.workers = 1;
+    const u = s.units.find((u) => u.name === 'Tala')!;
+    s.units = [u];
+    u.cityId = c.id;
+    u.caste = 'citizen';
+    s.words.O_02 = { retention: 80, custodians: [u.id], uses: 0 };
+    applySanction(s, law('S_06'), undefined, c);
+    expect(c.cohorts.workers).toBe(0);
+    expect(c.cohorts.slaves).toBe(1);
+    expect(u.caste).toBe('slave');
+    expect(s.words.O_02.custodians).toEqual([]);
+    expect(s.words.O_02.retention).toBe(0);
   });
 });
