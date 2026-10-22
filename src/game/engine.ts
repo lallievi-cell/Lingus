@@ -684,33 +684,55 @@ export function getObjective(s: GameState): Objective {
       current: known.length,
       total: 6,
     };
+  if (!hasWord(s, 'S_02') && !hasWord(s, 'O_01')) {
+    const maxIso = s.units.reduce((max, u) => Math.max(max, u.isolation ?? 0), 0);
+    return {
+      title: 'La voce dell’individuo (Io)',
+      description:
+        'Allontana un compagno dal gruppo a oltre cinquanta metri per trenta secondi. Chi resta solo scopre «Io» e sblocca il terzo spazio prima dell’inverno.',
+      progress: Math.min(1, maxIso / 30),
+      current: Math.min(30, Math.floor(maxIso)),
+      total: 30,
+    };
+  }
   if (!hasWord(s, 'O_01'))
     return {
-      title: 'Il luogo a cui torniamo',
+      title: 'Il luogo a cui torniamo (Qui)',
       description:
-        'Almeno tre quarti della tribù devono dormire entro dieci metri dalla tana per tre notti consecutive.',
-      progress: s.nightSleeping / 3,
+        'Almeno tre quarti della tribù devono dormire entro dieci metri dalla tana per due notti consecutive.',
+      progress: s.nightSleeping / 2,
       current: s.nightSleeping,
-      total: 3,
-    };
-  if (!hasWord(s, 'V_04'))
-    return {
-      title: 'Sazi, ma circondati dal cibo',
-      description:
-        'Un individuo sazio presso il cibo può intuire come Portare ciò che resta alla tana.',
-      progress: (s.tension.V_04 ?? 0) / 100,
-      current: Math.floor(s.tension.V_04 ?? 0),
-      total: 100,
+      total: 2,
     };
   if (!hasWord(s, 'O_05'))
     return {
-      title: 'La luce nella materia',
+      title: 'La luce nella materia (Fuoco)',
       description:
-        'Le pietre lavorate e il legno, oppure un fulmine estivo, fanno intuire il Fuoco. Accenderlo richiede cinque legna.',
+        'Lavora la selce con Io + Scheggiare + Pietra. Unire Scheggiare e Legno farà intuire il Fuoco prima del gelo.',
       progress: (s.tension.O_05 ?? 0) / 100,
       current: Math.floor(s.tension.O_05 ?? 0),
       total: 100,
     };
+  if (!hasBuilding(s, 'campfire')) {
+    const nearbyWood =
+      s.resources.wood +
+      s.entities
+        .filter(
+          (e) =>
+            e.kind === 'ground' &&
+            e.resource === 'wood' &&
+            Math.hypot(e.x - s.home.x, e.y - s.home.y) <= 15,
+        )
+        .reduce((sum, e) => sum + e.amount, 0);
+    return {
+      title: 'Accendere il primo Falò',
+      description:
+        'Servono cinque legna vicino alla tana per accendere il Falò e proteggere la tribù dal freddo dell’inverno.',
+      progress: Math.min(1, nearbyWood / 5),
+      current: Math.min(5, Math.floor(nearbyWood)),
+      total: 5,
+    };
+  }
   if (!hasWord(s, 'M_02'))
     return {
       title: 'La fame che deve ancora arrivare',

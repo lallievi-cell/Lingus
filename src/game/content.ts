@@ -76,7 +76,7 @@ export const WORDS: Record<string, Word> = Object.fromEntries(
       1,
       'Dà un nome al luogo in cui tornare. Le risorse vengono portate qui.',
       ['S_01'],
-      'Tre notti insieme',
+      'Due notti insieme',
       'Il gruppo torna a dormire sempre nello stesso luogo.',
     ),
     word(

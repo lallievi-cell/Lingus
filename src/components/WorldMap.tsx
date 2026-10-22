@@ -83,6 +83,9 @@ function targetLabel(state: GameState, target: WorldTarget | null) {
     return (
       entityNames[state.buildings.find((b) => b.id === target.id)?.kind ?? ''] ?? 'Insediamento'
     );
+  if (target.type === 'point' && state.home && Math.hypot(target.x - state.home.x, target.y - state.home.y) <= 10) {
+    return 'Giaciglio della tribù · Luogo del riposo notturno';
+  }
   return isVisibleAt(state, target.x, target.y)
     ? 'Un luogo da raggiungere'
     : 'Terra ancora inesplorata';
@@ -350,6 +353,15 @@ export function WorldMap({
           miniCtx.lineTo(mw, (i * mh) / 5);
           miniCtx.stroke();
         }
+      if (!current.urbanized && current.home) {
+        miniCtx.fillStyle = '#b5974f';
+        miniCtx.beginPath();
+        miniCtx.arc((current.home.x / WORLD_SIZE) * mw, (current.home.y / WORLD_SIZE) * mh, 2.2, 0, Math.PI * 2);
+        miniCtx.fill();
+        miniCtx.strokeStyle = '#5a7343';
+        miniCtx.lineWidth = 0.6;
+        miniCtx.stroke();
+      }
       miniCtx.fillStyle = '#61764a';
       current.units
         .filter(

@@ -662,7 +662,11 @@ function App() {
                             {individuality && unit.age >= 14 && <small>ANZIANO</small>}
                             {individuality && unit.age < 4 && <small>GIOVANE</small>}
                           </strong>
-                          <span>{ACTION_NAMES[unit.action] ?? unit.action}</span>
+                          <span>
+                            {!individuality && unit.isolation && unit.isolation >= 3
+                              ? `Isolato (${Math.floor(unit.isolation)}s/30s)`
+                              : (ACTION_NAMES[unit.action] ?? unit.action)}
+                          </span>
                         </span>
                         {spark ? (
                           <Sparkles size={16} className="spark-indicator" />

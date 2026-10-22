@@ -1470,7 +1470,10 @@ export function updateUnits(s: GameState, dt: number) {
       continue;
     }
     const martial = s.laws.some((l) => l.sanctionId === 'O_06' && l.objectId === 'S_08');
-    if (!martial && (u.hunger >= 95 || u.temp <= 15)) {
+    const savingFire =
+      u.command?.includes('O_05') ||
+      (u.jobBuildingId && s.buildings.find((b) => b.id === u.jobBuildingId)?.kind === 'campfire');
+    if (!martial && (u.hunger >= 95 || (u.temp <= 15 && !savingFire))) {
       if (u.command) recordEvent(s, u, 'ENV_DISOBEDIENCE', 100, ['C_03'], 30);
       if (u.carry) {
         drop(s, u, u.carry.resource, u.carry.amount);
@@ -1583,8 +1586,15 @@ export function seasonalCore(s: GameState) {
   const rested = new Set(slept.map((u) => u.id));
   s.nightSleeping = slept.length >= Math.ceil(live.length * 0.75) ? s.nightSleeping + 1 : 0;
   for (const u of live) u.sleptThisNight = false;
-  if (s.nightSleeping >= 3)
+  if (s.nightSleeping >= 2)
     for (const u of slept) recordEvent(s, u, 'ENV_SLEEP_CLUSTER', 100, ['O_01']);
+  if (season.index === 2 && !s.buildings.some((b) => isPlayerBuilding(s, b) && b.kind === 'campfire' && b.active)) {
+    log(
+      s,
+      'L’aria si fa rigida: l’inverno gelerà la valle al secondo 270. Accendete il Falò con cinque legna prima che sia troppo tardi!',
+      'warning',
+    );
+  }
   for (const u of live) {
     u.age++;
     if (u.age === ELDER_AGE) {

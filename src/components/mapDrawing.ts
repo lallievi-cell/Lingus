@@ -1905,6 +1905,13 @@ function drawUnit(
     drawMaterial(ctx, unit.carry.resource, 0, 0, carryRecognized);
     ctx.restore();
   }
+  if (unit.isolation && unit.isolation > 3 && unit.isolation < 30) {
+    oval(ctx, -7, -22, 4.5, 4.5, '#5e755b');
+    ctx.fillStyle = '#f8f1db';
+    ctx.font = 'bold 7px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('?', -7, -19.5);
+  }
   if (unit.hp < 45 || unit.hunger > 80) {
     oval(ctx, 8, -22, 4.5, 4.5, unit.hp < 45 ? '#af7659' : '#bc9a50');
     ctx.fillStyle = '#f8f1db';
@@ -1962,6 +1969,61 @@ export function drawSelection(
   ctx.restore();
 }
 
+function drawCampground(ctx: CanvasRenderingContext2D, state: GameState) {
+  if (state.urbanized || !state.home) return;
+  const p = worldPoint(state.home.x, state.home.y);
+  const isNight = state.time % 90 >= 60;
+  const hasCampfireOrShelter = state.buildings.some(
+    (b) =>
+      b.hp > 0 &&
+      ['campfire', 'shelter', 'hut', 'house'].includes(b.kind) &&
+      Math.hypot(b.x - state.home.x, b.y - state.home.y) < 12,
+  );
+
+  ctx.save();
+
+  // 1. Terra battuta soffusa (acquerello caldo organico) per il giaciglio comune
+  // Raggio 10m esatto (regola matematica di simulazione per il sonno e la comprensione di "Qui")
+  const rx = 10 * 2.4;
+  const ry = 10 * 1.6;
+  const clearing = ctx.createRadialGradient(p.x, p.y, 2, p.x, p.y, rx);
+  clearing.addColorStop(0, isNight ? 'rgba(54, 62, 42, 0.22)' : 'rgba(215, 204, 168, 0.38)');
+  clearing.addColorStop(0.7, isNight ? 'rgba(54, 62, 42, 0.08)' : 'rgba(215, 204, 168, 0.16)');
+  clearing.addColorStop(1, 'rgba(215, 204, 168, 0)');
+  ctx.fillStyle = clearing;
+  ctx.beginPath();
+  ctx.ellipse(p.x, p.y, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 2. Linea cartografica di confine del riposo (stile curva di livello Lingus, fine e discreta)
+  ctx.strokeStyle = isNight ? 'rgba(185, 168, 120, 0.32)' : 'rgba(110, 125, 90, 0.32)';
+  ctx.lineWidth = 0.7;
+  ctx.setLineDash([3, 4]);
+  ctx.beginPath();
+  ctx.ellipse(p.x, p.y, rx, ry, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 3. Piccolo focolare primordiale spento al centro della radura (visibile solo prima di costruire il vero Falò)
+  if (!hasCampfireOrShelter) {
+    // Macchia di cenere spenta
+    oval(ctx, p.x, p.y + 1, 6, 3.2, isNight ? 'rgba(38, 41, 32, 0.35)' : 'rgba(74, 68, 54, 0.22)');
+    oval(ctx, p.x, p.y - 0.5, 4, 2, isNight ? '#3a3a30' : '#5c5445');
+    // Due legnetti spenti incrociati
+    line(ctx, [[p.x - 4, p.y + 1], [p.x + 4, p.y - 1]], '#73573d', 1.5);
+    line(ctx, [[p.x - 3, p.y - 1], [p.x + 3, p.y + 1]], '#8c704a', 1.2);
+    // Piccoli ciottoli di fiume attorno al focolare primordiale (raggio 5px)
+    for (let i = 0; i < 6; i++) {
+      const a = (i * Math.PI) / 3;
+      const cx = p.x + Math.cos(a) * 5.5;
+      const cy = p.y + Math.sin(a) * 3.2;
+      oval(ctx, cx, cy, 1.1, 0.8, isNight ? '#666b5b' : '#9ea18e');
+    }
+  }
+
+  ctx.restore();
+}
+
 export function drawWorld(
   ctx: CanvasRenderingContext2D,
   state: GameState,
@@ -1973,6 +2035,7 @@ export function drawWorld(
   groupAnchor?: WorldTarget | null,
 ) {
   ctx.drawImage(terrain, 0, 0, MAP_WIDTH, MAP_HEIGHT);
+  drawCampground(ctx, state);
   const piles = getGroundPiles(state);
   if (groupAnchor && !state.urbanized) {
     const liveAnchor =
