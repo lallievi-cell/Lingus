@@ -1,5 +1,6 @@
-import type { GameState, WorldTarget } from '../game/types';
+import type { GameState, Resource, WorldTarget } from '../game/types';
 import { hasBuilding } from '../game/runtime';
+import { getGroundPiles, groundPileFor, resourceKnown, type GroundPile } from './mapResourceLayout';
 
 export const visibleBorderRadius = (state: GameState) => (hasBuilding(state, 'palace') ? 100 : 35);
 
@@ -93,6 +94,372 @@ function polygon(ctx: CanvasRenderingContext2D, points: number[][], color: strin
   points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
   ctx.closePath();
   ctx.fill();
+}
+
+/** Small physical silhouettes, shared by piles and a person's actual carried load. */
+function drawMaterial(
+  ctx: CanvasRenderingContext2D,
+  resource: Resource,
+  x: number,
+  y: number,
+  recognized: boolean,
+) {
+  if (!recognized) {
+    rock(ctx, x - 8, y + 2, 11, 1, true);
+    rock(ctx, x + 8, y + 2, 10, 0, true);
+    rock(ctx, x, y - 4, 11, 1, true);
+    return;
+  }
+  if (resource === 'wood') {
+    const log = (px: number, py: number) => {
+      polygon(
+        ctx,
+        [
+          [px - 15, py - 5],
+          [px + 10, py - 8],
+          [px + 15, py - 3],
+          [px + 15, py + 4],
+          [px - 14, py + 6],
+        ],
+        '#806044',
+      );
+      polygon(
+        ctx,
+        [
+          [px - 15, py - 5],
+          [px + 10, py - 8],
+          [px + 15, py - 3],
+          [px - 12, py + 1],
+        ],
+        '#aa8055',
+      );
+      line(
+        ctx,
+        [
+          [px - 10, py - 2],
+          [px + 9, py - 5],
+        ],
+        '#c89c66',
+        1.5,
+      );
+      oval(ctx, px + 14, py, 4.8, 5.6, '#d3b37b');
+      ctx.strokeStyle = '#99724e';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(px + 14, py, 2.5, 3.4, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    };
+    log(x - 9, y + 2);
+    log(x + 9, y + 5);
+    log(x, y - 8);
+    line(
+      ctx,
+      [
+        [x - 6, y - 11],
+        [x - 7, y + 10],
+      ],
+      '#e3cda0',
+      2.2,
+    );
+  } else if (resource === 'stone' || resource === 'ore') {
+    rock(ctx, x - 13, y + 3, 11, 1);
+    rock(ctx, x + 12, y + 4, 12, 0);
+    rock(ctx, x, y - 3, 15, 1);
+    if (resource === 'ore')
+      line(
+        ctx,
+        [
+          [x - 7, y - 11],
+          [x + 2, y - 6],
+          [x - 1, y + 1],
+          [x + 9, y - 1],
+        ],
+        '#6e9a85',
+        3,
+      );
+    else
+      line(
+        ctx,
+        [
+          [x - 8, y - 9],
+          [x - 2, y - 13],
+          [x + 7, y - 6],
+        ],
+        '#e8e7d1',
+        2,
+      );
+  } else if (resource === 'meat' || resource === 'cooked') {
+    const cooked = resource === 'cooked';
+    polygon(
+      ctx,
+      [
+        [x - 22, y + 5],
+        [x - 14, y - 9],
+        [x + 4, y - 14],
+        [x + 19, y - 4],
+        [x + 21, y + 7],
+        [x + 5, y + 13],
+      ],
+      cooked ? '#936445' : '#b96f60',
+    );
+    polygon(
+      ctx,
+      [
+        [x - 17, y + 3],
+        [x - 11, y - 5],
+        [x + 2, y - 10],
+        [x + 14, y - 3],
+        [x + 14, y + 5],
+        [x + 3, y + 8],
+      ],
+      cooked ? '#b58254' : '#d4937d',
+    );
+    oval(ctx, x + 5, y, 6, 5, '#f0dfb7');
+    oval(ctx, x + 5, y, 2.3, 2, cooked ? '#97694c' : '#b47766');
+    line(
+      ctx,
+      [
+        [x - 13, y + 2],
+        [x - 6, y - 1],
+        [x - 5, y - 5],
+      ],
+      '#edc1a2',
+      1.5,
+    );
+    if (cooked)
+      for (let i = 0; i < 3; i++)
+        line(
+          ctx,
+          [
+            [x - 13 + i * 6, y - 6],
+            [x - 8 + i * 6, y + 5],
+          ],
+          '#73563d',
+          1.5,
+        );
+  } else if (resource === 'food') {
+    polygon(
+      ctx,
+      [
+        [x - 23, y + 3],
+        [x - 12, y - 9],
+        [x + 21, y + 1],
+        [x + 9, y + 10],
+        [x - 9, y + 11],
+      ],
+      '#6d8656',
+    );
+    line(
+      ctx,
+      [
+        [x - 18, y + 4],
+        [x + 17, y + 3],
+      ],
+      '#a6b778',
+      1,
+    );
+    for (const [dx, dy] of [
+      [-12, 0],
+      [-3, -6],
+      [7, -2],
+      [12, 4],
+      [1, 5],
+      [-8, 6],
+    ]) {
+      oval(ctx, x + dx, y + dy, 5, 4.7, '#a4524e');
+      oval(ctx, x + dx - 1, y + dy - 1, 1.4, 1.2, '#d99c80');
+      line(
+        ctx,
+        [
+          [x + dx, y + dy - 4],
+          [x + dx + 1, y + dy - 7],
+        ],
+        '#566845',
+        1.2,
+      );
+    }
+  } else if (resource === 'pelt') {
+    polygon(
+      ctx,
+      [
+        [x - 20, y - 7],
+        [x - 12, y - 11],
+        [x - 6, y - 7],
+        [x + 10, y - 12],
+        [x + 18, y - 6],
+        [x + 14, y],
+        [x + 20, y + 8],
+        [x + 9, y + 11],
+        [x + 2, y + 7],
+        [x - 12, y + 12],
+        [x - 19, y + 5],
+      ],
+      '#aa875b',
+    );
+    polygon(
+      ctx,
+      [
+        [x - 15, y - 5],
+        [x + 9, y - 8],
+        [x + 12, y + 5],
+        [x - 10, y + 8],
+      ],
+      '#ccb083',
+    );
+    line(
+      ctx,
+      [
+        [x - 13, y + 5],
+        [x + 11, y + 1],
+      ],
+      '#8c6a48',
+      1.5,
+    );
+  } else if (resource === 'seed') {
+    oval(ctx, x, y + 1, 15, 11, '#bba474');
+    polygon(
+      ctx,
+      [
+        [x - 10, y - 5],
+        [x - 6, y - 15],
+        [x + 7, y - 15],
+        [x + 11, y - 5],
+      ],
+      '#d1be8a',
+    );
+    line(
+      ctx,
+      [
+        [x - 9, y - 8],
+        [x + 9, y - 8],
+      ],
+      '#7c704d',
+      2,
+    );
+    for (let i = 0; i < 5; i++) oval(ctx, x + 19 + (i % 2) * 4, y + 2 - i * 3, 2.3, 1.3, '#b7a16a');
+  } else if (resource === 'ingot') {
+    for (const [dx, dy] of [
+      [-11, 4],
+      [10, 4],
+      [0, -7],
+    ]) {
+      polygon(
+        ctx,
+        [
+          [x + dx - 12, y + dy + 4],
+          [x + dx - 8, y + dy - 4],
+          [x + dx + 10, y + dy - 6],
+          [x + dx + 13, y + dy + 2],
+        ],
+        '#7d8b80',
+      );
+      line(
+        ctx,
+        [
+          [x + dx - 7, y + dy - 3],
+          [x + dx + 9, y + dy - 5],
+        ],
+        '#c2c7ad',
+        2,
+      );
+    }
+  } else if (resource === 'pottery') {
+    oval(ctx, x + 10, y + 4, 12, 9, '#a16a4b');
+    oval(ctx, x - 7, y, 12, 12, '#bd895e');
+    oval(ctx, x - 7, y - 8, 8, 3, '#744f3b');
+    line(
+      ctx,
+      [
+        [x - 16, y - 2],
+        [x - 14, y + 5],
+      ],
+      '#d9b380',
+      2,
+    );
+  } else if (resource === 'coin') {
+    for (const [dx, dy] of [
+      [-10, 5],
+      [6, 7],
+      [0, -1],
+      [13, -2],
+    ]) {
+      oval(ctx, x + dx, y + dy, 8, 4.5, '#9b7c3c');
+      oval(ctx, x + dx, y + dy - 2, 8, 4.5, '#d0b364');
+      line(
+        ctx,
+        [
+          [x + dx - 3, y + dy - 2],
+          [x + dx + 3, y + dy - 2],
+        ],
+        '#f0db9c',
+        1.4,
+      );
+    }
+  } else if (resource === 'spear' || resource === 'metalArms') {
+    for (const [dx, dy] of [
+      [-6, 4],
+      [5, -2],
+    ]) {
+      line(
+        ctx,
+        [
+          [x + dx - 16, y + dy + 11],
+          [x + dx + 12, y + dy - 11],
+        ],
+        '#8a6946',
+        3,
+      );
+      polygon(
+        ctx,
+        [
+          [x + dx + 8, y + dy - 13],
+          [x + dx + 22, y + dy - 18],
+          [x + dx + 15, y + dy - 5],
+        ],
+        resource === 'metalArms' ? '#a6b4a5' : '#a2a69b',
+      );
+    }
+  } else {
+    polygon(
+      ctx,
+      [
+        [x - 18, y + 5],
+        [x - 12, y - 9],
+        [x + 6, y - 15],
+        [x + 19, y - 3],
+        [x + 10, y + 10],
+        [x - 4, y + 12],
+      ],
+      '#78877c',
+    );
+    polygon(
+      ctx,
+      [
+        [x - 12, y - 6],
+        [x + 5, y - 11],
+        [x + 15, y - 2],
+        [x + 5, y + 4],
+      ],
+      '#bac2af',
+    );
+    line(
+      ctx,
+      [
+        [x - 6, y + 8],
+        [x + 2, y - 5],
+        [x + 13, y - 2],
+      ],
+      '#dce0c7',
+      1.2,
+    );
+  }
+}
+
+function drawGroundPile(ctx: CanvasRenderingContext2D, state: GameState, pile: GroundPile) {
+  const p = worldPoint(pile.x, pile.y);
+  oval(ctx, p.x + 2, p.y + 5, 29, 12, '#394a302b');
+  oval(ctx, p.x, p.y + 2, 27, 10, '#d1bd8b55');
+  drawMaterial(ctx, pile.resource, p.x, p.y, resourceKnown(state, pile.resource));
 }
 
 function tree(
@@ -418,7 +785,50 @@ function drawEntity(
   const idNumber = Array.from(entity.id).reduce((n, c) => n + c.charCodeAt(0), 0);
   const winter = seasonIndex % 4 === 3;
   if (entity.kind === 'tree') {
-    tree(ctx, x, y, 26, idNumber, winter, unknown);
+    if (entity.amount <= 0) {
+      polygon(
+        ctx,
+        [
+          [x - 9, y + 3],
+          [x - 8, y - 9],
+          [x + 8, y - 9],
+          [x + 10, y + 3],
+        ],
+        unknown ? '#858b80' : '#87664a',
+      );
+      oval(ctx, x, y - 9, 8, 4, unknown ? '#b0b4a6' : '#d8bc86');
+      line(
+        ctx,
+        [
+          [x - 10, y + 3],
+          [x - 15, y + 6],
+        ],
+        '#73775a',
+        2,
+      );
+      line(
+        ctx,
+        [
+          [x + 7, y + 2],
+          [x + 14, y + 5],
+        ],
+        '#73775a',
+        2,
+      );
+    } else {
+      tree(ctx, x, y, 26, idNumber, winter, unknown);
+      if (entity.maxAmount && entity.amount < entity.maxAmount)
+        line(
+          ctx,
+          [
+            [x - 2, y - 10],
+            [x + 2, y - 7],
+            [x - 2, y - 4],
+          ],
+          unknown ? '#b0b4a6' : '#d8bc86',
+          2,
+        );
+    }
   } else if (entity.kind === 'berries') {
     oval(ctx, x + 4, y + 3, 17, 5, '#59694425');
     oval(ctx, x - 7, y - 5, 12, 8, winter ? '#8d9c77' : '#697b49');
@@ -438,16 +848,56 @@ function drawEntity(
       }
     }
   } else if (entity.kind === 'stone') {
-    rock(ctx, x - 9, y - 1, 12, 1, unknown);
-    rock(ctx, x + 7, y + 2, 17, 0, unknown);
-    rock(ctx, x - 9, y + 8, 7, 1, unknown);
-    // A pale seam is the clue that this stone can be knapped.
+    if (entity.amount <= 0) {
+      rock(ctx, x - 5, y + 2, 6, 1, unknown);
+      rock(ctx, x + 7, y + 3, 4, 0, unknown);
+      return;
+    }
+    // Embedded bedrock is a continuous slab; extracted stone is a loose pile.
+    oval(ctx, x + 2, y + 8, 31, 9, '#59644e29');
+    polygon(
+      ctx,
+      [
+        [x - 28, y + 8],
+        [x - 23, y - 5],
+        [x - 10, y - 10],
+        [x + 2, y - 19],
+        [x + 24, y - 8],
+        [x + 28, y + 6],
+        [x + 16, y + 12],
+      ],
+      unknown ? '#858b85' : '#879487',
+    );
+    polygon(
+      ctx,
+      [
+        [x - 23, y - 5],
+        [x - 10, y - 10],
+        [x + 2, y - 19],
+        [x + 24, y - 8],
+        [x + 5, y - 3],
+        [x - 4, y + 4],
+      ],
+      unknown ? '#afb4aa' : '#b9c0ac',
+    );
+    polygon(
+      ctx,
+      [
+        [x + 5, y - 3],
+        [x + 24, y - 8],
+        [x + 28, y + 6],
+        [x + 16, y + 12],
+      ],
+      unknown ? '#949c93' : '#99a690',
+    );
+    // The pale continuous seam separates this deposit from loose fragments.
     line(
       ctx,
       [
-        [x + 1, y - 9],
-        [x + 8, y - 13],
-        [x + 12, y - 9],
+        [x - 20, y + 2],
+        [x - 3, y - 6],
+        [x + 1, y - 13],
+        [x + 17, y - 5],
       ],
       '#e9e2c0',
       1.5,
@@ -459,34 +909,102 @@ function drawEntity(
     entity.kind === 'mammoth'
   ) {
     if (entity.hp <= 0) {
-      oval(ctx, x + 2, y + 2, 13, 4, '#35473025');
-      oval(
-        ctx,
-        x,
-        y - 1,
-        entity.kind === 'mammoth' ? 22 : 12,
-        entity.kind === 'mammoth' ? 8 : 5,
-        '#958063',
-      );
-      oval(ctx, x + 11, y - 3, 4, 3, '#ac9774');
+      ctx.save();
+      ctx.translate(x, y);
+      const size = entity.kind === 'mammoth' ? 1.7 : entity.kind === 'alpha' ? 1.2 : 1;
+      ctx.scale(size, size);
+      oval(ctx, 1, 5, 25, 8, '#3547302b');
+      oval(ctx, -2, 0, 18, 8, '#977c5b');
+      oval(ctx, -5, -2, 13, 6, '#b3976f');
       line(
         ctx,
         [
-          [x - 4, y + 1],
-          [x - 9, y + 8],
+          [-12, 2],
+          [-19, 10],
+          [-23, 10],
         ],
-        '#76634b',
-        2,
+        '#6d604a',
+        2.5,
       );
       line(
         ctx,
         [
-          [x + 4, y + 1],
-          [x + 8, y + 7],
+          [3, 3],
+          [9, 11],
+          [13, 10],
         ],
-        '#76634b',
-        2,
+        '#6d604a',
+        2.5,
       );
+      oval(ctx, 17, -2, 8, 4.5, '#aa8e65');
+      line(
+        ctx,
+        [
+          [18, -3],
+          [21, -2],
+        ],
+        '#504d3e',
+        1.3,
+      );
+      polygon(
+        ctx,
+        [
+          [12, -5],
+          [10, -11],
+          [16, -6],
+        ],
+        '#76664d',
+      );
+      if (entity.kind === 'deer') {
+        line(
+          ctx,
+          [
+            [12, -6],
+            [9, -13],
+            [5, -15],
+          ],
+          '#786c50',
+          1.5,
+        );
+        line(
+          ctx,
+          [
+            [9, -11],
+            [13, -15],
+          ],
+          '#786c50',
+          1.3,
+        );
+      }
+      // A resting silhouette and exposed pale ribs distinguish a carcass from live fauna.
+      line(
+        ctx,
+        [
+          [-7, -4],
+          [-7, 4],
+        ],
+        '#d6c7a0',
+        1.6,
+      );
+      line(
+        ctx,
+        [
+          [-2, -5],
+          [-2, 4],
+        ],
+        '#d6c7a0',
+        1.6,
+      );
+      line(
+        ctx,
+        [
+          [3, -4],
+          [3, 3],
+        ],
+        '#d6c7a0',
+        1.6,
+      );
+      ctx.restore();
       return;
     }
     const bob = Math.sin(time * 1.6 + idNumber) * 0.6;
@@ -1296,10 +1814,13 @@ function drawUnit(
   unit: GameState['units'][number],
   time: number,
   selected: boolean,
+  carryRecognized: boolean,
 ) {
   const { x, y } = worldPoint(unit.x, unit.y);
   const id = Array.from(unit.id).reduce((n, c) => n + c.charCodeAt(0), 0);
-  const moving = /mov|walk|gather|hunt|carry|flee|going|and|raccog|port|esplor/i.test(unit.action);
+  const moving = /mov|walk|gather|hunt|carry|return|flee|going|and|raccog|port|esplor/i.test(
+    unit.action,
+  );
   const sleeping = /sleep|dorm/i.test(unit.action);
   const bob = moving ? Math.sin(time * 9 + id) * 0.7 : Math.sin(time * 2 + id) * 0.2;
   const colors = ['#987f51', '#637c6c', '#ad805a', '#8e8266', '#767d8a', '#b39b66', '#77804e'];
@@ -1377,6 +1898,13 @@ function drawUnit(
         1.5,
       );
   }
+  if (unit.carry && unit.carry.amount > 0 && !sleeping) {
+    ctx.save();
+    ctx.translate(8, -7);
+    ctx.scale(0.38, 0.38);
+    drawMaterial(ctx, unit.carry.resource, 0, 0, carryRecognized);
+    ctx.restore();
+  }
   if (unit.hp < 45 || unit.hunger > 80) {
     oval(ctx, 8, -22, 4.5, 4.5, unit.hp < 45 ? '#af7659' : '#bc9a50');
     ctx.fillStyle = '#f8f1db';
@@ -1445,6 +1973,7 @@ export function drawWorld(
   groupAnchor?: WorldTarget | null,
 ) {
   ctx.drawImage(terrain, 0, 0, MAP_WIDTH, MAP_HEIGHT);
+  const piles = getGroundPiles(state);
   if (groupAnchor && !state.urbanized) {
     const liveAnchor =
       groupAnchor.type === 'unit'
@@ -1466,7 +1995,9 @@ export function drawWorld(
     target.type === 'unit'
       ? (state.units.find((u) => u.id === target.id) ?? target)
       : target.type === 'entity'
-        ? (state.entities.find((e) => e.id === target.id) ?? target)
+        ? (groundPileFor(state, target.id, piles) ??
+          state.entities.find((e) => e.id === target.id) ??
+          target)
         : target.type === 'city'
           ? (state.cities.find((c) => c.id === target.id) ?? target)
           : target;
@@ -1498,7 +2029,8 @@ export function drawWorld(
   const objects: { y: number; draw: () => void }[] = [];
   for (const entity of state.entities) {
     if (
-      entity.amount <= 0 ||
+      entity.kind === 'ground' ||
+      (entity.amount <= 0 && !['tree', 'stone'].includes(entity.kind)) ||
       !isVisibleAt(state, entity.x, entity.y) ||
       (entity.kind === 'ore' && !hasConcept(state, 'O_07'))
     )
@@ -1530,12 +2062,30 @@ export function drawWorld(
               '#649e78',
               3,
             );
-          } else if (entity.kind === 'ground' || entity.kind === 'seedling') {
+          } else if (entity.kind === 'seedling') {
             const p = worldPoint(entity.x, entity.y);
-            oval(ctx, p.x, p.y, 8, 4, entity.kind === 'seedling' ? '#688650' : '#a0895b');
+            oval(ctx, p.x, p.y + 2, 9, 4, '#877e5440');
+            line(
+              ctx,
+              [
+                [p.x, p.y + 2],
+                [p.x, p.y - 14],
+              ],
+              '#5b7b4f',
+              2,
+            );
+            oval(ctx, p.x - 5, p.y - 10, 6, 3, '#7d9d63');
+            oval(ctx, p.x + 5, p.y - 14, 6, 3, '#90a96e');
           } else
             drawEntity(ctx, entity, time, state.seasonIndex, selected?.id === entity.id, unknown);
         }),
+    });
+  }
+  for (const pile of piles) {
+    if (!isVisibleAt(state, pile.entity.x, pile.entity.y)) continue;
+    objects.push({
+      y: pile.y + 0.1,
+      draw: () => sprite(pile, () => drawGroundPile(ctx, state, pile)),
     });
   }
   if (!state.urbanized)
@@ -1553,7 +2103,13 @@ export function drawWorld(
       y: unit.y + 0.3,
       draw: () =>
         sprite(unit, () =>
-          drawUnit(ctx, unit, time, selected?.id === unit.id && hasConcept(state, 'S_02')),
+          drawUnit(
+            ctx,
+            unit,
+            time,
+            selected?.id === unit.id && hasConcept(state, 'S_02'),
+            !!unit.carry && resourceKnown(state, unit.carry.resource),
+          ),
         ),
     });
   for (const city of state.cities.filter(

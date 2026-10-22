@@ -32,6 +32,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { WorldMap } from './components/WorldMap';
+import { entityTargetPresentation } from './components/targetPresentation';
 import { BrandMark, Glyph } from './components/Glyph';
 import { Modal } from './components/Modal';
 import {
@@ -89,19 +90,6 @@ const KIND_NAMES: Record<WordKind, string> = {
   O: 'Materia',
   M: 'Concetto',
   C: 'Condizione',
-};
-const ENTITY_NAMES: Record<string, string> = {
-  ore: 'Vena mineraria',
-  alpha: 'Predatore alfa',
-  ground: 'Risorse a terra',
-  seedling: 'Germoglio',
-  berries: 'Cespuglio di bacche',
-  tree: 'Albero',
-  stone: 'Affioramento di selce',
-  deer: 'Cervo',
-  wolf: 'Lupo',
-  mammoth: 'Mammut',
-  corpse: 'Resti di un compagno',
 };
 
 function loadInitialGame(): GameState {
@@ -173,10 +161,7 @@ function App() {
       ? selectedUnit.name
       : 'Un compagno'
     : selectedEntity
-      ? (selectedEntity.kind === 'tree' && !hasWord(game, 'O_03')) ||
-        (selectedEntity.kind === 'stone' && !hasWord(game, 'O_02'))
-        ? 'Un ostacolo senza nome'
-        : (ENTITY_NAMES[selectedEntity.kind] ?? 'Risorsa')
+      ? (entityTargetPresentation(game, selectedEntity)?.label ?? 'Risorsa')
       : selectedBuilding
         ? BUILDING_NAMES[selectedBuilding.kind]
         : target?.type === 'city'

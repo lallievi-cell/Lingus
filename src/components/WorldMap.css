@@ -259,3 +259,107 @@
     display: none;
   }
 }
+
+.lingus-world__target-card {
+  position: absolute;
+  left: 24px;
+  bottom: 69px;
+  width: min(286px, calc(100% - 215px));
+  padding: 13px 15px;
+  border: 1px solid #f4efd6d9;
+  border-radius: 7px;
+  background: #f8f3e3ed;
+  box-shadow: 0 5px 24px #384a3020;
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+  color: #344d35;
+}
+.lingus-world__target-stage {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+  color: #7a7857;
+  font:
+    600 9px/1.25 Inter,
+    system-ui,
+    sans-serif;
+  letter-spacing: 1.15px;
+  text-transform: uppercase;
+}
+.lingus-world__target-stage::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #83905a;
+}
+.lingus-world__target-card[data-resource-stage='ground'] .lingus-world__target-stage::before {
+  background: #b17a42;
+}
+.lingus-world__target-card[data-resource-stage='carcass'] .lingus-world__target-stage::before {
+  background: #a16d59;
+}
+.lingus-world__target-card > strong {
+  display: block;
+  font:
+    600 13px/1.35 Inter,
+    system-ui,
+    sans-serif;
+}
+.lingus-world__target-card p {
+  margin: 6px 0 0;
+  font:
+    11px/1.5 Inter,
+    system-ui,
+    sans-serif;
+  color: #617058;
+}
+.lingus-world__target-card small {
+  display: block;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #b8b89b59;
+  color: #7a714e;
+  font:
+    10px/1.45 Inter,
+    system-ui,
+    sans-serif;
+}
+@media (max-width: 800px) {
+  .lingus-world__target-card {
+    left: 15px;
+    bottom: 60px;
+    width: min(260px, calc(100% - 165px));
+    padding: 10px 11px;
+  }
+  .lingus-world__target-card > strong {
+    font-size: 12px;
+  }
+  .lingus-world__target-card p {
+    font-size: 10px;
+  }
+  .lingus-world__target-card small {
+    font-size: 9px;
+  }
+}
+@media (max-width: 480px) {
+  .lingus-world__target-card {
+    left: 15px;
+    right: 15px;
+    bottom: 15px;
+    width: auto;
+    max-width: 310px;
+  }
+  .lingus-world.has-resource-focus .lingus-world__minimap,
+  .lingus-world.has-resource-focus .lingus-world__footer {
+    display: none;
+  }
+  .lingus-world__target-card p {
+    line-height: 1.4;
+  }
+  .lingus-world__target-card small {
+    margin-top: 5px;
+    padding-top: 5px;
+  }
+}

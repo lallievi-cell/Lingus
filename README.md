@@ -48,6 +48,8 @@ Una stagione dura 90 secondi, di cui 60 di luce e 30 di notte; il primo inverno 
 | `1`, `2`, `3`                      | Velocità 1×, 2×, 4×.                                        |
 | Esc                                | Chiude un pannello; nella valle cancella frase e bersaglio. |
 
+Sulla mappa, tronchi e frammenti di pietra a terra sono distinti dagli alberi e dai giacimenti: indicano materiale estratto che deve ancora essere consegnato. Le carcasse sono riconoscibili e chi trasporta mostra il proprio carico. Selezionando un elemento, la scheda distingue «Da estrarre», «A terra», nutrimento sul posto e scorte consegnate; il clic seleziona il bersaglio, poi si impartisce l’ordine. I materiali ancora senza nome restano neutri.
+
 Orologio, scorte, coesione e dati numerici dipendono dalle parole corrispondenti. Prima di **Numero**, le quantità del mondo sono descritte qualitativamente. I suoni ambientali sono facoltativi.
 
 ## Salvataggi

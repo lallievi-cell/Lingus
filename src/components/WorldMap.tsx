@@ -12,6 +12,8 @@ import {
   WORLD_SIZE,
   SPRITE_SCALE,
 } from './mapDrawing';
+import { getGroundPiles } from './mapResourceLayout';
+import { entityTargetPresentation, targetPresentation } from './targetPresentation';
 import './WorldMap.css';
 
 interface WorldMapProps {
@@ -75,20 +77,7 @@ function targetLabel(state: GameState, target: WorldTarget | null) {
   if (target.type === 'entity') {
     const entity = state.entities.find((e) => e.id === target.id);
     if (!entity) return null;
-    if (
-      (entity.kind === 'tree' && !hasConcept(state, 'O_03')) ||
-      (entity.kind === 'stone' && !hasConcept(state, 'O_02'))
-    )
-      return 'Un ostacolo senza nome';
-    if (entity.kind === 'ore' && !hasConcept(state, 'O_07')) return null;
-    const carcass = ['deer', 'wolf', 'alpha', 'mammoth'].includes(entity.kind) && entity.hp <= 0;
-    const name = carcass ? 'Carcassa · nutrimento' : (entityNames[entity.kind] ?? 'Una risorsa');
-    if (numbered)
-      return `${name} · ${Math.floor(entity.amount)}${entity.hp > 0 && entity.maxHp > 1 ? ` · ${Math.ceil(entity.hp)} salute` : ''}`;
-    if (entity.kind === 'berries' && state.seasonIndex % 4 === 3) return `${name} · gelate`;
-    if (['tree', 'stone', 'berries', 'ore'].includes(entity.kind))
-      return `${name} · ${entity.amount <= 0 ? 'esaurito' : entity.amount >= (entity.maxAmount ?? entity.amount) * 0.6 ? 'abbondante' : 'scarso'}`;
-    return name;
+    return entityTargetPresentation(state, entity)?.label ?? null;
   }
   if (target.type === 'building')
     return (
@@ -211,10 +200,11 @@ export function WorldMap({
         y: number,
         radius: number,
         verticalOffset = 0,
+        display?: { x: number; y: number },
       ) => {
         if (!isVisibleAt(current, x, y)) return;
-        const dx = (p.x - x) * WORLD_X * t.scale,
-          dy = ((p.y - y) * WORLD_Y + verticalOffset * SPRITE_SCALE) * t.scale;
+        const dx = (p.x - (display?.x ?? x)) * WORLD_X * t.scale,
+          dy = ((p.y - (display?.y ?? y)) * WORLD_Y + verticalOffset * SPRITE_SCALE) * t.scale;
         const d = Math.hypot(dx, dy);
         if (d < radius) candidates.push({ target: { type, id, x, y }, distance: d });
       };
@@ -227,7 +217,11 @@ export function WorldMap({
               ['delegating', 'frontline', 'frontline-returning'].includes(u.action)),
         )
         .forEach((u) => add('unit', u.id, u.x, u.y, 13, 9));
+      for (const pile of getGroundPiles(current)) {
+        add('entity', pile.entity.id, pile.entity.x, pile.entity.y, 18, 0, pile);
+      }
       current.entities.forEach((e) => {
+        if (e.kind === 'ground') return;
         if (e.kind === 'ore' && !hasConcept(current, 'O_07')) return;
         if (
           e.kind === 'wolf' &&
@@ -236,7 +230,7 @@ export function WorldMap({
           !current.units.some((u) => u.hp > 0 && Math.hypot(u.x - e.x, u.y - e.y) < 20)
         )
           return;
-        if (e.amount <= 0) return;
+        if (e.amount <= 0 && !['tree', 'stone'].includes(e.kind)) return;
         add(
           'entity',
           e.id,
@@ -403,8 +397,9 @@ export function WorldMap({
       centerX: stateRef.current.home?.x ?? 250,
       centerY: stateRef.current.home?.y ?? 250,
     });
-  const focusedTarget = hovered?.type !== 'point' ? hovered : selectedTarget;
+  const focusedTarget = hovered && hovered.type !== 'point' ? hovered : selectedTarget;
   const label = targetLabel(state, focusedTarget ?? null);
+  const details = targetPresentation(state, focusedTarget ?? null);
   const mapSpan = Math.round(
     53 /
       ((state.tier >= 4 ? Math.min : Math.max)(size.width / MAP_WIDTH, size.height / MAP_HEIGHT) *
@@ -415,7 +410,7 @@ export function WorldMap({
   return (
     <div
       ref={containerRef}
-      className={`lingus-world ${dragging ? 'is-panning' : ''} ${commandReady ? 'is-targeting' : ''}`}
+      className={`lingus-world ${dragging ? 'is-panning' : ''} ${commandReady ? 'is-targeting' : ''} ${details ? 'has-resource-focus' : ''}`}
     >
       <canvas
         ref={canvasRef}
@@ -538,6 +533,19 @@ export function WorldMap({
           <Crosshair size={17} strokeWidth={1.5} />
         </button>
       </div>
+      {details && (
+        <div
+          className="lingus-world__target-card"
+          role="status"
+          aria-label="Dettagli del bersaglio"
+          data-resource-stage={details.kind}
+        >
+          <span className="lingus-world__target-stage">{details.stage}</span>
+          <strong>{details.label}</strong>
+          <p>{details.description}</p>
+          {details.hint && <small>{details.hint}</small>}
+        </div>
+      )}
       <div className="lingus-world__footer">
         <div className={`lingus-world__hint ${label ? 'has-target' : ''}`}>
           {commandReady ? (
