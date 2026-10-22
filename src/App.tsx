@@ -1336,7 +1336,7 @@ function App() {
             <Home size={12} />
             <span>Al campo</span>
           </button>
-          <span className="group-hint">
+          <span className="group-hint desktop-only-hints">
             (oppure doppio click o tasto destro sulla mappa)
           </span>
           {sentence.includes('S_02') && (
