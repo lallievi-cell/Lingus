@@ -179,12 +179,14 @@ describe('urban demographics and physical logistics', () => {
     s.laws = [tax];
     seasonalImperial(s);
     expect(s.resources.coin).toBe(0);
-    expect(p.production.coin).toBeCloseTo(140);
-    expect(p.resources.coin).toBeCloseTo(105);
-    expect(s.caravans[0].resources.coin).toBeCloseTo(35);
+    // Existing food spoils before the market; 500wood loses5% and sells the
+    // 75unit surplus above400. Its25% tax travels physically: 18.75coins.
+    expect(p.production.coin).toBeCloseTo(75);
+    expect(p.resources.coin).toBeCloseTo(56.25);
+    expect(s.caravans[0].resources.coin).toBeCloseTo(18.75);
     updateImperial(s, 17);
-    expect(s.resources.coin).toBeCloseTo(35 * (1 - 0.15 * 0.7));
-    expect(p.resources.coin).toBeCloseTo(105);
+    expect(s.resources.coin).toBeCloseTo(18.75 * (1 - 0.15 * 0.7));
+    expect(p.resources.coin).toBeCloseTo(56.25);
   });
   it('teaches exactlytwo provincial words each season and updates that original faction language', () => {
     const s = fixture(),
@@ -654,6 +656,7 @@ describe('battles and final conditions', () => {
     const s = fixture(),
       f = s.factions[0],
       c = s.cities.find((c) => c.id === f.cityId)!;
+    s.time = 90; // Settle the first spring, when finite berries were available.
     s.entities = s.entities.filter(
       (e) => Math.floor(e.x / 100) === c.sectorX && Math.floor(e.y / 100) === c.sectorY,
     );

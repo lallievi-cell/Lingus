@@ -92,8 +92,13 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
     };
   }
   const grammaticalOrder = WORDS[p.subject]?.kind === 'S' && WORDS[p.verb]?.kind === 'V';
-  if (tokens.includes('M_03') && !grammaticalOrder) {
-    const remaining = tokens.filter((t) => t !== 'M_03');
+  const historicalGerontocracy = tokens.join('|') === 'S_04|C_02|M_04';
+  if (historicalGerontocracy && !hasWord(s, 'M_03'))
+    return no('Il dogma storico richiede comunque la conoscenza di Sacro.');
+  if ((tokens.includes('M_03') && !grammaticalOrder) || historicalGerontocracy) {
+    const remaining = historicalGerontocracy
+      ? ['S_04', 'M_04']
+      : tokens.filter((t) => t !== 'M_03');
     if (
       s.tier < 2 ||
       remaining.length !== 2 ||
@@ -192,7 +197,13 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
       return no('Questo bersaglio non è commestibile.');
     if (entity && ['deer', 'wolf', 'alpha', 'mammoth'].includes(entity.kind) && entity.hp > 0)
       return no('La preda deve essere abbattuta prima di essere mangiata.');
-    return out('Nutrirsi sul posto fino alla sazietà.', 'eating', !target && !a.length);
+    return out(
+      a.includes('M_04') && a.includes('O_04')
+        ? 'Assegnare al soggetto la priorità persistente sulle scorte alimentari.'
+        : 'Nutrirsi sul posto fino alla sazietà.',
+      'eating',
+      !target && !a.length,
+    );
   }
   if (p.verb === 'V_03') {
     if (

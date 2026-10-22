@@ -1609,8 +1609,9 @@ function App() {
               ))}
           </div>
           <p className="campfire-explanation">
-            Ogni insegnamento spende 10 attenzione, restituisce 10 memoria e forma un custode. La
-            legna nel fuoco e gli anziani generano attenzione al cambio di stagione.
+            Ogni insegnamento spende 10 attenzione e forma un custode. Il recupero base è di 10
+            memoria e può aumentare con i dogmi. La legna nel fuoco e gli anziani generano
+            attenzione al cambio di stagione.
           </p>
           <button
             className="primary-button"

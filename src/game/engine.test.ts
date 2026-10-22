@@ -676,13 +676,33 @@ describe('normal-play first chapter', () => {
         say(['S_01', 'V_03'], { type: 'entity', id: deer.id, x: deer.x, y: deer.y });
       }
       const fire = s.buildings.find((b) => b.kind === 'campfire' && !b.cityId);
-      if ((time === 230 || time === 265) && fire)
+      if ((time === 230 || time === 255) && fire)
         say(['S_01', 'V_01'], { type: 'point', x: 250, y: 244 }, undefined, {
           type: 'building',
           id: fire.id,
           x: fire.x,
           y: fire.y,
         });
+      // Feed the group near home before the final autumn sleep. Returning early
+      // leaves time for the third real night together instead of interrupting it.
+      if ((time === 235 || time === 250) && fire) {
+        const berries = s.entities
+          .filter(
+            (e) =>
+              e.kind === 'berries' && e.amount > 0 && Math.hypot(e.x - HOME.x, e.y - HOME.y) <= 60,
+          )
+          .sort(
+            (a, b) =>
+              Math.hypot(a.x - HOME.x, a.y - HOME.y) - Math.hypot(b.x - HOME.x, b.y - HOME.y),
+          )[0];
+        if (berries)
+          say(
+            ['S_01', 'V_02', 'O_04'],
+            { type: 'entity', id: berries.id, x: berries.x, y: berries.y },
+            undefined,
+            { type: 'building', id: fire.id, x: fire.x, y: fire.y },
+          );
+      }
       if (time === 271 && hasWord(s, 'S_02')) say(['S_02', 'V_03', 'O_04'], undefined, 'unit-0');
       if (time > 270 && hasWord(s, 'V_04') && s.voice >= 1 && time >= nextOrder && fire) {
         const group: Target = { type: 'building', id: fire.id, x: fire.x, y: fire.y };

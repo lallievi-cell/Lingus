@@ -11,7 +11,7 @@ import {
 import { createInitialState } from './state';
 import { validSave } from './saveValidation';
 import { cognitiveSlots, compileSentence, getPredicate, resolveConstruction } from './grammar';
-import { inscribeDogma } from './dogmas';
+import { getDogmaEffects, inscribeDogma } from './dogmas';
 import { recordLawWork } from './imperialLawPolicy';
 import {
   activeUnits,
@@ -209,11 +209,29 @@ export function issueCommand(
   }
   if (compiled.kind === 'law') return inscribeLaw(s, tokens);
   if (compiled.kind === 'dogma') {
-    const args = tokens.filter((t) => t !== 'M_03');
+    const args = compiled.args ?? tokens.filter((t) => t !== 'M_03');
     return inscribeDogma(s, args[0], args[1]);
   }
-  if (compiled.kind === 'tradition' && tokens.join('|') !== 'C_02|S_01|M_05')
-    return registerTradition(s, tokens, target);
+  if (compiled.kind === 'tradition' && tokens.join('|') !== 'C_02|S_01|M_05') {
+    const registered = registerTradition(s, tokens, target);
+    if (registered.traditions.length > s.traditions.length) {
+      const p = getPredicate(tokens);
+      if (
+        p.verb === 'V_02' &&
+        p.args.includes('O_04') &&
+        p.args.includes('M_04') &&
+        /^S_0[1-7]$/.test(p.subject)
+      ) {
+        const chosen = chooseSubjects(registered, p.subject, target, executorId, selectionCenter);
+        if (p.subject !== 'S_02' || chosen[0])
+          registered.foodPriority = {
+            subjectId: p.subject,
+            unitId: p.subject === 'S_02' ? chosen[0].id : undefined,
+          };
+      }
+    }
+    return registered;
+  }
   if (s.voice < 1) {
     log(s, 'La voce è esaurita: un punto si rigenera ogni dieci secondi.', 'warning');
     return s;
@@ -332,6 +350,18 @@ export function issueCommand(
   s.voice--;
   s.stats.commands++;
   for (const id of tokens) s.words[id].uses++;
+  if (
+    verb === 'V_02' &&
+    args.includes('O_04') &&
+    args.includes('M_04') &&
+    /^S_0[1-7]$/.test(subject)
+  ) {
+    s.foodPriority = {
+      subjectId: subject,
+      unitId: subject === 'S_02' ? workers[0]?.id : undefined,
+    };
+    log(s, 'La priorità delle scorte viene assegnata al soggetto della frase.', 'info');
+  }
   if (kind) {
     const builder = workers[0];
     resetUnit(builder);
@@ -526,8 +556,9 @@ export function teachWord(state: GameState, id: string): GameState {
     pupil = pupils[Math.min(index, pupils.length - 1)];
   s.seed = (Math.imul(s.seed, 1664525) + 1013904223) >>> 0;
   s.attention -= 10;
-  m.retention = clamp(m.retention + 10);
-  m.investment = (m.investment ?? 0) + 1;
+  const efficacy = getDogmaEffects(s).teaching;
+  m.retention = clamp(m.retention + 10 * efficacy);
+  m.investment = (m.investment ?? 0) + efficacy;
   s.stats.taught++;
   m.custodians.push(pupil.id);
   pupil.knows.push(id);
@@ -535,7 +566,7 @@ export function teachWord(state: GameState, id: string): GameState {
   if (id === 'O_09') recordLawWork(s, pupil.id, ['S_01', 'V_05', 'O_09', 'M_02']);
   log(
     s,
-    `«${WORDS[id].label}» viene tramandata a ${pupil.name}: dieci memoria e un nuovo custode.`,
+    `«${WORDS[id].label}» viene tramandata a ${pupil.name}: ${10 * efficacy} memoria e un nuovo custode.`,
     'good',
   );
   advanceTier(s);

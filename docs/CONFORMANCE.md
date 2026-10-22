@@ -11,23 +11,26 @@ Le correzioni esplicite successive prevalgono sui valori precedenti: stagione 90
 
 Legenda delle verifiche: **da verificare** = requisito estratto, nessuna prova indipendente ancora associata; **verificato** = prova citata eseguita; **parziale** = la prova citata copre soltanto una parte del requisito; **decisione** = parametro o conflitto della fonte risolto secondo [DECISIONS.md](DECISIONS.md). Non si attribuisce una percentuale di conformità alle sole righe di questo registro.
 
-I 29 punti indefiniti o contraddittori censiti hanno ora decisioni esplicite. I completamenti verificati e le prove ancora aperte sono elencati separatamente in [REMAINING.md](REMAINING.md).
+I 31 punti di interpretazione o rappresentazione censiti hanno decisioni esplicite. I completamenti verificati e le prove ancora aperte sono elencati separatamente in [REMAINING.md](REMAINING.md).
 
 ## Prove eseguite e loro portata
 
-Verifica complessiva della revisione: **479 test unitari e di integrazione superati in 14 file**, oltre ai test del browser sotto descritti.
+Verifica complessiva della revisione: **541 test unitari e di integrazione superati in 18 file**, oltre ai test del browser sotto descritti.
 
 - **P1 — `npx vitest run src/game/conformance.test.ts --reporter=dot`: 156 test superati.** Valori attesi trascritti dalla fonte, Seed Zero, cataloghi, tutti i costi e le manutenzioni dei20edifici, formule, soglie e alcune transizioni reali. La suite prepara stati per isolare le regole: non è un replay completo dal primo istante.
 - **P2 — `npx vitest run src/game/grammar.test.ts --reporter=dot`: 123 test superati.** Frasi della fonte, ruoli semantici, ricette e archetipi dogmatici. Una frase accettata dal parser non prova che ogni effetto sia stato esercitato nella simulazione.
 - **P3 — motore e sistemi imperiali:** 43 test del motore e 44 dei sistemi imperiali superati. Sono verificati combustibile reale, manutenzione, lavoro del sovrano, trasporto, coorti, carovane, leggi, diplomazia e condizioni finali. I casi con città, leggi o eserciti già preparati dimostrano il comportamento nel relativo stato.
 - **P4 — `npm run test:e2e`: 11 test superati.** Scoperta fisica diLegno e salvataggio, errore parziale con feedback dorato e chiusura automatica, controlli/import invalido/HUD qualitativo, costoAttenzione ed erosione, tabù notturno e abolizione,45parole/20ricette/6slot/coorti/istituzioni, vittoria culturale, mobile375px, ricettario cognitivo, minerale noto prima delBronzo e confini disegnati35/100m. La scoperta iniziale parte dal Seed Zero; i pannelli del Ferro e la vittoria culturale usano stati preparati.
 - **P5 — importazione e proprietà:** 12 test sui salvataggi annidati e 2 sulla proprietà dei magazzini superati. I magazzini stranieri o provinciali non aumentano la capienza del cumulo centrale.
-- **P6 — primo anno ordinario:** il replay `normal-play first chapter` di `engine.test.ts` parte dal Seed Zero6842. Usa soltanto selezione spaziale, ordini pubblici, vere Scintille e insegnamento pagato. Dopo il primo inverno raggiunge il traguardo (393,75s nella rotta corrente) con almeno4superstiti, un Falò e un Pozzo propri, almeno12parole e custodi formati. Non modifica HP, inventari o conoscenze per preparare il percorso.
+- **P6 — primo anno ordinario:** il replay `normal-play first chapter` di `engine.test.ts` parte dal Seed Zero6842. Usa soltanto selezione spaziale, ordini pubblici, vere Scintille e insegnamento pagato. Dopo il primo inverno raggiunge il traguardo (360 s nella rotta corrente, con 7 superstiti e 18 parole note) con almeno4superstiti, un Falò e un Pozzo propri, almeno12parole e custodi formati. Non modifica HP, inventari o conoscenze per preparare il percorso.
 - **P7 — completamento delle decisioni e degli effetti:** 23 test di policy dogmatica, 15 di policy legale, 20 di simulazione, 4 di assegnazione dei lavoratori, 3 della trasmissione orale, 18 di diritto civile, 13 di commercio straniero e 3 di prenotazione dei lavoratori urbani. Le208celle della policy dogmatica hanno170esiti applicabili e38rifiuti motivati; questo non equivale a208effetti verificati in ogni contesto.
+- **P8 — regressioni delle quattro segnalazioni:** 34 test sui confini stagionali, 7 sulla Caccia Grossa, 18 su Gerontocrazia e priorità alimentari e 3 sulla ribellione dei Forti. Le prove comprendono i passaggi a 90/180/270/360 s e gli attraversamenti non esatti, raccolti reali, ordini e tradizioni, memoria, consumo delle ultime razioni e persistenza dei salvataggi.
 - **Ambiente:** `npm ci`, `npm run build` e `npm run format:check` eseguiti; avvio Vite e browser verificati.
 - **Raggiungibilità ordinaria oltre il primo anno:** non ancora dimostrata per la crescita a35/150 persone e per ciascuna delle tre vittorie. Non si ricava dai test con stati preparati.
 
 Le voci “verificato” sotto indicano soltanto la parte nominata nella colonna. I restanti requisiti della stessa riga conservano la propria verifica aperta.
+
+Le quattro segnalazioni successive su stagioni, Caccia Grossa, Gerontocrazia e privilegio alimentare sono analizzate in [BUG-AUDIT.md](BUG-AUDIT.md), con riferimenti alla fonte e prove di regressione.
 
 ## Requisiti trasversali
 
@@ -234,6 +237,6 @@ Questi valori sono scelte di implementazione visibili nel codice, non citazioni 
 - `FOREIGN_COMMERCE_ASSUMPTIONS`: partenza ogni90s, massimo10unità e una rotta attiva per fazione; valore ordinario1moneta e lingotto100. L’aliquota20% è invece esplicita nella fonte.
 - `IMPERIAL_ASSUMPTIONS`: baratto1:1; prezzi indicativi1moneta/cibo e100/persona servile; estrazione1unità/lavoratore/ciclo2s; delegazione1persona; soglia reclutamentoIA20; quota adulta delle coorti1; Forza militare convenzionale7 e Intelligenza rappresentanteIA5; primo dono1unità, peso cognitivo del contatto100.
 
-Tutti gli indefiniti qui registrati hanno ora una decisione eseguibile, con valori e motivazioni in [DECISIONS.md](DECISIONS.md), incluse le ulteriori risoluzioni A23–A29. Restano distinte le verifiche aperte elencate in [REMAINING.md](REMAINING.md). Nessun totale di test trasforma una scelta di progetto in un numero letterale della fonte.
+Tutti gli indefiniti qui registrati hanno ora una decisione eseguibile, con valori e motivazioni in [DECISIONS.md](DECISIONS.md), incluse le ulteriori risoluzioni A23–A31. Restano distinte le verifiche aperte elencate in [REMAINING.md](REMAINING.md). Nessun totale di test trasforma una scelta di progetto in un numero letterale della fonte.
 
 Il termine “100%” può riferirsi soltanto a un insieme di requisiti esplicitamente risolti e verificati. Il numero di parole, edifici o test non chiude queste ambiguità, né dimostra una partita completa dall'inizio a ciascuna vittoria.

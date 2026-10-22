@@ -412,12 +412,61 @@ function edibleEntities(s: GameState, u: Unit) {
   );
 }
 function inventoryAt(s: GameState, u: Unit): Inventory {
+  if (u.factionId !== undefined && u.factionId !== 'player') return s.resources;
   return u.cityId && s.urbanized
     ? (s.cities.find((c) => c.id === u.cityId)?.resources ?? s.resources)
     : s.resources;
 }
 function nearInventory(s: GameState, u: Unit) {
+  if (u.factionId !== undefined && u.factionId !== 'player') return distance(u, s.home) <= 10;
   return !!(u.cityId && s.urbanized) || distance(u, s.home) <= 10;
+}
+function physicalStoreAccess(s: GameState, u: Unit, inventory: Inventory) {
+  if (['frontline', 'frontline-returning'].includes(u.action)) return false;
+  const place =
+    inventory === s.resources ? s.home : s.cities.find((c) => c.resources === inventory);
+  return !!place && distance(u, place) <= 10;
+}
+/** Explicit rationing persists independently of the next individual action.
+ * Only hungry people physically sharing this store reserve its food.
+ */
+export function foodAccessRank(s: GameState, u: Unit): number {
+  if (getDogmaEffects(s).elderFoodPrivilege && u.age >= ELDER_AGE) return 2;
+  const policy = s.foodPriority;
+  if (!policy) return 0;
+  const own = u.factionId === undefined || u.factionId === 'player';
+  const matches =
+    policy.subjectId === 'S_01'
+      ? own
+      : policy.subjectId === 'S_02'
+        ? u.id === policy.unitId && own
+        : policy.subjectId === 'S_03'
+          ? own && u.age >= ADULT_AGE && u.strength >= 7
+          : policy.subjectId === 'S_04'
+            ? own && u.intelligence >= 7
+            : policy.subjectId === 'S_05'
+              ? !own
+              : policy.subjectId === 'S_06'
+                ? own && u.caste === 'slave'
+                : policy.subjectId === 'S_07'
+                  ? own && u.id === s.kingId
+                  : false;
+  return matches ? 1 : 0;
+}
+function rationCandidates(s: GameState) {
+  const own = activeUnits(s);
+  if (s.foodPriority?.subjectId !== 'S_05') return own;
+  const radius = hasBuilding(s, 'palace') ? 100 : 35;
+  return [
+    ...own,
+    ...s.units.filter(
+      (u) =>
+        u.hp > 0 &&
+        u.factionId !== undefined &&
+        u.factionId !== 'player' &&
+        distance(u, s.home) <= radius,
+    ),
+  ];
 }
 export function consume(s: GameState, u: Unit, e?: MapEntity) {
   const effects = getDogmaEffects(s, { unit: u });
@@ -434,6 +483,23 @@ export function consume(s: GameState, u: Unit, e?: MapEntity) {
     source = inv;
   }
   if (!resource) return false;
+  if (source && foodAccessRank(s, u) > 0 && !physicalStoreAccess(s, u, source)) return false;
+  if (
+    source &&
+    (s.foodPriority || effects.elderFoodPrivilege) &&
+    rationCandidates(s).some(
+      (other) =>
+        other.id !== u.id &&
+        foodAccessRank(s, other) > foodAccessRank(s, u) &&
+        (other.hunger >= 60 || (other.action === 'eating' && other.hunger > 0)) &&
+        nearInventory(s, other) &&
+        physicalStoreAccess(s, other, source!) &&
+        inventoryAt(s, other) === source &&
+        (!getDogmaEffects(s, { unit: other }).vegetarian || resource === 'food') &&
+        !forbiddenByDogma(s, ['S_01', 'V_02', 'O_04'], undefined, other),
+    )
+  )
+    return false;
   if (
     e &&
     sanctuaryProtected(
@@ -483,6 +549,12 @@ export function consume(s: GameState, u: Unit, e?: MapEntity) {
   return true;
 }
 export function matchingEntities(s: GameState, tokens: string[], u?: Unit) {
+  // Pericolo changes the hunting target class, rather than merely its label.
+  // The source specifically names alpha predators and mammoths, with no fallback.
+  if (tokens.includes('V_03') && tokens.includes('O_04') && tokens.includes('M_01'))
+    return s.entities.filter(
+      (e) => ['alpha', 'mammoth'].includes(e.kind) && e.amount > 0 && (!u || distance(e, u) <= 100),
+    );
   let kinds: MapEntity['kind'][] = [];
   if (tokens.includes('O_02')) kinds.push('stone');
   if (tokens.includes('O_03')) kinds.push('tree');
@@ -1202,10 +1274,13 @@ function assignTradition(s: GameState, u: Unit) {
       continue;
     const verb = tokens[2],
       target = t.target,
-      e =
+      pool = matchingEntities(s, tokens, u),
+      constrained = tokens.some((id) => ['O_02', 'O_03', 'O_04', 'O_07', 'O_06'].includes(id)),
+      clicked =
         target?.type === 'entity'
-          ? s.entities.find((e) => e.id === target.id)
-          : closest(matchingEntities(s, tokens, u), u);
+          ? (constrained ? pool : s.entities).find((e) => e.id === target.id)
+          : undefined,
+      e = clicked ?? closest(pool, u);
     if (forbiddenByDogma(s, tokens, target, u)) continue;
     if (!enforceActionLaws(s, tokens, target, [u.id])) {
       u.cooldowns![`law-order:${t.id}`] = s.time + 90;
@@ -1257,18 +1332,32 @@ function applyEducation(s: GameState) {
   }
 }
 export function updateUnits(s: GameState, dt: number) {
-  for (const u of activeUnits(s)) {
+  const elderPrivilege = getDogmaEffects(s).elderFoodPrivilege;
+  const ordered = rationCandidates(s);
+  if (s.foodPriority || elderPrivilege)
+    ordered.sort((a, b) => foodAccessRank(s, b) - foodAccessRank(s, a));
+  for (const u of ordered) {
     initializeUnit(u);
+    // The foreign selector admits visitors to our stores without simulating
+    // their entire civilization or charging their distant city's inventory.
+    if (u.factionId !== undefined && u.factionId !== 'player') {
+      if (u.hunger >= 60 || (u.action === 'eating' && u.hunger > 0)) {
+        if (nearInventory(s, u)) consume(s, u);
+        else if (u.command?.includes('V_02')) move(s, u, s.home.x, s.home.y, dt);
+      }
+      continue;
+    }
+    const protectedFromFamine = elderPrivilege && u.age >= ELDER_AGE;
     if (s.urbanized && u.cityId && !u.isKing) {
       const city = s.cities.find((c) => c.id === u.cityId && c.factionId === 'player');
       if (!city) continue;
       u.hunger = clamp(u.hunger + 0.8 * dt);
       const mortality = u.caste === 'slave' ? imperialLawEffects(s).slaveMortalityMultiplier : 1;
       if (u.plagueUntil && u.plagueUntil > s.time) u.hp -= 1.5 * dt * mortality;
-      if (u.hunger >= 100) u.hp -= 2 * dt * mortality;
+      if (u.hunger >= 100 && !protectedFromFamine) u.hp -= 2 * dt * mortality;
       if (u.hunger <= 20) u.hp = clamp(u.hp + 0.5 * dt);
       if (u.hp <= 0) {
-        killUnit(s, u, u.hunger >= 100 ? 'ENV_STARVATION' : 'STAT_PLAGUE');
+        killUnit(s, u, u.hunger >= 100 && !protectedFromFamine ? 'ENV_STARVATION' : 'STAT_PLAGUE');
         continue;
       }
       if (u.hunger >= 60) consume(s, u);
@@ -1298,13 +1387,22 @@ export function updateUnits(s: GameState, dt: number) {
     u.temp = clamp(u.temp + bodyTemperatureDelta(ambient, fire ? 3 : 0, clothing) * dt);
     const mortality = u.caste === 'slave' ? imperialLawEffects(s).slaveMortalityMultiplier : 1;
     if (u.temp <= 20) u.hp -= 1.5 * dt * mortality;
-    if (u.hunger >= 100) u.hp -= 2 * dt * mortality;
+    if (u.hunger >= 100 && !protectedFromFamine) u.hp -= 2 * dt * mortality;
     if (u.plagueUntil && u.plagueUntil > s.time) u.hp -= 1.5 * dt * mortality;
     if (u.hunger <= 20 && distance(u, s.home) <= 10) u.hp = clamp(u.hp + 0.5 * dt);
     if (u.hp <= 0) {
-      killUnit(s, u, u.hunger >= 100 ? 'ENV_STARVATION' : u.temp <= 20 ? 'C_01' : 'trauma');
+      killUnit(
+        s,
+        u,
+        u.hunger >= 100 && !protectedFromFamine
+          ? 'ENV_STARVATION'
+          : u.temp <= 20
+            ? 'C_01'
+            : 'trauma',
+      );
       continue;
     }
+    if (foodAccessRank(s, u) > 0 && u.hunger >= 60 && nearInventory(s, u)) consume(s, u);
     const ally = closest(
       activeUnits(s).filter((v) => v.id !== u.id),
       u,
@@ -1475,6 +1573,9 @@ export function updateAnimals(s: GameState, dt: number) {
 }
 export function seasonalCore(s: GameState) {
   const season = seasonOf(s),
+    // Settlement runs after time crosses the boundary. Weather and spring
+    // regeneration use the new season; costs, spoilage and harvest close the old one.
+    endedSeason = (season.index + 3) % 4,
     live = activeUnits(s);
   s.stats.seasonsSurvived++;
   s.nightCount++;
@@ -1499,7 +1600,7 @@ export function seasonalCore(s: GameState) {
     const spec = BUILDING_SPECS[b.kind],
       city = s.cities.find((c) => c.id === b.cityId),
       inv = city && !city.capital ? city.resources : s.resources;
-    if (spec.upkeepSeason === undefined || spec.upkeepSeason === season.index) {
+    if (spec.upkeepSeason === undefined || spec.upkeepSeason === endedSeason) {
       const cost = Object.fromEntries(
         Object.entries(spec.upkeep).map(([r, n]) => [r, n * fx.upkeep]),
       ) as Partial<Inventory>;
@@ -1562,7 +1663,7 @@ export function seasonalCore(s: GameState) {
         spec.category === 'food'
           ? resourceSpoilage(
               spec.spoil,
-              season.index === 1,
+              endedSeason === 1,
               hasBuilding(s, 'storage'),
               s.resources.pottery > 0,
             )
@@ -1573,7 +1674,7 @@ export function seasonalCore(s: GameState) {
   for (const b of s.buildings.filter((b) => b.active && b.hp > 0 && !b.cityId)) {
     const efficiency = buildingEfficiency(s, b);
     b.lastEfficiency = efficiency;
-    if (b.kind === 'farm' && season.index === 2) {
+    if (b.kind === 'farm' && endedSeason === 2) {
       const workshop = hasBuilding(s, 'workshop') ? 3 : 1;
       const harvested = addResource(
         s,
@@ -1595,6 +1696,7 @@ export function seasonalCore(s: GameState) {
               worker.id,
               worker.command ?? ['S_01', 'V_09', 'O_04'],
               harvested / Math.max(1, (b.workerIds ?? []).length),
+              Math.max(0, Math.floor(s.time / 90) * 90 - 1e-6),
             );
         }
     }

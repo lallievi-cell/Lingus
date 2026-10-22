@@ -122,6 +122,17 @@ export function validSave(value: unknown): value is GameState {
   )
     return false;
   if (
+    !optional(
+      s.foodPriority,
+      (v) =>
+        record(v) &&
+        ['S_01', 'S_02', 'S_03', 'S_04', 'S_05', 'S_06', 'S_07'].includes(v.subjectId as string) &&
+        optional(v.unitId, text) &&
+        (v.subjectId !== 'S_02' || text(v.unitId)),
+    )
+  )
+    return false;
+  if (
     [
       'started',
       'paused',

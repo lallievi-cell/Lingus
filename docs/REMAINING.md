@@ -22,6 +22,10 @@ La fonte intitola “25” il catalogo delle leggi, ma presenta 23 frasi distint
 
 Questi sono limiti della verifica attuale. Non sono dichiarati meccaniche assenti in mancanza di un difetto identificato. Se un replay o un test rivela un errore, occorre correggerlo prima di chiudere il relativo requisito.
 
+## Segnalazioni successive corrette
+
+[BUG-AUDIT.md](BUG-AUDIT.md) documenta quattro ulteriori difetti: sfasamento delle operazioni stagionali, bersagli della Caccia Grossa, effetti della Gerontocrazia e priorità alimentare persistente. Le correzioni includono contabilità del nuovo raccolto provinciale e attribuzione dei risultati di lavoro alla stagione effettivamente conclusa.
+
 ## Altri difetti corretti nella revisione
 
 Rispetto al commit iniziale sono stati collegati alla simulazione: parassiti sul lavoro, allenamento della Forza, usura e assegnazione individuale degli utensili, tradizioni notturne, addetti degli edifici, istruzione operativa, eredità da entrambi i genitori, frazioni di riproduzione della fauna, effetti specifici delle leggi, prove stagionali dei doveri, soggetti punibili, confische fisiche, debiti proporzionali, Inquisizione, milizia dei saggi del Valhalla, monopoli produttivi, conflitti dogmatici e malus diplomatici. Anche i pannelli cognitivi rispettano la conoscenza di Numero e dei materiali.

@@ -124,6 +124,8 @@ export interface DogmaEffects {
   upkeep: number;
   defense: number;
   teaching: number;
+  elderFoodPrivilege: boolean;
+  warriorRebellionThreshold: number;
   conquestCohesion: number;
   obsidianDamage: number;
   nightTaboo: boolean;
@@ -308,6 +310,8 @@ export function getDogmaEffects(s: GameState, ctx: DogmaContext = {}): DogmaEffe
     upkeep: 1,
     defense: 1,
     teaching: 1,
+    elderFoodPrivilege: false,
+    warriorRebellionThreshold: 100,
     conquestCohesion: 0,
     obsidianDamage: 0,
     nightTaboo: false,
@@ -380,6 +384,14 @@ export function getDogmaEffects(s: GameState, ctx: DogmaContext = {}): DogmaEffe
     if (a === 'S_04' && b === 'V_05') {
       f.celibateSages = true;
       f.elderAttention *= 2;
+    }
+    if (a === 'S_04' && b === 'M_04') {
+      f.elderFoodPrivilege = true;
+      f.teaching = 1.25;
+      if (s.tier >= 4) {
+        f.gamma = 0.5;
+        f.warriorRebellionThreshold = 70;
+      }
     }
     if (a === 'O_13' && b === 'M_01') {
       f.machinesForbidden = true;
@@ -519,6 +531,10 @@ export function previewDogma(target: string, vector: string): Pick<Dogma, 'name'
     'S_04|V_05': [
       'Celibato dei Saggi',
       'I saggi non si riproducono; il loro contributo all’Attenzione raddoppia.',
+    ],
+    'S_04|M_04': [
+      'Gerontocrazia / Oligarchia Sacerdotale',
+      'Gli anziani mangiano per primi e non perdono salute per fame. Insegnamento +25%; dal Bronzo, oblio γ=0,5 e soglia di ribellione dei Forti ridotta del 30%.',
     ],
     'S_06|C_02': ['Schiavitù Naturale', 'Tensione servile dimezzata; emancipazione vietata.'],
     'M_05|C_02': [

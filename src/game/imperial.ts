@@ -1,4 +1,11 @@
-import { BASE_HOUSING, BUILDING_SPECS, RESOURCE_SPECS, SPEC_ASSUMPTIONS, WORDS } from './content';
+import {
+  BASE_HOUSING,
+  BUILDING_SPECS,
+  ELDER_AGE,
+  RESOURCE_SPECS,
+  SPEC_ASSUMPTIONS,
+  WORDS,
+} from './content';
 import {
   birthProbability,
   cognitiveTension,
@@ -124,6 +131,7 @@ const cityHas = (s: GameState, c: City, k: BuildingKind) =>
   cityBuildings(s, c).some((b) => b.kind === k && b.active);
 const capital = (s: GameState) => ownCities(s).find((c) => c.capital) ?? ownCities(s)[0];
 const phase = (s: GameState) => ({ season: Math.floor(s.time / 90) % 4, night: s.time % 90 >= 60 });
+const endedSeason = (s: GameState) => (phase(s).season + 3) % 4;
 export const cityPopulation = (c: City) =>
   c.cohorts.workers + c.cohorts.warriors + c.cohorts.sages + c.cohorts.slaves;
 export const playerPopulation = (s: GameState) =>
@@ -1974,7 +1982,15 @@ export function updateImperial(s: GameState, dt: number) {
     f.intelligibility = getIntelligibility(s, f.words);
     if (f.peaceUntil && f.peaceUntil > s.time) f.hostile = false;
   }
-  if (s.revoltTension >= 100 && !s.eventTimes.rebellion) {
+  const strongWorkers = activeUnits(s).filter(
+    (u) => adult(u) && u.age < ELDER_AGE && u.strength >= 7 && u.caste !== 'slave',
+  );
+  const strongUprising =
+    !s.urbanized &&
+    strongWorkers.length > 0 &&
+    effects.warriorRebellionThreshold < 100 &&
+    s.revoltTension >= effects.warriorRebellionThreshold;
+  if ((s.revoltTension >= 100 || strongUprising) && s.eventTimes.rebellion === undefined) {
     s.eventTimes.rebellion = s.time;
     s.recentTrauma = { tag: 'ENV_REBELLION', time: s.time };
     for (const u of activeUnits(s)) {
@@ -1983,10 +1999,16 @@ export function updateImperial(s: GameState, dt: number) {
     }
     log(
       s,
-      'La tensione diventa rivolta. La casta servile insorge contro il centro della comunità.',
+      strongUprising
+        ? 'I lavoratori forti insorgono contro i privilegi dell’oligarchia sacerdotale.'
+        : 'La tensione diventa rivolta. La casta servile insorge contro il centro della comunità.',
       'danger',
     );
-    for (const u of s.units.filter((u) => u.caste === 'slave' && u.hp > 0)) {
+    for (const u of activeUnits(s).filter(
+      (u) =>
+        (u.caste === 'slave' && s.revoltTension >= 100) ||
+        (strongUprising && strongWorkers.includes(u)),
+    )) {
       u.factionId = 'rebels';
       u.action = 'hunting';
       u.tx = s.home.x;
@@ -1994,7 +2016,11 @@ export function updateImperial(s: GameState, dt: number) {
     }
   }
   for (const c of ownCities(s)) {
-    if (c.revoltTension >= 100 && !c.rebelling) {
+    const threshold =
+      c.cohorts.warriors > 0
+        ? getDogmaEffects(doctrineFor(s, c.factionId, c)).warriorRebellionThreshold
+        : 100;
+    if (c.revoltTension >= threshold && !c.rebelling) {
       c.rebelling = true;
       c.factionId = 'rebels';
       log(s, `${c.name} si ribella all’Impero.`, 'danger');
@@ -2009,7 +2035,7 @@ function produceCity(s: GameState, c: City, spentCycles = 0) {
   const inv = inventoryFor(s, c),
     effects = getDogmaEffects(doctrineFor(s, c.factionId, c)),
     buildings = cityBuildings(s, c),
-    season = phase(s).season;
+    season = endedSeason(s);
   allocateCityWorkers(s, c);
   c.production = emptyInventory();
   const vocation = c.vocations.flatMap((v) => v.tokens),
@@ -2140,7 +2166,7 @@ function produceCity(s: GameState, c: City, spentCycles = 0) {
     if (cycles <= 0) break;
   }
   if (c.factionId === PLAYER) {
-    const stamp = Math.max(0, s.time - 1e-6);
+    const stamp = Math.max(0, Math.floor(s.time / 90) * 90 - 1e-6);
     if (c.production.food > 0)
       recordLawWork(s, c.id, ['S_09', 'V_09', 'O_04', 'O_01'], c.production.food, stamp);
     if (c.production.meat > 0)
@@ -2304,7 +2330,11 @@ function taxCities(s: GameState) {
 }
 
 function applySeasonalLaws(s: GameState) {
-  const legal = imperialLawEffects(s);
+  const settled = {
+    ...s,
+    time: Math.max(0, Math.floor(s.time / 90) * 90 - 1e-6),
+  };
+  const legal = imperialLawEffects(settled);
   for (const law of s.laws) {
     law.age++;
     if (law.objectId === 'O_11' && law.verbId === 'V_04') continue;
@@ -2325,7 +2355,7 @@ function applySeasonalLaws(s: GameState) {
           : s.units.filter((u) => u.hp > 0 && lawSubjectMatches(s, law, u));
     let fulfilledAny = false;
     for (const t of targets) {
-      const fulfilled = seasonalDutyFulfilled(s, law, t);
+      const fulfilled = seasonalDutyFulfilled(settled, law, t);
       fulfilledAny ||= fulfilled;
       if ('cohorts' in t) applySanction(s, law, undefined, t, fulfilled);
       else if (!('maxHp' in t)) applySanction(s, law, t, undefined, fulfilled);
@@ -2337,7 +2367,7 @@ function applySeasonalLaws(s: GameState) {
     if (archetype === 'agrarian_reform' && fulfilledAny) {
       s.revoltTension = clamp(s.revoltTension - 20);
       for (const c of ownCities(s))
-        if (seasonalDutyFulfilled(s, law, c)) c.revoltTension = clamp(c.revoltTension - 20);
+        if (seasonalDutyFulfilled(settled, law, c)) c.revoltTension = clamp(c.revoltTension - 20);
     }
   }
   if (legal.winterCorveeCohesionCost)
@@ -2444,7 +2474,7 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
     nodes = s.entities.filter(
       (e) => Math.floor(e.x / 100) === c.sectorX && Math.floor(e.y / 100) === c.sectorY,
     ),
-    season = phase(s).season;
+    season = endedSeason(s);
   c.seasonFoodConsumed = 0;
   const population = cityPopulation(c),
     storedNutrition = FOOD.reduce((n, r) => n + inv[r] * RESOURCE_SPECS[r].nutrition, 0);
@@ -2589,7 +2619,7 @@ function foreignAI(s: GameState) {
 
 function maintainForeignCity(s: GameState, c: City) {
   const effects = getDogmaEffects(doctrineFor(s, c.factionId, c)),
-    season = phase(s).season;
+    season = endedSeason(s);
   for (const b of cityBuildings(s, c)) {
     const spec = BUILDING_SPECS[b.kind];
     if (spec.upkeepSeason !== undefined && spec.upkeepSeason !== season) continue;
@@ -2611,24 +2641,28 @@ export function seasonalImperial(s: GameState) {
   for (const city of s.cities.filter((c) => c.factionId !== 'ruins')) {
     city.seasonFoodConsumed = 0;
     if (city.factionId !== PLAYER) maintainForeignCity(s, city);
+    const inv = inventoryFor(s, city),
+      summer = endedSeason(s) === 1;
+    // Close spoilage of existing stocks before adding this boundary's harvest,
+    // just as seasonalCore does for the capital and village stores.
+    if (!city.capital) {
+      for (const r of RESOURCES) {
+        const base = RESOURCE_SPECS[r].spoil;
+        if (base > 0) {
+          const rate =
+            RESOURCE_SPECS[r].category === 'food'
+              ? resourceSpoilage(base, summer, cityHas(s, city, 'storage'), inv.pottery > 0)
+              : base;
+          inv[r] *= 1 - rate;
+        }
+      }
+    }
     const faction = s.factions.find((f) => f.id === city.factionId),
       spentCycles =
         faction && city.factionId !== PLAYER ? prepareForeignEconomy(s, city, faction) : 0;
     produceCity(s, city, spentCycles);
     cityNutritionAndBirths(s, city);
     if (faction) foreignComprehension(s, faction, city);
-    const inv = inventoryFor(s, city),
-      summer = phase(s).season === 1;
-    // Core handles the capital and village stores; provinces have independent food stocks.
-    if (!city.capital) {
-      for (const r of RESOURCES) {
-        const base = RESOURCE_SPECS[r].spoil;
-        if (base > 0) {
-          const rate = resourceSpoilage(base, summer, cityHas(s, city, 'storage'), inv.pottery > 0);
-          inv[r] *= 1 - rate;
-        }
-      }
-    }
   }
   for (const d of s.dogmas.filter((d) => d.reforming)) {
     const school = s.buildings.find(

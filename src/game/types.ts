@@ -454,6 +454,7 @@ export interface GameState {
   lastCraftUnit?: string;
   bornWords?: Record<string, number>;
   lostArchive?: boolean;
+  foodPriority?: { subjectId: string; unitId?: string };
 }
 export interface Objective {
   title: string;

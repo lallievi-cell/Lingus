@@ -89,6 +89,6 @@ Il server di sviluppo viene avviato automaticamente dai test oppure riutilizzato
 - `src/game/imperial.ts`: città, economia, diplomazia, logistica, leggi, eserciti e condizioni finali.
 - `src/App.tsx`, `src/components/`: interfaccia evolutiva e mappa.
 
-Le scelte per i 29 punti indefiniti o contraddittori censiti sono in [DECISIONS.md](docs/DECISIONS.md); i completamenti e le verifiche aperte sono in [REMAINING.md](docs/REMAINING.md).
+Le scelte per i 31 punti di interpretazione o rappresentazione censiti sono in [DECISIONS.md](docs/DECISIONS.md); i completamenti e le verifiche aperte sono in [REMAINING.md](docs/REMAINING.md).
 
 Le regole definitive sono riassunte in [DESIGN.md](docs/DESIGN.md). [CONFORMANCE.md](docs/CONFORMANCE.md) collega i requisiti alla fonte e alle prove e collega gli indefiniti alle decisioni adottate. [ROADMAP.md](docs/ROADMAP.md) distingue verifiche ancora necessarie, decisioni di design e lavoro di prodotto.
