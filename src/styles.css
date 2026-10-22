@@ -4159,3 +4159,551 @@ kbd {
   font-weight: 700;
   color: #2b3e2a;
 }
+
+/* Mobile-only elements hidden on Desktop */
+.mobile-nav-bar {
+  display: none;
+}
+
+.mobile-spark-pill {
+  display: none;
+}
+
+/* ==========================================================================
+   MOBILE VIEWPORT OPTIMIZATION (< 860px)
+   Completely isolated to mobile: desktop (> 860px) is 100% untouched
+   ========================================================================== */
+
+@media (max-width: 860px) {
+  /* Mobile Navigation Bar */
+  .mobile-nav-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    background: #e8e5d3;
+    border-bottom: 1px solid var(--line);
+    padding: 4px 6px;
+    gap: 6px;
+    flex-shrink: 0;
+    z-index: 20;
+    position: sticky;
+    top: 0;
+  }
+
+  .mobile-nav-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 7px 8px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    font-family: var(--sans);
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #4f5f42;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .mobile-nav-btn.active {
+    background: #fbf9ef;
+    border-color: #ccd5bc;
+    color: #1a2918;
+    box-shadow: 0 1px 3px rgba(30, 45, 25, 0.12);
+  }
+
+  .mobile-nav-count {
+    background: #2b3e2a;
+    color: #fbf9ef;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 1px 6px;
+    border-radius: 999px;
+  }
+
+  .mobile-nav-spark-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #bd9c51;
+    box-shadow: 0 0 6px #bd9c51;
+    animation: sparkPulse 1.8s infinite ease-in-out;
+  }
+
+  /* Game Layout Tab Switcher */
+  .game-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: none !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  /* Panels toggle based on mobile active tab */
+  .tribe-panel,
+  .map-section,
+  .discovery-panel {
+    display: none !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 0 !important;
+    border: none !important;
+    padding: 0 !important;
+  }
+
+  .tribe-panel.mobile-visible {
+    display: flex !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    padding: 14px 16px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    height: 100% !important;
+    background: #faf8ed;
+    gap: 12px !important;
+  }
+
+  .tribe-panel.mobile-visible .side-tabs {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    display: flex !important;
+    gap: 16px !important;
+  }
+
+  .tribe-panel.mobile-visible .tribe-summary {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    display: flex !important;
+    padding: 4px 0 !important;
+  }
+
+  .discovery-panel.mobile-visible {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 14px 16px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    height: 100% !important;
+    background: #faf8ed;
+    gap: 16px;
+  }
+
+  .map-section.mobile-visible {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+  }
+
+  /* Unit list in Tribe panel on mobile */
+  .tribe-panel.mobile-visible .unit-list {
+    display: flex !important;
+    flex-direction: column !important;
+    overflow-y: visible !important;
+    gap: 6px !important;
+    width: 100% !important;
+  }
+
+  .tribe-panel.mobile-visible .unit-card {
+    flex-direction: row !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 8px 10px !important;
+    text-align: left !important;
+    background: #ede9d7;
+    border: 1px solid #d5ceb6;
+    border-radius: 6px;
+  }
+
+  .tribe-panel.mobile-visible .unit-info {
+    max-width: none !important;
+    align-items: flex-start !important;
+  }
+
+  .tribe-panel.mobile-visible .unit-health {
+    display: flex !important;
+    margin-left: auto;
+  }
+
+  .tribe-panel.mobile-visible .unit-info > strong small {
+    display: inline !important;
+  }
+
+  /* Content inside Discovery panel on mobile */
+  .discovery-panel.mobile-visible .discovery-title {
+    display: block !important;
+  }
+
+  .discovery-panel.mobile-visible .quiet-card {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .discovery-panel.mobile-visible .objective-card {
+    display: block !important;
+  }
+
+  .discovery-panel.mobile-visible .lexicon-overview {
+    display: flex !important;
+  }
+
+  .discovery-panel.mobile-visible .thought {
+    display: block !important;
+  }
+
+  /* Mobile Spark Pill on Map */
+  .mobile-spark-pill {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 6px 12px 4px;
+    padding: 6px 12px;
+    background: #fbf6e3;
+    border: 1px solid #d4af37;
+    border-radius: 20px;
+    color: #4f411e;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(180, 140, 40, 0.2);
+    animation: sparkPulse 2s infinite ease-in-out;
+    flex-shrink: 0;
+  }
+
+  .mobile-spark-pill strong {
+    color: #8c6810;
+  }
+
+  /* Map Frame and Canvas */
+  .map-frame {
+    flex: 1 1 auto !important;
+    min-height: 180px !important;
+    height: auto !important;
+    position: relative;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .map-toolbar {
+    height: 38px !important;
+    padding: 0 10px !important;
+    border-bottom: 1px solid var(--line);
+  }
+
+  /* Language Workbench on Mobile */
+  .language-workbench {
+    flex-shrink: 0 !important;
+    padding: 8px 10px 10px !important;
+    background: #f0eedc;
+    border-top: 1px solid var(--line);
+    max-height: 48vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .language-workbench.mobile-hidden {
+    display: none !important;
+  }
+
+  .composer-topline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
+  .composer-topline h2 {
+    font-size: 14px !important;
+    margin: 0;
+  }
+
+  .composer-topline .eyebrow {
+    font-size: 7px !important;
+  }
+
+  .voice-meter {
+    gap: 2px !important;
+  }
+
+  .voice-pip {
+    width: 14px !important;
+    height: 16px !important;
+  }
+
+  .composer-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    margin-top: 4px !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .sentence-slots {
+    display: flex !important;
+    gap: 4px !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    width: auto !important;
+  }
+
+  .slot-group {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+  }
+
+  .sentence-slot {
+    width: 100% !important;
+    height: 38px !important;
+    padding: 0 4px !important;
+    gap: 4px !important;
+    border-radius: 6px !important;
+    font-size: 11px !important;
+  }
+
+  .sentence-slot strong {
+    font-size: 11px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sentence-slot svg {
+    width: 15px !important;
+    height: 15px !important;
+    flex-shrink: 0;
+  }
+
+  .sentence-slot .slot-index {
+    font-size: 10px !important;
+    font-weight: 700;
+  }
+
+  .sentence-slot:not(.filled) > span:last-child {
+    font-size: 9px !important;
+  }
+
+  .future-slot {
+    display: none !important;
+  }
+
+  .composer-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    flex-shrink: 0 !important;
+    width: auto !important;
+  }
+
+  .undo-button {
+    width: 34px !important;
+    height: 38px !important;
+    border-radius: 6px !important;
+  }
+
+  .pronounce-button {
+    height: 38px !important;
+    padding: 0 10px !important;
+    font-size: 11px !important;
+    border-radius: 6px !important;
+    min-width: 82px !important;
+    gap: 5px !important;
+  }
+
+  .sentence-feedback {
+    margin-top: 5px !important;
+    font-size: 9.5px !important;
+    line-height: 1.35 !important;
+    display: flex;
+    align-items: center;
+  }
+
+  .desktop-only-hints {
+    display: none !important;
+  }
+
+  .echo-shelf {
+    margin-top: 6px !important;
+    padding-top: 4px !important;
+    gap: 5px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap !important;
+    scrollbar-width: none;
+  }
+
+  .echo-shelf::-webkit-scrollbar {
+    display: none;
+  }
+
+  .lexicon-bar {
+    margin-top: 6px !important;
+    padding-top: 6px !important;
+    gap: 6px !important;
+    align-items: center;
+    border-top: 1px solid var(--line);
+    flex-wrap: nowrap !important;
+  }
+
+  .lexicon-label {
+    font-size: 9px !important;
+    white-space: nowrap;
+    gap: 4px !important;
+  }
+
+  .lexicon-label span {
+    font-size: 8px !important;
+  }
+
+  .word-filters {
+    gap: 4px !important;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap !important;
+  }
+
+  .word-filters::-webkit-scrollbar {
+    display: none;
+  }
+
+  .word-filters button {
+    font-size: 8px !important;
+    padding: 2px 6px !important;
+    white-space: nowrap;
+  }
+
+  .word-shelf {
+    display: flex !important;
+    gap: 6px !important;
+    margin-top: 6px !important;
+    min-height: 56px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+    flex-wrap: nowrap !important;
+  }
+
+  .word-shelf::-webkit-scrollbar {
+    display: none;
+  }
+
+  .word-tile {
+    width: 62px !important;
+    min-width: 62px !important;
+    min-height: 54px !important;
+    padding: 4px 3px !important;
+    border-radius: 6px !important;
+    touch-action: manipulation;
+  }
+
+  .word-glyph {
+    height: 20px !important;
+  }
+
+  .word-glyph svg {
+    width: 17px !important;
+    height: 17px !important;
+  }
+
+  .word-label {
+    font-size: 9px !important;
+    margin-top: 2px !important;
+  }
+
+  .word-kind {
+    font-size: 6px !important;
+    margin-top: 1px !important;
+  }
+
+  /* Topbar on mobile */
+  .topbar {
+    height: 40px !important;
+    padding: 0 10px !important;
+    gap: 6px !important;
+  }
+
+  .brand > svg {
+    width: 22px !important;
+    height: 25px !important;
+  }
+
+  .brand strong {
+    font-size: 15px !important;
+    letter-spacing: 2px !important;
+  }
+
+  .brand small {
+    display: none !important;
+  }
+
+  .era-heading {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .era-heading .eyebrow {
+    font-size: 6px !important;
+  }
+
+  .era-heading > span:last-child {
+    font-size: 11px !important;
+  }
+
+  .header-actions {
+    gap: 3px !important;
+  }
+
+  .header-actions .icon-button {
+    width: 26px !important;
+    height: 26px !important;
+    padding: 0 !important;
+  }
+
+  .header-actions .guide-button {
+    display: none !important;
+  }
+
+  /* World Strip on mobile */
+  .world-strip {
+    height: 22px !important;
+    padding: 0 10px !important;
+    font-size: 9px !important;
+  }
+
+  .world-location {
+    font-size: 9px !important;
+    gap: 4px !important;
+  }
+
+  .world-location > span:last-child {
+    display: none !important;
+  }
+
+  .world-resources {
+    gap: 6px !important;
+    font-size: 9px !important;
+  }
+
+  .world-resources .prototype-label {
+    display: none !important;
+  }
+
+  .strip-divider {
+    display: none !important;
+  }
+
+  /* Page Footer on mobile */
+  .page-footer {
+    display: none !important;
+  }
+}

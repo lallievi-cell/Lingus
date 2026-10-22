@@ -6,6 +6,7 @@ import {
   ChevronRight,
   CircleHelp,
   Clock3,
+  Compass,
   Download,
   Flame,
   Heart,
@@ -131,6 +132,7 @@ function App() {
   const [target, setTarget] = useState<Target | null>(null);
   const [tab, setTab] = useState<'tribe' | 'chronicle'>('tribe');
   const [filter, setFilter] = useState<WordKind | 'all'>('all');
+  const [mobileSection, setMobileSection] = useState<'map' | 'tribe' | 'discovery'>('map');
   const [sparkId, setSparkId] = useState<string | null>(null);
   const [puzzle, setPuzzle] = useState<string[]>([]);
   const [puzzleFeedback, setPuzzleFeedback] = useState<{
@@ -686,8 +688,36 @@ function App() {
         </div>
       </div>
 
+      <nav className="mobile-nav-bar" aria-label="Sezioni di gioco">
+        <button
+          type="button"
+          className={`mobile-nav-btn ${mobileSection === 'map' ? 'active' : ''}`}
+          onClick={() => setMobileSection('map')}
+        >
+          <Compass size={15} />
+          <span>Mappa</span>
+        </button>
+        <button
+          type="button"
+          className={`mobile-nav-btn ${mobileSection === 'tribe' ? 'active' : ''}`}
+          onClick={() => setMobileSection('tribe')}
+        >
+          <Users size={15} />
+          <span>Tribù ({peopleCount})</span>
+        </button>
+        <button
+          type="button"
+          className={`mobile-nav-btn ${mobileSection === 'discovery' ? 'active' : ''}`}
+          onClick={() => setMobileSection('discovery')}
+        >
+          <Sparkles size={15} />
+          <span>Pensiero</span>
+          {nextSpark && <span className="mobile-spark-dot" />}
+        </button>
+      </nav>
+
       <main className="game-layout">
-        <aside className="tribe-panel">
+        <aside className={`tribe-panel ${mobileSection === 'tribe' ? 'mobile-visible' : ''}`}>
           <div className="side-tabs" role="tablist" aria-label="Pannello della tribù">
             <button
               role="tab"
@@ -965,7 +995,29 @@ function App() {
           )}
         </aside>
 
-        <section className="map-section" aria-label="Mappa e ordini">
+        <section
+          className={`map-section ${mobileSection === 'map' ? 'mobile-visible' : ''}`}
+          aria-label="Mappa e ordini"
+        >
+          {nextSpark && (
+            <button
+              type="button"
+              className="mobile-spark-pill"
+              onClick={() => openSpark(nextSpark)}
+              aria-label="Nuova intuizione disponibile"
+            >
+              <Sparkles size={14} className="spark-spin" />
+              <span>
+                Scintilla:{' '}
+                {individuality
+                  ? (game.units.find((u) => u.id === nextSpark.unitId)?.name ?? 'un compagno')
+                  : 'un compagno'}
+              </span>
+              <span className="spark-timer-badge">
+                {Math.max(0, Math.ceil(nextSpark.expiresAt - game.time))}s
+              </span>
+            </button>
+          )}
           <div className="map-header">
             <div>
               <span className="eyebrow">UN MONDO DA COMPRENDERE</span>
@@ -1078,7 +1130,7 @@ function App() {
           </div>
         </section>
 
-        <aside className="discovery-panel">
+        <aside className={`discovery-panel ${mobileSection === 'discovery' ? 'mobile-visible' : ''}`}>
           <div className="discovery-title">
             <Sparkles size={16} />
             <span className="eyebrow">L’ORIZZONTE DEL PENSIERO</span>
@@ -1246,7 +1298,10 @@ function App() {
         </aside>
       </main>
 
-      <section className="language-workbench" aria-label="Costruttore di frasi">
+      <section
+        className={`language-workbench ${mobileSection !== 'map' ? 'mobile-hidden' : ''}`}
+        aria-label="Costruttore di frasi"
+      >
         <div className="composer-topline">
           <div>
             <span className="eyebrow">LA TUA VOCE</span>
@@ -1403,7 +1458,7 @@ function App() {
               ? 'Scegli o trascina le parole. Componi una frase, indica un bersaglio e pronunciala.'
               : compilation.message}
           </span>
-          <div className="keyboard-hints">
+          <div className="keyboard-hints desktop-only-hints">
             <span>
               <kbd>INVIO</kbd> pronuncia
             </span>
