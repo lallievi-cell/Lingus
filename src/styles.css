@@ -4862,8 +4862,35 @@ kbd {
     display: none !important;
   }
 
+  /* Mobile Toast Notification: positioned at the TOP so it never obscures the word shelf */
+  .toast {
+    top: 48px !important;
+    bottom: auto !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    font-size: 10px !important;
+    padding: 7px 12px !important;
+    gap: 8px !important;
+    width: auto !important;
+    max-width: calc(100vw - 28px) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 18px rgba(25, 40, 20, 0.3) !important;
+    animation: toastInTop 0.25s ease-out !important;
+  }
+
   /* Page Footer on mobile */
   .page-footer {
     display: none !important;
+  }
+}
+
+@keyframes toastInTop {
+  from {
+    opacity: 0;
+    top: 36px;
+  }
+  to {
+    opacity: 1;
+    top: 48px;
   }
 }

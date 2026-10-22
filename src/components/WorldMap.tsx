@@ -150,6 +150,13 @@ export function WorldMap({
     centerY: number;
     moved: boolean;
   } | null>(null);
+  const activePointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchStartRef = useRef<{
+    dist: number;
+    zoom: number;
+    centerX: number;
+    centerY: number;
+  } | null>(null);
   const terrain = useMemo(() => createTerrain(6842, state.seasonIndex), [state.seasonIndex]);
   const renderSizeRef = useRef(size);
   stateRef.current = state;
@@ -317,7 +324,7 @@ export function WorldMap({
       const minZoom = stateRef.current.tier >= 4 ? 0.9 : Math.max(1, 400 / span);
       return {
         ...previous,
-        zoom: clamp(Math.round((previous.zoom + delta) * 100) / 100, minZoom, 8),
+        zoom: clamp(Math.round((previous.zoom + delta) * 100) / 100, minZoom, 16),
       };
     });
   }, []);
@@ -483,18 +490,64 @@ export function WorldMap({
         aria-label="Mappa della valle: seleziona risorse, abitanti e luoghi per dare un ordine alla tribù"
         role="img"
         onPointerDown={(event) => {
-          if (event.button !== 0) return;
-          event.currentTarget.setPointerCapture(event.pointerId);
-          const t = getTransform();
-          pointerRef.current = {
-            x: event.clientX,
-            y: event.clientY,
-            centerX: t.centerX,
-            centerY: t.centerY,
-            moved: false,
-          };
+          if (event.pointerType === 'mouse' && event.button !== 0) return;
+          try {
+            event.currentTarget.setPointerCapture(event.pointerId);
+          } catch {
+            /* capture failed */
+          }
+          activePointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+          if (activePointersRef.current.size === 2) {
+            const [p1, p2] = Array.from(activePointersRef.current.values());
+            const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+            const t = getTransform();
+            pinchStartRef.current = {
+              dist,
+              zoom: viewRef.current.zoom,
+              centerX: t.centerX,
+              centerY: t.centerY,
+            };
+            pointerRef.current = null;
+            setDragging(false);
+            return;
+          }
+
+          if (activePointersRef.current.size === 1) {
+            const t = getTransform();
+            pointerRef.current = {
+              x: event.clientX,
+              y: event.clientY,
+              centerX: t.centerX,
+              centerY: t.centerY,
+              moved: false,
+            };
+          }
         }}
         onPointerMove={(event) => {
+          activePointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+          if (activePointersRef.current.size >= 2 && pinchStartRef.current) {
+            const [p1, p2] = Array.from(activePointersRef.current.values());
+            const currentDist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+            if (currentDist > 8 && pinchStartRef.current.dist > 8) {
+              const bounds = viewBounds(stateRef.current),
+                span = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
+              const minZoom = stateRef.current.tier >= 4 ? 0.9 : Math.max(1, 400 / span);
+              const scaleFactor = currentDist / pinchStartRef.current.dist;
+              const nextZoom = clamp(
+                Math.round(pinchStartRef.current.zoom * scaleFactor * 100) / 100,
+                minZoom,
+                16,
+              );
+              setView((previous) => ({
+                ...previous,
+                zoom: nextZoom,
+              }));
+            }
+            return;
+          }
+
           const pointer = pointerRef.current;
           if (pointer) {
             const dx = event.clientX - pointer.x,
@@ -517,10 +570,17 @@ export function WorldMap({
           }
         }}
         onPointerUp={(event) => {
+          const wasPinching = !!pinchStartRef.current;
+          activePointersRef.current.delete(event.pointerId);
+          if (activePointersRef.current.size < 2) {
+            pinchStartRef.current = null;
+          }
+
           const pointer = pointerRef.current;
           pointerRef.current = null;
           setDragging(false);
-          if (!pointer || pointer.moved) return;
+
+          if (wasPinching || !pointer || pointer.moved) return;
           if (event.shiftKey) {
             handleGroupSelect(event.clientX, event.clientY);
             return;
@@ -551,7 +611,11 @@ export function WorldMap({
           event.preventDefault();
           handleGroupSelect(event.clientX, event.clientY);
         }}
-        onPointerCancel={() => {
+        onPointerCancel={(event) => {
+          activePointersRef.current.delete(event.pointerId);
+          if (activePointersRef.current.size < 2) {
+            pinchStartRef.current = null;
+          }
           pointerRef.current = null;
           setDragging(false);
         }}
