@@ -362,8 +362,18 @@ export function resetUnit(u: Unit) {
   u.command = undefined;
   u.progress = 0;
   u.jobBuildingId = undefined;
+  u.suspendedJob = undefined;
   u.paidConstruction = undefined;
   u.buildingKind = undefined;
+}
+function resetKeepingJob(u: Unit) {
+  const job = u.suspendedJob;
+  resetUnit(u);
+  u.suspendedJob = job;
+}
+function resetInstinct(u: Unit) {
+  if (!u.command && u.suspendedJob) resetKeepingJob(u);
+  else resetUnit(u);
 }
 function move(s: GameState, u: Unit, x: number, y: number, dt: number, speed = 4) {
   const effects = getDogmaEffects(s, { unit: u, tokens: u.command }),
@@ -731,6 +741,17 @@ function finishConstruction(s: GameState, u: Unit) {
   }
 }
 function assignWork(s: GameState, u: Unit, kind: BuildingKind) {
+  const spec = BUILDING_SPECS[kind];
+  if (
+    u.age < ADULT_AGE ||
+    (spec.workerKind === 'sage' && u.intelligence < 7) ||
+    (spec.workerKind === 'warrior' && u.strength < 7)
+  )
+    return false;
+  for (const b of s.buildings)
+    b.workerIds = (b.workerIds ?? []).filter((id) =>
+      s.units.some((v) => v.id === id && v.hp > 0 && v.jobBuildingId === b.id),
+    );
   const b = closest(
     s.buildings.filter(
       (b) =>
@@ -738,6 +759,7 @@ function assignWork(s: GameState, u: Unit, kind: BuildingKind) {
         b.kind === kind &&
         b.hp > 0 &&
         b.active &&
+        b.completed !== false &&
         ((b.workerIds ?? []).length < BUILDING_SPECS[kind].workers ||
           (b.workerIds ?? []).includes(u.id)),
     ),
@@ -752,6 +774,128 @@ function assignWork(s: GameState, u: Unit, kind: BuildingKind) {
   b.workerIds ??= [];
   if (!b.workerIds.includes(u.id)) b.workerIds.push(u.id);
   return true;
+}
+function pauseBuildingJob(s: GameState, u: Unit) {
+  const b = s.buildings.find((b) => b.id === u.jobBuildingId);
+  if (!b) return;
+  const command = [...(u.command ?? [])];
+  b.workerIds = (b.workerIds ?? []).filter((id) => id !== u.id);
+  resetUnit(u);
+  u.suspendedJob = { buildingId: b.id, command };
+}
+function resumeBuildingJob(s: GameState, u: Unit) {
+  const job = u.suspendedJob;
+  if (!job) return false;
+  const b = s.buildings.find((b) => b.id === job.buildingId),
+    spec = b && BUILDING_SPECS[b.kind];
+  if (
+    !b ||
+    !spec ||
+    !isPlayerBuilding(s, b) ||
+    b.hp <= 0 ||
+    b.completed === false ||
+    u.age < ADULT_AGE ||
+    (spec.workerKind === 'sage' && u.intelligence < 7) ||
+    (spec.workerKind === 'warrior' && u.strength < 7) ||
+    ((job.command[0] === 'C_02' || (job.command[0] === 'C_01' && s.tier >= 3)) &&
+      !s.traditions.some((t) => t.tokens.join('|') === job.command.join('|')))
+  ) {
+    u.suspendedJob = undefined;
+    return false;
+  }
+  const night = seasonOf(s).isNight,
+    resting = getDogmaEffects(s, { unit: u }).nightWatch ? !night : night,
+    nightShift = job.command[0] === 'C_01';
+  if (!b.active || (nightShift ? !night : resting) || u.hunger >= 75 || u.temp <= 30) return false;
+  const target = { type: 'building' as const, id: b.id, x: b.x, y: b.y };
+  if (forbiddenByDogma(s, job.command, target, u)) {
+    u.suspendedJob = undefined;
+    return false;
+  }
+  b.workerIds = (b.workerIds ?? []).filter((id) =>
+    s.units.some((v) => v.id === id && v.hp > 0 && v.jobBuildingId === b.id),
+  );
+  if (b.workerIds.length >= spec.workers) return false;
+  if (!enforceActionLaws(s, job.command, target, [u.id])) {
+    const tradition = s.traditions.find((t) => t.tokens.join('|') === job.command.join('|'));
+    if (tradition) {
+      initializeUnit(u);
+      u.cooldowns![`law-order:${tradition.id}`] = s.time + 90;
+    }
+    u.suspendedJob = undefined;
+    return false;
+  }
+  u.command = [...job.command];
+  u.jobBuildingId = b.id;
+  u.targetId = b.id;
+  u.tx = b.x;
+  u.ty = b.y;
+  u.progress = 0;
+  u.action = 'working';
+  u.suspendedJob = undefined;
+  b.workerIds.push(u.id);
+  return true;
+}
+/** A full ordinary 60-second shift earns one seasonal yield; extra shifts cap at one. */
+function recordBuildingWork(s: GameState, dt: number) {
+  const start = Math.max(0, s.time - dt),
+    firstSeason = Math.floor(start / 90),
+    lastSeason = Math.floor(s.time / 90);
+  for (const b of s.buildings) {
+    const spec = BUILDING_SPECS[b.kind];
+    if (b.cityId || spec.workers === 0 || !b.active || b.hp <= 0 || b.completed === false) continue;
+    const workers = (b.workerIds ?? [])
+      .filter((id) =>
+        s.units.some(
+          (u) =>
+            u.id === id &&
+            u.hp > 0 &&
+            u.jobBuildingId === b.id &&
+            distance(u, b) <= 3 &&
+            u.age >= ADULT_AGE &&
+            (spec.workerKind !== 'sage' || u.intelligence >= 7) &&
+            (spec.workerKind !== 'warrior' || u.strength >= 7) &&
+            ['working', 'farming', 'smelting', 'copying', 'researching', 'guarding'].includes(
+              u.action,
+            ) &&
+            u.hunger < 75 &&
+            u.temp > 30,
+        ),
+      )
+      .slice(0, spec.workers);
+    if (!workers.length) continue;
+    b.seasonWork ??= {};
+    for (const key of Object.keys(b.seasonWork))
+      if (Number(key) < lastSeason - 1) delete b.seasonWork[key];
+    for (let season = firstSeason; season <= lastSeason; season++) {
+      const seconds = Math.max(
+        0,
+        Math.min(s.time, (season + 1) * 90) - Math.max(start, season * 90),
+      );
+      if (seconds <= 0) continue;
+      const work = (b.seasonWork[season] ??= { efficiencySeconds: 0, workerSeconds: {} });
+      work.efficiencySeconds = Math.min(
+        90,
+        work.efficiencySeconds + (seconds * workers.length) / spec.workers,
+      );
+      for (const id of workers) {
+        work.workerSeconds[id] = Math.min(90, (work.workerSeconds[id] ?? 0) + seconds);
+        const command = s.units.find((u) => u.id === id)?.command;
+        if (command?.length) {
+          work.commandSeconds ??= {};
+          const signatures = (work.commandSeconds[id] ??= {}),
+            signature = command.join('|');
+          signatures[signature] = Math.min(90, (signatures[signature] ?? 0) + seconds);
+        }
+      }
+    }
+  }
+}
+function seasonalBuildingEfficiency(s: GameState, b: Building) {
+  if (!b.active || b.hp <= 0 || b.completed === false) return 0;
+  if (BUILDING_SPECS[b.kind].workers === 0) return 1;
+  const ended = Math.floor(s.time / 90) - 1;
+  return Math.min(1, (b.seasonWork?.[ended]?.efficiencySeconds ?? 0) / 60);
 }
 /** Civil blows share the real equipment and damage equation with ordinary combat. */
 export function civilStrike(s: GameState, attacker: Unit, victim: Unit, requestedDamage?: number) {
@@ -861,7 +1005,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
   }
   if (u.action === 'moving' || u.action === 'fleeing' || u.action === 'patrolling') {
     if (move(s, u, u.tx ?? s.home.x, u.ty ?? s.home.y, dt, u.action === 'fleeing' ? 4.8 : 4))
-      resetUnit(u);
+      resetInstinct(u);
     return;
   }
   if (u.action === 'returning') {
@@ -1062,12 +1206,12 @@ export function processWork(s: GameState, u: Unit, dt: number) {
   }
   if (u.action === 'eating') {
     if (!e || e.amount <= 0) {
-      resetUnit(u);
+      resetInstinct(u);
       return;
     }
     if (!move(s, u, e.x, e.y, dt)) return;
     if (!workCycle(s, u, dt, 1.5)) return;
-    if (!consume(s, u, e) || u.hunger <= 0) resetUnit(u);
+    if (!consume(s, u, e) || u.hunger <= 0) resetInstinct(u);
     return;
   }
   if (u.action === 'domesticating') {
@@ -1243,7 +1387,9 @@ function startInstinct(s: GameState, u: Unit, dt: number) {
       return;
     }
     u.action = 'sleeping';
+    // Biological rest may move to daytime; Qui still requires actual nights together.
     u.sleptThisNight = night;
+    u.restedThisSeason = true;
     return;
   }
   if (u.action === 'sleeping') u.action = 'idle';
@@ -1264,6 +1410,10 @@ function assignTradition(s: GameState, u: Unit) {
     initializeUnit(u);
     if ((u.cooldowns![`law-order:${t.id}`] ?? 0) > s.time) continue;
     if (condition === 'C_01' && !seasonOf(s).isNight) continue;
+    const resting = getDogmaEffects(s, { unit: u }).nightWatch
+      ? !seasonOf(s).isNight
+      : seasonOf(s).isNight;
+    if (condition === 'C_02' && resting) continue;
     const subject = tokens[1];
     if (
       (subject === 'S_03' && u.strength < 7) ||
@@ -1292,6 +1442,21 @@ function assignTradition(s: GameState, u: Unit) {
     u.targetId = e?.id;
     u.tx = e?.x ?? target?.x ?? s.home.x;
     u.ty = e?.y ?? target?.y ?? s.home.y;
+    const workKind: BuildingKind | undefined =
+      verb === 'V_05' && tokens.includes('O_09')
+        ? 'archive'
+        : verb === 'V_09'
+          ? 'farm'
+          : verb === 'V_12'
+            ? 'foundry'
+            : verb === 'V_10'
+              ? 'pen'
+              : undefined;
+    if (workKind) {
+      if (assignWork(s, u, workKind)) return true;
+      resetKeepingJob(u);
+      continue;
+    }
     if (verb === 'V_03')
       u.action =
         e && ['deer', 'wolf', 'alpha', 'mammoth'].includes(e.kind) ? 'hunting' : 'gathering';
@@ -1299,10 +1464,6 @@ function assignTradition(s: GameState, u: Unit) {
     else if (verb === 'V_01') u.action = 'moving';
     else if (verb === 'V_02') u.action = 'eating';
     else if (verb === 'V_05' && tokens.includes('O_05')) u.action = 'guarding';
-    else if (verb === 'V_05' && tokens.includes('O_09')) assignWork(s, u, 'archive');
-    else if (verb === 'V_09') assignWork(s, u, 'farm');
-    else if (verb === 'V_12') assignWork(s, u, 'foundry');
-    else if (verb === 'V_10') assignWork(s, u, 'pen');
     else {
       resetUnit(u);
       continue;
@@ -1440,6 +1601,12 @@ export function updateUnits(s: GameState, dt: number) {
       s.battalions.some((b) => b.factionId !== 'player' && distance(b, s.home) <= 35)
     )
       recordEvent(s, u, 'ENV_TRESPASSING', 80, ['O_10'], 1);
+    const resting = fx.nightWatch ? !phase.isNight : phase.isNight,
+      outsideShift = u.command?.[0] === 'C_01' ? !phase.isNight : resting;
+    if (u.jobBuildingId && (u.hunger >= 75 || outsideShift || (fx.nightTaboo && phase.isNight)))
+      pauseBuildingJob(s, u);
+    else if (u.command?.[0] === 'C_02' && resting && u.action !== 'returning') resetUnit(u);
+    else if (u.command?.[0] === 'C_01' && !phase.isNight) resetUnit(u);
     if (
       u.command &&
       forbiddenByDogma(
@@ -1464,6 +1631,7 @@ export function updateUnits(s: GameState, dt: number) {
       } else {
         u.action = 'sleeping';
         u.sleptThisNight = true;
+        u.restedThisSeason = true;
         if (u.hunger >= 60) consume(s, u);
       }
       evaluateDiscoveries(s, u);
@@ -1489,7 +1657,7 @@ export function updateUnits(s: GameState, dt: number) {
         u.ty = nearest?.y ?? s.home.y;
         u.command = undefined;
       } else if (u.action !== 'eating') {
-        resetUnit(u);
+        resetKeepingJob(u);
         startInstinct(s, u, dt);
       }
     }
@@ -1506,13 +1674,9 @@ export function updateUnits(s: GameState, dt: number) {
       u.ty = s.home.y;
       u.command = undefined;
     }
-    if (u.jobBuildingId && (u.hunger >= 75 || (phase.isNight && !u.command?.includes('C_01')))) {
-      const b = s.buildings.find((b) => b.id === u.jobBuildingId);
-      if (b) b.workerIds = (b.workerIds ?? []).filter((id) => id !== u.id);
-      resetUnit(u);
-    }
     if (['idle', 'sleeping'].includes(u.action)) {
-      const assigned = u.hunger < 75 && u.temp > 30 && assignTradition(s, u);
+      const assigned =
+        u.hunger < 75 && u.temp > 30 && (resumeBuildingJob(s, u) || assignTradition(s, u));
       if (u.hp <= 0 || u.factionId !== 'player') continue;
       if (assigned) processWork(s, u, dt);
       else startInstinct(s, u, dt);
@@ -1583,12 +1747,22 @@ export function seasonalCore(s: GameState) {
   s.stats.seasonsSurvived++;
   s.nightCount++;
   const slept = live.filter((u) => u.sleptThisNight && distance(u, s.home) <= 10);
-  const rested = new Set(slept.map((u) => u.id));
+  const rested = new Set(
+    live
+      .filter((u) => (u.sleptThisNight || u.restedThisSeason) && distance(u, s.home) <= 10)
+      .map((u) => u.id),
+  );
   s.nightSleeping = slept.length >= Math.ceil(live.length * 0.75) ? s.nightSleeping + 1 : 0;
-  for (const u of live) u.sleptThisNight = false;
+  for (const u of live) {
+    u.sleptThisNight = false;
+    u.restedThisSeason = false;
+  }
   if (s.nightSleeping >= 2)
     for (const u of slept) recordEvent(s, u, 'ENV_SLEEP_CLUSTER', 100, ['O_01']);
-  if (season.index === 2 && !s.buildings.some((b) => isPlayerBuilding(s, b) && b.kind === 'campfire' && b.active)) {
+  if (
+    season.index === 2 &&
+    !s.buildings.some((b) => isPlayerBuilding(s, b) && b.kind === 'campfire' && b.active)
+  ) {
     log(
       s,
       'L’aria si fa rigida: l’inverno gelerà la valle al secondo 270. Accendete il Falò con cinque legna prima che sia troppo tardi!',
@@ -1682,7 +1856,7 @@ export function seasonalCore(s: GameState) {
     }
   }
   for (const b of s.buildings.filter((b) => b.active && b.hp > 0 && !b.cityId)) {
-    const efficiency = buildingEfficiency(s, b);
+    const efficiency = seasonalBuildingEfficiency(s, b);
     b.lastEfficiency = efficiency;
     if (b.kind === 'farm' && endedSeason === 2) {
       const workshop = hasBuilding(s, 'workshop') ? 3 : 1;
@@ -1697,15 +1871,32 @@ export function seasonalCore(s: GameState) {
           fx.production *
           (s.disasters.drought && !hasBuilding(s, 'workshop') ? 0.5 : 1),
       );
+      const work = b.seasonWork?.[Math.floor(s.time / 90) - 1],
+        totalWork = Object.values(work?.workerSeconds ?? {}).reduce(
+          (sum, seconds) => sum + seconds,
+          0,
+        );
       if (harvested > 0)
-        for (const id of b.workerIds ?? []) {
-          const worker = s.units.find((u) => u.id === id && u.hp > 0 && u.jobBuildingId === b.id);
-          if (worker)
+        for (const [id, seconds] of Object.entries(work?.workerSeconds ?? {})) {
+          const worker = s.units.find((u) => u.id === id && u.hp > 0);
+          if (!worker) continue;
+          const contributions = work?.commandSeconds?.[id] ?? {},
+            recorded = Object.values(contributions).reduce((sum, n) => sum + n, 0);
+          for (const [signature, earnedSeconds] of Object.entries(contributions))
             recordLawWork(
               s,
               worker.id,
-              worker.command ?? ['S_01', 'V_09', 'O_04'],
-              harvested / Math.max(1, (b.workerIds ?? []).length),
+              signature.split('|'),
+              (harvested * earnedSeconds) / Math.max(1e-9, totalWork),
+              Math.max(0, Math.floor(s.time / 90) * 90 - 1e-6),
+            );
+          // Older saves or explicit diagnostic fixtures have no phrase ledger.
+          if (seconds > recorded)
+            recordLawWork(
+              s,
+              worker.id,
+              ['S_01', 'V_09', 'O_04'],
+              (harvested * (seconds - recorded)) / Math.max(1e-9, totalWork),
               Math.max(0, Math.floor(s.time / 90) * 90 - 1e-6),
             );
         }
@@ -1729,7 +1920,7 @@ export function seasonalCore(s: GameState) {
       elders = activeUnits(s).filter((u) => u.age >= ELDER_AGE).length;
     const temple = s.buildings
       .filter((b) => isPlayerBuilding(s, b) && b.kind === 'temple')
-      .reduce((n, b) => n + 20 * buildingEfficiency(s, b), 0);
+      .reduce((n, b) => n + 20 * seasonalBuildingEfficiency(s, b), 0);
     s.attention = clamp(
       attentionPoints(s.burntWood, elders * fx.elderAttention, hunger, fx.attentionCap) + temple,
       0,
@@ -1931,6 +2122,7 @@ export function simulationStep(s: GameState, dt: number) {
     };
     s.units.push(foreign);
   }
+  recordBuildingWork(s, dt);
   updateCivilConflicts(s, dt, civilStrike);
   updateUnits(s, dt);
   updateAnimals(s, dt);

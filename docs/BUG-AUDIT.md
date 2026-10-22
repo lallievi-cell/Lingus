@@ -46,6 +46,8 @@ I criteri di rappresentazione e persistenza sono esplicitati anche in [DECISIONS
 
 ## Verifica della revisione
 
-- **541 test unitari e di integrazione superati**, di cui **62 nuove regressioni** sui quattro punti e sugli effetti collegati.
+- Al commit `57500b7`: **541 test unitari e di integrazione superati**, di cui **62 nuove regressioni** sui quattro punti e sugli effetti collegati.
 - **11 test nel browser superati**; build TypeScript/Vite e formattazione verificate.
 - Il replay ordinario conserva il Seed Zero **6842** e tutte le asserzioni precedenti. La strategia ora include due pasti autunnali vicini alla tana e il rientro anticipato per la terza notte. Raggiunge il traguardo a **360 s**, con **7 persone vive, 18 parole, Falò e Pozzo propri**, usando soltanto comandi, Scintille e insegnamento pagato. Questo replay non dimostra la sopravvivenza a ogni possibile disastro.
+
+La revisione successiva dei turni e dei custodi è descritta in [GROWTH-AUDIT.md](GROWTH-AUDIT.md). I numeri del replay sopra fotografano il commit `57500b7`; dopo le modifiche dell’utente alle notti di Qui, il percorso viene verificato nuovamente senza imporre lo stesso esito numerico.

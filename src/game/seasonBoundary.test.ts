@@ -40,6 +40,15 @@ function staffedFarm(s: GameState) {
     u.action = 'working';
   }
   farm.workerIds = workers.map((u) => u.id);
+  // This isolated settlement fixture represents one completed ordinary shift.
+  // The real-time accumulation and sleeping workers are exercised in workers.test.ts.
+  farm.seasonWork = {
+    [Math.floor(s.time / 90) - 1]: {
+      efficiencySeconds: 60,
+      workerSeconds: Object.fromEntries(workers.map((u) => [u.id, 60])),
+      commandSeconds: Object.fromEntries(workers.map((u) => [u.id, { 'S_01|V_09|O_04': 60 }])),
+    },
+  };
   s.resources.seed = 10;
   return farm;
 }

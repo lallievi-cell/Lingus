@@ -129,6 +129,15 @@ export interface Building {
   progress?: number;
   livestock?: number;
   lastEfficiency?: number;
+  /** Real village work, retained across the boundary until settlement (decision A-34). */
+  seasonWork?: Record<
+    string,
+    {
+      efficiencySeconds: number;
+      workerSeconds: Record<string, number>;
+      commandSeconds?: Record<string, Record<string, number>>;
+    }
+  >;
 }
 export type Caste = 'citizen' | 'warrior' | 'sage' | 'slave';
 export interface MemoryEvent {
@@ -158,6 +167,7 @@ export interface Unit {
   carry?: { resource: Resource; amount: number };
   isolation: number;
   sleptThisNight?: boolean;
+  restedThisSeason?: boolean;
   caste?: Caste;
   eventMemory?: MemoryEvent[];
   tension?: Record<string, number>;
@@ -183,6 +193,7 @@ export interface Unit {
   lastNightEvent?: number;
   lastEventAt?: Record<string, number>;
   jobBuildingId?: string;
+  suspendedJob?: { buildingId: string; command: string[] };
 }
 export interface Spark {
   id: string;

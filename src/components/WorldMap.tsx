@@ -13,6 +13,7 @@ import {
   SPRITE_SCALE,
 } from './mapDrawing';
 import { getGroundPiles } from './mapResourceLayout';
+import { getCustodianStatuses } from '../game/custodianStatus';
 import { entityTargetPresentation, targetPresentation } from './targetPresentation';
 import './WorldMap.css';
 
@@ -90,7 +91,11 @@ function targetLabel(state: GameState, target: WorldTarget | null) {
     }
     return building.active ? name : `${name} · Inattivo`;
   }
-  if (target.type === 'point' && state.home && Math.hypot(target.x - state.home.x, target.y - state.home.y) <= 10) {
+  if (
+    target.type === 'point' &&
+    state.home &&
+    Math.hypot(target.x - state.home.x, target.y - state.home.y) <= 10
+  ) {
     return 'Giaciglio della tribù · Luogo del riposo notturno';
   }
   return isVisibleAt(state, target.x, target.y)
@@ -227,6 +232,14 @@ export function WorldMap({
               ['delegating', 'frontline', 'frontline-returning'].includes(u.action)),
         )
         .forEach((u) => add('unit', u.id, u.x, u.y, 13, 9));
+      for (const status of getCustodianStatuses(current)) {
+        const unit = current.units.find((u) => u.id === status.unitId);
+        if (!unit || current.urbanized) continue;
+        add('unit', unit.id, unit.x, unit.y, 9, 28, {
+          x: unit.x - (15 * SPRITE_SCALE) / WORLD_X,
+          y: unit.y,
+        });
+      }
       for (const pile of getGroundPiles(current)) {
         add('entity', pile.entity.id, pile.entity.x, pile.entity.y, 18, 0, pile);
       }
@@ -363,7 +376,13 @@ export function WorldMap({
       if (!current.urbanized && current.home) {
         miniCtx.fillStyle = '#b5974f';
         miniCtx.beginPath();
-        miniCtx.arc((current.home.x / WORLD_SIZE) * mw, (current.home.y / WORLD_SIZE) * mh, 2.2, 0, Math.PI * 2);
+        miniCtx.arc(
+          (current.home.x / WORLD_SIZE) * mw,
+          (current.home.y / WORLD_SIZE) * mh,
+          2.2,
+          0,
+          Math.PI * 2,
+        );
         miniCtx.fill();
         miniCtx.strokeStyle = '#5a7343';
         miniCtx.lineWidth = 0.6;

@@ -87,6 +87,8 @@ const unit = (v: unknown) =>
   number(v.isolation) &&
   words(v.knows) &&
   optional(v.command, words) &&
+  optional(v.restedThisSeason, flag) &&
+  optional(v.suspendedJob, (x) => record(x) && text(x.buildingId) && words(x.command)) &&
   optional(v.eventMemory, (x) => list(x, event)) &&
   optional(v.tension, numericMap) &&
   optional(v.cooldowns, numericMap) &&
@@ -221,7 +223,33 @@ export function validSave(value: unknown): value is GameState {
         Object.hasOwn(BUILDING_SPECS, v.kind) &&
         number(v.hp) &&
         flag(v.active) &&
-        optional(v.workerIds, ids),
+        optional(v.workerIds, ids) &&
+        optional(
+          v.seasonWork,
+          (x) =>
+            record(x) &&
+            Object.entries(x).every(
+              ([season, work]) =>
+                /^\d+$/.test(season) &&
+                record(work) &&
+                number(work.efficiencySeconds, 0, 90) &&
+                record(work.workerSeconds) &&
+                Object.values(work.workerSeconds).every((seconds) => number(seconds, 0, 90)) &&
+                optional(
+                  work.commandSeconds,
+                  (commands) =>
+                    record(commands) &&
+                    Object.values(commands).every(
+                      (signatures) =>
+                        record(signatures) &&
+                        Object.entries(signatures).every(
+                          ([signature, seconds]) =>
+                            words(signature.split('|')) && number(seconds, 0, 90),
+                        ),
+                    ),
+                ),
+            ),
+        ),
     )
   )
     return false;

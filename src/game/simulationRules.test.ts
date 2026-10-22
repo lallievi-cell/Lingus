@@ -373,7 +373,7 @@ describe('laws change actual individual behavior', () => {
   it('a permanent work script cannot bypass the court or punish its worker again every tick', () => {
     const s = world(),
       u = s.units[0];
-    s.time = 65;
+    s.time = 5;
     s.buildings.push({ id: 'court', kind: 'court', ...HOME, hp: 500, active: true });
     s.entities.push({ id: 'wood', kind: 'tree', ...HOME, amount: 10, hp: 100, maxHp: 100 });
     s.laws.push(law(['S_01', 'V_03', 'O_03', 'M_01', 'C_03', 'V_03']));

@@ -9,22 +9,25 @@ Le righe citate appartengono all'estrazione in ordine di paragrafo comprendente 
 
 Le correzioni esplicite successive prevalgono sui valori precedenti: stagione 90 s; fame base 0,8/s; destinazione implicita di Portare; pattern con due oggetti; Officina a quattro parole; 20 edifici distinti; nessuna macro oltre sei slot; manutenzione del 20% degli HP massimi; scorte a terra di 30 unità totali; quattro case urbane da 80 pietra/40 legno/+48 posti; mortalità stagionale del 12% oltre la quattordicesima stagione.
 
+I commit successivi dell’utente (`5bd10a7`–`667cf89`) portano la scoperta di Qui a **due notti consecutive**, anticipano la guida verso Io e consentono gli ordini necessari al Falò durante l’ipotermia. Questa scelta del progetto (A-32) prevale sul valore di tre notti della fonte; non è attribuita al DOCX.
+
 Legenda delle verifiche: **da verificare** = requisito estratto, nessuna prova indipendente ancora associata; **verificato** = prova citata eseguita; **parziale** = la prova citata copre soltanto una parte del requisito; **decisione** = parametro o conflitto della fonte risolto secondo [DECISIONS.md](DECISIONS.md). Non si attribuisce una percentuale di conformità alle sole righe di questo registro.
 
-I 31 punti di interpretazione o rappresentazione censiti hanno decisioni esplicite. I completamenti verificati e le prove ancora aperte sono elencati separatamente in [REMAINING.md](REMAINING.md).
+I 34 punti di interpretazione o rappresentazione censiti hanno decisioni esplicite. I completamenti verificati e le prove ancora aperte sono elencati separatamente in [REMAINING.md](REMAINING.md).
 
 ## Prove eseguite e loro portata
 
-Verifica complessiva della revisione: **541 test unitari e di integrazione superati in 18 file**, oltre ai test del browser sotto descritti.
+Verifica complessiva della revisione: **573 test unitari e di integrazione superati in 20 file**, oltre ai test del browser sotto descritti.
 
 - **P1 — `npx vitest run src/game/conformance.test.ts --reporter=dot`: 156 test superati.** Valori attesi trascritti dalla fonte, Seed Zero, cataloghi, tutti i costi e le manutenzioni dei20edifici, formule, soglie e alcune transizioni reali. La suite prepara stati per isolare le regole: non è un replay completo dal primo istante.
 - **P2 — `npx vitest run src/game/grammar.test.ts --reporter=dot`: 123 test superati.** Frasi della fonte, ruoli semantici, ricette e archetipi dogmatici. Una frase accettata dal parser non prova che ogni effetto sia stato esercitato nella simulazione.
 - **P3 — motore e sistemi imperiali:** 43 test del motore e 44 dei sistemi imperiali superati. Sono verificati combustibile reale, manutenzione, lavoro del sovrano, trasporto, coorti, carovane, leggi, diplomazia e condizioni finali. I casi con città, leggi o eserciti già preparati dimostrano il comportamento nel relativo stato.
-- **P4 — `npm run test:e2e`: 16 test superati.** Scoperta fisica diLegno e salvataggio, errore parziale con feedback dorato e chiusura automatica, controlli/import invalido/HUD qualitativo, costoAttenzione ed erosione, tabù notturno e abolizione,45parole/20ricette/6slot/coorti/istituzioni, vittoria culturale, mobile375px, ricettario cognitivo, minerale noto prima delBronzo e confini disegnati35/100m. Cinque prove aggiuntive verificano cumuli distinti dalle sorgenti, nomi e quantità secondo le conoscenze, carcasse, consegna fisica delle risorse e dettagli leggibili su mobile senza coprire il cumulo selezionato. La scoperta iniziale parte dal Seed Zero; i pannelli del Ferro e la vittoria culturale usano stati preparati.
+- **P4 — `npm run test:e2e`: 20 test superati.** Scoperta fisica diLegno e salvataggio, errore parziale con feedback dorato e chiusura automatica, controlli/import invalido/HUD qualitativo, costoAttenzione ed erosione, tabù notturno e abolizione,45parole/20ricette/6slot/coorti/istituzioni, vittoria culturale, mobile375px, ricettario cognitivo, minerale noto prima delBronzo e confini disegnati35/100m. Cinque prove aggiuntive verificano cumuli distinti dalle sorgenti, nomi e quantità secondo le conoscenze, carcasse, consegna fisica delle risorse e dettagli leggibili su mobile senza coprire il cumulo selezionato. Altre quattro prove verificano i custodi, la privacy cognitiva, il costo effettivo della trasmissione e l’accessibilità mobile. La scoperta iniziale parte dal Seed Zero; i pannelli del Ferro e la vittoria culturale usano stati preparati.
 - **P5 — importazione e proprietà:** 12 test sui salvataggi annidati e 2 sulla proprietà dei magazzini superati. I magazzini stranieri o provinciali non aumentano la capienza del cumulo centrale.
-- **P6 — primo anno ordinario:** il replay `normal-play first chapter` di `engine.test.ts` parte dal Seed Zero6842. Usa soltanto selezione spaziale, ordini pubblici, vere Scintille e insegnamento pagato. Dopo il primo inverno raggiunge il traguardo (360 s nella rotta corrente, con 7 superstiti e 18 parole note) con almeno4superstiti, un Falò e un Pozzo propri, almeno12parole e custodi formati. Non modifica HP, inventari o conoscenze per preparare il percorso.
+- **P6 — primo anno ordinario:** il replay `normal-play first chapter` di `engine.test.ts` parte dal Seed Zero6842. Usa soltanto selezione spaziale, ordini pubblici, vere Scintille e insegnamento pagato. Dopo il primo inverno raggiunge il traguardo (395,25 s, 6 superstiti, 17 parole vive, 2 lezioni nella rotta corrente) con almeno4superstiti, un Falò e un Pozzo propri, almeno12parole e custodi formati. Non modifica HP, inventari o conoscenze per preparare il percorso.
 - **P7 — completamento delle decisioni e degli effetti:** 23 test di policy dogmatica, 15 di policy legale, 20 di simulazione, 4 di assegnazione dei lavoratori, 3 della trasmissione orale, 18 di diritto civile, 13 di commercio straniero e 3 di prenotazione dei lavoratori urbani. Le208celle della policy dogmatica hanno170esiti applicabili e38rifiuti motivati; questo non equivale a208effetti verificati in ogni contesto.
 - **P8 — regressioni delle quattro segnalazioni:** 34 test sui confini stagionali, 7 sulla Caccia Grossa, 18 su Gerontocrazia e priorità alimentari e 3 sulla ribellione dei Forti. Le prove comprendono i passaggi a 90/180/270/360 s e gli attraversamenti non esatti, raccolti reali, ordini e tradizioni, memoria, consumo delle ultime razioni e persistenza dei salvataggi.
+- **P9 — produzione e custodi:** 24 prove in `workers.test.ts` su lavoro reale, riposo, turni, raccolti, allevamento, Templi, contabilità legale e persistenza; 8 in `custodianStatus.test.ts` su custodia viva, rischi, conoscenze e lezioni. [GROWTH-AUDIT.md](GROWTH-AUDIT.md) distingue questi stati isolati dalle campagne ordinarie.
 - **Ambiente:** `npm ci`, `npm run build` e `npm run format:check` eseguiti; avvio Vite e browser verificati.
 - **Raggiungibilità ordinaria oltre il primo anno:** non ancora dimostrata per la crescita a35/150 persone e per ciascuna delle tre vittorie. Non si ricava dai test con stati preparati.
 
@@ -123,53 +126,53 @@ Le quattro segnalazioni successive su stagioni, Caccia Grossa, Gerontocrazia e p
 
 La tabella preserva gli ID e le complessità della fonte. I token nella ricetta devono già essere conosciuti; l'esperienza non è una parola aggiuntiva. Il catalogo completo non prova che ogni scoperta sia già raggiungibile durante una partita ordinaria.
 
-| ID     | Tier / K | Nome          | Deduzione ed esperienza                                  | Fonte   | Verifica                                                               |
-| ------ | -------- | ------------- | -------------------------------------------------------- | ------- | ---------------------------------------------------------------------- |
-| W-S_01 | 0 / 0    | Gruppo        | Innato; selettore spaziale15m                            | 118–121 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-V_01 | 0 / 0    | Andare        | Innato; punto manuale                                    | 122–125 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-V_02 | 0 / 0    | Mangiare      | Innato; consumo sul posto                                | 126–129 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-V_03 | 0 / 0    | Colpire       | Innato; mischia5danno/1.5m                               | 130–133 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-S_02 | 1 / 1    | Io            | Gruppo + isolamento50m30s                                | 143–148 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-O_01 | 1 / 1    | Qui           | Gruppo +75%tribùdorme10m3notti                           | 149–154 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-V_04 | 1 / 2    | Portare       | Mangiare+Qui,unitàsaziaH0sopra cibo                      | 155–160 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-O_02 | 1 / 1    | Pietra        | Colpire+roccia                                           | 161–166 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-O_03 | 1 / 1    | Legno         | Colpire+albero                                           | 167–172 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-M_01 | 1 / 2    | Pericolo      | Colpire+alleatoHP≤30dapredatore                          | 173–178 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-C_01 | 1 / 2    | Notte         | Andare+movimentonotturno                                 | 179–184 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-O_04 | 1 / 2    | Preda         | Colpire+Mangiare,stessaanimaleprecedenti60s              | 185–190 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-M_02 | 2 / 4    | Domani        | Mangiare+Notte,fameinnotte/inverno                       | 200–205 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-V_05 | 2 / 4    | Conservare    | Portare+Domani                                           | 206–211 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-V_06 | 2 / 5    | Scheggiare    | Colpire+Pietra+Pietra                                    | 212–217 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-O_05 | 2 / 6    | Fuoco         | Scheggiare+Legno oppureLegno+fulmine                     | 218–223 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-V_07 | 2 / 4    | Cuocere       | Mangiare+Fuoco+Preda                                     | 224–229 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-V_08 | 2 / 5    | Costruire     | Portare+Legno+Qui                                        | 230–235 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-O_06 | 2 / 3    | Morte         | Io+Corpse                                                | 236–241 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-M_03 | 2 / 6    | Sacro         | Morte+Pericolo,Coesione<25                               | 242–247 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-S_03 | 3 / 5    | Chi è Forte   | Io+Colpire+Preda,10cacceriuscite                         | 257–262 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-S_04 | 3 / 6    | Chi è Saggio  | Io+Fuoco+Domani,anzianosopravvive45anni(riconciliareetà) | 263–268 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-C_02 | 3 / 8    | Sempre        | Domani+Domani+Sacro                                      | 269–274 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-V_09 | 3 / 8    | Seminare      | Conservare+Domani,germoglioinprimavera                   | 275–280 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-V_10 | 3 / 7    | Addomesticare | Portare+Preda+Qui,cucciolo/lupoattiratodal cibo          | 281–286 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-M_04 | 3 / 7    | Mio           | Io+Conservare+Qui                                        | 287–292 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-S_05 | 3 / 6    | Straniero     | Gruppo+Pericolo,incontroaltrafazione                     | 293–298 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-V_11 | 3 / 8    | Scambiare     | Portare+Straniero+Mio                                    | 299–304 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-O_07 | 4 / 7    | Metallo       | Fuoco+Pietra,altocalore                                  | 402–407 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-V_12 | 4 / 8    | Fondere       | Cuocere+Metallo+Fuoco                                    | 408–413 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-O_08 | 4 / 8    | Numero        | Conservare+Mio+Scambiare,stock>500                       | 414–419 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-O_09 | 4 / 9    | Scrittura     | Numero+Pietra+Domani,erosionesuperacapacitàorale         | 420–425 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-O_10 | 4 / 7    | Confine       | Qui+Mio+Straniero                                        | 426–431 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-S_06 | 4 / 8    | Schiavo       | Straniero+Colpire+Conservare,catturainvecediuccidere     | 432–437 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-S_07 | 4 / 9    | Re            | Io+Sacro+Sempre                                          | 438–443 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-O_11 | 4 / 8    | Tributo       | Portare+Mio+Re                                           | 444–449 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-C_03 | 4 / 9    | Altrimenti    | Sempre+Pericolo+Colpire,violazioneordine/furto           | 450–455 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-O_12 | 5 / 9    | Moneta        | Metallo+Numero+Scambiare                                 | 465–470 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-S_08 | 5 / 9    | Esercito      | Forte+Metallo+Sempre                                     | 471–476 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-V_13 | 5 / 9    | Conquistare   | Esercito+Andare+Confine                                  | 477–482 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-S_09 | 5 / 8    | Città         | Gruppo+Confine+Scrittura                                 | 483–488 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-O_13 | 5 / 10   | Macchina      | Costruire+Legno+Metallo+Numero                           | 489–494 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-O_14 | 5 / 10   | Legge         | Scrittura+Sempre+Altrimenti                              | 495–500 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-M_05 | 5 / 10   | Libero        | Schiavo+Io,rivolta                                       | 501–506 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
-| W-V_14 | 5 / 10   | Dubitare      | Saggio+Scrittura+Sacro                                   | 507–512 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare. |
+| ID     | Tier / K | Nome          | Deduzione ed esperienza                                  | Fonte   | Verifica                                                                                                 |
+| ------ | -------- | ------------- | -------------------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------- |
+| W-S_01 | 0 / 0    | Gruppo        | Innato; selettore spaziale15m                            | 118–121 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-V_01 | 0 / 0    | Andare        | Innato; punto manuale                                    | 122–125 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-V_02 | 0 / 0    | Mangiare      | Innato; consumo sul posto                                | 126–129 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-V_03 | 0 / 0    | Colpire       | Innato; mischia5danno/1.5m                               | 130–133 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-S_02 | 1 / 1    | Io            | Gruppo + isolamento50m30s                                | 143–148 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-O_01 | 1 / 1    | Qui           | Gruppo +75%tribùdorme10m3notti                           | 149–154 | Verificati Tier/K e ID, P1; evento/deduzione nel replay P6. Due notti nella revisione dell’utente, A-32. |
+| W-V_04 | 1 / 2    | Portare       | Mangiare+Qui,unitàsaziaH0sopra cibo                      | 155–160 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-O_02 | 1 / 1    | Pietra        | Colpire+roccia                                           | 161–166 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-O_03 | 1 / 1    | Legno         | Colpire+albero                                           | 167–172 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-M_01 | 1 / 2    | Pericolo      | Colpire+alleatoHP≤30dapredatore                          | 173–178 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-C_01 | 1 / 2    | Notte         | Andare+movimentonotturno                                 | 179–184 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-O_04 | 1 / 2    | Preda         | Colpire+Mangiare,stessaanimaleprecedenti60s              | 185–190 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-M_02 | 2 / 4    | Domani        | Mangiare+Notte,fameinnotte/inverno                       | 200–205 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-V_05 | 2 / 4    | Conservare    | Portare+Domani                                           | 206–211 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-V_06 | 2 / 5    | Scheggiare    | Colpire+Pietra+Pietra                                    | 212–217 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-O_05 | 2 / 6    | Fuoco         | Scheggiare+Legno oppureLegno+fulmine                     | 218–223 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-V_07 | 2 / 4    | Cuocere       | Mangiare+Fuoco+Preda                                     | 224–229 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-V_08 | 2 / 5    | Costruire     | Portare+Legno+Qui                                        | 230–235 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-O_06 | 2 / 3    | Morte         | Io+Corpse                                                | 236–241 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-M_03 | 2 / 6    | Sacro         | Morte+Pericolo,Coesione<25                               | 242–247 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-S_03 | 3 / 5    | Chi è Forte   | Io+Colpire+Preda,10cacceriuscite                         | 257–262 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-S_04 | 3 / 6    | Chi è Saggio  | Io+Fuoco+Domani,anzianosopravvive45anni(riconciliareetà) | 263–268 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-C_02 | 3 / 8    | Sempre        | Domani+Domani+Sacro                                      | 269–274 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-V_09 | 3 / 8    | Seminare      | Conservare+Domani,germoglioinprimavera                   | 275–280 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-V_10 | 3 / 7    | Addomesticare | Portare+Preda+Qui,cucciolo/lupoattiratodal cibo          | 281–286 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-M_04 | 3 / 7    | Mio           | Io+Conservare+Qui                                        | 287–292 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-S_05 | 3 / 6    | Straniero     | Gruppo+Pericolo,incontroaltrafazione                     | 293–298 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-V_11 | 3 / 8    | Scambiare     | Portare+Straniero+Mio                                    | 299–304 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-O_07 | 4 / 7    | Metallo       | Fuoco+Pietra,altocalore                                  | 402–407 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-V_12 | 4 / 8    | Fondere       | Cuocere+Metallo+Fuoco                                    | 408–413 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-O_08 | 4 / 8    | Numero        | Conservare+Mio+Scambiare,stock>500                       | 414–419 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-O_09 | 4 / 9    | Scrittura     | Numero+Pietra+Domani,erosionesuperacapacitàorale         | 420–425 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-O_10 | 4 / 7    | Confine       | Qui+Mio+Straniero                                        | 426–431 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-S_06 | 4 / 8    | Schiavo       | Straniero+Colpire+Conservare,catturainvecediuccidere     | 432–437 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-S_07 | 4 / 9    | Re            | Io+Sacro+Sempre                                          | 438–443 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-O_11 | 4 / 8    | Tributo       | Portare+Mio+Re                                           | 444–449 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-C_03 | 4 / 9    | Altrimenti    | Sempre+Pericolo+Colpire,violazioneordine/furto           | 450–455 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-O_12 | 5 / 9    | Moneta        | Metallo+Numero+Scambiare                                 | 465–470 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-S_08 | 5 / 9    | Esercito      | Forte+Metallo+Sempre                                     | 471–476 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-V_13 | 5 / 9    | Conquistare   | Esercito+Andare+Confine                                  | 477–482 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-S_09 | 5 / 8    | Città         | Gruppo+Confine+Scrittura                                 | 483–488 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-O_13 | 5 / 10   | Macchina      | Costruire+Legno+Metallo+Numero                           | 489–494 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-O_14 | 5 / 10   | Legge         | Scrittura+Sempre+Altrimenti                              | 495–500 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-M_05 | 5 / 10   | Libero        | Schiavo+Io,rivolta                                       | 501–506 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
+| W-V_14 | 5 / 10   | Dubitare      | Saggio+Scrittura+Sacro                                   | 507–512 | Verificati Tier/K e ID, P1; evento/deduzione in partita da verificare.                                   |
 
 ## Registro degli edifici
 

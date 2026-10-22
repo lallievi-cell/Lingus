@@ -14,6 +14,10 @@ Gli indefiniti della fonte hanno decisioni eseguibili in [DECISIONS.md](DECISION
 
 La fonte intitola “25” il catalogo delle leggi, ma presenta 23 frasi distinte. La decisione A-29 conserva queste frasi e il compilatore generale, senza inventare due archetipi.
 
+## Produzione, riposo e memoria
+
+[GROWTH-AUDIT.md](GROWTH-AUDIT.md) documenta i difetti trovati nel lavoro stagionale: perdita permanente degli incarichi durante il riposo, Sempre che impedisce il sonno e raccolto nullo quando gli addetti hanno lasciato gli slot a fine notte. La contabilità temporale A-34 corregge questi comportamenti senza aumentare la formula delle nascite. Gli ultimi custodi sono segnalati con avvisi e trasmissione ordinaria al Falò. Queste correzioni non chiudono automaticamente le campagne sotto elencate.
+
 ## Verifiche ancora aperte
 
 - **Campagne dal Seed Zero alle ere successive:** la rotta ordinaria supera il primo inverno; non sono ancora dimostrate campagne complete fino a 35 e 150 persone, ricambio generazionale, scrittura e città.

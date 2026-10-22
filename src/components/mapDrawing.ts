@@ -1,5 +1,6 @@
 import type { GameState, Resource, WorldTarget } from '../game/types';
 import { hasBuilding } from '../game/runtime';
+import { getCustodianStatuses, type CustodianStatus } from '../game/custodianStatus';
 import { getGroundPiles, groundPileFor, resourceKnown, type GroundPile } from './mapResourceLayout';
 
 export const visibleBorderRadius = (state: GameState) => (hasBuilding(state, 'palace') ? 100 : 35);
@@ -1819,6 +1820,7 @@ function drawUnit(
   time: number,
   selected: boolean,
   carryRecognized: boolean,
+  custodian?: CustodianStatus,
 ) {
   const { x, y } = worldPoint(unit.x, unit.y);
   const id = Array.from(unit.id).reduce((n, c) => n + c.charCodeAt(0), 0);
@@ -1923,6 +1925,63 @@ function drawUnit(
     ctx.textAlign = 'center';
     ctx.fillText('!', 8, -19.5);
   }
+  if (custodian) {
+    const color =
+      custodian.risk === 'critical'
+        ? '#ad5941'
+        : custodian.risk === 'ageing'
+          ? '#a87a32'
+          : '#597a66';
+    // A voice, separate from the diamond that opens a discovery puzzle.
+    ctx.save();
+    ctx.translate(-15, -28);
+    if (custodian.risk !== 'safe') {
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = 0.2 + (1 + Math.sin(time * 3)) * 0.15;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, 10 + Math.sin(time * 3), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    oval(ctx, 0, 0, 7.5, 6.5, '#fff8e6');
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 7.5, 6.5, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    polygon(
+      ctx,
+      [
+        [-4, 4],
+        [-6, 9],
+        [0, 6],
+      ],
+      color,
+    );
+    oval(ctx, -2.5, 0, 1.1, 1.1, color);
+    line(
+      ctx,
+      [
+        [0, -2.5],
+        [2, 0],
+        [0, 2.5],
+      ],
+      color,
+      1.3,
+    );
+    line(
+      ctx,
+      [
+        [2.5, -4],
+        [5, 0],
+        [2.5, 4],
+      ],
+      color,
+      1.1,
+    );
+    ctx.restore();
+  }
   if (selected) {
     ctx.font = '11px Georgia';
     ctx.textAlign = 'center';
@@ -2018,6 +2077,7 @@ export function drawWorld(
   ctx.drawImage(terrain, 0, 0, MAP_WIDTH, MAP_HEIGHT);
   drawCampground(ctx, state);
   const piles = getGroundPiles(state);
+  const custodians = new Map(getCustodianStatuses(state).map((status) => [status.unitId, status]));
   if (groupAnchor && !state.urbanized) {
     const liveAnchor =
       groupAnchor.type === 'unit'
@@ -2153,6 +2213,7 @@ export function drawWorld(
             time,
             selected?.id === unit.id && hasConcept(state, 'S_02'),
             !!unit.carry && resourceKnown(state, unit.carry.resource),
+            custodians.get(unit.id),
           ),
         ),
     });

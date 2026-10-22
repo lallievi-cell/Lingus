@@ -1,12 +1,13 @@
-import { BUILDING_NAMES } from '../game/content';
+import { BUILDING_NAMES, WORDS } from '../game/content';
 import { hasWord } from '../game/runtime';
+import { CUSTODIAN_RISK_LABELS, getCustodianStatuses } from '../game/custodianStatus';
 import type { GameState, MapEntity, WorldTarget } from '../game/types';
 import { groundPileFor, resourcePileLabel } from './mapResourceLayout';
 
 export interface TargetPresentation {
   label: string;
   stage: string;
-  kind: 'source' | 'ground' | 'carcass' | 'food' | 'stores' | 'landmark';
+  kind: 'source' | 'ground' | 'carcass' | 'food' | 'stores' | 'landmark' | 'custodian';
   description: string;
   hint?: string;
 }
@@ -142,6 +143,23 @@ export function targetPresentation(
   target: WorldTarget | null,
 ): TargetPresentation | null {
   if (!target) return null;
+  if (target.type === 'unit') {
+    const custodian = getCustodianStatuses(state).find((status) => status.unitId === target.id);
+    if (custodian)
+      return {
+        label: custodian.displayName,
+        stage: 'Ultimo custode',
+        kind: 'custodian',
+        description: `Custodisce da solo: ${custodian.wordIds.map((id) => WORDS[id].label).join(', ')}.${
+          custodian.reasons.length
+            ? ` ${custodian.reasons.map((reason) => CUSTODIAN_RISK_LABELS[reason]).join(' · ')}.`
+            : ''
+        }`,
+        hint: hasWord(state, 'O_06')
+          ? 'Se muore prima di trasmetterle, queste parole andranno perdute. Insegnale al Falò a un altro compagno.'
+          : 'Queste parole vivono nella sua memoria. Insegnale al Falò a un altro compagno per proteggerle.',
+      };
+  }
   if (target.type === 'entity') {
     const entity = state.entities.find((e) => e.id === target.id);
     return entity ? entityTargetPresentation(state, entity) : null;

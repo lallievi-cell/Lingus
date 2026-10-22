@@ -12,6 +12,7 @@ import {
   Leaf,
   LockKeyhole,
   MapPin,
+  MessageCircle,
   Pause,
   Play,
   Plus,
@@ -41,10 +42,15 @@ import {
   type CivilizationMode,
 } from './components/CivilizationPanel';
 import { playerPopulation } from './game/imperial';
-import { isPlayerBuilding } from './game/runtime';
+import { hasBuilding, isPlayerBuilding } from './game/runtime';
+import {
+  canTransmitWord,
+  CUSTODIAN_RISK_LABELS,
+  getCustodianStatuses,
+  type CustodianStatus,
+} from './game/custodianStatus';
 import {
   ACTION_NAMES,
-  LEARNING_AGE_LIMIT,
   BUILDING_NAMES,
   ERA_NAMES,
   INNATE_WORDS,
@@ -172,6 +178,23 @@ function App() {
   const livingUnits = game.units.filter(
     (u) => u.hp > 0 && (u.factionId === undefined || u.factionId === 'player'),
   );
+  const custodianStatuses = getCustodianStatuses(game);
+  const custodianByUnit = new Map(custodianStatuses.map((status) => [status.unitId, status]));
+  const custodianByWord = new Map(
+    custodianStatuses.flatMap((status) => status.wordIds.map((id) => [id, status] as const)),
+  );
+  const endangeredCustodian = !game.urbanized
+    ? custodianStatuses.find((status) => status.risk !== 'safe')
+    : undefined;
+  const selectedCustodian = selectedUnit ? custodianByUnit.get(selectedUnit.id) : undefined;
+  const transmissionHint = (status: CustodianStatus) => {
+    if (!hasWord(game, 'O_05')) return 'Proteggi questa memoria finché potrai tramandarla.';
+    if (!hasBuilding(game, 'campfire')) return 'Serve un falò acceso e attivo per tramandare.';
+    if (game.attention < 10) return 'La tribù deve ritrovare attenzione attorno al falò.';
+    if (!status.wordIds.some((id) => canTransmitWord(game, id)))
+      return 'Nessun compagno è pronto ad apprendere queste parole.';
+    return 'Un nuovo custode può tenere viva questa memoria.';
+  };
   const peopleCount = playerPopulation(game);
   const avgHunger = livingUnits.length
     ? livingUnits.reduce((n, u) => n + u.hunger, 0) / livingUnits.length
@@ -628,6 +651,47 @@ function App() {
                   </span>
                 </button>
               )}
+              {endangeredCustodian && (
+                <div
+                  className={`custodian-notice ${endangeredCustodian.risk}`}
+                  aria-label="Ultimi custodi a rischio"
+                >
+                  <div className="custodian-notice-heading">
+                    <MessageCircle size={16} />
+                    <strong>Una memoria da proteggere</strong>
+                  </div>
+                  <p>
+                    {endangeredCustodian.displayName} è l’ultima voce di{' '}
+                    {endangeredCustodian.wordIds
+                      .slice(0, 3)
+                      .map((id) => `«${WORDS[id].label}»`)
+                      .join(', ')}
+                    {endangeredCustodian.wordIds.length > 3 ? ' e di altre parole' : ''}.
+                  </p>
+                  <span className="custodian-reasons">
+                    {endangeredCustodian.reasons
+                      .map((reason) => CUSTODIAN_RISK_LABELS[reason])
+                      .join(' · ')}
+                  </span>
+                  <p className="custodian-help">
+                    {hasWord(game, 'O_06')
+                      ? 'Se il custode muore, queste parole scompaiono. '
+                      : 'Queste parole vivono in una sola memoria. '}
+                    {transmissionHint(endangeredCustodian)}
+                  </p>
+                  {hasWord(game, 'O_05') && (
+                    <button
+                      className="custodian-transmit"
+                      disabled={
+                        !endangeredCustodian.wordIds.some((id) => canTransmitWord(game, id))
+                      }
+                      onClick={() => setPanel('campfire')}
+                    >
+                      <Flame size={13} /> Tramanda al falò <ChevronRight size={12} />
+                    </button>
+                  )}
+                </div>
+              )}
               <div className="unit-list" aria-label="Membri della tribù">
                 {!game.urbanized &&
                   livingUnits.map((unit, index) => {
@@ -668,6 +732,21 @@ function App() {
                               : (ACTION_NAMES[unit.action] ?? unit.action)}
                           </span>
                         </span>
+                        {custodianByUnit.has(unit.id) && (
+                          <MessageCircle
+                            size={14}
+                            className={`custodian-indicator ${custodianByUnit.get(unit.id)!.risk}`}
+                            aria-label="Ultimo custode"
+                          >
+                            <title>
+                              Ultimo custode:{' '}
+                              {custodianByUnit
+                                .get(unit.id)!
+                                .wordIds.map((id) => WORDS[id].label)
+                                .join(', ')}
+                            </title>
+                          </MessageCircle>
+                        )}
                         {spark ? (
                           <Sparkles size={16} className="spark-indicator" />
                         ) : (
@@ -710,6 +789,23 @@ function App() {
                     Forza {quantity(selectedUnit.strength)} <span>·</span> Intelligenza{' '}
                     {quantity(selectedUnit.intelligence)}
                   </p>
+                  {selectedCustodian && (
+                    <div className={`individual-custody ${selectedCustodian.risk}`}>
+                      <strong>
+                        <MessageCircle size={13} /> Ultimo custode
+                      </strong>
+                      <p>
+                        {selectedCustodian.wordIds.map((id) => `«${WORDS[id].label}»`).join(' · ')}
+                      </p>
+                      {selectedCustodian.reasons.length > 0 && (
+                        <span className="custodian-reasons">
+                          {selectedCustodian.reasons
+                            .map((reason) => CUSTODIAN_RISK_LABELS[reason])
+                            .join(' · ')}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
               {ownedBuildings.length > 0 && (
@@ -1550,12 +1646,26 @@ function App() {
           <div className="teaching-list">
             {known
               .filter((id) => !INNATE_WORDS.includes(id))
-              .sort((a, b) => game.words[a].retention - game.words[b].retention)
+              .sort(
+                (a, b) =>
+                  Number(custodianByWord.has(b)) - Number(custodianByWord.has(a)) ||
+                  game.words[a].retention - game.words[b].retention,
+              )
               .map((id) => (
-                <div className="teaching-row" key={id}>
+                <div
+                  className={`teaching-row ${custodianByWord.has(id) ? 'last-custodian-word' : ''}`}
+                  key={id}
+                  aria-label={`Parola da tramandare: ${WORDS[id].label}`}
+                >
                   <Glyph id={id} size={23} />
                   <div>
                     <strong>{WORDS[id].label}</strong>
+                    {custodianByWord.has(id) && (
+                      <span className={`teaching-custodian ${custodianByWord.get(id)!.risk}`}>
+                        <MessageCircle size={10} /> Ultimo custode:{' '}
+                        {custodianByWord.get(id)!.displayName}
+                      </span>
+                    )}
                     <span>
                       {numbered
                         ? game.words[id].custodians.length
@@ -1578,16 +1688,7 @@ function App() {
                   <button
                     className="teach-button"
                     onClick={() => setGame((g) => teachWord(g, id))}
-                    disabled={
-                      game.attention < 10 ||
-                      !livingUnits.some(
-                        (u) =>
-                          u.age < LEARNING_AGE_LIMIT &&
-                          u.caste !== 'slave' &&
-                          !game.words[id].custodians.includes(u.id),
-                      ) ||
-                      !ownedBuildings.some((b) => b.kind === 'campfire' && b.active)
-                    }
+                    disabled={!canTransmitWord(game, id)}
                   >
                     Tramanda{' '}
                     <small>

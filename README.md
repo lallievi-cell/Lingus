@@ -50,6 +50,8 @@ Una stagione dura 90 secondi, di cui 60 di luce e 30 di notte; il primo inverno 
 
 Sulla mappa, tronchi e frammenti di pietra a terra sono distinti dagli alberi e dai giacimenti: indicano materiale estratto che deve ancora essere consegnato. Le carcasse sono riconoscibili e chi trasporta mostra il proprio carico. Selezionando un elemento, la scheda distingue «Da estrarre», «A terra», nutrimento sul posto e scorte consegnate; il clic seleziona il bersaglio, poi si impartisce l’ordine. I materiali ancora senza nome restano neutri.
 
+Un fumetto segnala l'ultima voce che custodisce una parola: verde, ambra per l'età avanzata, rosso per un pericolo immediato. Il pannello permette di tramandarla al Falò con l'insegnamento e il costo ordinari. Gli addetti liberano temporaneamente il posto per dormire o mangiare, poi riprendono il lavoro; le rese stagionali conservano il lavoro già svolto. Prove e limiti della crescita sono descritti in [GROWTH-AUDIT.md](docs/GROWTH-AUDIT.md).
+
 Orologio, scorte, coesione e dati numerici dipendono dalle parole corrispondenti. Prima di **Numero**, le quantità del mondo sono descritte qualitativamente. I suoni ambientali sono facoltativi.
 
 ## Salvataggi
@@ -91,6 +93,6 @@ Il server di sviluppo viene avviato automaticamente dai test oppure riutilizzato
 - `src/game/imperial.ts`: città, economia, diplomazia, logistica, leggi, eserciti e condizioni finali.
 - `src/App.tsx`, `src/components/`: interfaccia evolutiva e mappa.
 
-Le scelte per i 31 punti di interpretazione o rappresentazione censiti sono in [DECISIONS.md](docs/DECISIONS.md); i completamenti e le verifiche aperte sono in [REMAINING.md](docs/REMAINING.md).
+Le scelte per i 34 punti di interpretazione o rappresentazione censiti sono in [DECISIONS.md](docs/DECISIONS.md); i completamenti e le verifiche aperte sono in [REMAINING.md](docs/REMAINING.md).
 
 Le regole definitive sono riassunte in [DESIGN.md](docs/DESIGN.md). [CONFORMANCE.md](docs/CONFORMANCE.md) collega i requisiti alla fonte e alle prove e collega gli indefiniti alle decisioni adottate. [ROADMAP.md](docs/ROADMAP.md) distingue verifiche ancora necessarie, decisioni di design e lavoro di prodotto.
