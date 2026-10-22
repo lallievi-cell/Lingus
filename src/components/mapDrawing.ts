@@ -1977,12 +1977,6 @@ function drawCampground(ctx: CanvasRenderingContext2D, state: GameState) {
   if (state.urbanized || !state.home) return;
   const p = worldPoint(state.home.x, state.home.y);
   const isNight = state.time % 90 >= 60;
-  const hasCampfireOrShelter = state.buildings.some(
-    (b) =>
-      b.hp > 0 &&
-      ['campfire', 'shelter', 'hut', 'house'].includes(b.kind) &&
-      Math.hypot(b.x - state.home.x, b.y - state.home.y) < 12,
-  );
 
   ctx.save();
 
@@ -2007,23 +2001,6 @@ function drawCampground(ctx: CanvasRenderingContext2D, state: GameState) {
   ctx.ellipse(p.x, p.y, rx, ry, 0, 0, Math.PI * 2);
   ctx.stroke();
   ctx.setLineDash([]);
-
-  // 3. Piccolo focolare primordiale spento al centro della radura (visibile solo prima di costruire il vero Falò)
-  if (!hasCampfireOrShelter) {
-    // Macchia di cenere spenta
-    oval(ctx, p.x, p.y + 1, 6, 3.2, isNight ? 'rgba(38, 41, 32, 0.35)' : 'rgba(74, 68, 54, 0.22)');
-    oval(ctx, p.x, p.y - 0.5, 4, 2, isNight ? '#3a3a30' : '#5c5445');
-    // Due legnetti spenti incrociati
-    line(ctx, [[p.x - 4, p.y + 1], [p.x + 4, p.y - 1]], '#73573d', 1.5);
-    line(ctx, [[p.x - 3, p.y - 1], [p.x + 3, p.y + 1]], '#8c704a', 1.2);
-    // Piccoli ciottoli di fiume attorno al focolare primordiale (raggio 5px)
-    for (let i = 0; i < 6; i++) {
-      const a = (i * Math.PI) / 3;
-      const cx = p.x + Math.cos(a) * 5.5;
-      const cy = p.y + Math.sin(a) * 3.2;
-      oval(ctx, cx, cy, 1.1, 0.8, isNight ? '#666b5b' : '#9ea18e');
-    }
-  }
 
   ctx.restore();
 }
