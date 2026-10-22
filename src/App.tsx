@@ -1322,61 +1322,63 @@ function App() {
             </small>
           </div>
         </div>
-        <div className="executor-selection">
-          <button className="text-button" onClick={() => setSelectingGroup((v) => !v)}>
-            <Users size={13} />
-            {selectingGroup ? 'Indica sulla mappa il centro del gruppo' : 'Scegli il gruppo'}{' '}
-            <span>raggio 15 m</span>
-          </button>
-          <button
-            className="text-button camp-button"
-            onClick={() => handleSetGroupAnchor({ type: 'point', ...game.home })}
-            title="Ripristina il gruppo attorno al giaciglio primordiale"
-          >
-            <Home size={12} />
-            <span>Al campo</span>
-          </button>
-          <span className="group-hint desktop-only-hints">
-            (oppure doppio click o tasto destro sulla mappa)
-          </span>
-          {sentence.includes('S_02') && (
-            <span>
-              Io: {game.units.find((u) => u.id === executorId)?.name ?? 'scegli un individuo'}
-            </span>
-          )}
-          {selectingGroup && (
-            <button className="text-button" onClick={() => setSelectingGroup(false)}>
-              Annulla
+        <div className="workbench-tools-row">
+          <div className="executor-selection">
+            <button className="text-button" onClick={() => setSelectingGroup((v) => !v)}>
+              <Users size={13} />
+              {selectingGroup ? 'Indica sulla mappa il centro del gruppo' : 'Scegli il gruppo'}{' '}
+              <span>raggio 15 m</span>
             </button>
+            <button
+              className="text-button camp-button"
+              onClick={() => handleSetGroupAnchor({ type: 'point', ...game.home })}
+              title="Ripristina il gruppo attorno al giaciglio primordiale"
+            >
+              <Home size={12} />
+              <span>Al campo</span>
+            </button>
+            <span className="group-hint desktop-only-hints">
+              (oppure doppio click o tasto destro sulla mappa)
+            </span>
+            {sentence.includes('S_02') && (
+              <span>
+                Io: {game.units.find((u) => u.id === executorId)?.name ?? 'scegli un individuo'}
+              </span>
+            )}
+            {selectingGroup && (
+              <button className="text-button" onClick={() => setSelectingGroup(false)}>
+                Annulla
+              </button>
+            )}
+          </div>
+          {recentPhrases.length > 0 && (
+            <div className="echo-shelf" aria-label="Frasi recenti">
+              <span className="echo-label">
+                <History size={12} />
+                Echi:
+              </span>
+              {recentPhrases.map((phrase, idx) => {
+                const isKnown = phrase.every((id) => hasWord(game, id));
+                if (!isKnown) return null;
+                const isActive =
+                  phrase.length === sentence.length &&
+                  phrase.every((id, i) => sentence[i] === id);
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    className={`echo-chip ${isActive ? 'active' : ''}`}
+                    onClick={() => applyRecentPhrase(phrase)}
+                    title="Richiama questa frase negli spazi"
+                  >
+                    <span className="echo-chip-dot" />
+                    {phrase.map((id) => WORDS[id]?.label).join(' · ')}
+                  </button>
+                );
+              })}
+            </div>
           )}
         </div>
-        {recentPhrases.length > 0 && (
-          <div className="echo-shelf" aria-label="Frasi recenti">
-            <span className="echo-label">
-              <History size={12} />
-              Echi:
-            </span>
-            {recentPhrases.map((phrase, idx) => {
-              const isKnown = phrase.every((id) => hasWord(game, id));
-              if (!isKnown) return null;
-              const isActive =
-                phrase.length === sentence.length &&
-                phrase.every((id, i) => sentence[i] === id);
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  className={`echo-chip ${isActive ? 'active' : ''}`}
-                  onClick={() => applyRecentPhrase(phrase)}
-                  title="Richiama questa frase negli spazi"
-                >
-                  <span className="echo-chip-dot" />
-                  {phrase.map((id) => WORDS[id]?.label).join(' · ')}
-                </button>
-              );
-            })}
-          </div>
-        )}
         <div className="composer-row">
           <div
             className="sentence-slots"

@@ -1216,6 +1216,9 @@ button:not(:disabled):hover {
   background: linear-gradient(115deg, #f0f0e5, #f8f5eb 55%, #efefe3);
   flex-shrink: 0;
 }
+.workbench-tools-row {
+  display: contents;
+}
 .composer-topline {
   display: flex;
   align-items: center;
@@ -4337,26 +4340,410 @@ kbd {
     display: inline !important;
   }
 
-  /* Content inside Discovery panel on mobile */
-  .discovery-panel.mobile-visible .discovery-title {
-    display: block !important;
+  /* ============================================================
+     Tab "PENSIERO" (Discovery Panel) on Mobile Touch
+     ============================================================ */
+  .discovery-panel.mobile-visible {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 14px 16px 28px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    height: 100% !important;
+    background: #faf8ed !important;
+    gap: 12px !important;
+    box-sizing: border-box !important;
   }
 
+  /* Section Title */
+  .discovery-panel.mobile-visible .discovery-title {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin: 0 0 2px !important;
+    padding-bottom: 8px !important;
+    border-bottom: 1px solid #d9dec9 !important;
+    color: #3b5338 !important;
+  }
+
+  .discovery-panel.mobile-visible .discovery-title .eyebrow {
+    font-size: 10px !important;
+    letter-spacing: 1.1px !important;
+    font-weight: 800 !important;
+    color: #364e33 !important;
+    margin: 0 !important;
+  }
+
+  .discovery-panel.mobile-visible .discovery-title svg {
+    width: 15px !important;
+    height: 15px !important;
+    color: #8c7128 !important;
+  }
+
+  /* Contemplative Quiet Card (No spark) */
   .discovery-panel.mobile-visible .quiet-card {
     display: flex !important;
     flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    padding: 16px 14px 14px !important;
+    background: radial-gradient(ellipse at 50% 15%, #f6f8ee, #edf2e4) !important;
+    border: 1px solid #cbcca4 !important;
+    border-radius: 12px !important;
+    box-shadow: 0 1.5px 5px rgba(35, 48, 30, 0.05) !important;
+    gap: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
   }
 
-  .discovery-panel.mobile-visible .objective-card {
-    display: block !important;
-  }
-
-  .discovery-panel.mobile-visible .lexicon-overview {
+  .discovery-panel.mobile-visible .quiet-illustration {
     display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 10px !important;
+    height: 28px !important;
+    width: 100% !important;
+    margin-bottom: 6px !important;
+    color: #8f936a !important;
   }
 
-  .discovery-panel.mobile-visible .thought {
+  .discovery-panel.mobile-visible .quiet-illustration > span {
     display: block !important;
+    width: 24px !important;
+    height: 1px !important;
+    background: linear-gradient(90deg, transparent, #a5a887) !important;
+  }
+
+  .discovery-panel.mobile-visible .quiet-illustration > svg {
+    width: 22px !important;
+    height: 22px !important;
+    color: #7b8e6f !important;
+  }
+
+  .discovery-panel.mobile-visible .quiet-card h2 {
+    font-family: var(--serif) !important;
+    font-size: 19px !important;
+    line-height: 1.2 !important;
+    font-weight: 500 !important;
+    color: #1a2f1e !important;
+    margin: 4px 0 6px !important;
+    text-align: center !important;
+    width: 100% !important;
+    display: block !important;
+  }
+
+  .discovery-panel.mobile-visible .quiet-card p {
+    font-family: var(--sans) !important;
+    font-size: 11px !important;
+    line-height: 1.45 !important;
+    color: #485e4a !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 280px !important;
+    text-align: center !important;
+    display: block !important;
+  }
+
+  .discovery-panel.mobile-visible .tiny-divider {
+    display: block !important;
+    width: 4px !important;
+    height: 4px !important;
+    background: #96a58b !important;
+    transform: rotate(45deg) !important;
+    margin: 10px auto 0 !important;
+  }
+
+  /* Active Spark Card */
+  .discovery-panel.mobile-visible .spark-card {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    padding: 16px 14px 14px !important;
+    border: 1px solid #c7b98d !important;
+    background: radial-gradient(ellipse at 50% 15%, #f9f4df, #eee5cb) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 2px 8px rgba(156, 123, 49, 0.15) !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .discovery-panel.mobile-visible .spark-orbit {
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 50% !important;
+    margin-bottom: 6px !important;
+  }
+
+  .discovery-panel.mobile-visible .spark-card h2 {
+    font-family: var(--serif) !important;
+    font-size: 20px !important;
+    margin: 2px 0 4px !important;
+    color: #1a2c1f !important;
+  }
+
+  .discovery-panel.mobile-visible .spark-card p {
+    font-size: 11.5px !important;
+    line-height: 1.4 !important;
+    color: #3b4e3e !important;
+  }
+
+  /* Objective Card ("Il prossimo passo") */
+  .discovery-panel.mobile-visible .objective-card {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 14px 14px 12px !important;
+    background: #ffffff !important;
+    border: 1px solid #d4ddc7 !important;
+    border-radius: 12px !important;
+    box-shadow: 0 1.5px 5px rgba(35, 48, 30, 0.05) !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    grid-column: auto !important;
+    grid-row: auto !important;
+  }
+
+  .discovery-panel.mobile-visible .objective-card > .eyebrow {
+    font-size: 9px !important;
+    letter-spacing: 1px !important;
+    font-weight: 800 !important;
+    color: #4b6245 !important;
+    text-transform: uppercase !important;
+    margin: 0 0 4px !important;
+    line-height: 1.2 !important;
+    display: block !important;
+  }
+
+  .discovery-panel.mobile-visible .objective-heading {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin: 2px 0 6px !important;
+  }
+
+  .discovery-panel.mobile-visible .step-number {
+    width: 24px !important;
+    height: 24px !important;
+    border-radius: 50% !important;
+    background: #e2ecd9 !important;
+    border: 1px solid #b5c7aa !important;
+    color: #213f1e !important;
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+  }
+
+  .discovery-panel.mobile-visible .objective-heading h3 {
+    font-family: var(--serif) !important;
+    font-size: 16.5px !important;
+    font-weight: 600 !important;
+    color: #172c1c !important;
+    margin: 0 !important;
+    line-height: 1.2 !important;
+  }
+
+  .discovery-panel.mobile-visible .objective-card p {
+    font-size: 11.5px !important;
+    line-height: 1.45 !important;
+    color: #314734 !important;
+    margin: 2px 0 10px !important;
+  }
+
+  .discovery-panel.mobile-visible .objective-progress {
+    height: 6px !important;
+    background: #e2e8d7 !important;
+    border-radius: 999px !important;
+    overflow: hidden !important;
+    margin-bottom: 6px !important;
+  }
+
+  .discovery-panel.mobile-visible .objective-progress > span {
+    height: 100% !important;
+    background: linear-gradient(90deg, #447732, #55933f) !important;
+    border-radius: 999px !important;
+  }
+
+  .discovery-panel.mobile-visible .objective-count {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    margin-top: 2px !important;
+    font-size: 10px !important;
+    color: #4b6247 !important;
+    font-weight: 600 !important;
+  }
+
+  .discovery-panel.mobile-visible .objective-count > span {
+    max-width: none !important;
+    font-size: 10px !important;
+    opacity: 0.9 !important;
+  }
+
+  .discovery-panel.mobile-visible .objective-count > b {
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    color: #1c3619 !important;
+  }
+
+  /* Actions list & Lexicon overview */
+  .discovery-panel.mobile-visible .lexicon-overview {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    padding: 10px 12px !important;
+    background: #ffffff !important;
+    border: 1px solid #d4ddc7 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 1.5px 4px rgba(35, 48, 30, 0.04) !important;
+    margin: 0 !important;
+    grid-column: auto !important;
+    grid-row: auto !important;
+    box-sizing: border-box !important;
+    transition: background 0.15s ease, transform 0.1s ease !important;
+    text-align: left !important;
+  }
+
+  .discovery-panel.mobile-visible .lexicon-overview:active {
+    background: #eef3e6 !important;
+    transform: scale(0.98) !important;
+  }
+
+  .discovery-panel.mobile-visible .book-stamp {
+    width: 34px !important;
+    height: 36px !important;
+    border-radius: 7px !important;
+    background: #eef3e6 !important;
+    border: 1px solid #c0cdb2 !important;
+    color: #44643c !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .discovery-panel.mobile-visible .book-stamp svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .discovery-panel.mobile-visible .lexicon-overview strong {
+    font-size: 12.5px !important;
+    font-weight: 700 !important;
+    color: #172d1b !important;
+  }
+
+  .discovery-panel.mobile-visible .lexicon-overview small {
+    font-size: 10px !important;
+    color: #4e644f !important;
+    font-weight: 600 !important;
+    margin-top: 2px !important;
+  }
+
+  /* Civil navigation and side-actions */
+  .discovery-panel.mobile-visible .civilization-nav {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  .discovery-panel.mobile-visible .side-action {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    padding: 10px 12px !important;
+    background: #ffffff !important;
+    border: 1px solid #d4ddc7 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 1.5px 4px rgba(35, 48, 30, 0.04) !important;
+    margin: 0 !important;
+    grid-column: auto !important;
+    grid-row: auto !important;
+    box-sizing: border-box !important;
+    color: #182d1c !important;
+    text-align: left !important;
+    transition: background 0.15s ease, transform 0.1s ease !important;
+  }
+
+  .discovery-panel.mobile-visible .side-action:active {
+    background: #eef3e6 !important;
+    transform: scale(0.98) !important;
+  }
+
+  .discovery-panel.mobile-visible .side-action > svg {
+    width: 18px !important;
+    height: 18px !important;
+    color: #496841 !important;
+    flex-shrink: 0 !important;
+  }
+
+  .discovery-panel.mobile-visible .side-action > span {
+    font-size: 12.5px !important;
+    font-weight: 700 !important;
+    color: #172d1b !important;
+    flex: 1 !important;
+  }
+
+  .discovery-panel.mobile-visible .side-action small {
+    font-size: 10px !important;
+    color: #4e644f !important;
+    font-weight: 600 !important;
+    margin-top: 2px !important;
+    display: block !important;
+  }
+
+  .discovery-panel.mobile-visible .side-action > svg:last-child {
+    color: #8c9d81 !important;
+    width: 14px !important;
+    height: 14px !important;
+  }
+
+  /* Thought / Philosophical Quote at bottom */
+  .discovery-panel.mobile-visible .thought {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    margin-top: 4px !important;
+    padding: 12px 16px !important;
+    background: rgba(230, 236, 222, 0.45) !important;
+    border: 1px dashed #cad4bd !important;
+    border-radius: 10px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .discovery-panel.mobile-visible .thought > span {
+    font-family: var(--serif) !important;
+    font-size: 24px !important;
+    line-height: 1 !important;
+    color: #92a084 !important;
+    height: 16px !important;
+  }
+
+  .discovery-panel.mobile-visible .thought p {
+    font-family: var(--serif) !important;
+    font-size: 12.5px !important;
+    line-height: 1.35 !important;
+    color: #2c4230 !important;
+    margin: 4px 0 !important;
+  }
+
+  .discovery-panel.mobile-visible .thought small {
+    font-size: 8px !important;
+    letter-spacing: 1.2px !important;
+    font-weight: 800 !important;
+    color: #556c4d !important;
+    margin-top: 4px !important;
   }
 
   /* Mobile Spark Pill on Map */
@@ -4398,15 +4785,16 @@ kbd {
     border-bottom: 1px solid var(--line);
   }
 
-  /* Language Workbench on Mobile */
+  /* Language Workbench on Mobile Touch - Compact & Ergonomic */
   .language-workbench {
     flex-shrink: 0 !important;
-    padding: 8px 10px 10px !important;
-    background: #f0eedc;
-    border-top: 1px solid var(--line);
-    max-height: 48vh;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    padding: 6px 10px 8px !important;
+    background: #edf1e4 !important;
+    border-top: 1px solid #c9d2be !important;
+    box-shadow: 0 -2px 10px rgba(35, 50, 28, 0.06) !important;
+    max-height: 44vh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 
   .language-workbench.mobile-hidden {
@@ -4417,75 +4805,102 @@ kbd {
     display: flex !important;
     align-items: center !important;
     justify-content: space-between !important;
-    margin-bottom: 4px !important;
+    margin-bottom: 2px !important;
+    height: 18px !important;
   }
 
   .composer-topline > div:first-child {
     display: flex !important;
-    align-items: baseline !important;
-    gap: 8px !important;
+    align-items: center !important;
+    gap: 6px !important;
   }
 
   .composer-topline .eyebrow {
-    font-size: 8.5px !important;
-    letter-spacing: 0.8px !important;
+    font-size: 9px !important;
+    letter-spacing: 0.9px !important;
     font-weight: 800 !important;
-    color: #435b3e !important;
+    color: #3b5236 !important;
     margin: 0 !important;
   }
 
+  /* Hide the redundant subtitle on mobile to give maximum room */
   .composer-topline h2 {
-    font-size: 13.5px !important;
-    margin: 0 !important;
-    color: #1a2c1d !important;
-    white-space: nowrap !important;
+    display: none !important;
   }
 
   .voice-meter {
-    gap: 3px !important;
+    gap: 2.5px !important;
   }
 
   .voice-meter > span:first-child {
-    font-size: 8.5px !important;
+    font-size: 8px !important;
     letter-spacing: 0.6px !important;
+    font-weight: 800 !important;
+    color: #4b6245 !important;
   }
 
   .voice-pip {
-    width: 15px !important;
-    height: 17px !important;
+    width: 14px !important;
+    height: 15px !important;
+    border-radius: 3px !important;
   }
 
   .voice-meter > small {
     font-size: 8.5px !important;
+    font-weight: 800 !important;
+    color: #354c33 !important;
+  }
+
+  /* Single touch strip for groups, camp & echoes */
+  .workbench-tools-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    margin: 2px 0 4px !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex-wrap: nowrap !important;
+    padding-bottom: 1px !important;
+  }
+
+  .workbench-tools-row::-webkit-scrollbar {
+    display: none !important;
   }
 
   .executor-selection {
     display: flex !important;
     align-items: center !important;
-    gap: 6px !important;
-    margin: 3px 0 4px !important;
-    overflow-x: auto !important;
-    scrollbar-width: none !important;
-    -webkit-overflow-scrolling: touch !important;
-    flex-wrap: nowrap !important;
+    gap: 5px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    flex-shrink: 0 !important;
+    overflow: visible !important;
   }
 
   .executor-selection .text-button {
     font-size: 10px !important;
     font-weight: 600 !important;
-    padding: 3.5px 8.5px !important;
-    background: #e6e9db !important;
-    border: 1px solid #cad4be !important;
+    padding: 3px 8px !important;
+    background: #e1e7d5 !important;
+    border: 1px solid #c2ccb3 !important;
     border-radius: 999px !important;
     color: #2b3e2a !important;
     gap: 4px !important;
     white-space: nowrap !important;
     flex-shrink: 0 !important;
+    height: 24px !important;
+    box-sizing: border-box !important;
+  }
+
+  .executor-selection .text-button:active {
+    background: #d4dec5 !important;
+    transform: scale(0.96) !important;
   }
 
   .executor-selection .text-button span {
     font-size: 8px !important;
-    opacity: 0.8 !important;
+    opacity: 0.75 !important;
   }
 
   .group-hint {
@@ -4495,13 +4910,13 @@ kbd {
   .echo-shelf {
     display: flex !important;
     align-items: center !important;
-    gap: 5px !important;
-    margin: 3px 0 4px !important;
-    padding: 0 !important;
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    scrollbar-width: none !important;
-    flex-wrap: nowrap !important;
+    gap: 4px !important;
+    margin: 0 !important;
+    padding: 0 0 0 6px !important;
+    border-left: 1px solid #cad4be !important;
+    overflow: visible !important;
+    flex-shrink: 0 !important;
+    height: 24px !important;
   }
 
   .echo-shelf::-webkit-scrollbar {
@@ -4510,26 +4925,40 @@ kbd {
 
   .echo-label {
     font-size: 8.5px !important;
-    letter-spacing: 0.6px !important;
-    font-weight: 700 !important;
+    letter-spacing: 0.5px !important;
+    font-weight: 800 !important;
     white-space: nowrap !important;
-    color: #637554 !important;
+    color: #55694a !important;
     gap: 3px !important;
   }
 
   .echo-chip {
-    padding: 3px 8px !important;
-    font-size: 9.5px !important;
+    padding: 2.5px 7.5px !important;
+    font-size: 9px !important;
     white-space: nowrap !important;
     border-radius: 999px !important;
+    background: #e3e8d6 !important;
+    border: 1px solid #c4ceb7 !important;
+    color: #354a32 !important;
     flex-shrink: 0 !important;
+    height: 22px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
   }
 
+  .echo-chip.active {
+    background: #314b2d !important;
+    color: #f7f9f2 !important;
+    border-color: #314b2d !important;
+  }
+
+  /* Sentence Composer Row */
   .composer-row {
     display: flex !important;
     align-items: center !important;
     gap: 6px !important;
-    margin-top: 4px !important;
+    margin-top: 3px !important;
     flex-wrap: nowrap !important;
   }
 
@@ -4552,17 +4981,59 @@ kbd {
   .slot-plus {
     font-size: 13px !important;
     font-weight: 800 !important;
-    color: #7b8b6c !important;
-    margin: 0 1px !important;
+    color: #728464 !important;
+    margin: 0 !important;
+    flex-shrink: 0 !important;
   }
 
   .sentence-slot {
     width: 100% !important;
-    height: 42px !important;
-    padding: 0 6px !important;
-    gap: 5px !important;
-    border-radius: 7px !important;
+    height: 40px !important;
+    padding: 0 8px !important;
+    gap: 6px !important;
+    border-radius: 8px !important;
     box-sizing: border-box !important;
+    border: 1.5px dashed #b2be9f !important;
+    background: #e7ecdc !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    position: relative !important;
+    transition: transform 0.1s ease, background 0.15s ease !important;
+  }
+
+  .sentence-slot:active {
+    transform: scale(0.97) !important;
+  }
+
+  .sentence-slot.filled {
+    border-style: solid !important;
+    box-shadow: 0 1.5px 3px rgba(35, 48, 30, 0.08) !important;
+  }
+
+  .sentence-slot.filled.word-S {
+    background: #eef3e6 !important;
+    border-color: #acc198 !important;
+    color: #1e381b !important;
+  }
+
+  .sentence-slot.filled.word-V {
+    background: #f7efe2 !important;
+    border-color: #d9c4a0 !important;
+    color: #523a12 !important;
+  }
+
+  .sentence-slot.filled.word-O,
+  .sentence-slot.filled.word-M {
+    background: #e6f1e8 !important;
+    border-color: #a7c5ac !important;
+    color: #1c4427 !important;
+  }
+
+  .sentence-slot.filled.word-C {
+    background: #efe8f5 !important;
+    border-color: #bfb0cf !important;
+    color: #422a57 !important;
   }
 
   .sentence-slot strong {
@@ -4571,23 +5042,37 @@ kbd {
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
+    color: inherit !important;
   }
 
-  .sentence-slot svg {
-    width: 16px !important;
-    height: 16px !important;
+  .sentence-slot svg:not(.slot-remove) {
+    width: 18px !important;
+    height: 18px !important;
     flex-shrink: 0 !important;
   }
 
   .sentence-slot .slot-index {
     font-size: 11px !important;
     font-weight: 800 !important;
-    color: #7d8f70 !important;
+    color: #6b7e5e !important;
+    font-family: inherit !important;
   }
 
   .sentence-slot:not(.filled) > span:last-child {
     font-size: 10px !important;
-    font-weight: 600 !important;
+    font-weight: 700 !important;
+    color: #556b4d !important;
+  }
+
+  /* Clear button visible directly on touch */
+  .sentence-slot .slot-remove {
+    display: flex !important;
+    opacity: 0.6 !important;
+    position: static !important;
+    margin-left: auto !important;
+    width: 14px !important;
+    height: 14px !important;
+    flex-shrink: 0 !important;
   }
 
   .future-slot {
@@ -4604,60 +5089,112 @@ kbd {
 
   .undo-button {
     width: 36px !important;
-    height: 42px !important;
-    border-radius: 7px !important;
+    height: 40px !important;
+    border-radius: 8px !important;
+    background: #e2e8d7 !important;
+    border: 1px solid #c4ceb7 !important;
+    color: #3b5035 !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
+    transition: transform 0.1s ease !important;
+  }
+
+  .undo-button:active:not(:disabled) {
+    transform: scale(0.93) !important;
+    background: #d4dec7 !important;
+  }
+
+  .undo-button:disabled {
+    opacity: 0.4 !important;
+    background: #e6eae0 !important;
+    border-color: #d8decb !important;
   }
 
   .pronounce-button {
-    height: 42px !important;
-    padding: 0 12px !important;
+    height: 40px !important;
+    padding: 0 13px !important;
     font-size: 12px !important;
     font-weight: 700 !important;
-    border-radius: 7px !important;
-    min-width: 90px !important;
+    border-radius: 8px !important;
+    min-width: 96px !important;
     gap: 6px !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
+    background: linear-gradient(180deg, #284424, #1b3218) !important;
+    color: #f7f9f0 !important;
+    border: 1px solid #182c15 !important;
+    box-shadow: 0 2px 5px rgba(26, 45, 23, 0.28) !important;
+    transition: transform 0.1s ease !important;
+  }
+
+  .pronounce-button:active:not(:disabled) {
+    transform: scale(0.95) !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+  }
+
+  .pronounce-button:disabled {
+    background: #aab59d !important;
+    border-color: #9ea990 !important;
+    color: #e5ece0 !important;
+    box-shadow: none !important;
+    opacity: 0.65 !important;
   }
 
   .sentence-feedback {
-    margin: 4px 0 2px !important;
+    margin: 2px 0 3px !important;
     font-size: 9px !important;
-    line-height: 1.3 !important;
+    line-height: 1.25 !important;
     display: flex !important;
     align-items: center !important;
-    color: #3b503f !important;
+    color: #364e32 !important;
     gap: 5px !important;
+    min-height: 13px !important;
+  }
+
+  .feedback-dot {
+    width: 5px !important;
+    height: 5px !important;
+    border-radius: 50% !important;
+    flex-shrink: 0 !important;
+    background: #97a685 !important;
+  }
+
+  .feedback-dot.valid {
+    background: #3d8825 !important;
+    box-shadow: 0 0 0 2px rgba(61, 136, 37, 0.25) !important;
   }
 
   .desktop-only-hints {
     display: none !important;
   }
 
+  /* Lexicon Bar & Word Filters on Mobile */
   .lexicon-bar {
-    margin-top: 6px !important;
-    padding-top: 6px !important;
+    margin-top: 4px !important;
+    padding-top: 4px !important;
     gap: 6px !important;
     align-items: center !important;
     justify-content: space-between !important;
-    border-top: 1px solid #d4dbc5 !important;
+    border-top: 1px solid #c9d2bd !important;
     flex-wrap: nowrap !important;
+    height: 26px !important;
   }
 
   .lexicon-label {
     font-size: 9px !important;
     white-space: nowrap !important;
-    gap: 5px !important;
+    gap: 4px !important;
     flex-shrink: 0 !important;
+    color: #2b4028 !important;
+    display: flex !important;
+    align-items: center !important;
   }
 
   .lexicon-label svg {
-    width: 13px !important;
-    height: 13px !important;
+    width: 12px !important;
+    height: 12px !important;
   }
 
   .lexicon-label span {
@@ -4667,19 +5204,25 @@ kbd {
   }
 
   .lexicon-label b {
-    width: 17px !important;
-    height: 17px !important;
-    font-size: 9px !important;
-    border-radius: 3px !important;
+    width: 16px !important;
+    height: 16px !important;
+    font-size: 8.5px !important;
+    font-weight: 800 !important;
+    border-radius: 999px !important;
+    background: #2f452a !important;
+    color: #f6f8f1 !important;
   }
 
+  /* Word Filters - Modern Touch Pills */
   .word-filters {
-    gap: 6px !important;
+    gap: 5px !important;
     overflow-x: auto !important;
     scrollbar-width: none !important;
     -webkit-overflow-scrolling: touch !important;
     flex-wrap: nowrap !important;
     display: flex !important;
+    align-items: center !important;
+    padding: 1px 0 !important;
   }
 
   .word-filters::-webkit-scrollbar {
@@ -4687,21 +5230,47 @@ kbd {
   }
 
   .word-filters button {
-    font-size: 9px !important;
-    padding: 2px 4px !important;
+    font-size: 9.5px !important;
+    font-weight: 700 !important;
+    padding: 3px 8.5px !important;
+    border-radius: 999px !important;
+    background: #e0e5d4 !important;
+    color: #3b5037 !important;
+    border: 1px solid #c2ccb3 !important;
     white-space: nowrap !important;
+    text-decoration: none !important;
+    transition: all 0.15s ease !important;
+    flex-shrink: 0 !important;
+    height: 22px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+  }
+
+  .word-filters button.active {
+    background: #253922 !important;
+    color: #f7f9f2 !important;
+    border-color: #253922 !important;
+    box-shadow: 0 1.5px 4px rgba(24, 38, 22, 0.25) !important;
+    text-decoration: none !important;
+  }
+
+  .word-filters button:active {
+    transform: scale(0.93) !important;
   }
 
   .lexicon-bar > .text-button {
     display: none !important;
   }
 
+  /* Word Shelf & Word Tiles */
   .word-shelf {
     display: flex !important;
     gap: 6px !important;
-    margin-top: 6px !important;
-    height: 68px !important;
-    min-height: 68px !important;
+    margin-top: 4px !important;
+    height: 76px !important;
+    min-height: 76px !important;
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch !important;
     scrollbar-width: none !important;
@@ -4715,23 +5284,33 @@ kbd {
   }
 
   .word-tile {
-    width: 68px !important;
-    min-width: 68px !important;
-    height: 66px !important;
-    min-height: 66px !important;
-    max-height: 66px !important;
+    width: 72px !important;
+    min-width: 72px !important;
+    height: 74px !important;
+    min-height: 74px !important;
+    max-height: 74px !important;
     padding: 5px 3px 4px !important;
     display: flex !important;
     flex-direction: column !important;
     align-items: center !important;
     justify-content: space-between !important;
-    border-radius: 7px !important;
+    border-radius: 9px !important;
+    border: 1px solid #c4ceb7 !important;
+    background: #edf1e4 !important;
+    box-shadow: 0 1.5px 3px rgba(35, 48, 30, 0.08) !important;
     box-sizing: border-box !important;
     touch-action: manipulation !important;
+    transition: transform 0.1s ease, box-shadow 0.1s ease !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  .word-tile:active {
+    transform: scale(0.94) !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15) !important;
   }
 
   .word-glyph {
-    height: 22px !important;
+    height: 24px !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -4739,15 +5318,16 @@ kbd {
   }
 
   .word-glyph svg {
-    width: 20px !important;
-    height: 20px !important;
+    width: 22px !important;
+    height: 22px !important;
   }
 
   .word-label {
-    font-size: 10.5px !important;
+    font-size: 11px !important;
     font-weight: 700 !important;
     line-height: 1.15 !important;
-    margin: 0 !important;
+    margin: 1px 0 !important;
+    color: #1a2c1b !important;
     text-align: center !important;
     white-space: nowrap !important;
     overflow: hidden !important;
@@ -4756,32 +5336,93 @@ kbd {
   }
 
   .word-kind {
-    font-size: 6.5px !important;
+    font-size: 7px !important;
     font-weight: 800 !important;
-    letter-spacing: 0.6px !important;
+    letter-spacing: 0.5px !important;
     text-transform: uppercase !important;
     line-height: 1 !important;
     margin: 0 !important;
-    opacity: 0.8 !important;
+    padding: 1.5px 5px !important;
+    border-radius: 3px !important;
+    background: rgba(0, 0, 0, 0.05) !important;
   }
 
+  /* Specific kinds color accents on mobile tiles */
+  .word-tile.word-S {
+    background: #eef3e6 !important;
+    border-color: #b8c9a6 !important;
+  }
+  .word-tile.word-S .word-kind {
+    color: #2e4d25 !important;
+    background: #d8e5c8 !important;
+  }
+
+  .word-tile.word-V {
+    background: #f8f1e4 !important;
+    border-color: #dfceb0 !important;
+  }
+  .word-tile.word-V .word-kind {
+    color: #634718 !important;
+    background: #edd8b4 !important;
+  }
+
+  .word-tile.word-O,
+  .word-tile.word-M {
+    background: #e8f2ea !important;
+    border-color: #b5ceb8 !important;
+  }
+  .word-tile.word-O .word-kind,
+  .word-tile.word-M .word-kind {
+    color: #1e4d2b !important;
+    background: #cce3cf !important;
+  }
+
+  .word-tile.word-C {
+    background: #f1ecf5 !important;
+    border-color: #c9bed7 !important;
+  }
+  .word-tile.word-C .word-kind {
+    color: #4c3260 !important;
+    background: #ded3ea !important;
+  }
+
+  /* Mystery card deck style for unknown words */
   .unknown-words {
-    min-width: 110px !important;
-    padding: 0 8px !important;
+    width: 78px !important;
+    min-width: 78px !important;
+    height: 74px !important;
+    min-height: 74px !important;
+    max-height: 74px !important;
+    border: 1.5px dashed #b9c5aa !important;
+    background: rgba(226, 232, 217, 0.45) !important;
+    border-radius: 9px !important;
+    padding: 6px 4px !important;
     flex-shrink: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
     justify-content: center !important;
+    text-align: center !important;
+    box-sizing: border-box !important;
   }
 
   .unknown-words > span {
-    font-size: 14px !important;
+    font-size: 13px !important;
+    color: #7b8e6f !important;
+    letter-spacing: 2px !important;
     margin-bottom: 2px !important;
     line-height: 1 !important;
   }
 
   .unknown-words p {
-    font-size: 10px !important;
-    line-height: 1.25 !important;
+    font-family: var(--sans) !important;
+    font-size: 7.5px !important;
+    line-height: 1.15 !important;
+    color: #6a7c60 !important;
     margin: 0 !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.3px !important;
   }
 
   /* Topbar on mobile */
