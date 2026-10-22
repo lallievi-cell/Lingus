@@ -21,9 +21,12 @@ interface WorldMapProps {
   state: GameState;
   selectedTarget: WorldTarget | null;
   onSelect: (target: WorldTarget) => void;
+  onSelectGroupAnchor?: (target: WorldTarget) => void;
   commandReady?: boolean;
   onSpark?: (sparkId: string) => void;
   groupAnchor?: WorldTarget | null;
+  isGroupActive?: boolean;
+  orderFeedback?: { from: { x: number; y: number }[]; to: { x: number; y: number }; time: number } | null;
 }
 
 type View = { zoom: number; centerX: number; centerY: number };
@@ -107,9 +110,12 @@ export function WorldMap({
   state,
   selectedTarget,
   onSelect,
+  onSelectGroupAnchor,
   commandReady = false,
   onSpark,
   groupAnchor = null,
+  isGroupActive = false,
+  orderFeedback = null,
 }: WorldMapProps) {
   const containerRef = useRef<HTMLDivElement>(null),
     canvasRef = useRef<HTMLCanvasElement>(null),
@@ -118,7 +124,14 @@ export function WorldMap({
     anchorRef = useRef(groupAnchor),
     selectedRef = useRef(selectedTarget),
     hoveredRef = useRef<WorldTarget | null>(null),
-    readyRef = useRef(commandReady);
+    readyRef = useRef(commandReady),
+    groupActiveRef = useRef(isGroupActive),
+    orderFeedbackRef = useRef(orderFeedback);
+  const [ping, setPing] = useState<{ x: number; y: number; time: number } | null>(null);
+  const pingRef = useRef(ping);
+  pingRef.current = ping;
+  groupActiveRef.current = isGroupActive;
+  orderFeedbackRef.current = orderFeedback;
   const initialView: View = {
     zoom: state.tier >= 4 ? 1 : 4.5,
     centerX: state.home?.x ?? 250,
@@ -286,6 +299,17 @@ export function WorldMap({
     [getTransform, toWorld],
   );
 
+  const handleGroupSelect = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!onSelectGroupAnchor) return;
+      const target = hitTest(clientX, clientY);
+      onSelectGroupAnchor(target);
+      const now = stateRef.current.paused ? stateRef.current.time : performance.now() / 1000;
+      setPing({ x: target.x, y: target.y, time: now });
+    },
+    [hitTest, onSelectGroupAnchor],
+  );
+
   const zoom = useCallback((delta: number) => {
     setView((previous) => {
       const bounds = viewBounds(stateRef.current),
@@ -345,6 +369,9 @@ export function WorldMap({
         hoveredRef.current,
         readyRef.current,
         anchorRef.current,
+        groupActiveRef.current,
+        pingRef.current,
+        orderFeedbackRef.current,
       );
       const mw = 134,
         mh = 88;
@@ -494,6 +521,10 @@ export function WorldMap({
           pointerRef.current = null;
           setDragging(false);
           if (!pointer || pointer.moved) return;
+          if (event.shiftKey) {
+            handleGroupSelect(event.clientX, event.clientY);
+            return;
+          }
           const p = toWorld(event.clientX, event.clientY),
             t = getTransform();
           const spark = stateRef.current.sparks.find((s) => {
@@ -511,6 +542,14 @@ export function WorldMap({
             return;
           }
           onSelect(hitTest(event.clientX, event.clientY));
+        }}
+        onDoubleClick={(event) => {
+          event.preventDefault();
+          handleGroupSelect(event.clientX, event.clientY);
+        }}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          handleGroupSelect(event.clientX, event.clientY);
         }}
         onPointerCancel={() => {
           pointerRef.current = null;

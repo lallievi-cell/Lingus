@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import {
   ArrowRight,
   ArrowUpRight,
@@ -9,6 +9,8 @@ import {
   Download,
   Flame,
   Heart,
+  History,
+  Home,
   Leaf,
   LockKeyhole,
   MapPin,
@@ -141,6 +143,15 @@ function App() {
   const [sound, setSound] = useState(false);
   const [lexiconSearch, setLexiconSearch] = useState('');
   const [hasSeenMilestone, setHasSeenMilestone] = useState(!!game.victory);
+  const [recentPhrases, setRecentPhrases] = useState<string[][]>(() => [
+    ['S_01', 'V_02'],
+    ['S_01', 'V_04', 'O_03'],
+  ]);
+  const [orderFeedback, setOrderFeedback] = useState<{
+    from: { x: number; y: number }[];
+    to: { x: number; y: number };
+    time: number;
+  } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const audioContext = useRef<AudioContext | null>(null);
   const gameRef = useRef(game);
@@ -157,6 +168,49 @@ function App() {
   const ownedBuildings = game.buildings.filter((b) => isPlayerBuilding(game, b));
   const currentSpark = game.sparks.find((s) => s.id === sparkId);
   const nextSpark = game.sparks[0];
+  const suggestedWordIds = useMemo(() => {
+    const set = new Set<string>();
+    if (!target) return set;
+    if (target.type === 'entity') {
+      const ent = game.entities.find((e) => e.id === target.id);
+      if (!ent) return set;
+      if (ent.kind === 'tree') {
+        set.add('O_03');
+        set.add('V_04');
+        set.add('V_03');
+      } else if (ent.kind === 'berries') {
+        set.add('V_02');
+        set.add('V_04');
+      } else if (ent.kind === 'stone') {
+        set.add('O_02');
+        set.add('V_04');
+      } else if (['deer', 'wolf', 'alpha', 'mammoth'].includes(ent.kind)) {
+        set.add('V_03');
+        set.add('O_04');
+        set.add('M_01');
+      } else if (ent.kind === 'corpse' || ent.resource === 'meat') {
+        set.add('V_02');
+        set.add('V_04');
+        set.add('O_06');
+      }
+    } else if (target.type === 'point') {
+      if (game.home && Math.hypot(target.x - game.home.x, target.y - game.home.y) <= 10) {
+        set.add('O_01');
+        set.add('V_01');
+        set.add('V_05');
+      } else {
+        set.add('V_01');
+      }
+    } else if (target.type === 'building') {
+      const b = game.buildings.find((item) => item.id === target.id);
+      if (b?.kind === 'campfire') {
+        set.add('O_05');
+        set.add('V_04');
+        set.add('O_03');
+      }
+    }
+    return set;
+  }, [target, game.entities, game.buildings, game.home]);
   const selectedUnit = target?.type === 'unit' ? game.units.find((u) => u.id === target.id) : null;
   const selectedEntity =
     target?.type === 'entity' ? game.entities.find((e) => e.id === target.id) : null;
@@ -271,6 +325,18 @@ function App() {
   useEffect(() => {
     const keydown = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).matches('input,textarea,select') || panel) return;
+      if (e.code === 'Enter' || e.code === 'NumpadEnter') {
+        if (sentence.length >= 2 && !game.paused && !panel && !game.gameOver) {
+          e.preventDefault();
+          pronounce();
+        }
+      }
+      if (e.code === 'Backspace' || e.code === 'Delete') {
+        if (sentence.length > 0) {
+          e.preventDefault();
+          setSentence((s) => s.slice(0, -1));
+        }
+      }
       if (e.code === 'Space') {
         e.preventDefault();
         setGame((g) => ({ ...g, paused: !g.paused }));
@@ -286,7 +352,7 @@ function App() {
     };
     window.addEventListener('keydown', keydown);
     return () => window.removeEventListener('keydown', keydown);
-  }, [panel]);
+  }, [panel, sentence, game, target, executorId, groupAnchor]);
 
   useEffect(() => {
     if (!sound || !game.started || game.paused || panel || game.gameOver) {
@@ -337,6 +403,20 @@ function App() {
     else addWord(id);
   }
 
+  function handleSetGroupAnchor(anchor: Target) {
+    setGroupAnchor(anchor);
+    setSelectingGroup(false);
+    notify('Gruppo centrato: raggio 15 m.');
+  }
+
+  function applyRecentPhrase(words: string[]) {
+    const available = words.filter((id) => hasWord(game, id));
+    if (available.length > 0) {
+      setSentence(available);
+      notify(`Frase richiamata: ${available.map((id) => WORDS[id]?.label).join(' · ')}`);
+    }
+  }
+
   function pronounce() {
     const result = compileSentence(game, sentence, target ?? undefined);
     if (!result.valid) {
@@ -352,9 +432,36 @@ function App() {
       return;
     }
     const next = issueCommand(game, sentence, target ?? undefined, executorId, groupAnchor);
+    const success = next.stats.commands > game.stats.commands;
     setGame(next);
+    if (success) {
+      setRecentPhrases((prev) => {
+        const key = sentence.join(',');
+        const filtered = prev.filter((p) => p.join(',') !== key);
+        return [[...sentence], ...filtered].slice(0, 4);
+      });
+      if (target) {
+        const liveTarget =
+          target.type === 'entity'
+            ? (game.entities.find((e) => e.id === target.id) ?? target)
+            : target;
+        let sources: { x: number; y: number }[] = [];
+        if (sentence.includes('S_01')) {
+          sources = game.units
+            .filter((u) => u.hp > 0 && Math.hypot(u.x - groupAnchor.x, u.y - groupAnchor.y) <= 15)
+            .map((u) => ({ x: u.x, y: u.y }));
+        } else if (executorId) {
+          const u = game.units.find((unit) => unit.id === executorId);
+          if (u) sources = [{ x: u.x, y: u.y }];
+        }
+        if (sources.length > 0) {
+          const now = game.paused ? game.time : performance.now() / 1000;
+          setOrderFeedback({ from: sources, to: { x: liveTarget.x, y: liveTarget.y }, time: now });
+        }
+      }
+    }
     notify(
-      next.stats.commands > game.stats.commands
+      success
         ? 'La tribù ha ascoltato.'
         : (next.logs[0]?.text ?? 'La frase non può essere eseguita.'),
     );
@@ -450,12 +557,13 @@ function App() {
   const renderWord = (id: string, inPuzzle = false) => {
     const word = WORDS[id],
       memory = game.words[id];
+    const suggested = !inPuzzle && suggestedWordIds.has(id);
     return (
       <button
         key={id}
-        className={`word-tile word-${word.kind} ${memory && memory.retention < 25 ? 'word-fragile' : ''}`}
-        aria-label={`${word.label}: ${word.description}`}
-        title={word.description}
+        className={`word-tile word-${word.kind} ${memory && memory.retention < 25 ? 'word-fragile' : ''} ${suggested ? 'word-suggested' : ''}`}
+        aria-label={`${word.label}: ${word.description}${suggested ? ' (consigliata per il bersaglio)' : ''}`}
+        title={`${word.description}${suggested ? ' · Consigliata per il bersaglio attuale' : ''}`}
         draggable={!inPuzzle}
         onDragStart={(e) => e.dataTransfer.setData('application/lingus-word', id)}
         onClick={() =>
@@ -872,11 +980,12 @@ function App() {
               state={game}
               selectedTarget={target}
               groupAnchor={groupAnchor}
+              isGroupActive={sentence.includes('S_01')}
+              orderFeedback={orderFeedback}
+              onSelectGroupAnchor={handleSetGroupAnchor}
               onSelect={(picked) => {
                 if (selectingGroup) {
-                  setGroupAnchor(picked);
-                  setSelectingGroup(false);
-                  notify('Il gruppo sarà chiamato da questo punto.');
+                  handleSetGroupAnchor(picked);
                 } else {
                   setTarget(picked);
                   if (
@@ -1164,6 +1273,17 @@ function App() {
             {selectingGroup ? 'Indica sulla mappa il centro del gruppo' : 'Scegli il gruppo'}{' '}
             <span>raggio 15 m</span>
           </button>
+          <button
+            className="text-button camp-button"
+            onClick={() => handleSetGroupAnchor({ type: 'point', ...game.home })}
+            title="Ripristina il gruppo attorno al giaciglio primordiale"
+          >
+            <Home size={12} />
+            <span>Al campo</span>
+          </button>
+          <span className="group-hint">
+            (oppure doppio click o tasto destro sulla mappa)
+          </span>
           {sentence.includes('S_02') && (
             <span>
               Io: {game.units.find((u) => u.id === executorId)?.name ?? 'scegli un individuo'}
@@ -1175,6 +1295,33 @@ function App() {
             </button>
           )}
         </div>
+        {recentPhrases.length > 0 && (
+          <div className="echo-shelf" aria-label="Frasi recenti">
+            <span className="echo-label">
+              <History size={12} />
+              Echi:
+            </span>
+            {recentPhrases.map((phrase, idx) => {
+              const isKnown = phrase.every((id) => hasWord(game, id));
+              if (!isKnown) return null;
+              const isActive =
+                phrase.length === sentence.length &&
+                phrase.every((id, i) => sentence[i] === id);
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  className={`echo-chip ${isActive ? 'active' : ''}`}
+                  onClick={() => applyRecentPhrase(phrase)}
+                  title="Richiama questa frase negli spazi"
+                >
+                  <span className="echo-chip-dot" />
+                  {phrase.map((id) => WORDS[id]?.label).join(' · ')}
+                </button>
+              );
+            })}
+          </div>
+        )}
         <div className="composer-row">
           <div
             className="sentence-slots"
@@ -1232,7 +1379,7 @@ function App() {
             <button
               className="icon-button undo-button"
               aria-label="Rimuovi ultima parola"
-              title="Rimuovi ultima parola"
+              title="Rimuovi ultima parola (Backspace)"
               disabled={!sentence.length}
               onClick={() => setSentence((s) => s.slice(0, -1))}
             >
@@ -1242,6 +1389,7 @@ function App() {
               className="pronounce-button"
               onClick={pronounce}
               disabled={!game.started || sentence.length < 2 || !!game.gameOver}
+              title="Pronuncia (Invio)"
             >
               <span>Pronuncia</span>
               <ArrowRight size={18} />
@@ -1255,9 +1403,17 @@ function App() {
               ? 'Scegli o trascina le parole. Componi una frase, indica un bersaglio e pronunciala.'
               : compilation.message}
           </span>
-          <span className="keyboard-hint">
-            <kbd>SPAZIO</kbd> pausa
-          </span>
+          <div className="keyboard-hints">
+            <span>
+              <kbd>INVIO</kbd> pronuncia
+            </span>
+            <span>
+              <kbd>BACKSPACE</kbd> cancella
+            </span>
+            <span>
+              <kbd>SPAZIO</kbd> pausa
+            </span>
+          </div>
         </div>
         <div className="lexicon-bar">
           <div className="lexicon-label">

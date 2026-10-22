@@ -1821,6 +1821,7 @@ function drawUnit(
   selected: boolean,
   carryRecognized: boolean,
   custodian?: CustodianStatus,
+  isGroupMember = false,
 ) {
   const { x, y } = worldPoint(unit.x, unit.y);
   const id = Array.from(unit.id).reduce((n, c) => n + c.charCodeAt(0), 0);
@@ -1834,6 +1835,18 @@ function drawUnit(
   const skin = ['#c2a07a', '#b9946d', '#c5a780'][id % 3];
   ctx.save();
   ctx.translate(x, y + bob);
+  if (isGroupMember) {
+    const pulse = 0.42 + Math.sin(time * 3.5 + id) * 0.16;
+    ctx.save();
+    ctx.fillStyle = `rgba(217, 169, 78, ${pulse})`;
+    ctx.strokeStyle = `rgba(189, 137, 47, ${pulse + 0.25})`;
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.ellipse(2, 3, 10.5, 4.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
   oval(ctx, 2, 3, 7, 2.7, '#39482d33');
   if (sleeping) {
     oval(ctx, 0, 0, 7, 3.3, tunic);
@@ -2073,26 +2086,74 @@ export function drawWorld(
   hovered: WorldTarget | null,
   commandReady: boolean,
   groupAnchor?: WorldTarget | null,
+  isGroupActive = false,
+  ping?: { x: number; y: number; time: number } | null,
+  orderFeedback?: { from: { x: number; y: number }[]; to: { x: number; y: number }; time: number } | null,
 ) {
   ctx.drawImage(terrain, 0, 0, MAP_WIDTH, MAP_HEIGHT);
   drawCampground(ctx, state);
   const piles = getGroundPiles(state);
   const custodians = new Map(getCustodianStatuses(state).map((status) => [status.unitId, status]));
-  if (groupAnchor && !state.urbanized) {
-    const liveAnchor =
-      groupAnchor.type === 'unit'
+  const liveAnchor =
+    groupAnchor && !state.urbanized
+      ? groupAnchor.type === 'unit'
         ? (state.units.find((u) => u.id === groupAnchor.id && u.hp > 0) ?? groupAnchor)
-        : groupAnchor;
+        : groupAnchor
+      : null;
+
+  if (liveAnchor) {
     const p = worldPoint(liveAnchor.x, liveAnchor.y);
     ctx.save();
-    ctx.strokeStyle = '#71885977';
-    ctx.fillStyle = '#91aa6612';
-    ctx.lineWidth = 0.45;
-    ctx.setLineDash([1.4, 1.5]);
+    if (isGroupActive) {
+      const pulse = 0.5 + Math.sin(time * 3) * 0.15;
+      ctx.strokeStyle = `rgba(217, 169, 78, ${pulse + 0.25})`;
+      ctx.fillStyle = 'rgba(217, 169, 78, 0.07)';
+      ctx.lineWidth = 0.8;
+      ctx.setLineDash([3, 2.5]);
+    } else {
+      ctx.strokeStyle = '#71885977';
+      ctx.fillStyle = '#91aa6612';
+      ctx.lineWidth = 0.45;
+      ctx.setLineDash([1.4, 1.5]);
+    }
     ctx.beginPath();
     ctx.ellipse(p.x, p.y, 15 * 2.4, 15 * 1.6, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+    ctx.restore();
+  }
+
+  // Animazione ad onda del gruppo (ping quando viene cliccato/spostato)
+  if (ping && time - ping.time >= 0 && time - ping.time <= 1.0) {
+    const progress = (time - ping.time) / 1.0;
+    const r = progress * 15;
+    const p = worldPoint(ping.x, ping.y);
+    const alpha = (1 - progress) * 0.75;
+    ctx.save();
+    ctx.strokeStyle = `rgba(217, 169, 78, ${alpha})`;
+    ctx.lineWidth = 1.3 * (1 - progress * 0.4);
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y, r * 2.4, r * 1.6, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Linee di esecuzione dell'ordine verso il bersaglio (Action Beams)
+  if (orderFeedback && time - orderFeedback.time >= 0 && time - orderFeedback.time <= 1.2) {
+    const elapsed = time - orderFeedback.time;
+    const alpha = (1 - elapsed / 1.2) * 0.75;
+    const targetP = worldPoint(orderFeedback.to.x, orderFeedback.to.y);
+    ctx.save();
+    ctx.strokeStyle = `rgba(224, 180, 80, ${alpha})`;
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([4, 4]);
+    for (const source of orderFeedback.from) {
+      const srcP = worldPoint(source.x, source.y);
+      ctx.beginPath();
+      ctx.moveTo(srcP.x, srcP.y);
+      ctx.lineTo(targetP.x, targetP.y);
+      ctx.stroke();
+    }
     ctx.restore();
   }
   const liveTarget = (target: WorldTarget) =>
@@ -2206,7 +2267,12 @@ export function drawWorld(
     objects.push({
       y: unit.y + 0.3,
       draw: () =>
-        sprite(unit, () =>
+        sprite(unit, () => {
+          const isGroupMember = !!(
+            isGroupActive &&
+            liveAnchor &&
+            Math.hypot(unit.x - liveAnchor.x, unit.y - liveAnchor.y) <= 15
+          );
           drawUnit(
             ctx,
             unit,
@@ -2214,8 +2280,9 @@ export function drawWorld(
             selected?.id === unit.id && hasConcept(state, 'S_02'),
             !!unit.carry && resourceKnown(state, unit.carry.resource),
             custodians.get(unit.id),
-          ),
-        ),
+            isGroupMember,
+          );
+        }),
     });
   for (const city of state.cities.filter(
     (c) => isVisibleAt(state, c.x, c.y) && c.factionId !== 'ruins',
