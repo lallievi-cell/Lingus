@@ -31,6 +31,7 @@ interface WorldMapProps {
     to: { x: number; y: number };
     time: number;
   } | null;
+  focusRequest?: { x: number; y: number; nonce: number };
 }
 
 type View = { zoom: number; centerX: number; centerY: number };
@@ -120,6 +121,7 @@ export function WorldMap({
   groupAnchor = null,
   isGroupActive = false,
   orderFeedback = null,
+  focusRequest,
 }: WorldMapProps) {
   const containerRef = useRef<HTMLDivElement>(null),
     canvasRef = useRef<HTMLCanvasElement>(null),
@@ -162,6 +164,14 @@ export function WorldMap({
     centerY: number;
   } | null>(null);
   const terrain = useMemo(() => createTerrain(6842, state.seasonIndex), [state.seasonIndex]);
+  useEffect(() => {
+    if (focusRequest)
+      setView((previous) => ({
+        ...previous,
+        centerX: clamp(focusRequest.x, 0, 500),
+        centerY: clamp(focusRequest.y, 0, 500),
+      }));
+  }, [focusRequest]);
   const renderSizeRef = useRef(size);
   stateRef.current = state;
   anchorRef.current = groupAnchor;

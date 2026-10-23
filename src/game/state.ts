@@ -2,7 +2,10 @@ import { HOME, INNATE_WORDS, BASE_HOUSING, emptyInventory } from './content';
 import type { City, Faction, GameState, MapEntity, Sector, Unit } from './types';
 
 /** Exactly the seven Seed Zero people, in the order stated in the final GDD. */
-export function createInitialState(seed = 6842): GameState {
+export function createInitialState(
+  seed = 6842,
+  playMode: 'guided' | 'classic' = 'classic',
+): GameState {
   const people: [string, number, number, number, number, number][] = [
     ['Korg', 8, 8, 4, 100, 20],
     ['Ayla', 10, 4, 8, 100, 20],
@@ -15,12 +18,13 @@ export function createInitialState(seed = 6842): GameState {
   const units: Unit[] = people.map(([name, age, strength, intelligence, hp, hunger], i) => ({
     id: `unit-${i}`,
     name,
+    sex: (['M', 'F', 'F', 'M', 'F', 'F', 'M'] as const)[i],
     x: HOME.x + Math.cos(i * 2.4) * 4,
     y: HOME.y + Math.sin(i * 2.4) * 4,
     hp,
     hunger,
     temp: 100,
-    age,
+    age: playMode === 'guided' && name === 'Uma' ? 12 : age,
     strength,
     intelligence,
     initialStrength: strength,
@@ -207,6 +211,7 @@ export function createInitialState(seed = 6842): GameState {
   });
   return {
     version: 2,
+    playMode,
     seed: seed >>> 0,
     time: 0,
     seasonIndex: 0,
@@ -231,6 +236,7 @@ export function createInitialState(seed = 6842): GameState {
     nightCount: 0,
     sparks: [],
     dogmas: [],
+    tribeEvents: [],
     logs: [
       {
         id: 'log-0',

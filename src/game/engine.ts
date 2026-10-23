@@ -9,6 +9,7 @@ import {
   WORD_ORDER,
 } from './content';
 import { createInitialState } from './state';
+import { canPayLocally, payLocally } from './craftMaterials';
 import { validSave } from './saveValidation';
 import { cognitiveSlots, compileSentence, getPredicate, resolveConstruction } from './grammar';
 import { getDogmaEffects, inscribeDogma } from './dogmas';
@@ -75,8 +76,8 @@ export {
   WORD_ORDER,
 };
 export { getDogmaVectors, previewDogma, inscribeDogma, removeDogma } from './dogmas';
-export function createGame(seed = 6842) {
-  return createInitialState(seed);
+export function createGame(seed = 6842, playMode: 'guided' | 'classic' = 'classic') {
+  return createInitialState(seed, playMode);
 }
 function chooseSubjects(
   s: GameState,
@@ -92,7 +93,7 @@ function chooseSubjects(
     return chosen ? [chosen] : [];
   }
   if (subject === 'S_03') return units.filter((u) => u.strength >= 7);
-  if (subject === 'S_04') return living.filter((u) => u.intelligence >= 7);
+  if (subject === 'S_04') return units.filter((u) => u.intelligence >= 7);
   if (subject === 'S_06') return units.filter((u) => u.caste === 'slave');
   if (subject === 'S_07') return units.filter((u) => u.id === s.kingId);
   if (subject === 'S_05')
@@ -128,6 +129,7 @@ function assignBuildingJob(
 ) {
   const spec = BUILDING_SPECS[kind];
   if (
+    !adult(u) ||
     spec.workers === 0 ||
     (spec.workerKind === 'sage' && u.intelligence < 7) ||
     (spec.workerKind === 'warrior' && u.strength < 7)
@@ -163,35 +165,6 @@ function assignBuildingJob(
   b.workerIds ??= [];
   b.workerIds.push(u.id);
   return true;
-}
-/** Crafting may use real extracted material lying within local working reach.
- * This never grants stock or changes any recipe cost (see CONFORMANCE A-20).
- */
-function canPayLocally(s: GameState, cost: Partial<Inventory>, artisan: Unit) {
-  return Object.entries(cost).every(
-    ([r, n]) =>
-      s.resources[r as Resource] +
-        s.entities
-          .filter((e) => e.kind === 'ground' && e.resource === r && distance(e, artisan) <= 15)
-          .reduce((a, e) => a + e.amount, 0) >=
-      n,
-  );
-}
-function payLocally(s: GameState, cost: Partial<Inventory>, artisan: Unit) {
-  for (const [r, n] of Object.entries(cost)) {
-    const key = r as Resource,
-      take = Math.min(n, s.resources[key]);
-    s.resources[key] -= take;
-    let left = n - take;
-    for (const e of s.entities.filter(
-      (e) => e.kind === 'ground' && e.resource === r && distance(e, artisan) <= 15,
-    )) {
-      const part = Math.min(e.amount, left);
-      e.amount -= part;
-      left -= part;
-      if (left <= 0) break;
-    }
-  }
 }
 export function issueCommand(
   state: GameState,
@@ -559,7 +532,10 @@ export function solveSpark(state: GameState, id: string, chosen: string[]): Game
     s.kingId = u.id;
     u.isKing = true;
   }
-  if (spark.wordId === 'O_05') tryIgnite(s, u.x, u.y);
+  if (spark.wordId === 'O_05') {
+    if (s.playMode === 'guided') tryIgnite(s);
+    else tryIgnite(s, u.x, u.y);
+  }
   if (spark.wordId === 'C_02' && hasWord(s, 'S_02') && hasWord(s, 'M_03'))
     recordEvent(s, u, 'ENV_AUTHORITY', 100, ['S_07']);
   if (spark.wordId === 'M_04') u.wealth = Math.max(1, u.wealth ?? 0);
@@ -724,6 +700,15 @@ export function getObjective(s: GameState): Objective {
       total: 6,
     };
   if (!hasWord(s, 'S_02') && !hasWord(s, 'O_01')) {
+    if (s.playMode === 'guided')
+      return {
+        title: 'Il luogo a cui torniamo (Qui)',
+        description:
+          'Prima del buio, usa Gruppo + Andare sul giaciglio. Dormire vicini per una notte fa nascere Qui e apre il terzo spazio.',
+        progress: Math.min(1, s.nightSleeping),
+        current: Math.min(1, s.nightSleeping),
+        total: 1,
+      };
     const maxIso = s.units.reduce((max, u) => Math.max(max, u.isolation ?? 0), 0);
     return {
       title: 'La voce dell’individuo (Io)',
@@ -738,16 +723,20 @@ export function getObjective(s: GameState): Objective {
     return {
       title: 'Il luogo a cui torniamo (Qui)',
       description:
-        'Almeno tre quarti della tribù devono dormire entro dieci metri dalla tana per due notti consecutive.',
-      progress: s.nightSleeping / 2,
+        s.playMode === 'guided'
+          ? 'Almeno tre quarti della tribù devono dormire vicino al giaciglio per una notte.'
+          : 'Almeno tre quarti della tribù devono dormire entro dieci metri dalla tana per due notti consecutive.',
+      progress: s.nightSleeping / (s.playMode === 'guided' ? 1 : 2),
       current: s.nightSleeping,
-      total: 2,
+      total: s.playMode === 'guided' ? 1 : 2,
     };
   if (!hasWord(s, 'O_05'))
     return {
       title: 'La luce nella materia (Fuoco)',
       description:
-        'Lavora la selce con Io + Scheggiare + Pietra. Unire Scheggiare e Legno farà intuire il Fuoco prima del gelo.',
+        s.playMode === 'guided'
+          ? 'Porta legna e pietra al campo. Gruppo + Scheggiare + Pietra crea utensili ripetuti: ogni lavorazione reale avvicina il Fuoco. Servono cinque legna al campo per accenderlo.'
+          : 'Lavora la selce con Io + Scheggiare + Pietra. Unire Scheggiare e Legno farà intuire il Fuoco prima del gelo.',
       progress: (s.tension.O_05 ?? 0) / 100,
       current: Math.floor(s.tension.O_05 ?? 0),
       total: 100,

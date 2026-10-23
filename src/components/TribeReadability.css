@@ -1,0 +1,161 @@
+.unit-list .readable-person {
+  align-items: center;
+  min-height: 64px;
+  padding-block: 7px;
+  flex-shrink: 0;
+}
+.readable-person .unit-info {
+  min-width: 0;
+}
+.readable-person .unit-info > span {
+  max-width: none;
+  flex-shrink: 0;
+}
+.unit-list .readable-person .unit-info > strong {
+  font-size: 12px;
+  line-height: 1.35;
+}
+.unit-list .readable-person.person-at-risk {
+  border-left-color: #b67152;
+  background: #b6715208;
+}
+.readable-person .unit-info .person-metadata {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: normal;
+  overflow: visible;
+  font-size: 11px;
+  line-height: 1.25;
+}
+.readable-person .person-sex {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: #536763;
+}
+.readable-person .person-sex-f {
+  color: #875c4d;
+}
+.readable-person .person-sex > span {
+  font-size: 13px;
+  font-weight: 700;
+}
+.readable-person .person-stage {
+  border-left: 1px solid #bfc8b6;
+  padding-left: 5px;
+}
+.readable-person .stage-elder {
+  color: #856731;
+}
+.readable-person .stage-newborn,
+.readable-person .stage-child {
+  color: #476d61;
+}
+.readable-person .unit-info .person-action {
+  font-size: 11px;
+  line-height: 1.3;
+}
+.readable-person .unit-info .person-warning {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #9a5038;
+  font-size: 11px;
+  white-space: normal;
+  font-weight: 650;
+  line-height: 1.3;
+}
+.readable-person .child-growth {
+  display: block;
+  width: 64px;
+  height: 3px;
+  border-radius: 3px;
+  background: #d7ddce;
+  margin-top: 1px;
+}
+.readable-person .child-growth > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #7d9b83;
+}
+.unit-list .readable-person .unit-portrait {
+  width: 33px;
+  height: 38px;
+}
+.readable-person .unit-portrait.person-f .portrait-head {
+  box-shadow:
+    0 -4px 0 #484438,
+    4px 0 0 #484438;
+}
+.readable-person .unit-portrait.person-f .portrait-body {
+  border-radius: 9px 9px 0 0;
+  clip-path: polygon(27% 0, 73% 0, 100% 100%, 0 100%);
+  height: 15px;
+  background: #92735e;
+}
+.readable-person .unit-portrait.person-m .portrait-body {
+  border-radius: 6px 6px 0 0;
+  width: 23px;
+  height: 14px;
+  background: #717957;
+}
+.readable-person .unit-portrait.life-elder .portrait-head {
+  top: 10px;
+  box-shadow:
+    0 -4px 0 #dbd7c5,
+    3px 0 0 #dbd7c5;
+}
+.readable-person .unit-portrait.life-elder .portrait-body {
+  transform: skew(-7deg);
+  background: #89816b;
+}
+.readable-person .unit-portrait.life-child .portrait-head {
+  top: 13px;
+  left: 12px;
+  width: 9px;
+  height: 10px;
+  border-radius: 50%;
+}
+.readable-person .unit-portrait.life-child .portrait-body {
+  width: 18px;
+  left: 7px;
+  height: 10px;
+}
+.readable-person .unit-portrait.life-newborn .portrait-head {
+  top: 10px;
+  left: 12px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: none;
+}
+.readable-person .unit-portrait.life-newborn .portrait-body {
+  display: none;
+}
+.readable-person .newborn-wrap {
+  position: absolute;
+  top: 17px;
+  left: 9px;
+  width: 15px;
+  height: 18px;
+  border-radius: 45%;
+  transform: rotate(-12deg);
+  background: repeating-linear-gradient(23deg, #b7b99b 0 5px, #d4d1b5 5px 8px);
+}
+.individual-card.person-details .person-life-hint {
+  display: block;
+  line-height: 1.5;
+  margin: 7px 0;
+  color: #4f6651;
+}
+.individual-card.person-details .person-danger {
+  color: #9a5038;
+  line-height: 1.4;
+  flex-wrap: wrap;
+}
+.individual-card.person-details .person-demographics {
+  color: #566953;
+  flex-wrap: wrap;
+}

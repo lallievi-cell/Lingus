@@ -36,9 +36,24 @@ import {
   Zap,
 } from 'lucide-react';
 import { WorldMap } from './components/WorldMap';
+import { TribeMemberCard } from './components/TribeMemberCard';
+import {
+  lifeStageLabel,
+  physicalWarnings,
+  sexLabel,
+  unitLifeHint,
+  visibleUnitName,
+} from './components/unitReadability';
 import { entityTargetPresentation } from './components/targetPresentation';
 import { BrandMark, Glyph } from './components/Glyph';
 import { Modal } from './components/Modal';
+import { OpeningGuide } from './components/OpeningGuide';
+import {
+  acknowledgedTribeEventIds,
+  forgottenWordHint,
+  TribeEvents,
+} from './components/TribeEvents';
+import './components/Onboarding.css';
 import {
   CivilizationPanel,
   describeQuantity,
@@ -52,14 +67,7 @@ import {
   getCustodianStatuses,
   type CustodianStatus,
 } from './game/custodianStatus';
-import {
-  ACTION_NAMES,
-  BUILDING_NAMES,
-  ERA_NAMES,
-  INNATE_WORDS,
-  WORD_ORDER,
-  WORDS,
-} from './game/content';
+import { BUILDING_NAMES, ERA_NAMES, INNATE_WORDS, WORD_ORDER, WORDS } from './game/content';
 import {
   cognitiveSlots,
   compileSentence,
@@ -111,7 +119,16 @@ function loadInitialGame(): GameState {
   } catch {
     /* A fresh game remains available when browser storage is unavailable. */
   }
-  return createGame(6842);
+  return createGame(6842, 'guided');
+}
+
+function loadEventPause(defaultValue: boolean) {
+  try {
+    const value = localStorage.getItem('lingus.pause-events');
+    return value === null ? defaultValue : value === 'true';
+  } catch {
+    return defaultValue;
+  }
 }
 
 function timeLabel(time: number) {
@@ -142,6 +159,14 @@ function App() {
   const [dogmaTarget, setDogmaTarget] = useState('C_01');
   const [dogmaVector, setDogmaVector] = useState('M_01');
   const [toast, setToast] = useState('');
+  const [newMode, setNewMode] = useState<'guided' | 'classic'>(game.playMode ?? 'guided');
+  const [pauseOnEvents, setPauseOnEvents] = useState(() =>
+    loadEventPause(game.playMode === 'guided'),
+  );
+  const [dismissedEvents, setDismissedEvents] = useState<Set<string>>(() => new Set());
+  const [focusRequest, setFocusRequest] = useState<{ x: number; y: number; nonce: number }>();
+  const eventSnapshot = useRef(new Set((game.tribeEvents ?? []).map((event) => event.id)));
+  const sparkSnapshot = useRef(new Set(game.sparks.map((spark) => spark.id)));
   const [sound, setSound] = useState(false);
   const [lexiconSearch, setLexiconSearch] = useState('');
   const [hasSeenMilestone, setHasSeenMilestone] = useState(!!game.victory);
@@ -165,6 +190,8 @@ function App() {
   const quantity = (value: number) => describeQuantity(value, numbered);
   const voiceMax = hasWord(game, 'S_07') ? 5 : 3;
   const known = WORD_ORDER.filter((id) => hasWord(game, id));
+  const discovered = WORD_ORDER.filter((id) => !!game.words[id]);
+  const unreadEvents = (game.tribeEvents ?? []).filter((event) => !dismissedEvents.has(event.id));
   const objective = getObjective(game);
   const compilation = compileSentence(game, sentence, target ?? undefined);
   const ownedBuildings = game.buildings.filter((b) => isPlayerBuilding(game, b));
@@ -270,6 +297,24 @@ function App() {
     setPanel(null);
     setPuzzle([]);
   }, []);
+
+  useEffect(() => {
+    const events = game.tribeEvents ?? [];
+    const fresh = events.some((event) => !eventSnapshot.current.has(event.id));
+    const idea = game.sparks.some((spark) => !sparkSnapshot.current.has(spark.id));
+    eventSnapshot.current = new Set(events.map((event) => event.id));
+    sparkSnapshot.current = new Set(game.sparks.map((spark) => spark.id));
+    if (pauseOnEvents && game.started && (fresh || idea))
+      setGame((current) => (current.paused ? current : { ...current, paused: true }));
+  }, [game.tribeEvents, game.sparks, game.started, pauseOnEvents]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('lingus.pause-events', String(pauseOnEvents));
+    } catch {
+      /* Optional preference. */
+    }
+  }, [pauseOnEvents]);
 
   useEffect(() => {
     if (panel !== 'spark' || !puzzleFeedback) return;
@@ -533,6 +578,10 @@ function App() {
       setHasSeenMilestone(!!parsed.victory);
       setGroupAnchor({ type: 'point', ...parsed.home });
       setExecutorId(undefined);
+      setNewMode(parsed.playMode ?? 'classic');
+      setDismissedEvents(new Set());
+      eventSnapshot.current = new Set((parsed.tribeEvents ?? []).map((event) => event.id));
+      sparkSnapshot.current = new Set(parsed.sparks.map((spark) => spark.id));
       notify('Partita importata in pausa.');
     } catch {
       notify('File non valido: scegli un salvataggio JSON di Lingus.');
@@ -541,13 +590,17 @@ function App() {
   }
 
   function restart() {
-    const fresh = { ...createGame(Math.floor(Math.random() * 1_000_000)), started: true };
+    const fresh = { ...createGame(Math.floor(Math.random() * 1_000_000), newMode), started: true };
     setGame(fresh);
     setSentence([]);
     setTarget(null);
     setHasSeenMilestone(false);
     setGroupAnchor({ type: 'point', ...fresh.home });
     setExecutorId(undefined);
+    setPauseOnEvents(newMode === 'guided');
+    setDismissedEvents(new Set());
+    eventSnapshot.current = new Set();
+    sparkSnapshot.current = new Set();
     closePanel();
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(fresh));
@@ -560,13 +613,23 @@ function App() {
     const word = WORDS[id],
       memory = game.words[id];
     const suggested = !inPuzzle && suggestedWordIds.has(id);
+    const forgotten = !inPuzzle && memory?.retention === 0;
     return (
       <button
         key={id}
-        className={`word-tile word-${word.kind} ${memory && memory.retention < 25 ? 'word-fragile' : ''} ${suggested ? 'word-suggested' : ''}`}
-        aria-label={`${word.label}: ${word.description}${suggested ? ' (consigliata per il bersaglio)' : ''}`}
-        title={`${word.description}${suggested ? ' · Consigliata per il bersaglio attuale' : ''}`}
-        draggable={!inPuzzle}
+        className={`word-tile word-${word.kind} ${memory && memory.retention < 25 ? 'word-fragile' : ''} ${suggested ? 'word-suggested' : ''} ${forgotten ? 'word-forgotten' : ''}`}
+        aria-label={
+          forgotten
+            ? `${word.label}: parola perduta. ${forgottenWordHint(game, id)}`
+            : `${word.label}: ${word.description}${suggested ? ' (consigliata per il bersaglio)' : ''}`
+        }
+        title={
+          forgotten
+            ? forgottenWordHint(game, id)
+            : `${word.description}${suggested ? ' · Consigliata per il bersaglio attuale' : ''}`
+        }
+        disabled={forgotten}
+        draggable={!inPuzzle && !forgotten}
         onDragStart={(e) => e.dataTransfer.setData('application/lingus-word', id)}
         onClick={() =>
           inPuzzle
@@ -578,7 +641,7 @@ function App() {
           <Glyph id={id} size={25} />
         </span>
         <span className="word-label">{word.label}</span>
-        <span className="word-kind">{KIND_NAMES[word.kind]}</span>
+        <span className="word-kind">{forgotten ? 'Da riscoprire' : KIND_NAMES[word.kind]}</span>
         {memory && !INNATE_WORDS.includes(id) && (
           <span className="retention-line">
             <span style={{ width: `${memory.retention}%` }} />
@@ -835,81 +898,32 @@ function App() {
                   livingUnits.map((unit, index) => {
                     const spark = game.sparks.find((s) => s.unitId === unit.id);
                     return (
-                      <button
-                        className={`unit-card ${target?.id === unit.id ? 'selected' : ''}`}
+                      <TribeMemberCard
                         key={unit.id}
-                        onClick={() => {
+                        state={game}
+                        unit={unit}
+                        index={index}
+                        selected={target?.id === unit.id}
+                        custodian={custodianByUnit.get(unit.id)}
+                        onActivate={() => {
                           if (spark) openSpark(spark);
                           else {
                             setExecutorId(unit.id);
                             setTarget({ type: 'unit', id: unit.id, x: unit.x, y: unit.y });
                           }
                         }}
-                        aria-label={
-                          spark
-                            ? `Scintilla di ${individuality ? unit.name : 'un compagno'}`
-                            : individuality
-                              ? `Seleziona ${unit.name}`
-                              : 'Seleziona un compagno'
-                        }
-                      >
-                        <span className={`unit-portrait portrait-${index % 7}`}>
-                          <span className="portrait-head" />
-                          <span className="portrait-body" />
-                          {unit.age >= 14 && <span className="elder-hair" />}
-                        </span>
-                        <span className="unit-info">
-                          <strong>
-                            {individuality ? unit.name : 'Un compagno'}
-                            {individuality && unit.age >= 14 && <small>ANZIANO</small>}
-                            {individuality && unit.age < 4 && <small>GIOVANE</small>}
-                          </strong>
-                          <span>
-                            {!individuality && unit.isolation && unit.isolation >= 3
-                              ? `Isolato (${Math.floor(unit.isolation)}s/30s)`
-                              : (ACTION_NAMES[unit.action] ?? unit.action)}
-                          </span>
-                        </span>
-                        {custodianByUnit.has(unit.id) && (
-                          <MessageCircle
-                            size={14}
-                            className={`custodian-indicator ${custodianByUnit.get(unit.id)!.risk}`}
-                            aria-label="Ultimo custode"
-                          >
-                            <title>
-                              Ultimo custode:{' '}
-                              {custodianByUnit
-                                .get(unit.id)!
-                                .wordIds.map((id) => WORDS[id].label)
-                                .join(', ')}
-                            </title>
-                          </MessageCircle>
-                        )}
-                        {spark ? (
-                          <Sparkles size={16} className="spark-indicator" />
-                        ) : (
-                          <span
-                            className="unit-health"
-                            title={`Salute ${quantity(unit.hp)}`}
-                            style={{ '--health': `${unit.hp}%` } as React.CSSProperties}
-                          />
-                        )}
-                      </button>
+                      />
                     );
                   })}
               </div>
-              {selectedUnit && hasWord(game, 'S_02') && (
-                <div className="individual-card">
+              {selectedUnit && (
+                <div className="individual-card person-details">
                   <div>
                     <span className="eyebrow">
-                      {selectedUnit.name.toUpperCase()} ·{' '}
+                      {visibleUnitName(game, selectedUnit).toUpperCase()} ·{' '}
                       {numbered
                         ? `${Math.floor(selectedUnit.age)} STAGIONI`
-                        : selectedUnit.age >= 14
-                          ? 'ANZIANO'
-                          : selectedUnit.age < 4
-                            ? 'GIOVANE'
-                            : 'ADULTO'}
+                        : lifeStageLabel(selectedUnit).toUpperCase()}
                     </span>
                     <button
                       className="icon-button small"
@@ -919,6 +933,29 @@ function App() {
                       <X size={13} />
                     </button>
                   </div>
+                  <p className="person-demographics">
+                    {sexLabel(selectedUnit)} · {lifeStageLabel(selectedUnit)}
+                    {individuality && selectedUnit.parentIds && (
+                      <>
+                        {' '}
+                        · Genitori:{' '}
+                        {selectedUnit.parentIds
+                          .map(
+                            (id) =>
+                              game.units.find((unit) => unit.id === id)?.name ?? 'un compagno',
+                          )
+                          .join(' e ')}
+                      </>
+                    )}
+                  </p>
+                  <p className="person-life-hint">{unitLifeHint(selectedUnit)}</p>
+                  {physicalWarnings(selectedUnit).length > 0 && (
+                    <p className="person-danger">
+                      {physicalWarnings(selectedUnit)
+                        .map((warning) => warning.label)
+                        .join(' · ')}
+                    </p>
+                  )}
                   <p>
                     <Heart size={13} /> {quantity(selectedUnit.hp)} salute <AppleIcon />{' '}
                     {quantity(selectedUnit.hunger)} fame
@@ -999,6 +1036,13 @@ function App() {
           className={`map-section ${mobileSection === 'map' ? 'mobile-visible' : ''}`}
           aria-label="Mappa e ordini"
         >
+          <OpeningGuide
+            state={game}
+            onHome={() => {
+              setFocusRequest({ ...game.home, nonce: Date.now() });
+              setTarget({ type: 'point', ...game.home });
+            }}
+          />
           {nextSpark && (
             <button
               type="button"
@@ -1030,6 +1074,7 @@ function App() {
           <div className="map-frame">
             <WorldMap
               state={game}
+              focusRequest={focusRequest}
               selectedTarget={target}
               groupAnchor={groupAnchor}
               isGroupActive={sentence.includes('S_01')}
@@ -1476,8 +1521,8 @@ function App() {
         <div className="lexicon-bar">
           <div className="lexicon-label">
             <BookOpen size={16} />
-            <span>LE PAROLE CHE CONOSCI</span>
-            <b>{known.length}</b>
+            <span>LE PAROLE DELLA TRIBÙ</span>
+            <b title="Parole vive. I tasselli spenti sono da riscoprire.">{known.length}</b>
           </div>
           <div className="word-filters" role="group" aria-label="Filtra le parole">
             {(['all', 'S', 'V', 'O', 'M', 'C'] as const)
@@ -1497,7 +1542,7 @@ function App() {
           </button>
         </div>
         <div className="word-shelf">
-          {known
+          {discovered
             .filter((id) => filter === 'all' || WORDS[id].kind === filter)
             .map((id) => renderWord(id))}
           <div className="unknown-words">
@@ -1520,6 +1565,36 @@ function App() {
         </span>
       </footer>
 
+      {unreadEvents.length > 0 && !panel && game.started && (
+        <div className="life-notifications">
+          <TribeEvents
+            state={game}
+            events={unreadEvents}
+            onFocus={(id) => {
+              const unit = game.units.find((u) => u.id === id);
+              if (!unit) return;
+              setMobileSection('map');
+              setTarget({
+                type: unit.hp > 0 ? 'unit' : 'point',
+                id: unit.hp > 0 ? unit.id : undefined,
+                x: unit.x,
+                y: unit.y,
+              });
+              setFocusRequest({ x: unit.x, y: unit.y, nonce: Date.now() });
+            }}
+          />
+          <button
+            className="text-button"
+            onClick={() =>
+              setDismissedEvents(
+                (previous) => new Set([...previous, ...acknowledgedTribeEventIds(unreadEvents)]),
+              )
+            }
+          >
+            Ho letto <X size={13} />
+          </button>
+        </div>
+      )}
       {toast && (
         <div className="toast" role="status">
           <Sparkles size={16} />
@@ -1560,6 +1635,28 @@ function App() {
               </span>
             ))}
           </div>
+          <ModePicker
+            value={newMode}
+            onChange={(mode) => {
+              setNewMode(mode);
+              setGame(createGame(6842, mode));
+              setPauseOnEvents(mode === 'guided');
+            }}
+          />
+          <label className="event-pause-setting">
+            <input
+              type="checkbox"
+              checked={pauseOnEvents}
+              onChange={(event) => setPauseOnEvents(event.target.checked)}
+            />
+            <span>
+              Pausa sulle Scintille e sugli eventi della tribù
+              <small>
+                Leggi con calma e riprendi il tempo quando sei pronto. Puoi cambiare questa scelta
+                nelle impostazioni.
+              </small>
+            </span>
+          </label>
           <button
             className="primary-button"
             onClick={() => {
@@ -1857,6 +1954,11 @@ function App() {
               <small> attenzione</small>
             </strong>
           </div>
+          <TribeEvents
+            state={game}
+            events={(game.tribeEvents ?? []).filter((event) => event.time >= game.time - 90)}
+            summary
+          />
           <div className="teaching-list">
             {known
               .filter((id) => !INNATE_WORDS.includes(id))
@@ -2055,6 +2157,24 @@ function App() {
             La partita viene salvata ogni cinque secondi su questo browser. Esporta una copia per
             portarla con te.
           </p>
+          <p className="mode-label">
+            Partita {game.playMode === 'guided' ? 'Guidata' : 'Classica'}. La modalità si sceglie
+            all’inizio di una nuova storia.
+          </p>
+          <label className="event-pause-setting">
+            <input
+              type="checkbox"
+              checked={pauseOnEvents}
+              onChange={(event) => setPauseOnEvents(event.target.checked)}
+            />
+            <span>
+              Pausa automatica sugli eventi importanti
+              <small>
+                Ferma il tempo quando nasce una Scintilla, nasce o muore un compagno, oppure si
+                perde una parola. Puoi riprendere quando sei pronto.
+              </small>
+            </span>
+          </label>
           <div className="settings-actions">
             <button onClick={saveGame}>
               <Save size={19} />
@@ -2119,6 +2239,7 @@ function App() {
           <p>
             La partita attuale verrà sostituita. Puoi esportarla prima di iniziare una nuova storia.
           </p>
+          <ModePicker value={newMode} onChange={setNewMode} />
           <button className="primary-button" onClick={restart}>
             Inizia una nuova storia <ArrowRight size={17} />
           </button>
@@ -2221,6 +2342,32 @@ function App() {
 
 function AppleIcon() {
   return <Glyph id="V_02" size={15} />;
+}
+function ModePicker({
+  value,
+  onChange,
+}: {
+  value: 'guided' | 'classic';
+  onChange: (mode: 'guided' | 'classic') => void;
+}) {
+  return (
+    <div className="mode-picker" role="group" aria-label="Modalità di gioco">
+      <button type="button" aria-pressed={value === 'guided'} onClick={() => onChange('guided')}>
+        <strong>Guidata</strong>
+        <small>
+          Qui dopo la prima notte, anziana iniziale più giovane, trasporto e utensili ripetuti
+          durante il giorno.
+        </small>
+      </button>
+      <button type="button" aria-pressed={value === 'classic'} onClick={() => onChange('classic')}>
+        <strong>Classica</strong>
+        <small>
+          Il ritmo attuale: Qui dopo due notti, anziana a quattordici stagioni, trasporti e
+          manufatti singoli.
+        </small>
+      </button>
+    </div>
+  );
 }
 function HammerIcon() {
   return <Glyph id="V_06" size={17} />;

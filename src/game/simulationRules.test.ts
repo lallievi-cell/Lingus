@@ -355,7 +355,7 @@ describe('physical rule connections from the guide', () => {
       a = s.units[0],
       b = cloneUnit(s, 'parent-b');
     Object.assign(a, { strength: 2, intelligence: 4, sleptThisNight: true });
-    Object.assign(b, { strength: 8, intelligence: 10, sleptThisNight: true });
+    Object.assign(b, { sex: 'F', strength: 8, intelligence: 10, sleptThisNight: true });
     s.time = 90;
     seasonalCore(s);
     expect(s.stats.births).toBe(1);

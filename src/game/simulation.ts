@@ -54,7 +54,9 @@ import {
 } from './dogmas';
 import { imperialLawEffects, recordLawWork } from './imperialLawPolicy';
 import { enforceActionLaws } from './imperial';
+import { canPayLocally, payLocally } from './craftMaterials';
 import { applyCivilAssault, CIVIL_LAW_ASSUMPTIONS, updateCivilConflicts } from './civilLaw';
+import { newbornName, pairFertileUnits, recordTribeEvent } from './demography';
 import type {
   Building,
   BuildingKind,
@@ -303,10 +305,19 @@ function witnessAnimalWound(s: GameState, victim: Unit) {
 }
 export function killUnit(s: GameState, u: Unit, cause = 'trauma') {
   if (u.hp <= 0 && u.action === 'dead') return;
+  const own = u.factionId === undefined || u.factionId === 'player',
+    wordIds = Object.entries(s.words)
+      .filter(
+        ([word, memory]) =>
+          WORDS[word].tier > 0 && memory.retention > 0 && memory.custodians.includes(u.id),
+      )
+      .map(([word]) => word),
+    lostWordIds: string[] = [];
   const dogmatic = handleDogmaticDeath(s, u, cause);
   u.hp = 0;
   u.action = 'dead';
   u.lastDamageCause = cause;
+  u.deathAt = s.time;
   u.pendingCombatDamage = false;
   s.stats.deaths++;
   if (s.urbanized && u.cityId) {
@@ -350,13 +361,23 @@ export function killUnit(s: GameState, u: Unit, cause = 'trauma') {
     if (WORDS[word].tier === 0 || !m.custodians.includes(u.id)) continue;
     m.retention = custodianLoss(m.retention, m.custodians.length);
     m.custodians = m.custodians.filter((id) => id !== u.id);
-    if (m.retention <= 0)
+    if (m.retention <= 0 && wordIds.includes(word)) {
+      lostWordIds.push(word);
+      if (own)
+        recordTribeEvent(s, {
+          kind: 'word-lost',
+          unitId: u.id,
+          wordId: word,
+          cause: 'custodian-death',
+        });
       log(
         s,
         `L’ultimo custode di «${WORDS[word].label}» è morto. La parola va riscoperta.`,
         'danger',
       );
+    }
   }
+  if (own) recordTribeEvent(s, { kind: 'death', unitId: u.id, cause, wordIds, lostWordIds });
   s.sparks = s.sparks.filter((p) => p.unitId !== u.id);
   s.recentTrauma = { tag: 'ENV_CORPSE', time: s.time };
   log(s, `${u.name} è morto. La sua memoria appartiene ora alla tribù.`, 'danger');
@@ -372,6 +393,7 @@ export function resetUnit(u: Unit) {
   u.suspendedJob = undefined;
   u.paidConstruction = undefined;
   u.buildingKind = undefined;
+  u.craftNeedsPayment = undefined;
 }
 function resetKeepingJob(u: Unit) {
   const job = u.suspendedJob;
@@ -928,10 +950,44 @@ export function civilStrike(s: GameState, attacker: Unit, victim: Unit, requeste
     );
   return applyCivilAssault(s, attacker, victim, damage, killUnit, () => recordAttackTrauma(s));
 }
+function guidedDirectTask(s: GameState, u: Unit, tokens: string[]) {
+  return (
+    s.playMode === 'guided' &&
+    tokens.length > 0 &&
+    !['C_01', 'C_02'].includes(tokens[0]) &&
+    u.hp > 0 &&
+    u.hunger < 75 &&
+    u.temp > 30 &&
+    !seasonOf(s).isNight &&
+    tokens.every((id) => hasWord(s, id))
+  );
+}
+function guidedMaterialTransport(s: GameState, tokens: string[]) {
+  return (
+    s.playMode === 'guided' &&
+    tokens.includes('V_04') &&
+    tokens.some((id) => ['O_02', 'O_03', 'O_07'].includes(id)) &&
+    !tokens.includes('O_04') &&
+    !['C_01', 'C_02'].includes(tokens[0])
+  );
+}
+function plainToolCraft(tokens: string[]) {
+  return tokens.includes('V_06') && tokens.length === 3 && tokens[2] === 'O_02';
+}
 export function processWork(s: GameState, u: Unit, dt: number) {
   const e = s.entities.find((e) => e.id === u.targetId),
     tokens = u.command ?? [],
     verb = tokens.find((t) => WORDS[t]?.kind === 'V');
+  if (u.action === 'gathering' && guidedMaterialTransport(s, tokens)) {
+    if (
+      !guidedDirectTask(s, u, tokens) ||
+      !e ||
+      !enforceActionLaws(s, tokens, { type: 'entity', id: e.id, x: e.x, y: e.y }, [u.id])
+    ) {
+      if (u.hp > 0) resetUnit(u);
+      return;
+    }
+  }
   const foreign = s.units.find(
     (v) => v.id === u.targetId && v.hp > 0 && v.factionId && v.factionId !== 'player',
   );
@@ -1057,7 +1113,25 @@ export function processWork(s: GameState, u: Unit, dt: number) {
         }
       }
     }
-    resetUnit(u);
+    // Guided direct orders are a day task, not a permanent tradition. A return
+    // always completes physically; only the next trip is conditional.
+    if (
+      verb === 'V_04' &&
+      guidedMaterialTransport(s, tokens) &&
+      guidedDirectTask(s, u, tokens) &&
+      e &&
+      e.amount > resourcePreservationFloor(s, e) &&
+      ['wood', 'stone', 'ore'].includes(entityResource(e)) &&
+      freeCapacity(s, entityResource(e)) > 0 &&
+      matchingEntities(s, tokens, u).includes(e) &&
+      !forbiddenByDogma(s, tokens, { type: 'entity', id: e.id, x: e.x, y: e.y }, u) &&
+      enforceActionLaws(s, tokens, { type: 'entity', id: e.id, x: e.x, y: e.y }, [u.id])
+    ) {
+      u.action = 'gathering';
+      u.progress = 0;
+      u.tx = e.x;
+      u.ty = e.y;
+    } else if (u.hp > 0) resetUnit(u);
     return;
   }
   if (u.action === 'building') {
@@ -1066,6 +1140,21 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     return;
   }
   if (u.action === 'crafting' || u.action === 'cooking') {
+    if (u.craftNeedsPayment) {
+      if (
+        !plainToolCraft(tokens) ||
+        !guidedDirectTask(s, u, tokens) ||
+        freeCapacity(s, 'tool') < 1 ||
+        !canPayLocally(s, { stone: 1 }, u) ||
+        forbiddenByDogma(s, tokens, undefined, u) ||
+        !enforceActionLaws(s, tokens, undefined, [u.id])
+      ) {
+        if (u.hp > 0) resetUnit(u);
+        return;
+      }
+      payLocally(s, { stone: 1 }, u);
+      u.craftNeedsPayment = false;
+    }
     if (!move(s, u, u.tx ?? s.home.x, u.ty ?? s.home.y, dt)) return;
     if (!workCycle(s, u, dt, 5)) return;
     if (verb === 'V_06') {
@@ -1080,7 +1169,12 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     }
     recordLawWork(s, u.id, tokens);
     onDogmaticUse(s, tokens, u);
-    resetUnit(u);
+    // Do not prepay a speculative cycle: a spark or a new order may interrupt
+    // before the next tick. Only the next actual work update pays its stone.
+    if (plainToolCraft(tokens) && guidedDirectTask(s, u, tokens)) {
+      u.progress = 0;
+      u.craftNeedsPayment = true;
+    } else resetUnit(u);
     return;
   }
   if (u.action === 'guarding') {
@@ -1423,6 +1517,7 @@ function startInstinct(s: GameState, u: Unit, dt: number) {
   }
 }
 function assignTradition(s: GameState, u: Unit) {
+  if (u.age < ADULT_AGE) return false;
   for (const t of s.traditions) {
     const tokens = t.tokens,
       condition = tokens[0];
@@ -1582,7 +1677,9 @@ export function updateUnits(s: GameState, dt: number) {
           ? 'ENV_STARVATION'
           : u.temp <= 20
             ? 'C_01'
-            : 'trauma',
+            : u.plagueUntil && u.plagueUntil > s.time
+              ? 'STAT_PLAGUE'
+              : 'trauma',
       );
       continue;
     }
@@ -1775,7 +1872,7 @@ export function seasonalCore(s: GameState) {
     u.sleptThisNight = false;
     u.restedThisSeason = false;
   }
-  if (s.nightSleeping >= 2)
+  if (s.nightSleeping >= (s.playMode === 'guided' ? 1 : 2))
     for (const u of slept) recordEvent(s, u, 'ENV_SLEEP_CLUSTER', 100, ['O_01']);
   if (
     season.index === 2 &&
@@ -2025,17 +2122,15 @@ export function seasonalCore(s: GameState) {
       ) *
       fx.growth *
       imperialLawEffects(s).birthMultiplier;
-    for (
-      let pair = 0;
-      pair < Math.floor(fertile.length / 2) && activeUnits(s).length < housing;
-      pair++
-    )
+    const pairs = pairFertileUnits(fertile);
+    for (let pair = 0; pair < pairs.length && activeUnits(s).length < housing; pair++)
       if (random(s) < chance) {
-        const p = fertile[pair * 2],
-          q = fertile[pair * 2 + 1],
+        const [p, q] = pairs[pair],
           u: Unit = {
             id: nextId(s, 'unit'),
-            name: `Voce ${s.stats.births + 1}`,
+            name: '',
+            parentIds: [p.id, q.id],
+            bornAt: s.time,
             x: s.home.x,
             y: s.home.y,
             hp: 60,
@@ -2058,10 +2153,13 @@ export function seasonalCore(s: GameState) {
             tension: {},
             cooldowns: {},
           };
+        u.sex = random(s) < 0.5 ? 'M' : 'F';
+        u.name = newbornName(s, u.sex);
         s.units.push(u);
         for (const w of INNATE_WORDS) s.words[w].custodians.push(u.id);
         s.stats.births++;
-        log(s, 'Una nuova voce nasce nella comunità.', 'good');
+        recordTribeEvent(s, { kind: 'birth', unitId: u.id, parentIds: u.parentIds });
+        log(s, `${u.name} nasce nella comunità, da ${p.name} e ${q.name}.`, 'good');
       }
   }
   const corpses = s.entities.filter(
@@ -2109,12 +2207,16 @@ export function finishSeasonMemory(s: GameState) {
         );
     }
     m.support = support;
+    const remembered = m.retention > 0;
     m.retention = clamp(
       m.retention + retentionDelta(m.uses, 0, w.complexity, support, fx.gamma * fx.decay),
     );
     m.uses = 0;
     m.investment = 0;
-    if (m.retention <= 0) log(s, `«${w.label}» è stata dimenticata.`, 'danger');
+    if (remembered && m.retention <= 0) {
+      recordTribeEvent(s, { kind: 'word-lost', wordId: id, cause: 'forgetting' });
+      log(s, `«${w.label}» è stata dimenticata.`, 'danger');
+    }
   }
   advanceTier(s);
 }

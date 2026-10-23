@@ -86,6 +86,8 @@ Il server di sviluppo viene avviato automaticamente dai test oppure riutilizzato
 
 ## Struttura e fedeltà
 
+Le nuove partite propongono **Guidata**, con più margine per il primo Falò e compiti materiali ripetuti; **Classica** conserva il ritmo precedente. Entrambe mostrano sesso e fasi di vita, avvisi di nascite e lutti, parole perdute riconoscibili e pausa opzionale sugli eventi. [ONBOARDING-CALIBRATION.md](docs/ONBOARDING-CALIBRATION.md) riporta le differenze e la prova ordinaria del primo Falò.
+
 - `src/game/content.ts`, `types.ts`, `state.ts`: cataloghi, schema e stato iniziale.
 - `src/game/math.ts`: formule isolate; `runtime.ts`: inventario e utilità condivise.
 - `src/game/simulation.ts`, `engine.ts`: vita individuale, eventi, lavoro, stagioni, memoria e API dei comandi.
@@ -93,6 +95,6 @@ Il server di sviluppo viene avviato automaticamente dai test oppure riutilizzato
 - `src/game/imperial.ts`: città, economia, diplomazia, logistica, leggi, eserciti e condizioni finali.
 - `src/App.tsx`, `src/components/`: interfaccia evolutiva e mappa.
 
-Le scelte per i 35 punti di interpretazione o rappresentazione censiti sono in [DECISIONS.md](docs/DECISIONS.md); i completamenti e le verifiche aperte sono in [REMAINING.md](docs/REMAINING.md).
+Le scelte di interpretazione, rappresentazione e calibrazione sono in [DECISIONS.md](docs/DECISIONS.md); i completamenti e le verifiche aperte sono in [REMAINING.md](docs/REMAINING.md).
 
 Le regole definitive sono riassunte in [DESIGN.md](docs/DESIGN.md). [CONFORMANCE.md](docs/CONFORMANCE.md) collega i requisiti alla fonte e alle prove e collega gli indefiniti alle decisioni adottate. [ROADMAP.md](docs/ROADMAP.md) distingue verifiche ancora necessarie, decisioni di design e lavoro di prodotto.

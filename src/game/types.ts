@@ -149,6 +149,10 @@ export interface MemoryEvent {
 export interface Unit {
   id: string;
   name: string;
+  sex?: 'M' | 'F';
+  parentIds?: [string, string];
+  bornAt?: number;
+  deathAt?: number;
   x: number;
   y: number;
   hp: number;
@@ -196,6 +200,7 @@ export interface Unit {
   lastEventAt?: Record<string, number>;
   jobBuildingId?: string;
   suspendedJob?: { buildingId: string; command: string[] };
+  craftNeedsPayment?: boolean;
 }
 export interface Spark {
   id: string;
@@ -234,6 +239,18 @@ export interface LogEntry {
   time: number;
   text: string;
   tone: 'info' | 'good' | 'warning' | 'danger' | 'discovery';
+}
+/** Persistent, bounded history of changes the player should be able to notice. */
+export interface TribeEvent {
+  id: string;
+  time: number;
+  kind: 'birth' | 'death' | 'word-lost';
+  unitId?: string;
+  parentIds?: [string, string];
+  wordId?: string;
+  cause?: string;
+  wordIds?: string[];
+  lostWordIds?: string[];
 }
 export interface Target {
   type: 'point' | 'entity' | 'unit' | 'building' | 'city' | 'battalion' | 'caravan';
@@ -397,6 +414,7 @@ export interface DisasterState {
 }
 export interface GameState {
   version: 2;
+  playMode?: 'guided' | 'classic';
   seed: number;
   time: number;
   seasonIndex: number;
@@ -417,6 +435,7 @@ export interface GameState {
   sparks: Spark[];
   dogmas: Dogma[];
   logs: LogEntry[];
+  tribeEvents?: TribeEvent[];
   explored: { x: number; y: number }[];
   stats: {
     commands: number;

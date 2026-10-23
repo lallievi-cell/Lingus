@@ -1,6 +1,7 @@
 import type { GameState, Resource, WorldTarget } from '../game/types';
 import { hasBuilding } from '../game/runtime';
 import { getCustodianStatuses, type CustodianStatus } from '../game/custodianStatus';
+import { getLifeStage, resolveUnitSex } from '../game/demography';
 import { getGroundPiles, groundPileFor, resourceKnown, type GroundPile } from './mapResourceLayout';
 
 export const visibleBorderRadius = (state: GameState) => (hasBuilding(state, 'palace') ? 100 : 35);
@@ -1822,6 +1823,7 @@ function drawUnit(
   carryRecognized: boolean,
   custodian?: CustodianStatus,
   isGroupMember = false,
+  newbornArrival = false,
 ) {
   const { x, y } = worldPoint(unit.x, unit.y);
   const id = Array.from(unit.id).reduce((n, c) => n + c.charCodeAt(0), 0);
@@ -1830,11 +1832,36 @@ function drawUnit(
   );
   const sleeping = /sleep|dorm/i.test(unit.action);
   const bob = moving ? Math.sin(time * 9 + id) * 0.7 : Math.sin(time * 2 + id) * 0.2;
-  const colors = ['#987f51', '#637c6c', '#ad805a', '#8e8266', '#767d8a', '#b39b66', '#77804e'];
+  const stage = getLifeStage(unit),
+    female = resolveUnitSex(unit) === 'F',
+    elder = stage === 'elder',
+    child = stage === 'child',
+    newborn = stage === 'newborn';
+  // Age changes the silhouette; hair and the cut of clothing distinguish adults
+  // as well as their palette. None of these visible traits requires a word.
+  const colors =
+    child || newborn
+      ? ['#71836b', '#8c9877', '#778b83']
+      : female
+        ? ['#ad7c64', '#a76d58', '#b48a6c', '#9c7465']
+        : ['#987f51', '#7f785a', '#a18659', '#8d8063'];
   const tunic = colors[id % colors.length];
   const skin = ['#c2a07a', '#b9946d', '#c5a780'][id % 3];
+  const hair = elder ? '#d8d6c2' : '#514b38';
   ctx.save();
   ctx.translate(x, y + bob);
+  if (newbornArrival) {
+    const pulse = (1 + Math.sin(time * 4)) / 2;
+    ctx.save();
+    ctx.strokeStyle = `rgba(100, 135, 94, ${0.6 - pulse * 0.25})`;
+    ctx.fillStyle = '#9dbd7730';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(0, 1, 13 + pulse * 5, 5.5 + pulse * 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
   if (isGroupMember) {
     const pulse = 0.42 + Math.sin(time * 3.5 + id) * 0.16;
     ctx.save();
@@ -1847,10 +1874,32 @@ function drawUnit(
     ctx.stroke();
     ctx.restore();
   }
-  oval(ctx, 2, 3, 7, 2.7, '#39482d33');
-  if (sleeping) {
+  oval(ctx, 2, 3, newborn ? 4.5 : child ? 5.5 : 7, 2.7, '#39482d33');
+  // Keep the feet, selection and warning markers at the real map position.
+  // Scaling only the body also keeps a child easy to select on a touch screen.
+  ctx.save();
+  const bodyScale = child ? 0.7 : elder ? 0.94 : newborn ? 0.82 : 1;
+  ctx.scale(bodyScale, bodyScale);
+  if (newborn) {
+    // A bundle and a large round face, rather than a miniature working adult.
+    oval(ctx, 0, -5, 4.7, 6.5, '#eee0bb');
+    oval(ctx, 0, -5, 3.8, 5.5, tunic);
+    line(
+      ctx,
+      [
+        [-3, -8],
+        [3, -4],
+        [-3, -1],
+      ],
+      '#d6d3ae',
+      1.3,
+    );
+    oval(ctx, 0, -12, 3.6, 3.7, skin);
+    oval(ctx, -0.2, -14.1, 3.3, 1.6, hair);
+  } else if (sleeping) {
     oval(ctx, 0, 0, 7, 3.3, tunic);
     oval(ctx, 6, -1, 2.7, 2.7, skin);
+    oval(ctx, 7, -2.7, 2.3, 1.4, hair);
     ctx.font = 'italic 9px Georgia';
     ctx.fillStyle = '#6a775a';
     ctx.fillText('z', 7, -8);
@@ -1876,21 +1925,33 @@ function drawUnit(
       '#776547',
       2,
     );
+    const shoulders = child ? 3.6 : female ? 3.8 : 5,
+      hem = child ? 4.7 : female ? 6.3 : 4.7,
+      shoulderY = elder ? -12 : -14;
     polygon(
       ctx,
       [
-        [-3, -13],
-        [3, -13],
-        [5, -3],
-        [-4, -3],
+        [-shoulders, shoulderY + (elder ? 1 : 0)],
+        [shoulders, shoulderY],
+        [hem, -3],
+        [-hem, -3],
       ],
       tunic,
     );
     line(
       ctx,
       [
-        [-3, -11],
-        [-6, -6 + leg * 0.3],
+        [-hem + 0.7, -6],
+        [hem - 0.7, -6],
+      ],
+      '#ddc399',
+      1.1,
+    );
+    line(
+      ctx,
+      [
+        [-shoulders, shoulderY + 2],
+        [-7, -6 + leg * 0.3],
       ],
       skin,
       2,
@@ -1898,15 +1959,32 @@ function drawUnit(
     line(
       ctx,
       [
-        [3, -11],
-        [6, -7 - leg * 0.3],
+        [shoulders, shoulderY + 2],
+        [7, -7 - leg * 0.3],
       ],
       skin,
       2,
     );
-    oval(ctx, 0, -16, 3.6, 4, skin);
-    oval(ctx, -0.3, -18.5, 3.8, 2.1, unit.age >= 14 ? '#9a9c84' : '#595943');
-    if (/gather|colp|hunt|work|craft|estr|schegg/i.test(unit.action))
+    const headX = elder ? 2 : 0,
+      headY = elder ? -16 : -18,
+      headRadius = child ? 4.5 : 3.8;
+    if (female && !child) {
+      oval(ctx, headX + 0.9, headY + 1.6, 4.3, 5.3, hair);
+      oval(ctx, headX + 4.2, headY + 0.2, 2.5, 2.9, hair);
+    }
+    oval(ctx, headX, headY, headRadius, child ? 4.8 : 4.2, skin);
+    oval(ctx, headX - 0.2, headY - 2.6, headRadius + 0.2, elder ? 2.8 : 2.2, hair);
+    if (elder && !female)
+      polygon(
+        ctx,
+        [
+          [headX - 2.7, headY + 1],
+          [headX + 3, headY + 1],
+          [headX + 1, headY + 5],
+        ],
+        hair,
+      );
+    if (!child && /gather|colp|hunt|work|craft|estr|schegg/i.test(unit.action))
       line(
         ctx,
         [
@@ -1916,6 +1994,30 @@ function drawUnit(
         '#76674c',
         1.5,
       );
+    else if (elder)
+      line(
+        ctx,
+        [
+          [7, -8],
+          [10, -9],
+          [10.5, 4],
+        ],
+        '#65543d',
+        1.8,
+      );
+    if (child) {
+      // A leaf stitch marks a young learner without assigning a job or skill.
+      line(
+        ctx,
+        [
+          [0, -11],
+          [0, -7],
+        ],
+        '#e3d8af',
+        1.2,
+      );
+      oval(ctx, 1, -10, 1.8, 1, '#dce0be');
+    }
   }
   if (unit.carry && unit.carry.amount > 0 && !sleeping) {
     ctx.save();
@@ -1924,6 +2026,7 @@ function drawUnit(
     drawMaterial(ctx, unit.carry.resource, 0, 0, carryRecognized);
     ctx.restore();
   }
+  ctx.restore();
   if (unit.isolation && unit.isolation > 3 && unit.isolation < 30) {
     oval(ctx, -7, -22, 4.5, 4.5, '#5e755b');
     ctx.fillStyle = '#f8f1db';
@@ -1931,12 +2034,41 @@ function drawUnit(
     ctx.textAlign = 'center';
     ctx.fillText('?', -7, -19.5);
   }
-  if (unit.hp < 45 || unit.hunger > 80) {
-    oval(ctx, 8, -22, 4.5, 4.5, unit.hp < 45 ? '#af7659' : '#bc9a50');
+  if (unit.hp < 45 || unit.hunger >= 80 || unit.temp <= 20) {
+    const cold = unit.temp <= 20 && unit.hp >= 45;
+    oval(ctx, 8, -22, 4.5, 4.5, unit.hp < 45 ? '#ad5941' : cold ? '#668e9a' : '#bc9a50');
     ctx.fillStyle = '#f8f1db';
     ctx.font = 'bold 7px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('!', 8, -19.5);
+    if (cold) {
+      line(
+        ctx,
+        [
+          [8, -25],
+          [8, -19],
+        ],
+        '#f8f1db',
+        1,
+      );
+      line(
+        ctx,
+        [
+          [5.4, -23.5],
+          [10.6, -20.5],
+        ],
+        '#f8f1db',
+        1,
+      );
+      line(
+        ctx,
+        [
+          [5.4, -20.5],
+          [10.6, -23.5],
+        ],
+        '#f8f1db',
+        1,
+      );
+    } else ctx.fillText('!', 8, -19.5);
   }
   if (custodian) {
     const color =
@@ -2304,6 +2436,13 @@ export function drawWorld(
             !!unit.carry && resourceKnown(state, unit.carry.resource),
             custodians.get(unit.id),
             isGroupMember,
+            (state.tribeEvents ?? []).some(
+              (event) =>
+                event.kind === 'birth' &&
+                event.unitId === unit.id &&
+                state.time >= event.time &&
+                state.time - event.time < 5,
+            ),
           );
         }),
     });

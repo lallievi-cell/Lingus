@@ -100,7 +100,7 @@ test('the existing lesson creates a real new custodian and pays attention withou
     'Custodisce da solo: Scheggiare',
   );
   await expect(page.locator('.individual-custody')).toContainText('«Scheggiare»');
-  await expect(page.locator('.individual-card')).toContainText('ANZIANO');
+  await expect(page.locator('.individual-card')).toContainText('ANZIANA');
   await expect(page.locator('.individual-card')).not.toContainText('14 STAGIONI');
   await notice.getByRole('button', { name: /Tramanda al falò/ }).click();
   const word = page.getByLabel('Parola da tramandare: Scheggiare', { exact: true });

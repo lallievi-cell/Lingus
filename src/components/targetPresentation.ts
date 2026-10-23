@@ -1,13 +1,30 @@
 import { BUILDING_NAMES, WORDS } from '../game/content';
 import { hasWord } from '../game/runtime';
 import { CUSTODIAN_RISK_LABELS, getCustodianStatuses } from '../game/custodianStatus';
+import { resolveUnitSex } from '../game/demography';
 import type { GameState, MapEntity, WorldTarget } from '../game/types';
 import { groundPileFor, resourcePileLabel } from './mapResourceLayout';
+import {
+  lifeStageLabel,
+  physicalWarnings,
+  sexLabel,
+  unitLifeHint,
+  visibleUnitName,
+} from './unitReadability';
 
 export interface TargetPresentation {
   label: string;
   stage: string;
-  kind: 'source' | 'ground' | 'carcass' | 'food' | 'stores' | 'landmark' | 'custodian' | 'heat';
+  kind:
+    | 'source'
+    | 'ground'
+    | 'carcass'
+    | 'food'
+    | 'stores'
+    | 'landmark'
+    | 'custodian'
+    | 'heat'
+    | 'person';
   description: string;
   hint?: string;
 }
@@ -144,11 +161,23 @@ export function targetPresentation(
 ): TargetPresentation | null {
   if (!target) return null;
   if (target.type === 'unit') {
+    const unit = state.units.find((person) => person.id === target.id);
+    if (!unit) return null;
+    const physicalStage = `${sexLabel(unit)} · ${lifeStageLabel(unit)}${hasWord(state, 'O_08') ? ` · ${Math.floor(unit.age)} stagioni` : ''}`;
+    const warnings = physicalWarnings(unit).map((warning) => warning.label);
+    if (unit.hp <= 0)
+      return {
+        label: visibleUnitName(state, unit),
+        stage: `${physicalStage} · ${resolveUnitSex(unit) === 'F' ? 'Deceduta' : 'Deceduto'}`,
+        kind: 'person',
+        description: unitLifeHint(unit),
+        hint: 'La Cronaca e il riepilogo della tribù conservano il ricordo di questa perdita.',
+      };
     const custodian = getCustodianStatuses(state).find((status) => status.unitId === target.id);
     if (custodian)
       return {
         label: custodian.displayName,
-        stage: 'Ultimo custode',
+        stage: `${physicalStage} · Ultimo custode`,
         kind: 'custodian',
         description: `Custodisce da solo: ${custodian.wordIds.map((id) => WORDS[id].label).join(', ')}.${
           custodian.reasons.length
@@ -159,6 +188,18 @@ export function targetPresentation(
           ? 'Se muore prima di trasmetterle, queste parole andranno perdute. Insegnale al Falò a un altro compagno.'
           : 'Queste parole vivono nella sua memoria. Insegnale al Falò a un altro compagno per proteggerle.',
       };
+    return {
+      label: visibleUnitName(state, unit),
+      stage: physicalStage,
+      kind: 'person',
+      description: warnings.length
+        ? `${warnings.join(' · ')}. ${unitLifeHint(unit)}`
+        : unitLifeHint(unit),
+      hint:
+        unit.age < 4
+          ? 'I piccoli possono apprendere le parole; gli ordini di lavoro richiedono un adulto.'
+          : 'Seleziona questa persona per osservarne il compito e lo stato fisico.',
+    };
   }
   if (target.type === 'entity') {
     const entity = state.entities.find((e) => e.id === target.id);

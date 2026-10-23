@@ -20,6 +20,8 @@ La fonte intitola “25” il catalogo delle leggi, ma presenta 23 frasi distint
 
 ## Verifiche ancora aperte
 
+La revisione [ONBOARDING-CALIBRATION.md](ONBOARDING-CALIBRATION.md) dimostra un primo Falò guidato con margine prima dell'inverno, oltre a rendere visibili eventi e memoria. Questa prova riguarda l'apertura: non sostituisce le campagne complete elencate sotto.
+
 - **Campagne dal Seed Zero alle ere successive:** la rotta ordinaria supera il primo inverno; non sono ancora dimostrate campagne complete fino a 35 e 150 persone, ricambio generazionale, scrittura e città.
 - **Tre vittorie partendo dall’inizio:** condizioni finali e casi limite sono verificati su stati avanzati preparati. Non dimostrano che ciascuna vittoria sia raggiungibile da una nuova partita senza interventi sullo stato.
 - **Requisiti e interazioni da esercitare:** il registro contiene ancora righe con prove parziali o da svolgere, per esempio probabilità alimentari, alcuni disastri, rese e combinazioni di istituzioni, dogmi, leggi e combattimenti. La matrice dogmatica completa non equivale a ogni effetto provato in ciascun contesto.

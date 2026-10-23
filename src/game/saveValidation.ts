@@ -1,5 +1,6 @@
 import { BUILDING_SPECS, INNATE_WORDS, RESOURCE_ORDER, WORDS } from './content';
 import type { GameState } from './types';
+import { TRIBE_EVENT_LIMIT } from './demography';
 
 type RecordValue = Record<string, unknown>;
 type Check = (value: unknown) => boolean;
@@ -13,6 +14,8 @@ const optional = (v: unknown, check: Check) => v === undefined || check(v);
 const word = (v: unknown) => typeof v === 'string' && Object.hasOwn(WORDS, v);
 const words = (v: unknown) => list(v, word);
 const ids = (v: unknown) => list(v, text);
+const parents = (v: unknown) =>
+  Array.isArray(v) && v.length === 2 && v.every(text) && v[0] !== v[1];
 const point = (v: unknown) => record(v) && number(v.x, 0, 500) && number(v.y, 0, 500);
 const inventory = (v: unknown) => record(v) && RESOURCE_ORDER.every((k) => number(v[k]));
 const numericMap = (v: unknown) => record(v) && Object.values(v).every((x) => number(x, -Infinity));
@@ -76,6 +79,10 @@ const unit = (v: unknown) =>
   named(v) &&
   point(v) &&
   text(v.name) &&
+  optional(v.sex, (x) => x === 'M' || x === 'F') &&
+  optional(v.parentIds, parents) &&
+  optional(v.bornAt, number) &&
+  optional(v.deathAt, number) &&
   number(v.hp, 0, 100) &&
   number(v.hunger, 0, 100) &&
   number(v.temp, 0, 100) &&
@@ -89,6 +96,7 @@ const unit = (v: unknown) =>
   optional(v.command, words) &&
   optional(v.restedThisSeason, flag) &&
   optional(v.pendingCombatDamage, flag) &&
+  optional(v.craftNeedsPayment, flag) &&
   optional(v.suspendedJob, (x) => record(x) && text(x.buildingId) && words(x.command)) &&
   optional(v.eventMemory, (x) => list(x, event)) &&
   optional(v.tension, numericMap) &&
@@ -109,6 +117,32 @@ const unit = (v: unknown) =>
 export function validSave(value: unknown): value is GameState {
   if (!record(value)) return false;
   const s = value;
+  if (!optional(s.playMode, (x) => x === 'guided' || x === 'classic')) return false;
+  if (
+    !optional(
+      s.tribeEvents,
+      (events) =>
+        Array.isArray(events) &&
+        events.length <= TRIBE_EVENT_LIMIT &&
+        unique(events) &&
+        events.every(
+          (event) =>
+            named(event) &&
+            number(event.time) &&
+            ['birth', 'death', 'word-lost'].includes(event.kind as string) &&
+            optional(event.unitId, text) &&
+            optional(event.parentIds, parents) &&
+            optional(event.wordId, word) &&
+            optional(event.cause, text) &&
+            optional(event.wordIds, words) &&
+            optional(event.lostWordIds, words) &&
+            (event.kind !== 'birth' || (text(event.unitId) && parents(event.parentIds))) &&
+            (event.kind !== 'death' || text(event.unitId)) &&
+            (event.kind !== 'word-lost' || word(event.wordId)),
+        ),
+    )
+  )
+    return false;
   if (
     s.version !== 2 ||
     !number(s.time) ||
