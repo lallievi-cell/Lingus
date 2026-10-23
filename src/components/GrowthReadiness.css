@@ -1,0 +1,96 @@
+.growth-readiness {
+  margin: 10px 0 12px;
+  padding: 10px;
+  border: 1px solid #d7ddcd;
+  border-radius: 8px;
+  color: #53624d;
+  background: #f2f3e9;
+  flex-shrink: 0;
+}
+.growth-readiness.growth-possible {
+  border-color: #a6b69b;
+  background: #edf3e5;
+}
+.growth-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.growth-heading svg {
+  flex: 0 0 auto;
+}
+.growth-heading strong {
+  font-size: 11px;
+}
+.growth-heading > span {
+  margin-left: auto;
+  font-size: 10px;
+  color: #75816a;
+}
+.growth-readiness p {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.growth-readiness details {
+  margin-top: 7px;
+}
+.growth-readiness summary {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 650;
+}
+.growth-readiness ul {
+  padding-left: 15px;
+  margin: 8px 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.growth-readiness li + li {
+  margin-top: 4px;
+}
+.growth-readiness small {
+  display: block;
+  font-size: 10px;
+  line-height: 1.5;
+  color: #78816e;
+}
+.growth-counts {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  margin: 8px 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.growth-counts svg {
+  margin-top: 2px;
+  flex: 0 0 auto;
+}
+.individual-card.person-details .growth-person-hint {
+  display: block;
+  font-size: 11px;
+  line-height: 1.55;
+  color: #64784f;
+  border-left: 2px solid #b6c5a8;
+  padding-left: 7px;
+  margin: 8px 0;
+}
+@media (max-width: 760px) {
+  .growth-readiness {
+    margin: 8px 0;
+    padding: 9px;
+  }
+  .growth-heading strong,
+  .growth-readiness p,
+  .growth-readiness ul {
+    font-size: 11px;
+  }
+  .growth-readiness summary {
+    min-height: 30px;
+  }
+}

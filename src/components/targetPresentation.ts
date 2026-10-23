@@ -2,8 +2,9 @@ import { BUILDING_NAMES, WORDS } from '../game/content';
 import { hasWord } from '../game/runtime';
 import { CUSTODIAN_RISK_LABELS, getCustodianStatuses } from '../game/custodianStatus';
 import { resolveUnitSex } from '../game/demography';
+import { visibleUnitEquipment } from '../game/unitEquipment';
 import type { GameState, MapEntity, WorldTarget } from '../game/types';
-import { groundPileFor, resourcePileLabel } from './mapResourceLayout';
+import { groundPileFor, resourceKnown, resourcePileLabel } from './mapResourceLayout';
 import {
   lifeStageLabel,
   physicalWarnings,
@@ -165,6 +166,29 @@ export function targetPresentation(
     if (!unit) return null;
     const physicalStage = `${sexLabel(unit)} · ${lifeStageLabel(unit)}${hasWord(state, 'O_08') ? ` · ${Math.floor(unit.age)} stagioni` : ''}`;
     const warnings = physicalWarnings(unit).map((warning) => warning.label);
+    const equipment = visibleUnitEquipment(state, unit);
+    const equipmentNames: string[] = [];
+    if (equipment.held === 'flint')
+      equipmentNames.push(resourceKnown(state, 'tool') ? 'amigdala di selce' : 'utensile');
+    if (equipment.held === 'spear')
+      equipmentNames.push(
+        resourceKnown(state, 'spear') ? 'lancia con punta di pietra' : 'arma lunga',
+      );
+    if (equipment.held === 'metal-blade')
+      equipmentNames.push(resourceKnown(state, 'metalArms') ? 'lama metallica' : 'arma');
+    if (equipment.held === 'workpiece')
+      equipmentNames.push(
+        hasWord(state, 'O_02') ? 'selce in lavorazione' : 'materiale in lavorazione',
+      );
+    if (equipment.armor === 'metal')
+      equipmentNames.push(
+        resourceKnown(state, 'metalArms') ? 'protezione metallica' : 'protezione',
+      );
+    if (equipment.armor === 'pelt')
+      equipmentNames.push(resourceKnown(state, 'pelt') ? 'protezione di pelle' : 'protezione');
+    const equipmentDescription = equipmentNames.length
+      ? ` Equipaggiamento in uso: ${equipmentNames.join(', ')}.`
+      : '';
     if (unit.hp <= 0)
       return {
         label: visibleUnitName(state, unit),
@@ -183,7 +207,7 @@ export function targetPresentation(
           custodian.reasons.length
             ? ` ${custodian.reasons.map((reason) => CUSTODIAN_RISK_LABELS[reason]).join(' · ')}.`
             : ''
-        }`,
+        }${equipmentDescription}`,
         hint: hasWord(state, 'O_06')
           ? 'Se muore prima di trasmetterle, queste parole andranno perdute. Insegnale al Falò a un altro compagno.'
           : 'Queste parole vivono nella sua memoria. Insegnale al Falò a un altro compagno per proteggerle.',
@@ -192,9 +216,9 @@ export function targetPresentation(
       label: visibleUnitName(state, unit),
       stage: physicalStage,
       kind: 'person',
-      description: warnings.length
-        ? `${warnings.join(' · ')}. ${unitLifeHint(unit)}`
-        : unitLifeHint(unit),
+      description:
+        (warnings.length ? `${warnings.join(' · ')}. ${unitLifeHint(unit)}` : unitLifeHint(unit)) +
+        equipmentDescription,
       hint:
         unit.age < 4
           ? 'I piccoli possono apprendere le parole; gli ordini di lavoro richiedono un adulto.'

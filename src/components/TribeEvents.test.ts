@@ -48,7 +48,9 @@ describe('notices explain real life events without losing unread information', (
     const message = tribeEventText(s, death);
     expect(message.text).toContain('un’anziana è morta per il freddo');
     expect(message.text).toContain('«Legno»');
-    expect(message.text).not.toContain('«Pietra»');
+    expect(message.text).toContain('Custodiva: «Legno», «Pietra»');
+    expect(message.text).toContain('Parole perdute: «Legno»');
+    expect(message.text).toContain('Affidate anche ad altri custodi: «Pietra»');
     expect(message.text).not.toContain('Uma');
   });
   it('keeps additional event pages unread while acknowledging words already explained by a death', () => {

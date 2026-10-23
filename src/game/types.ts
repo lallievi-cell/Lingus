@@ -146,6 +146,11 @@ export interface MemoryEvent {
   weight: number;
   wordIds: string[];
 }
+export interface CombatSource {
+  kind: 'wolf' | 'alpha' | 'mammoth' | 'deer' | 'human' | 'army';
+  id?: string;
+  time: number;
+}
 export interface Unit {
   id: string;
   name: string;
@@ -193,6 +198,8 @@ export interface Unit {
   initialIntelligence?: number;
   droppedResource?: Resource;
   lastDamageCause?: string;
+  /** The real attacker of a positive wound; not an attribution for later illness or exposure. */
+  lastCombatSource?: CombatSource;
   /** A new hostile wound, consumed once by the next individual FSM update. */
   pendingCombatDamage?: boolean;
   lastOrderAt?: number;
@@ -249,6 +256,7 @@ export interface TribeEvent {
   parentIds?: [string, string];
   wordId?: string;
   cause?: string;
+  combatSource?: CombatSource;
   wordIds?: string[];
   lostWordIds?: string[];
 }

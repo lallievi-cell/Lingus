@@ -20,7 +20,7 @@ La fonte intitola “25” il catalogo delle leggi, ma presenta 23 frasi distint
 
 ## Verifiche ancora aperte
 
-La revisione [ONBOARDING-CALIBRATION.md](ONBOARDING-CALIBRATION.md) dimostra un primo Falò guidato con margine prima dell'inverno, oltre a rendere visibili eventi e memoria. Questa prova riguarda l'apertura: non sostituisce le campagne complete elencate sotto.
+La revisione [ONBOARDING-CALIBRATION.md](ONBOARDING-CALIBRATION.md) dimostra anche un primo anno Guidato fino a 390 secondi: quattro seed e una variante ritardata, tredici ordini di gruppo, sei–otto persone vive e tre lezioni pagate. La Guidata rinvia le tormente al secondo inverno; restano da dimostrare preparazione alle tormente successive e rifornimento sostenibile per più anni. Queste prove dell'apertura non sostituiscono le campagne complete elencate sotto.
 
 - **Campagne dal Seed Zero alle ere successive:** la rotta ordinaria supera il primo inverno; non sono ancora dimostrate campagne complete fino a 35 e 150 persone, ricambio generazionale, scrittura e città.
 - **Tre vittorie partendo dall’inizio:** condizioni finali e casi limite sono verificati su stati avanzati preparati. Non dimostrano che ciascuna vittoria sia raggiungibile da una nuova partita senza interventi sullo stato.

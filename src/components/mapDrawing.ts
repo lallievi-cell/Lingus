@@ -2,6 +2,7 @@ import type { GameState, Resource, WorldTarget } from '../game/types';
 import { hasBuilding } from '../game/runtime';
 import { getCustodianStatuses, type CustodianStatus } from '../game/custodianStatus';
 import { getLifeStage, resolveUnitSex } from '../game/demography';
+import { visibleUnitEquipment, type VisibleUnitEquipment } from '../game/unitEquipment';
 import { getGroundPiles, groundPileFor, resourceKnown, type GroundPile } from './mapResourceLayout';
 
 export const visibleBorderRadius = (state: GameState) => (hasBuilding(state, 'palace') ? 100 : 35);
@@ -90,12 +91,23 @@ function line(ctx: CanvasRenderingContext2D, points: number[][], color: string, 
   ctx.stroke();
 }
 
-function polygon(ctx: CanvasRenderingContext2D, points: number[][], color: string) {
+function polygon(
+  ctx: CanvasRenderingContext2D,
+  points: number[][],
+  color: string,
+  stroke?: string,
+  width = 1,
+) {
   ctx.fillStyle = color;
   ctx.beginPath();
   points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
   ctx.closePath();
   ctx.fill();
+  if (stroke) {
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = width;
+    ctx.stroke();
+  }
 }
 
 /** Small physical silhouettes, shared by piles and a person's actual carried load. */
@@ -1815,6 +1827,149 @@ function drawBuilding(
   }
 }
 
+function drawHandheld(
+  ctx: CanvasRenderingContext2D,
+  equipment: VisibleUnitEquipment,
+  time: number,
+  id: number,
+) {
+  if (!equipment.held) return;
+  ctx.save();
+  ctx.translate(7, -8);
+  const swing = Math.sin(time * (equipment.held === 'spear' ? 4 : 6) + id);
+  ctx.rotate(equipment.held === 'spear' ? -0.22 + swing * 0.025 : -0.35 + swing * 0.23);
+  if (equipment.held === 'spear') {
+    // A real spear has both a wooden shaft and a bound, pointed stone head.
+    line(
+      ctx,
+      [
+        [0, 8],
+        [0, -25],
+      ],
+      '#806043',
+      1.9,
+    );
+    polygon(
+      ctx,
+      [
+        [0, -32],
+        [-3.1, -23],
+        [-1, -20],
+        [2.8, -23],
+      ],
+      '#a8afa8',
+      '#596965',
+      0.9,
+    );
+    line(
+      ctx,
+      [
+        [-0.2, -29],
+        [-0.2, -22],
+      ],
+      '#e3e1ca',
+      0.9,
+    );
+    line(
+      ctx,
+      [
+        [-1.5, -21],
+        [1.6, -20],
+        [-1.5, -19],
+      ],
+      '#d8c39a',
+      1,
+    );
+  } else if (equipment.held === 'metal-blade') {
+    line(
+      ctx,
+      [
+        [0, 5],
+        [0, -1],
+      ],
+      '#72543a',
+      2.8,
+    );
+    line(
+      ctx,
+      [
+        [-3.4, -1],
+        [3.4, -1],
+      ],
+      '#9b8050',
+      1.8,
+    );
+    polygon(
+      ctx,
+      [
+        [-2.6, -2],
+        [-2.3, -14],
+        [0, -21],
+        [2.6, -14],
+        [2.2, -2],
+      ],
+      '#b5ae87',
+      '#686e61',
+      0.9,
+    );
+    line(
+      ctx,
+      [
+        [0, -4],
+        [0, -17],
+      ],
+      '#f0e6bc',
+      1,
+    );
+    oval(ctx, 0, 5.6, 1.8, 1.4, '#bca477');
+  } else {
+    const workpiece = equipment.held === 'workpiece';
+    // The lithic recipe pays only stone: this is a hand axe, with no free handle.
+    polygon(
+      ctx,
+      [
+        [-3.4, 1],
+        [-5.3, -4],
+        [-3.5, -10],
+        [0, -14],
+        [3.3, -10],
+        [4.6, -4],
+        [2.3, 1],
+      ],
+      workpiece ? '#88897a' : '#728581',
+      '#4f635e',
+      1,
+    );
+    polygon(
+      ctx,
+      [
+        [-3, -4],
+        [0, -12],
+        [2, -6],
+        [0, -2],
+      ],
+      workpiece ? '#b8baa1' : '#b9c9bd',
+    );
+    line(
+      ctx,
+      [
+        [-3.6, -3],
+        [-1, -5],
+        [1, -3],
+      ],
+      '#d8dcc5',
+      0.8,
+    );
+    if (workpiece) {
+      const flake = (time * 3 + id) % 1;
+      oval(ctx, 6 + flake * 3, -9 + flake * 6, 0.7, 0.5, '#d6d7b5');
+    }
+  }
+  // Fingers remain in front of the object, making the grip legible at map scale.
+  oval(ctx, 0.7, 0.2, 1.8, 1.3, '#c2a07a');
+  ctx.restore();
+}
+
 function drawUnit(
   ctx: CanvasRenderingContext2D,
   unit: GameState['units'][number],
@@ -1824,6 +1979,8 @@ function drawUnit(
   custodian?: CustodianStatus,
   isGroupMember = false,
   newbornArrival = false,
+  equipment: VisibleUnitEquipment = {},
+  numbered = false,
 ) {
   const { x, y } = worldPoint(unit.x, unit.y);
   const id = Array.from(unit.id).reduce((n, c) => n + c.charCodeAt(0), 0);
@@ -1860,6 +2017,14 @@ function drawUnit(
     ctx.ellipse(0, 1, 13 + pulse * 5, 5.5 + pulse * 2, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+    ctx.font = '600 9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.strokeStyle = '#fbf7df';
+    ctx.lineWidth = 3;
+    const caption = numbered ? '+1 Nuova vita' : 'Nuova vita';
+    ctx.strokeText(caption, 0, -29 - pulse * 2);
+    ctx.fillStyle = '#4f7452';
+    ctx.fillText(caption, 0, -29 - pulse * 2);
     ctx.restore();
   }
   if (isGroupMember) {
@@ -1938,6 +2103,64 @@ function drawUnit(
       ],
       tunic,
     );
+    if (equipment.armor === 'metal') {
+      polygon(
+        ctx,
+        [
+          [-shoulders + 0.7, shoulderY + 1.8],
+          [shoulders - 0.7, shoulderY + 1.8],
+          [3.5, -5],
+          [-3.5, -5],
+        ],
+        '#9fa995',
+        '#657c6c',
+        0.8,
+      );
+      line(
+        ctx,
+        [
+          [0, shoulderY + 3],
+          [0, -6],
+        ],
+        '#e0ddbb',
+        0.9,
+      );
+      line(
+        ctx,
+        [
+          [-3, -9],
+          [3, -9],
+        ],
+        '#7b896f',
+        0.7,
+      );
+    } else if (equipment.armor === 'pelt') {
+      polygon(
+        ctx,
+        [
+          [-shoulders - 1, shoulderY],
+          [shoulders + 1, shoulderY + 1],
+          [shoulders + 1.5, -8],
+          [2, -6],
+          [-3, -8],
+          [-shoulders - 1, -7],
+        ],
+        '#d0b58b',
+        '#967957',
+        0.7,
+      );
+      line(
+        ctx,
+        [
+          [-3, shoulderY + 2],
+          [-1, -9],
+          [1, shoulderY + 3],
+          [3, -9],
+        ],
+        '#e5cc9e',
+        0.9,
+      );
+    }
     line(
       ctx,
       [
@@ -1984,16 +2207,7 @@ function drawUnit(
         ],
         hair,
       );
-    if (!child && /gather|colp|hunt|work|craft|estr|schegg/i.test(unit.action))
-      line(
-        ctx,
-        [
-          [6, -10],
-          [10 + Math.sin(time * 6) * 3, -19],
-        ],
-        '#76674c',
-        1.5,
-      );
+    if (!child && equipment.held) drawHandheld(ctx, equipment, time, id);
     else if (elder)
       line(
         ctx,
@@ -2443,6 +2657,8 @@ export function drawWorld(
                 state.time >= event.time &&
                 state.time - event.time < 5,
             ),
+            visibleUnitEquipment(state, unit),
+            hasConcept(state, 'O_08'),
           );
         }),
     });

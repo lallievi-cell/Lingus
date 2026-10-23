@@ -8,15 +8,34 @@ export function OpeningGuide({ state, onHome }: { state: GameState; onHome: () =
   if (state.time >= 360 || state.urbanized) return null;
   const guided = state.playMode === 'guided';
   const fire = hasBuilding(state, 'campfire');
+  const hearth = state.buildings.some(
+    (building) => building.kind === 'campfire' && !building.cityId && building.hp > 0,
+  );
+  const living = state.units.filter(
+    (unit) => unit.hp > 0 && (!unit.factionId || unit.factionId === 'player'),
+  );
+  const cold = living.some((unit) => unit.temp <= 20);
+  const starving = living.some((unit) => unit.hunger >= 95);
   let title: string, text: string;
-  if (!hasWord(state, 'O_03') || !hasWord(state, 'O_02')) {
+  if (cold) {
+    title = 'La tribù sta gelando';
+    text = fire
+      ? 'Riporta il gruppo al giaciglio, dentro il calore del Falò. Ripari e pelli aiutano a recuperare temperatura; durante una tormenta il solo fuoco non basta.'
+      : hearth
+        ? 'Riporta il gruppo al campo e porta legna al Falò per riaccenderlo. Il materiale lasciato lontano dal campo deve ancora essere trasportato.'
+        : 'Serve una fonte di calore: prepara il primo Falò con legna consegnata e l’intuizione del Fuoco. Ripari e pelli proteggono dal freddo; il giaciglio da solo non scalda.';
+  } else if (starving) {
+    title = 'Prima viene il cibo';
+    text =
+      'Interrompi il lavoro di chi ha fame. Gruppo + Mangiare su bacche disponibili o una carcassa sazia sul posto; vicino al campo si possono consumare le scorte consegnate.';
+  } else if (!hasWord(state, 'O_03') || !hasWord(state, 'O_02')) {
     title = hasWord(state, 'O_03') ? 'Prova anche una roccia' : 'Comincia da un albero';
     text = hasWord(state, 'O_03')
-      ? 'Componi Gruppo + Colpire su una roccia vicina. Il lavoro farà conoscere la pietra e come lavorarla. Poi torna al giaciglio prima del buio.'
+      ? 'Componi Gruppo + Colpire su una roccia vicina. Il lavoro farà conoscere la pietra e come lavorarla. Al calare del buio torna al giaciglio.'
       : 'Componi Gruppo + Colpire, scegli un albero vicino e pronuncia. Poi fai lo stesso su una roccia: il lavoro genera le prime intuizioni.';
   } else if (!hasWord(state, 'O_01') && !hasWord(state, 'S_02')) {
-    title = 'Ritrovarsi prima della notte';
-    text = `Prima del buio usa Gruppo + Andare e indica il giaciglio al centro del campo. Dormire vicini per ${guided ? 'una notte' : 'due notti'} fa nascere Qui: non occorre isolare qualcuno.`;
+    title = 'Rientrare al calare del buio';
+    text = `Quando arriva il buio usa Gruppo + Andare verso il giaciglio: camminare al buio fa comprendere Notte. Dormire vicini per ${guided ? 'una notte' : 'due notti'} fa nascere Qui. Una fame notturna, ancora prima di soffrire danni, può far nascere Domani: fai poi mangiare il gruppo, senza aspettare la carestia.`;
   } else if (!hasWord(state, 'V_04')) {
     title = 'Mangiare prima di trasportare';
     text =
@@ -25,18 +44,27 @@ export function OpeningGuide({ state, onHome }: { state: GameState; onHome: () =
     title = 'Prepara il primo fuoco';
     text = `Porta legna e pietra al campo. Poi Gruppo + Scheggiare + Pietra crea utensili e fa nascere l’intuizione del Fuoco.${guided ? ' In Guidata trasporto e utensili continuano durante il giorno, finché ci sono spazio e materiali.' : ' In Classica ogni trasporto e manufatto richiede un nuovo ordine.'} Il Falò richiede cinque legna reali.`;
   } else if (!fire) {
-    title = 'Manca il combustibile';
+    title = hearth ? 'Riaccendi il Falò' : 'Manca il combustibile';
+    text = hearth
+      ? 'Serve una legna al campo per riaccendere il focolare con Conservare + Fuoco. Una guardia presente lo protegge dalle tempeste; controlla le scorte anche prima del cambio di stagione.'
+      : 'Porta cinque legna al campo per accendere il primo Falò. Le risorse lasciate accanto agli alberi sono ancora da trasportare.';
+  } else if (state.time < 180) {
+    title = 'Prepara il primo insegnamento';
     text =
-      'Porta cinque legna al campo per accendere il primo Falò. Le risorse lasciate accanto agli alberi sono ancora da trasportare.';
+      'Il Falò si apre a fine stagione. Fai mangiare il gruppo prima di quel momento: la fame riduce l’Attenzione per insegnare; consegnare legna al Fuoco la aumenta. Conservare + Fuoco assegna una guardia contro le tempeste.';
+  } else if (state.time >= 270) {
+    title = 'Attraversare l’inverno';
+    text =
+      'Le bacche sono gelate fino alla primavera: usa le scorte consegnate o la carne di animali abbattuti. Tieni il gruppo dentro il calore del Falò durante la notte, mantieni legna di riserva e tramanda le parole.';
   } else {
-    title = 'Il fuoco è un inizio';
+    title = 'Scorte prima del gelo';
     text =
-      'Tieni legna per alimentarlo e tramanda le parole al Falò. Per l’inverno prepara anche cibo, ripari o pelli: il fuoco da solo non garantisce calore durante una tormenta.';
+      'Porta cibo prima che il gelo blocchi le bacche; esplora altre pianure se quelle vicine finiscono. Tieni legna per alimentare il Falò e assegna una guardia con Conservare + Fuoco contro le tempeste. Ripari e pelli proteggono dal freddo.';
   }
   const autumn = state.time >= 180 && !fire;
   return (
     <aside
-      className={`opening-guide ${autumn ? 'urgent' : ''} ${expanded ? 'expanded' : ''}`}
+      className={`opening-guide ${autumn || cold || starving ? 'urgent' : ''} ${expanded ? 'expanded' : ''}`}
       aria-label="Prepararsi al primo inverno"
     >
       {fire ? <Flame size={19} /> : <Moon size={19} />}
@@ -49,6 +77,7 @@ export function OpeningGuide({ state, onHome }: { state: GameState; onHome: () =
               ? 'L’inverno è vicino.'
               : 'L’inverno arriva dopo l’autunno.'
             : 'È inverno: resta vicino al riparo.'}
+          {guided && ' In Guidata le tormente possono arrivare dal secondo inverno.'}
         </span>
       </div>
       <button

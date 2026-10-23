@@ -86,7 +86,7 @@ Il server di sviluppo viene avviato automaticamente dai test oppure riutilizzato
 
 ## Struttura e fedeltà
 
-Le nuove partite propongono **Guidata**, con più margine per il primo Falò e compiti materiali ripetuti; **Classica** conserva il ritmo precedente. Entrambe mostrano sesso e fasi di vita, avvisi di nascite e lutti, parole perdute riconoscibili e pausa opzionale sugli eventi. [ONBOARDING-CALIBRATION.md](docs/ONBOARDING-CALIBRATION.md) riporta le differenze e la prova ordinaria del primo Falò.
+Le nuove partite propongono **Guidata**, con più margine per il primo Falò, compiti materiali ripetuti e primo inverno senza tormente; **Classica** conserva il ritmo precedente. Entrambe mostrano sesso e fasi di vita, avvisi di nascite e lutti, parole perdute riconoscibili e pausa opzionale sugli eventi. Il pannello della crescita spiega cosa manca alle nascite; gli strumenti in mano corrispondono all'equipaggiamento effettivamente usato. [ONBOARDING-CALIBRATION.md](docs/ONBOARDING-CALIBRATION.md) riporta le differenze e le prove ordinarie.
 
 - `src/game/content.ts`, `types.ts`, `state.ts`: cataloghi, schema e stato iniziale.
 - `src/game/math.ts`: formule isolate; `runtime.ts`: inventario e utilità condivise.

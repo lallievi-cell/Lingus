@@ -1,5 +1,21 @@
-import { distance } from './runtime';
+import { distance, freeCapacity } from './runtime';
 import type { GameState, Inventory, Resource, Unit } from './types';
+
+/** Stock-first payment frees inventory slots; nearby ground inputs do not. */
+export function canFitCraftOutput(
+  s: GameState,
+  cost: Partial<Inventory>,
+  output: Resource,
+  amount = 1,
+) {
+  const resources = { ...s.resources };
+  for (const [r, n] of Object.entries(cost)) {
+    const key = r as Resource;
+    resources[key] -= Math.min(n, resources[key]);
+  }
+  // Reuse the real storage categories and live carriers' reservations.
+  return freeCapacity({ ...s, resources }, output) >= amount;
+}
 
 /** Real extracted materials within the artisan's 15m reach (decision A-20). */
 export function canPayLocally(s: GameState, cost: Partial<Inventory>, artisan: Unit) {

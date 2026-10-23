@@ -16,6 +16,11 @@ const words = (v: unknown) => list(v, word);
 const ids = (v: unknown) => list(v, text);
 const parents = (v: unknown) =>
   Array.isArray(v) && v.length === 2 && v.every(text) && v[0] !== v[1];
+const combatSource = (v: unknown) =>
+  record(v) &&
+  ['wolf', 'alpha', 'mammoth', 'deer', 'human', 'army'].includes(v.kind as string) &&
+  optional(v.id, text) &&
+  number(v.time);
 const point = (v: unknown) => record(v) && number(v.x, 0, 500) && number(v.y, 0, 500);
 const inventory = (v: unknown) => record(v) && RESOURCE_ORDER.every((k) => number(v[k]));
 const numericMap = (v: unknown) => record(v) && Object.values(v).every((x) => number(x, -Infinity));
@@ -96,6 +101,7 @@ const unit = (v: unknown) =>
   optional(v.command, words) &&
   optional(v.restedThisSeason, flag) &&
   optional(v.pendingCombatDamage, flag) &&
+  optional(v.lastCombatSource, combatSource) &&
   optional(v.craftNeedsPayment, flag) &&
   optional(v.suspendedJob, (x) => record(x) && text(x.buildingId) && words(x.command)) &&
   optional(v.eventMemory, (x) => list(x, event)) &&
@@ -134,6 +140,11 @@ export function validSave(value: unknown): value is GameState {
             optional(event.parentIds, parents) &&
             optional(event.wordId, word) &&
             optional(event.cause, text) &&
+            optional(event.combatSource, combatSource) &&
+            (event.combatSource === undefined ||
+              (event.kind === 'death' &&
+                event.cause === 'V_03' &&
+                (event.combatSource as RecordValue).time === event.time)) &&
             optional(event.wordIds, words) &&
             optional(event.lostWordIds, words) &&
             (event.kind !== 'birth' || (text(event.unitId) && parents(event.parentIds))) &&

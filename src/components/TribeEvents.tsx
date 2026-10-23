@@ -29,7 +29,21 @@ const causes: Record<string, string> = {
   STAT_PLAGUE: 'per una malattia',
   plague: 'per una malattia',
   disease: 'per una malattia',
+  O_14: 'per una sanzione del Tribunale',
 };
+function combatCircumstance(state: GameState, event: TribeEvent) {
+  if (event.cause !== 'V_03' || !event.combatSource) return undefined;
+  const source = event.combatSource;
+  if (source.kind === 'wolf') return 'per l’attacco di un lupo';
+  if (source.kind === 'alpha') return 'per l’attacco di un predatore alfa';
+  if (source.kind === 'mammoth') return 'durante uno scontro con un mammut';
+  if (source.kind === 'deer') return 'durante uno scontro con un cervo';
+  if (source.kind === 'army') return 'durante uno scontro con un esercito';
+  const attacker = state.units.find((unit) => unit.id === source.id);
+  return attacker && hasWord(state, 'S_02')
+    ? `per l’aggressione di ${attacker.name}`
+    : 'per un’aggressione umana';
+}
 export function tribeEventText(state: GameState, event: TribeEvent) {
   const unit = state.units.find((u) => u.id === event.unitId);
   const who = visiblePerson(state, unit);
@@ -48,12 +62,19 @@ export function tribeEventText(state: GameState, event: TribeEvent) {
     };
   }
   if (event.kind === 'death') {
+    const carriedIds = [...new Set(event.wordIds ?? event.lostWordIds ?? [])];
+    const carried = carriedIds.map((id) => `«${WORDS[id].label}»`).join(', ');
     const lost = event.lostWordIds?.map((id) => `«${WORDS[id].label}»`).join(', ');
+    const retained = carriedIds
+      .filter((id) => !event.lostWordIds?.includes(id))
+      .map((id) => `«${WORDS[id].label}»`)
+      .join(', ');
     const cause =
-      event.cause && Object.hasOwn(causes, event.cause) ? causes[event.cause] : undefined;
+      combatCircumstance(state, event) ??
+      (event.cause && Object.hasOwn(causes, event.cause) ? causes[event.cause] : undefined);
     return {
       title: 'Un lutto nella tribù',
-      text: `${who} ${unit && resolveUnitSex(unit) === 'F' ? 'è morta' : 'è morto'}${cause ? ` ${cause}` : ''}.${lost ? ` Con questa memoria sono andate perdute: ${lost}.` : ''}`,
+      text: `${who} ${unit && resolveUnitSex(unit) === 'F' ? 'è morta' : 'è morto'}${cause ? ` ${cause}` : ''}.${carried ? ` Custodiva: ${carried}.` : ''}${lost ? ` Parole perdute: ${lost}.` : ''}${retained ? ` Affidate anche ad altri custodi: ${retained}.` : ''}`,
     };
   }
   return {

@@ -9,7 +9,7 @@ import {
   WORD_ORDER,
 } from './content';
 import { createInitialState } from './state';
-import { canPayLocally, payLocally } from './craftMaterials';
+import { canFitCraftOutput, canPayLocally, payLocally } from './craftMaterials';
 import { validSave } from './saveValidation';
 import { cognitiveSlots, compileSentence, getPredicate, resolveConstruction } from './grammar';
 import { getDogmaEffects, inscribeDogma } from './dogmas';
@@ -22,7 +22,6 @@ import {
   clamp,
   copy,
   distance,
-  freeCapacity,
   hasBuilding,
   hasWord,
   isPlayerBuilding,
@@ -305,7 +304,11 @@ export function issueCommand(
     return s;
   }
   if (verb === 'V_07') cost = args.includes('O_02') ? { stone: 1 } : { meat: 1 };
-  if (verb === 'V_06' && !kind && freeCapacity(s, args.includes('O_03') ? 'spear' : 'tool') < 1) {
+  if (
+    verb === 'V_06' &&
+    !kind &&
+    !canFitCraftOutput(s, cost, args.includes('O_03') ? 'spear' : 'tool')
+  ) {
     log(s, 'Non c’è spazio per un nuovo manufatto.', 'warning');
     return s;
   }

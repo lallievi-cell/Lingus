@@ -54,9 +54,13 @@ import {
 } from './dogmas';
 import { imperialLawEffects, recordLawWork } from './imperialLawPolicy';
 import { enforceActionLaws } from './imperial';
-import { canPayLocally, payLocally } from './craftMaterials';
+import { canFitCraftOutput, canPayLocally, payLocally } from './craftMaterials';
 import { applyCivilAssault, CIVIL_LAW_ASSUMPTIONS, updateCivilConflicts } from './civilLaw';
 import { newbornName, pairFertileUnits, recordTribeEvent } from './demography';
+import { combatEquipmentFor, gatheringEquipmentFor } from './unitEquipment';
+import { eligibleParents, villageHousing } from './growthReadiness';
+import { lethalCombatSource, rememberCombatWound } from './damageAttribution';
+import { sameGroundPile } from './groundPiles';
 import type {
   Building,
   BuildingKind,
@@ -377,7 +381,15 @@ export function killUnit(s: GameState, u: Unit, cause = 'trauma') {
       );
     }
   }
-  if (own) recordTribeEvent(s, { kind: 'death', unitId: u.id, cause, wordIds, lostWordIds });
+  if (own)
+    recordTribeEvent(s, {
+      kind: 'death',
+      unitId: u.id,
+      cause,
+      wordIds,
+      lostWordIds,
+      combatSource: lethalCombatSource(s, u, cause),
+    });
   s.sparks = s.sparks.filter((p) => p.unitId !== u.id);
   s.recentTrauma = { tag: 'ENV_CORPSE', time: s.time };
   log(s, `${u.name} è morto. La sua memoria appartiene ora alla tribù.`, 'danger');
@@ -627,25 +639,7 @@ export function matchingEntities(s: GameState, tokens: string[], u?: Unit) {
   );
 }
 function weaponFor(s: GameState, u: Unit) {
-  const inv = inventoryAt(s, u),
-    fighters = activeUnits(s)
-      .filter((v) => v.action === 'hunting' || v.action === 'combat')
-      .sort((a, b) => a.id.localeCompare(b.id)),
-    index = Math.max(
-      0,
-      fighters.findIndex((v) => v.id === u.id),
-    );
-  if (index < Math.floor(inv.metalArms))
-    return { damage: 40, armor: 0.5, kind: 'metalArms' as Resource };
-  if (index < Math.floor(inv.spear))
-    return { damage: 15, armor: inv.pelt > index ? 0.15 : 0, kind: 'spear' as Resource };
-  const obsidian = getDogmaEffects(s).obsidianDamage;
-  if (obsidian && inv.tool > index) return { damage: obsidian, armor: 0, kind: 'tool' as Resource };
-  return {
-    damage: index < Math.floor(inv.tool) ? 8 : 5,
-    armor: inv.pelt > index ? 0.15 : 0,
-    kind: index < Math.floor(inv.tool) ? ('tool' as Resource) : undefined,
-  };
+  return combatEquipmentFor(s, u);
 }
 function onHuntKill(s: GameState, u: Unit, e: MapEntity) {
   e.hp = 0;
@@ -657,7 +651,8 @@ function onHuntKill(s: GameState, u: Unit, e: MapEntity) {
   const drop = FAUNA_SPECS[e.kind as keyof typeof FAUNA_SPECS];
   if (drop) e.amount = drop.meat;
   const equipment = weaponFor(s, u);
-  if (equipment.kind === 'spear') s.resources.spear = Math.max(0, s.resources.spear - 0.05);
+  if (equipment.kind === 'spear')
+    equipment.inventory.spear = Math.max(0, equipment.inventory.spear - 0.05);
   if (e.kind === 'alpha') s.cohesion = clamp(s.cohesion + 10);
   if ((u.huntCount ?? 0) >= 10) recordEvent(s, u, 'ENV_HUNT_SUCCESS', 100, ['S_03']);
   onDogmaticUse(s, u.command ?? ['S_01', 'V_03', 'O_04'], u);
@@ -808,7 +803,7 @@ function assignWork(s: GameState, u: Unit, kind: BuildingKind) {
   u.targetId = b.id;
   u.tx = b.x;
   u.ty = b.y;
-  u.action = 'working';
+  u.action = kind === 'campfire' ? 'guarding' : 'working';
   b.workerIds ??= [];
   if (!b.workerIds.includes(u.id)) b.workerIds.push(u.id);
   return true;
@@ -820,6 +815,14 @@ function pauseBuildingJob(s: GameState, u: Unit) {
   b.workerIds = (b.workerIds ?? []).filter((id) => id !== u.id);
   resetUnit(u);
   u.suspendedJob = { buildingId: b.id, command };
+}
+function continuousFireGuard(b: Building | undefined, command: string[] = []) {
+  return (
+    b?.kind === 'campfire' &&
+    !['C_01', 'C_02'].includes(command[0]) &&
+    command.includes('V_05') &&
+    command.includes('O_05')
+  );
 }
 function resumeBuildingJob(s: GameState, u: Unit) {
   const job = u.suspendedJob;
@@ -844,7 +847,13 @@ function resumeBuildingJob(s: GameState, u: Unit) {
   const night = seasonOf(s).isNight,
     resting = getDogmaEffects(s, { unit: u }).nightWatch ? !night : night,
     nightShift = job.command[0] === 'C_01';
-  if (!b.active || (nightShift ? !night : resting) || u.hunger >= 75 || u.temp <= 30) return false;
+  if (
+    (!b.active && b.kind !== 'campfire') ||
+    (!continuousFireGuard(b, job.command) && (nightShift ? !night : resting)) ||
+    u.hunger >= 75 ||
+    u.temp <= 30
+  )
+    return false;
   const target = { type: 'building' as const, id: b.id, x: b.x, y: b.y };
   if (forbiddenByDogma(s, job.command, target, u)) {
     u.suspendedJob = undefined;
@@ -869,7 +878,7 @@ function resumeBuildingJob(s: GameState, u: Unit) {
   u.tx = b.x;
   u.ty = b.y;
   u.progress = 0;
-  u.action = 'working';
+  u.action = b.kind === 'campfire' ? 'guarding' : 'working';
   u.suspendedJob = undefined;
   b.workerIds.push(u.id);
   return true;
@@ -975,9 +984,30 @@ function plainToolCraft(tokens: string[]) {
   return tokens.includes('V_06') && tokens.length === 3 && tokens[2] === 'O_02';
 }
 export function processWork(s: GameState, u: Unit, dt: number) {
-  const e = s.entities.find((e) => e.id === u.targetId),
-    tokens = u.command ?? [],
+  let e = s.entities.find((e) => e.id === u.targetId);
+  const tokens = u.command ?? [],
     verb = tokens.find((t) => WORDS[t]?.kind === 'V');
+  // A visible material pile may contain many extraction fragments. Another
+  // carrier taking the selected fragment does not exhaust the physical pile.
+  if (
+    verb === 'V_04' &&
+    e?.kind === 'ground' &&
+    e.resource &&
+    ['wood', 'stone', 'ore'].includes(e.resource) &&
+    e.amount <= resourcePreservationFloor(s, e)
+  ) {
+    const original = e;
+    const next = s.entities.find(
+      (piece) =>
+        sameGroundPile(original, piece) && piece.amount > resourcePreservationFloor(s, piece),
+    );
+    if (next) {
+      e = next;
+      u.targetId = next.id;
+      u.tx = next.x;
+      u.ty = next.y;
+    }
+  }
   if (u.action === 'gathering' && guidedMaterialTransport(s, tokens)) {
     if (
       !guidedDirectTask(s, u, tokens) ||
@@ -1069,10 +1099,11 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       return;
     }
     if (!fx.protected) {
-      u.hp -= effectiveDamage(5, foreign.strength, 1, weapon.armor);
-      u.lastDamageCause = 'V_03';
-      u.pendingCombatDamage = true;
-      recordAttackTrauma(s);
+      const wound = effectiveDamage(5, foreign.strength, 1, weapon.armor);
+      u.hp -= wound;
+      rememberCombatWound(s, u, wound, { kind: 'human', id: foreign.id });
+      if (wound > 0) recordAttackTrauma(s);
+      if (u.hp <= 0) killUnit(s, u, 'V_03');
     }
     return;
   }
@@ -1144,7 +1175,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       if (
         !plainToolCraft(tokens) ||
         !guidedDirectTask(s, u, tokens) ||
-        freeCapacity(s, 'tool') < 1 ||
+        !canFitCraftOutput(s, { stone: 1 }, 'tool') ||
         !canPayLocally(s, { stone: 1 }, u) ||
         forbiddenByDogma(s, tokens, undefined, u) ||
         !enforceActionLaws(s, tokens, undefined, [u.id])
@@ -1158,13 +1189,14 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     if (!move(s, u, u.tx ?? s.home.x, u.ty ?? s.home.y, dt)) return;
     if (!workCycle(s, u, dt, 5)) return;
     if (verb === 'V_06') {
-      addResource(s, tokens.includes('O_03') ? 'spear' : 'tool', 1);
+      const output = tokens.includes('O_03') ? 'spear' : 'tool';
+      drop(s, u, output, 1 - addResource(s, output, 1));
       recordCraft(s, u, 'O_05');
       recordCraft(s, u, 'O_13');
     }
     if (verb === 'V_07') {
-      if (tokens.includes('O_02')) addResource(s, 'pottery', 1);
-      else addResource(s, 'cooked', 1);
+      const output = tokens.includes('O_02') ? 'pottery' : 'cooked';
+      drop(s, u, output, 1 - addResource(s, output, 1));
       recordCraft(s, u, 'V_12');
     }
     recordLawWork(s, u.id, tokens);
@@ -1304,27 +1336,47 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       onHuntKill(s, u, e);
       recordEvent(s, u, 'ENV_HUNT', 80, ['O_04']);
     } else if (e.kind !== 'deer' && !fx.protected) {
-      u.hp -= effectiveDamage(
+      const wound = effectiveDamage(
         FAUNA_SPECS[e.kind as keyof typeof FAUNA_SPECS]?.damage ?? 5,
         0,
         1,
         weapon.armor,
       );
-      u.lastDamageCause = 'V_03';
-      u.pendingCombatDamage = true;
-      recordAttackTrauma(s);
-      witnessAnimalWound(s, u);
+      u.hp -= wound;
+      if (['wolf', 'alpha', 'mammoth', 'deer'].includes(e.kind))
+        rememberCombatWound(s, u, wound, {
+          kind: e.kind as 'wolf' | 'alpha' | 'mammoth' | 'deer',
+          id: e.id,
+        });
+      if (wound > 0) {
+        recordAttackTrauma(s);
+        witnessAnimalWound(s, u);
+      }
+      if (u.hp <= 0) killUnit(s, u, 'V_03');
     }
     return;
   }
   if (u.action === 'eating') {
+    // Conservare restrains an autonomous meal; an explicit Mangiare order
+    // still means eating to satiety, as specified by the sentence grammar.
+    const conserve = verb !== 'V_02' && hasWord(s, 'V_05');
+    if (conserve && u.hunger < 60) {
+      resetInstinct(u);
+      return;
+    }
+    // A delivery may have arrived since this forager chose a distant node.
+    // Recheck real accessible stocks before leaving their physical reach.
+    if (conserve && nearInventory(s, u) && consume(s, u)) {
+      if (u.hunger < 60) resetInstinct(u);
+      return;
+    }
     if (!e || e.amount <= 0) {
       resetInstinct(u);
       return;
     }
     if (!move(s, u, e.x, e.y, dt)) return;
     if (!workCycle(s, u, dt, 1.5)) return;
-    if (!consume(s, u, e) || u.hunger <= 0) resetInstinct(u);
+    if (!consume(s, u, e) || u.hunger <= 0 || (conserve && u.hunger < 60)) resetInstinct(u);
     return;
   }
   if (u.action === 'domesticating') {
@@ -1386,15 +1438,9 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     }
     if (!move(s, u, e.x, e.y, dt)) return;
     const resource = entityResource(e),
-      gatherers = activeUnits(s).filter(
-        (v) => v.action === 'gathering' && v.command?.some((w) => ['O_02', 'O_03'].includes(w)),
-      ),
-      toolIndex = Math.max(
-        0,
-        gatherers.findIndex((v) => v.id === u.id),
-      ),
-      gatherTool = toolIndex < Math.floor(s.resources.tool) && ['wood', 'stone'].includes(resource),
-      speed = gatherTool ? 1.5 : 1;
+      equipment = gatheringEquipmentFor(s, u, resource),
+      gatherTool = equipment.kind === 'tool',
+      speed = equipment.speed;
     if (
       sanctuaryProtected(
         s,
@@ -1419,17 +1465,33 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     }
     if (verb === 'V_04') {
       const cap = hasWord(s, 'O_13') ? 5 : hasWord(s, 'V_05') ? 3 : 1,
+        pieces =
+          e.kind === 'ground' && ['wood', 'stone', 'ore'].includes(resource)
+            ? [e, ...s.entities.filter((piece) => piece.id !== e.id && sameGroundPile(e, piece))]
+            : [e],
         amount = Math.min(
           cap,
-          e.amount - resourcePreservationFloor(s, e),
           freeCapacity(s, resource),
+          pieces.reduce(
+            (sum, piece) => sum + Math.max(0, piece.amount - resourcePreservationFloor(s, piece)),
+            0,
+          ),
         );
       if (amount <= 0) {
         resetUnit(u);
         return;
       }
       if (gatherTool) s.resources.tool = Math.max(0, s.resources.tool - 0.1);
-      e.amount -= amount;
+      let remaining = amount;
+      for (const piece of pieces) {
+        const taken = Math.min(
+          remaining,
+          Math.max(0, piece.amount - resourcePreservationFloor(s, piece)),
+        );
+        piece.amount -= taken;
+        remaining -= taken;
+        if (remaining <= 0) break;
+      }
       u.carry = { resource, amount };
       u.action = 'returning';
       if (e.kind === 'berries' && random(s) < 0.1) addResource(s, 'seed', 1);
@@ -1719,7 +1781,20 @@ export function updateUnits(s: GameState, dt: number) {
     )
       recordEvent(s, u, 'ENV_TRESPASSING', 80, ['O_10'], 1);
     const resting = fx.nightWatch ? !phase.isNight : phase.isNight,
-      outsideShift = u.command?.[0] === 'C_01' ? !phase.isNight : resting;
+      fireJob = s.buildings.find((b) => b.id === u.jobBuildingId),
+      outsideShift = continuousFireGuard(fireJob, u.command)
+        ? false
+        : u.command?.[0] === 'C_01'
+          ? !phase.isNight
+          : resting;
+    // Earlier saves could resume a fire caretaker as a generic worker.
+    if (
+      fireJob?.kind === 'campfire' &&
+      u.action === 'working' &&
+      u.command?.includes('V_05') &&
+      u.command.includes('O_05')
+    )
+      u.action = 'guarding';
     if (u.jobBuildingId && (u.hunger >= 75 || outsideShift || (fx.nightTaboo && phase.isNight)))
       pauseBuildingJob(s, u);
     else if (u.command?.[0] === 'C_02' && resting && u.action !== 'returning') resetUnit(u);
@@ -1825,10 +1900,10 @@ export function updateAnimals(s: GameState, dt: number) {
         e.x += ((human.x - e.x) / d) * step;
         e.y += ((human.y - e.y) / d) * step;
       } else {
-        human.hp -= fa.damage * dt;
-        human.lastDamageCause = 'V_03';
-        if (dt > 0) {
-          human.pendingCombatDamage = true;
+        const wound = fa.damage * dt;
+        human.hp -= wound;
+        rememberCombatWound(s, human, wound, { kind: e.kind as 'wolf' | 'alpha', id: e.id });
+        if (wound > 0) {
           recordAttackTrauma(s);
           witnessAnimalWound(s, human);
         }
@@ -1941,7 +2016,10 @@ export function seasonalCore(s: GameState) {
   const spring = season.index === 0;
   s.disasters.storm = (spring || season.index === 2) && random(s) < 0.2;
   s.disasters.drought = season.index === 1 ? random(s) < 0.15 : s.disasters.drought;
-  s.disasters.blizzard = season.index === 3 && random(s) < 0.15;
+  // Guided gives the first winter time to teach food and fuel management.
+  // Keep the real draw, so the grace period does not shift later random events.
+  const rolledBlizzard = season.index === 3 && random(s) < 0.15;
+  s.disasters.blizzard = rolledBlizzard && !(s.playMode === 'guided' && s.time < 360);
   s.disasters.lightning = season.index === 1 && random(s) < 0.15;
   if (s.disasters.storm && !hasBuilding(s, 'temple'))
     for (const b of s.buildings.filter((b) => isPlayerBuilding(s, b) && b.kind === 'campfire'))
@@ -2099,20 +2177,8 @@ export function seasonalCore(s: GameState) {
     }
   }
   if (!s.urbanized) {
-    const housing =
-        BASE_HOUSING +
-        s.buildings
-          .filter((b) => isPlayerBuilding(s, b) && b.hp > 0 && b.active)
-          .reduce((n, b) => n + (BUILDING_SPECS[b.kind].housing ?? 0), 0),
-      fertile = activeUnits(s).filter(
-        (u) =>
-          u.age >= ADULT_AGE &&
-          u.age < ELDER_AGE &&
-          u.hunger <= 50 &&
-          rested.has(u.id) &&
-          distance(u, s.home) <= 10 &&
-          !(fx.celibateSages && u.intelligence >= 7),
-      );
+    const housing = villageHousing(s),
+      fertile = eligibleParents(s, { restedIds: rested, celibateSages: fx.celibateSages });
     const chance =
       birthProbability(
         activeUnits(s).length,

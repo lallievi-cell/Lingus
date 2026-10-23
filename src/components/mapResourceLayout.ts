@@ -1,4 +1,5 @@
 import { RESOURCE_ORDER, RESOURCE_SPECS } from '../game/content';
+import { groundPileLocation, sameGroundPile } from '../game/groundPiles';
 import type { GameState, MapEntity, Resource } from '../game/types';
 
 export interface GroundPile {
@@ -25,7 +26,7 @@ export function getGroundPiles(s: GameState): GroundPile[] {
   const locations = new Map<string, Map<Resource, GroundPile>>();
   for (const entity of s.entities) {
     if (entity.kind !== 'ground' || !entity.resource || entity.amount <= 0) continue;
-    const location = `${entity.x.toFixed(1)}:${entity.y.toFixed(1)}`;
+    const location = groundPileLocation(entity);
     let materials = locations.get(location);
     if (!materials) {
       materials = new Map();
@@ -80,14 +81,7 @@ export function groundPileFor(
   const existing = piles.find((p) => p.entityIds.includes(entityId));
   if (existing) return existing;
   const old = s.entities.find((e) => e.id === entityId && e.kind === 'ground');
-  return old
-    ? piles.find(
-        (p) =>
-          p.resource === old.resource &&
-          p.entity.x.toFixed(1) === old.x.toFixed(1) &&
-          p.entity.y.toFixed(1) === old.y.toFixed(1),
-      )
-    : undefined;
+  return old ? piles.find((p) => sameGroundPile(p.entity, old)) : undefined;
 }
 export function resourcePileLabel(s: GameState, pile: GroundPile) {
   const material = resourceKnown(s, pile.resource)

@@ -47,6 +47,7 @@ import {
 import { entityTargetPresentation } from './components/targetPresentation';
 import { BrandMark, Glyph } from './components/Glyph';
 import { Modal } from './components/Modal';
+import { GrowthReadiness, IndividualGrowthReadiness } from './components/GrowthReadiness';
 import { OpeningGuide } from './components/OpeningGuide';
 import {
   acknowledgedTribeEventIds,
@@ -282,6 +283,20 @@ function App() {
   const avgHunger = livingUnits.length
     ? livingUnits.reduce((n, u) => n + u.hunger, 0) / livingUnits.length
     : 0;
+  const tribeInDanger = livingUnits.some(
+    (unit) => unit.temp <= 20 || unit.hunger >= 95 || unit.hp <= 30,
+  );
+  const tribeCondition = livingUnits.some((unit) => unit.temp <= 20)
+    ? 'Freddo intenso'
+    : livingUnits.some((unit) => unit.hunger >= 95)
+      ? 'Fame estrema'
+      : livingUnits.some((unit) => unit.hp <= 30)
+        ? 'Ferite gravi'
+        : avgHunger > 75
+          ? 'Affamata'
+          : avgHunger > 45
+            ? 'In cerca di cibo'
+            : 'Al sicuro';
   const sacredTargets = known.filter((id) => getDogmaVectors(id).some((v) => hasWord(game, v)));
   const activeDogmaTarget = sacredTargets.includes(dogmaTarget)
     ? dogmaTarget
@@ -816,11 +831,18 @@ function App() {
                   <Users size={17} />
                   <b>{peopleCount}</b> anime
                 </span>
-                <span className={avgHunger > 70 ? 'text-danger' : ''}>
-                  <span className={`status-dot ${avgHunger > 70 ? 'amber' : ''}`} />
-                  {avgHunger > 75 ? 'Affamata' : avgHunger > 45 ? 'In cerca di cibo' : 'Al sicuro'}
+                <span
+                  className={tribeInDanger || avgHunger > 70 ? 'text-danger' : ''}
+                  role="status"
+                  aria-label="Condizioni della tribù"
+                >
+                  <span
+                    className={`status-dot ${tribeInDanger || avgHunger > 70 ? 'amber' : ''}`}
+                  />
+                  {tribeCondition}
                 </span>
               </div>
+              <GrowthReadiness state={game} />
               {hasWord(game, 'O_06') && (
                 <div className="cohesion-block">
                   <div>
@@ -949,6 +971,7 @@ function App() {
                     )}
                   </p>
                   <p className="person-life-hint">{unitLifeHint(selectedUnit)}</p>
+                  <IndividualGrowthReadiness state={game} unit={selectedUnit} />
                   {physicalWarnings(selectedUnit).length > 0 && (
                     <p className="person-danger">
                       {physicalWarnings(selectedUnit)
@@ -2355,8 +2378,8 @@ function ModePicker({
       <button type="button" aria-pressed={value === 'guided'} onClick={() => onChange('guided')}>
         <strong>Guidata</strong>
         <small>
-          Qui dopo la prima notte, anziana iniziale più giovane, trasporto e utensili ripetuti
-          durante il giorno.
+          Primo inverno senza tormente, Qui dopo la prima notte, anziana iniziale più giovane,
+          trasporto e utensili ripetuti durante il giorno.
         </small>
       </button>
       <button type="button" aria-pressed={value === 'classic'} onClick={() => onChange('classic')}>

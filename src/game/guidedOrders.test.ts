@@ -281,7 +281,7 @@ describe('guided plain tool crafting pays for each real cycle', () => {
     expect(s.resources.stone).toBe(0);
   });
 
-  it('does not prepay another cycle when work ends at night or the output store becomes full', () => {
+  it('does not prepay another cycle at night or when local inputs cannot free output space', () => {
     let night = village();
     night.time = 55;
     night.resources.stone = 8;
@@ -292,11 +292,24 @@ describe('guided plain tool crafting pays for each real cycle', () => {
     let full = village();
     full.resources.stone = 8;
     full = advance(issueCommand(full, ['S_01', 'V_06', 'O_02']), 5);
-    // An isolated concurrent-delivery boundary: all remaining slots are occupied.
-    full.resources.wood = 22;
+    // An isolated concurrent-delivery boundary: all remaining slots are occupied
+    // and the remaining inputs are now physically on the ground, not in stock.
+    full.entities.push({
+      id: 'local-crafting-stone',
+      kind: 'ground',
+      resource: 'stone',
+      ...HOME,
+      amount: full.resources.stone,
+      maxAmount: full.resources.stone,
+      hp: 0,
+      maxHp: 1,
+    });
+    full.resources.stone = 0;
+    full.resources.wood = 29;
     full = advance(full, 1);
     expect(full.resources.tool).toBe(1);
-    expect(full.resources.stone).toBe(7);
+    expect(full.resources.stone).toBe(0);
+    expect(full.entities.find((e) => e.id === 'local-crafting-stone')?.amount).toBe(7);
     expect(full.units[0].command).toBeUndefined();
   });
 

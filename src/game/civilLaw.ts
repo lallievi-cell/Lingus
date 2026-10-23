@@ -1,4 +1,5 @@
 import { ADULT_AGE } from './content';
+import { rememberCombatWound } from './damageAttribution';
 import { forbiddenByDogma, getDogmaEffects, protectedByDogma } from './dogmas';
 import { lawArchetype, lawSubjectMatches } from './imperialLawPolicy';
 import { activeUnits, clamp, distance, hasBuilding, log, random } from './runtime';
@@ -94,8 +95,7 @@ export function applyCivilAssault(
     return 0;
   const actual = Math.min(victim.hp, damage);
   victim.hp -= actual;
-  victim.lastDamageCause = 'V_03';
-  victim.pendingCombatDamage = true;
+  rememberCombatWound(s, victim, actual, { kind: 'human', id: attacker.id });
   attacker.lastEventAt ??= {};
   attacker.lastEventAt.CIVIL_AGGRESSOR_UNTIL = s.time + 30;
   s.eventTimes[`civil-last-damage:${attacker.id}`] = actual;

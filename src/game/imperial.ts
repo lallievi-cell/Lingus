@@ -6,6 +6,7 @@ import {
   SPEC_ASSUMPTIONS,
   WORDS,
 } from './content';
+import { rememberCombatWound } from './damageAttribution';
 import {
   birthProbability,
   cognitiveTension,
@@ -1714,7 +1715,12 @@ function updateFrontline(s: GameState, dt: number) {
       );
   for (const c of ownCities(s)) allocateCityWorkers(s, c);
 }
-function absorbFrontlineDamage(s: GameState, host: City | Battalion, damage: number) {
+function absorbFrontlineDamage(
+  s: GameState,
+  host: City | Battalion,
+  damage: number,
+  attackerId?: string,
+) {
   let left = damage;
   for (const id of host.frontlineSageIds ?? []) {
     const u = s.units.find(
@@ -1724,19 +1730,18 @@ function absorbFrontlineDamage(s: GameState, host: City | Battalion, damage: num
     const wound = Math.min(left, u.hp);
     u.hp -= wound;
     if (wound > 0) {
-      u.pendingCombatDamage = true;
+      rememberCombatWound(s, u, wound, { kind: 'army', id: attackerId });
       recordAttackTrauma(s);
     }
     left -= wound;
-    u.lastDamageCause = 'V_03';
     if (u.hp <= 0) killUnit(s, u, 'V_03');
     if (left <= 0) break;
   }
   return left;
 }
-function damageGarrison(s: GameState, city: City, damage: number) {
+function damageGarrison(s: GameState, city: City, damage: number, attackerId?: string) {
   const previous = city.garrisonHp ?? 0;
-  city.garrisonHp = Math.max(0, previous - absorbFrontlineDamage(s, city, damage));
+  city.garrisonHp = Math.max(0, previous - absorbFrontlineDamage(s, city, damage, attackerId));
   if (city.factionId === PLAYER && city.garrisonHp < previous) recordAttackTrauma(s);
   const lost = Math.max(0, Math.ceil(previous / 100) - Math.ceil(city.garrisonHp / 100));
   const represented = s.units
@@ -1744,6 +1749,7 @@ function damageGarrison(s: GameState, city: City, damage: number) {
     .slice(0, lost);
   for (const u of represented) {
     if (city.factionId === PLAYER) {
+      rememberCombatWound(s, u, u.hp, { kind: 'army', id: attackerId });
       killUnit(s, u, 'V_03');
       continue;
     }
@@ -1818,7 +1824,7 @@ function attackCity(s: GameState, b: Battalion, city: City, dt: number) {
           city.resources.metalArms > 0 ? 0.5 : 0,
           0,
         ) * Math.ceil(b.hp / 100);
-      damageGarrison(s, city, dmg);
+      damageGarrison(s, city, dmg, b.id);
     }
   } else if (b.action === 'conquering') {
     b.occupation += 1;
@@ -1874,7 +1880,7 @@ function attackCity(s: GameState, b: Battalion, city: City, dt: number) {
           b.metalWeapons ? 0.5 : 0,
           0,
         ) * defenders;
-    b.hp = Math.max(0, b.hp - absorbFrontlineDamage(s, b, counter));
+    b.hp = Math.max(0, b.hp - absorbFrontlineDamage(s, b, counter, city.id));
     if (b.factionId === PLAYER && b.hp < previous) recordAttackTrauma(s);
     loseSoldiers(s, b, previous);
   }
@@ -1915,7 +1921,7 @@ function battleArmies(s: GameState, dt: number) {
           ) *
           Math.ceil(b.hp / 100) *
           dt;
-        enemy.hp = Math.max(0, enemy.hp - absorbFrontlineDamage(s, enemy, damage));
+        enemy.hp = Math.max(0, enemy.hp - absorbFrontlineDamage(s, enemy, damage, b.id));
         if (enemy.factionId === PLAYER && enemy.hp < previous) recordAttackTrauma(s);
         loseSoldiers(s, enemy, previous);
       }
