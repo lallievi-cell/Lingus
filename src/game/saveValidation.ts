@@ -88,6 +88,7 @@ const unit = (v: unknown) =>
   words(v.knows) &&
   optional(v.command, words) &&
   optional(v.restedThisSeason, flag) &&
+  optional(v.pendingCombatDamage, flag) &&
   optional(v.suspendedJob, (x) => record(x) && text(x.buildingId) && words(x.command)) &&
   optional(v.eventMemory, (x) => list(x, event)) &&
   optional(v.tension, numericMap) &&

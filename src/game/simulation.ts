@@ -295,12 +295,19 @@ function recordSurvivalTrauma(s: GameState, tag: string, penalty: number) {
 export function recordAttackTrauma(s: GameState) {
   return recordSurvivalTrauma(s, 'ENV_ALLY_DAMAGED', CORE_DEFAULTS.attackTrauma);
 }
+function witnessAnimalWound(s: GameState, victim: Unit) {
+  if (victim.hp > 30) return;
+  for (const observer of activeUnits(s))
+    if (observer.id !== victim.id && distance(observer, victim) <= 20)
+      recordEvent(s, observer, 'ENV_ALLY_DAMAGED', 60, ['M_01'], 1);
+}
 export function killUnit(s: GameState, u: Unit, cause = 'trauma') {
   if (u.hp <= 0 && u.action === 'dead') return;
   const dogmatic = handleDogmaticDeath(s, u, cause);
   u.hp = 0;
   u.action = 'dead';
   u.lastDamageCause = cause;
+  u.pendingCombatDamage = false;
   s.stats.deaths++;
   if (s.urbanized && u.cityId) {
     const city = s.cities.find((c) => c.id === u.cityId),
@@ -999,6 +1006,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     if (!fx.protected) {
       u.hp -= effectiveDamage(5, foreign.strength, 1, weapon.armor);
       u.lastDamageCause = 'V_03';
+      u.pendingCombatDamage = true;
       recordAttackTrauma(s);
     }
     return;
@@ -1200,7 +1208,9 @@ export function processWork(s: GameState, u: Unit, dt: number) {
         weapon.armor,
       );
       u.lastDamageCause = 'V_03';
+      u.pendingCombatDamage = true;
       recordAttackTrauma(s);
+      witnessAnimalWound(s, u);
     }
     return;
   }
@@ -1499,6 +1509,10 @@ export function updateUnits(s: GameState, dt: number) {
     ordered.sort((a, b) => foodAccessRank(s, b) - foodAccessRank(s, a));
   for (const u of ordered) {
     initializeUnit(u);
+    // GDD COMBAT_FLEE is an interrupt for a new wound, not a permanent injury state.
+    // Capture the threshold before this update's ordinary home healing.
+    const combatWound = u.pendingCombatDamage === true && u.hp <= 30;
+    u.pendingCombatDamage = false;
     // The foreign selector admits visitors to our stores without simulating
     // their entire civilization or charging their distant city's inventory.
     if (u.factionId !== undefined && u.factionId !== 'player') {
@@ -1589,9 +1603,6 @@ export function updateUnits(s: GameState, dt: number) {
     )
       recordEvent(s, u, 'ENV_SURPLUS', 60, ['V_04'], 1);
     if (s.cohesion < 25) recordEvent(s, u, 'ENV_COHESION_CRITICAL', 100, ['M_03'], 1);
-    if (u.hp <= 30 && u.lastDamageCause === 'V_03')
-      for (const observer of activeUnits(s).filter((o) => distance(u, o) <= 20))
-        recordEvent(s, observer, 'ENV_ALLY_DAMAGED', 60, ['M_01'], 1);
     if (u.age >= CORE_DEFAULTS.sageDiscoveryAgeSeasons && hasWord(s, 'O_05') && hasWord(s, 'M_02'))
       recordEvent(s, u, 'ENV_ELDER', 100, ['S_04'], 30);
     const foreigners = s.cities.filter((c) => c.factionId !== 'player' && distance(u, c) <= 30);
@@ -1661,14 +1672,8 @@ export function updateUnits(s: GameState, dt: number) {
         startInstinct(s, u, dt);
       }
     }
-    if (
-      !martial &&
-      hasWord(s, 'M_01') &&
-      u.hp <= 30 &&
-      u.lastDamageCause === 'V_03' &&
-      u.hunger < 95 &&
-      u.temp > 15
-    ) {
+    if (!martial && hasWord(s, 'M_01') && combatWound && u.hunger < 95 && u.temp > 15) {
+      if (u.jobBuildingId) pauseBuildingJob(s, u);
       u.action = 'fleeing';
       u.tx = s.home.x;
       u.ty = s.home.y;
@@ -1716,7 +1721,11 @@ export function updateAnimals(s: GameState, dt: number) {
       } else {
         human.hp -= fa.damage * dt;
         human.lastDamageCause = 'V_03';
-        if (dt > 0) recordAttackTrauma(s);
+        if (dt > 0) {
+          human.pendingCombatDamage = true;
+          recordAttackTrauma(s);
+          witnessAnimalWound(s, human);
+        }
         if (human.hp <= 0) killUnit(s, human, 'V_03');
       }
     } else if (e.kind === 'deer' && distance(e, human) <= 15 && !e.attacked) {
@@ -1778,6 +1787,17 @@ export function seasonalCore(s: GameState) {
     if (random(s) < senileDeathProbability(u.age)) killUnit(s, u, 'oldAge');
   }
   const fx = getDogmaEffects(s);
+  // Upkeep determines the next season. Preserve output and bonuses already
+  // earned in the season just closed, even if its building now loses upkeep.
+  const villageWork = new Map(
+      s.buildings
+        .filter((b) => !b.cityId && isPlayerBuilding(s, b))
+        .map((b) => [b.id, seasonalBuildingEfficiency(s, b)]),
+    ),
+    hadStorage = hasBuilding(s, 'storage'),
+    hadWorkshop = hasBuilding(s, 'workshop'),
+    hadDrought = s.disasters.drought,
+    agricultureLaw = imperialLawEffects(s).agricultureMultiplier;
   for (const b of s.buildings.filter(
     (b) => isPlayerBuilding(s, b) && b.hp > 0 && b.completed !== false,
   )) {
@@ -1845,21 +1865,17 @@ export function seasonalCore(s: GameState) {
     if (spec.spoil > 0) {
       const factor =
         spec.category === 'food'
-          ? resourceSpoilage(
-              spec.spoil,
-              endedSeason === 1,
-              hasBuilding(s, 'storage'),
-              s.resources.pottery > 0,
-            )
+          ? resourceSpoilage(spec.spoil, endedSeason === 1, hadStorage, s.resources.pottery > 0)
           : spec.spoil;
       s.resources[r] *= 1 - factor;
     }
   }
-  for (const b of s.buildings.filter((b) => b.active && b.hp > 0 && !b.cityId)) {
-    const efficiency = seasonalBuildingEfficiency(s, b);
+  for (const b of s.buildings.filter((b) => !b.cityId)) {
+    const efficiency = villageWork.get(b.id) ?? 0;
     b.lastEfficiency = efficiency;
+    if (efficiency <= 0) continue;
     if (b.kind === 'farm' && endedSeason === 2) {
-      const workshop = hasBuilding(s, 'workshop') ? 3 : 1;
+      const workshop = hadWorkshop ? 3 : 1;
       const harvested = addResource(
         s,
         'food',
@@ -1867,9 +1883,9 @@ export function seasonalCore(s: GameState) {
           efficiency *
           workshop *
           fx.agriculture *
-          imperialLawEffects(s).agricultureMultiplier *
+          agricultureLaw *
           fx.production *
-          (s.disasters.drought && !hasBuilding(s, 'workshop') ? 0.5 : 1),
+          (hadDrought && !hadWorkshop ? 0.5 : 1),
       );
       const work = b.seasonWork?.[Math.floor(s.time / 90) - 1],
         totalWork = Object.values(work?.workerSeconds ?? {}).reduce(
@@ -1920,7 +1936,7 @@ export function seasonalCore(s: GameState) {
       elders = activeUnits(s).filter((u) => u.age >= ELDER_AGE).length;
     const temple = s.buildings
       .filter((b) => isPlayerBuilding(s, b) && b.kind === 'temple')
-      .reduce((n, b) => n + 20 * seasonalBuildingEfficiency(s, b), 0);
+      .reduce((n, b) => n + 20 * (villageWork.get(b.id) ?? 0), 0);
     s.attention = clamp(
       attentionPoints(s.burntWood, elders * fx.elderAttention, hunger, fx.attentionCap) + temple,
       0,

@@ -270,3 +270,61 @@ test('the resource explanation remains readable and selectable on a narrow scree
     fullPage: true,
   });
 });
+
+test('a fire explains its actual heat coverage and distinguishes a cold hearth without premature numbers', async ({
+  page,
+}) => {
+  await seedResources(page);
+  await page.addInitScript((key) => {
+    const raw = sessionStorage.getItem('lingus.pending-fire-fixture');
+    if (raw) {
+      localStorage.setItem(key, raw);
+      sessionStorage.removeItem('lingus.pending-fire-fixture');
+    }
+  }, SAVE_KEY);
+  const showFire = async (x: number, active: boolean, numbered = false) => {
+    await page.evaluate(
+      ({ x, active, numbered, key }) => {
+        const s = JSON.parse(localStorage.getItem(key)!);
+        s.buildings = [{ id: 'fire', kind: 'campfire', x, y: 250, hp: 100, active }];
+        if (numbered) s.words.O_08 = { retention: 100, custodians: [s.units[0].id], uses: 0 };
+        sessionStorage.setItem('lingus.pending-fire-fixture', JSON.stringify(s));
+      },
+      { x, active, numbered, key: SAVE_KEY },
+    );
+    await page.reload();
+    await mapClick(page, { x, y: 250 });
+  };
+  await showFire(250, true);
+  await expect(details(page)).toContainText('Il calore raggiunge tutta la zona');
+  await expect(details(page)).toContainText('cerchio dorato');
+  await expect(details(page)).not.toContainText(/\d/);
+  await showFire(260, true);
+  await expect(details(page)).toContainText(
+    'Una parte del giaciglio della tribù è fuori dal calore',
+  );
+  await page.screenshot({ path: '/workspace/artifacts/lingus-fire-coverage.png', fullPage: true });
+  await showFire(250, false);
+  await expect(details(page)).toContainText('Spento');
+  await expect(details(page)).not.toContainText(/\d/);
+  await expect(page.locator('.lingus-world__footer')).not.toContainText('1 legna');
+  await showFire(250, true, true);
+  await expect(details(page)).toContainText('15 metri');
+  await showFire(250, false, true);
+  await expect(details(page)).toContainText('Spento');
+  await expect(details(page)).toContainText('non riscalda');
+  await expect(details(page)).toContainText('Serve 1 legna');
+  await page.setViewportSize({ width: 375, height: 812 });
+  await showFire(260, true, true);
+  const map = (await page.getByRole('img', { name: /Mappa della valle/ }).boundingBox())!;
+  const card = (await details(page).boundingBox())!;
+  const scale = Math.max(map.width / 1200, map.height / 800) * 4.5;
+  const fire = { x: map.x + map.width / 2 + 10 * 2.4 * scale, y: map.y + map.height / 2 };
+  expect(
+    fire.x >= card.x &&
+      fire.x <= card.x + card.width &&
+      fire.y >= card.y &&
+      fire.y <= card.y + card.height,
+    'the coverage explanation must leave the selected fire visible',
+  ).toBe(false);
+});

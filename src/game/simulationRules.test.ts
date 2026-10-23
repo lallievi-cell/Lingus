@@ -220,6 +220,7 @@ describe('physical rule connections from the guide', () => {
       action: 'gathering',
       command: ['S_02', 'V_04', 'O_03'],
       lastDamageCause: 'V_03',
+      pendingCombatDamage: true,
     });
     updateUnits(s, 1);
     expect(u.action).toBe('fleeing');

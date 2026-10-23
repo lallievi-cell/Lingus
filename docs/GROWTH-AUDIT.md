@@ -1,6 +1,6 @@
 # Crescita ordinaria e custodi della memoria
 
-Questa revisione prosegue dai commit dell'utente fino a `667cf89`. Conserva il nuovo viewport, il giaciglio senza un Falò già costruito, la distinzione fra fuoco acceso e spento, le due notti necessarie per scoprire Qui e la possibilità di accendere il Falò anche durante l'ipotermia.
+Questa revisione prosegue dai commit dell'utente fino a `5566251` e preserva anche `fc2edbf`–`5566251`: selezione rapida del gruppo, Echi, suggerimenti, scorciatoie, tre tab mobili, banco parole touch, pinch a 1600% e configurazione GitHub Pages. Conserva il nuovo viewport, il giaciglio senza un Falò già costruito, la distinzione fra fuoco acceso e spento, le due notti necessarie per scoprire Qui e la possibilità di accendere il Falò anche durante l'ipotermia.
 
 ## Difetti individuati nei turni
 
@@ -16,6 +16,12 @@ La fonte richiede che gli slot si svuotino **temporaneamente** quando gli addett
 
 Non sono aumentati il coefficiente base delle nascite, l'intervallo fertile o la durata della vita. Non sono introdotti immigrati o parti multipli. La crescita continua a richiedere cibo, riposo e spazio negli alloggi.
 
+## Nuovi blocchi emersi nel replay
+
+**Fuga riattivata da una vecchia ferita.** Un ordine pubblico di Cuocere consumava una carne, ma il tick successivo lo annullava anche a casa, senza attacchi. Il controllo usava per sempre l'ultima causa di danno. La fonte (1832–1834) richiede invece un nuovo danno da combattimento: ora un impulso reale viene consumato una volta sola, prima di cura e priorità, e la fuga prosegue fino alla tana. Fame, gelo e Legge Marziale conservano la precedenza. La stessa revisione collega Pericolo soltanto a nuove ferite animali viste da un alleato entro 20 metri (641), anziché a ferite storiche.
+
+**Manutenzione che cancellava il lavoro precedente.** Con due addetti e un capo, il recinto maturava un turno completo in inverno. Se a 360 s mancavano cinque vegetali, veniva spento prima di accreditare la carne e le pelli. La fonte (2175) dice che l'inattività riguarda la stagione successiva. La correzione conserva efficienza e bonus già maturati prima di regolare la manutenzione: il turno pieno rende venti carni e cinque pelli, poi il recinto resta inattivo. Un turno dimezzato rende la metà; un recinto già inattivo non ottiene lavoro retroattivo quando paga. I costi restano prima del deperimento delle scorte vecchie e i raccolti freschi dopo.
+
 ## Custodi visibili
 
 Gli avvisi derivano dalle parole vive e dai loro custodi effettivamente vivi. Escludono le parole innate. La mappa distingue la voce dell'ultimo custode dalla Scintilla; il pannello segnala età avanzata, ferite, fame, freddo o uno scontro pericoloso.
@@ -24,8 +30,8 @@ Nomi e numeri seguono le conoscenze della tribù. La trasmissione usa l'insegnam
 
 ## Limiti della verifica
 
-Il replay riusabile `tests/scenarios/ordinaryGrowth.ts` parte dal Seed Zero e usa soltanto comandi pubblici, Scintille reali e insegnamento pagato. Il suo primo anno è verificato nel test del motore: 395,25 s, sei superstiti, diciassette parole vive e due lezioni pagate. Un confronto usando la simulazione del commit dell'utente `667cf89` produce lo stesso esito con gli stessi comandi. Lo stato finale rimane fragile: sopravvivere al primo inverno non certifica un'economia sostenibile. I test con campi e persone preparati restano prove isolate dei turni e della contabilità.
+Il replay riusabile `tests/scenarios/ordinaryGrowth.ts` parte dal Seed Zero e usa soltanto comandi pubblici, Scintille reali e insegnamento pagato. Il suo primo anno è verificato nel test del motore: 395,25 s, sei superstiti, diciassette parole vive e due lezioni pagate. Un confronto usando la simulazione del commit dell'utente `667cf89` produce lo stesso esito con gli stessi comandi. Selezionando un Falò acceso, la mappa mostra anche il raggio fisico del calore e la scheda avverte se il giaciglio non è completamente coperto; il focolare spento resta distinto. Il raggio numerico compare solo con Numero. Lo stato finale rimane fragile: sopravvivere al primo inverno non certifica un'economia sostenibile. I test con campi e persone preparati restano prove isolate dei turni e della contabilità.
 
 Le soglie di 35 e 150 abitanti e le tre vittorie restano aperte finché una rotta ordinaria riproducibile non le raggiunge. Il superamento dei test sui singoli meccanismi non viene usato per dichiararle dimostrate.
 
-Verifica della revisione: **573 test unitari e di integrazione in 20 file**, **20 prove nel browser**, build e formattazione superati. Le nuove prove comprendono 24 casi sui turni e 8 sui custodi.
+Verifica della revisione: **596 test unitari e di integrazione in 22 file**, **24 prove nel browser**, build e formattazione superati. Le prove comprendono 24 casi sui turni, 8 sui custodi, 19 su fuga e danno osservato e 4 sulla produzione al cambio di manutenzione. Le prove del browser comprendono i nuovi tab, gli ordini touch realmente pagati e il pinch dopo mouse hover: un puntatore inattivo non resta più registrato fra le dita attive.

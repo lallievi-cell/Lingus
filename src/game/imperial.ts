@@ -1723,7 +1723,10 @@ function absorbFrontlineDamage(s: GameState, host: City | Battalion, damage: num
     if (!u || protectedByDogma(s, 'S_04', u) || getDogmaEffects(s, { unit: u }).protected) continue;
     const wound = Math.min(left, u.hp);
     u.hp -= wound;
-    if (wound > 0) recordAttackTrauma(s);
+    if (wound > 0) {
+      u.pendingCombatDamage = true;
+      recordAttackTrauma(s);
+    }
     left -= wound;
     u.lastDamageCause = 'V_03';
     if (u.hp <= 0) killUnit(s, u, 'V_03');

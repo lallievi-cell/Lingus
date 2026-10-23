@@ -141,14 +141,36 @@ test('the tribe and its transmission action stay reachable inside a narrow viewp
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await seedCustodian(page, 'named');
+  await page
+    .getByRole('navigation', { name: 'Sezioni di gioco' })
+    .getByRole('button', { name: /^Tribù/ })
+    .click();
   await page.getByRole('button', { name: 'Seleziona Uma', exact: true }).click();
   await expect(page.locator('.individual-custody')).toContainText('«Scheggiare»');
   const notice = page.getByLabel('Ultimi custodi a rischio');
   await notice.getByRole('button', { name: /Tramanda al falò/ }).click();
   await expect(page.getByRole('dialog', { name: 'Attorno al falò' })).toBeVisible();
+  await page
+    .getByLabel('Parola da tramandare: Scheggiare', { exact: true })
+    .getByRole('button', { name: /Tramanda/ })
+    .click();
+  await page.getByRole('button', { name: /Custodiamo queste parole/ }).click();
+  await expect(notice).toHaveCount(0);
+  const saved = await savedState(page);
+  expect(saved.attention).toBe(10);
+  expect(saved.words.V_06.custodians).toHaveLength(2);
+  await page
+    .getByRole('navigation', { name: 'Sezioni di gioco' })
+    .getByRole('button', { name: 'Mappa', exact: true })
+    .click();
+  await expect(page.getByRole('img', { name: /Mappa della valle/ })).toBeVisible();
   const bounds = await page.evaluate(() => ({
     viewport: window.innerWidth,
     document: document.documentElement.scrollWidth,
   }));
   expect(bounds.document).toBe(bounds.viewport);
+  await page.screenshot({
+    path: '/workspace/artifacts/lingus-custodians-mobile.png',
+    fullPage: true,
+  });
 });

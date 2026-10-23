@@ -7,7 +7,7 @@ import { groundPileFor, resourcePileLabel } from './mapResourceLayout';
 export interface TargetPresentation {
   label: string;
   stage: string;
-  kind: 'source' | 'ground' | 'carcass' | 'food' | 'stores' | 'landmark' | 'custodian';
+  kind: 'source' | 'ground' | 'carcass' | 'food' | 'stores' | 'landmark' | 'custodian' | 'heat';
   description: string;
   hint?: string;
 }
@@ -166,6 +166,27 @@ export function targetPresentation(
   }
   if (target.type === 'building') {
     const building = state.buildings.find((b) => b.id === target.id);
+    if (building?.kind === 'campfire') {
+      const lit = building.active && building.hp > 0;
+      const coversRest = Math.hypot(building.x - state.home.x, building.y - state.home.y) + 8 <= 15;
+      return {
+        label: `${BUILDING_NAMES.campfire} · ${lit ? 'Acceso' : 'Spento'}`,
+        stage: lit ? 'Calore nelle vicinanze' : 'Senza calore',
+        kind: 'heat',
+        description: lit
+          ? hasWord(state, 'O_08')
+            ? 'Riscalda le persone entro 15 metri, dentro il cerchio dorato.'
+            : 'Riscalda le persone dentro il cerchio dorato.'
+          : 'Il focolare spento non riscalda le persone.',
+        hint: !lit
+          ? hasWord(state, 'O_08')
+            ? 'Serve 1 legna per riaccenderlo.'
+            : 'Serve legna per riaccenderlo.'
+          : coversRest
+            ? 'Il calore raggiunge tutta la zona in cui la tribù si addormenta.'
+            : 'Una parte del giaciglio della tribù è fuori dal calore. Durante il gelo servono anche ripari o vestiti.',
+      };
+    }
     if (building && ['storage', 'depot'].includes(building.kind))
       return {
         label: BUILDING_NAMES[building.kind],

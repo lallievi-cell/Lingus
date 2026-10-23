@@ -95,6 +95,7 @@ export function applyCivilAssault(
   const actual = Math.min(victim.hp, damage);
   victim.hp -= actual;
   victim.lastDamageCause = 'V_03';
+  victim.pendingCombatDamage = true;
   attacker.lastEventAt ??= {};
   attacker.lastEventAt.CIVIL_AGGRESSOR_UNTIL = s.time + 30;
   s.eventTimes[`civil-last-damage:${attacker.id}`] = actual;

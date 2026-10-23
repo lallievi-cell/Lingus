@@ -547,10 +547,8 @@ describe('physical fire and high-heat discoveries', () => {
 });
 
 describe('normal-play first chapter', () => {
-  it(
-    'reaches the winter milestone using only ordinary orders, real sparks and earned attention',
-    () => {
-      const s = replayOrdinaryFirstYear();
+  it('reaches the winter milestone using only ordinary orders, real sparks and earned attention', () => {
+    const s = replayOrdinaryFirstYear();
 
     expect(s.gameOver).toBeNull();
     expect(s.milestone).toBe(true);

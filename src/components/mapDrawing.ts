@@ -2088,12 +2088,35 @@ export function drawWorld(
   groupAnchor?: WorldTarget | null,
   isGroupActive = false,
   ping?: { x: number; y: number; time: number } | null,
-  orderFeedback?: { from: { x: number; y: number }[]; to: { x: number; y: number }; time: number } | null,
+  orderFeedback?: {
+    from: { x: number; y: number }[];
+    to: { x: number; y: number };
+    time: number;
+  } | null,
 ) {
   ctx.drawImage(terrain, 0, 0, MAP_WIDTH, MAP_HEIGHT);
   drawCampground(ctx, state);
   const piles = getGroundPiles(state);
   const custodians = new Map(getCustodianStatuses(state).map((status) => [status.unitId, status]));
+  const focused = hovered?.type === 'building' ? hovered : selected;
+  const fire =
+    focused?.type === 'building'
+      ? state.buildings.find((b) => b.id === focused.id && b.kind === 'campfire')
+      : undefined;
+  if (fire?.active && fire.hp > 0 && isVisibleAt(state, fire.x, fire.y)) {
+    const center = worldPoint(fire.x, fire.y);
+    ctx.save();
+    ctx.beginPath();
+    // This range uses world metres; the flame sprite itself is deliberately small.
+    ctx.ellipse(center.x, center.y, 15 * 2.4, 15 * 1.6, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#d49b3912';
+    ctx.fill();
+    ctx.strokeStyle = '#aa792872';
+    ctx.lineWidth = 0.5;
+    ctx.setLineDash([1.5, 1.5]);
+    ctx.stroke();
+    ctx.restore();
+  }
   const liveAnchor =
     groupAnchor && !state.urbanized
       ? groupAnchor.type === 'unit'

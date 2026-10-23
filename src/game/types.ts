@@ -189,6 +189,8 @@ export interface Unit {
   initialIntelligence?: number;
   droppedResource?: Resource;
   lastDamageCause?: string;
+  /** A new hostile wound, consumed once by the next individual FSM update. */
+  pendingCombatDamage?: boolean;
   lastOrderAt?: number;
   lastNightEvent?: number;
   lastEventAt?: Record<string, number>;

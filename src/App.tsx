@@ -1130,7 +1130,9 @@ function App() {
           </div>
         </section>
 
-        <aside className={`discovery-panel ${mobileSection === 'discovery' ? 'mobile-visible' : ''}`}>
+        <aside
+          className={`discovery-panel ${mobileSection === 'discovery' ? 'mobile-visible' : ''}`}
+        >
           <div className="discovery-title">
             <Sparkles size={16} />
             <span className="eyebrow">L’ORIZZONTE DEL PENSIERO</span>
@@ -1361,8 +1363,7 @@ function App() {
                 const isKnown = phrase.every((id) => hasWord(game, id));
                 if (!isKnown) return null;
                 const isActive =
-                  phrase.length === sentence.length &&
-                  phrase.every((id, i) => sentence[i] === id);
+                  phrase.length === sentence.length && phrase.every((id, i) => sentence[i] === id);
                 return (
                   <button
                     key={idx}

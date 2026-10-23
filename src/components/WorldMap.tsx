@@ -26,7 +26,11 @@ interface WorldMapProps {
   onSpark?: (sparkId: string) => void;
   groupAnchor?: WorldTarget | null;
   isGroupActive?: boolean;
-  orderFeedback?: { from: { x: number; y: number }[]; to: { x: number; y: number }; time: number } | null;
+  orderFeedback?: {
+    from: { x: number; y: number }[];
+    to: { x: number; y: number };
+    time: number;
+  } | null;
 }
 
 type View = { zoom: number; centerX: number; centerY: number };
@@ -90,7 +94,7 @@ function targetLabel(state: GameState, target: WorldTarget | null) {
     if (building.kind === 'campfire') {
       return building.active
         ? `${name} · Acceso (riscalda e protegge la tribù)`
-        : `${name} · Spento (richiede 1 legna per riaccenderlo)`;
+        : `${name} · Spento (richiede ${numbered ? '1 legna' : 'legna'} per riaccenderlo)`;
     }
     return building.active ? name : `${name} · Inattivo`;
   }
@@ -525,7 +529,8 @@ export function WorldMap({
           }
         }}
         onPointerMove={(event) => {
-          activePointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+          if (activePointersRef.current.has(event.pointerId))
+            activePointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
           if (activePointersRef.current.size >= 2 && pinchStartRef.current) {
             const [p1, p2] = Array.from(activePointersRef.current.values());
