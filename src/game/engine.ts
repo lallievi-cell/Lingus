@@ -33,6 +33,7 @@ import {
   advanceTier,
   canIgnite,
   createBuilding,
+  dropCarriedLoad,
   finishSeasonMemory,
   getSeason,
   initializeUnit,
@@ -140,6 +141,7 @@ function assignBuildingJob(
         b.kind === kind &&
         b.hp > 0 &&
         b.active &&
+        b.completed !== false &&
         (b.workerIds ?? []).filter(
           (id) =>
             id !== u.id && s.units.find((u) => u.id === id && u.hp > 0)?.jobBuildingId === b.id,
@@ -149,6 +151,7 @@ function assignBuildingJob(
   );
   if (!b) return false;
   for (const old of s.buildings) old.workerIds = old.workerIds?.filter((id) => id !== u.id);
+  dropCarriedLoad(s, u);
   resetUnit(u);
   u.action = 'working';
   u.jobBuildingId = b.id;
@@ -281,9 +284,15 @@ export function issueCommand(
         isPlayerBuilding(s, b),
     );
   if (workplace && BUILDING_SPECS[workplace.kind].workers > 0) {
-    let assigned = 0;
-    for (const u of workers)
-      if (assignBuildingJob(s, u, workplace.kind, tokens, workplace.id)) assigned++;
+    let assigned = 0,
+      droppedCargo = false;
+    for (const u of workers) {
+      const loaded = (u.carry?.amount ?? 0) > 0;
+      if (assignBuildingJob(s, u, workplace.kind, tokens, workplace.id)) {
+        assigned++;
+        droppedCargo ||= loaded;
+      }
+    }
     if (!assigned) {
       log(s, 'Non ci sono posti liberi o persone con le competenze richieste.', 'warning');
       return s;
@@ -291,6 +300,7 @@ export function issueCommand(
     s.voice--;
     s.stats.commands++;
     for (const id of tokens) s.words[id].uses++;
+    if (droppedCargo) log(s, 'Il carico è rimasto a terra dopo il nuovo ordine.', 'warning');
     log(
       s,
       `${BUILDING_SPECS[workplace.kind].label}: ${assigned} persone hanno ricevuto il lavoro.`,
@@ -347,9 +357,6 @@ export function issueCommand(
     s.lastCraftWord = target.id.slice(5);
   if (localCraft) payLocally(s, cost, workers[0]);
   else pay(s.resources, cost);
-  s.voice--;
-  s.stats.commands++;
-  for (const id of tokens) s.words[id].uses++;
   if (
     verb === 'V_02' &&
     args.includes('O_04') &&
@@ -362,8 +369,12 @@ export function issueCommand(
     };
     log(s, 'La priorità delle scorte viene assegnata al soggetto della frase.', 'info');
   }
+  let droppedCargo = false,
+    assigned = 0;
   if (kind) {
     const builder = workers[0];
+    assigned++;
+    droppedCargo = dropCarriedLoad(s, builder);
     resetUnit(builder);
     builder.action = 'building';
     builder.command = [...tokens];
@@ -375,9 +386,6 @@ export function issueCommand(
     builder.progress = 0;
   } else
     for (const u of workers) {
-      resetUnit(u);
-      u.command = [...tokens];
-      u.lastOrderAt = s.time;
       let e = target?.type === 'entity' ? s.entities.find((e) => e.id === target.id) : undefined;
       const pool = matchingEntities(s, tokens, u);
       if (
@@ -385,6 +393,31 @@ export function issueCommand(
         (!e || !pool.includes(e))
       )
         e = nearest(pool, u);
+      // A failed workplace assignment does not interrupt an existing transport.
+      const buildingJob: BuildingKind | undefined =
+        verb === 'V_05' && args.includes('O_09')
+          ? 'archive'
+          : verb === 'V_09' && !args.includes('O_03')
+            ? 'farm'
+            : verb === 'V_10' && !e
+              ? 'pen'
+              : verb === 'V_12'
+                ? 'foundry'
+                : undefined;
+      if (buildingJob) {
+        const loaded = (u.carry?.amount ?? 0) > 0;
+        if (assignBuildingJob(s, u, buildingJob, tokens)) {
+          assigned++;
+          u.lastOrderAt = s.time;
+          droppedCargo ||= loaded;
+        }
+        continue;
+      }
+      droppedCargo = dropCarriedLoad(s, u) || droppedCargo;
+      assigned++;
+      resetUnit(u);
+      u.command = [...tokens];
+      u.lastOrderAt = s.time;
       if (verb === 'V_01') {
         u.action = 'moving';
         const destination = args.includes('O_01')
@@ -439,9 +472,7 @@ export function issueCommand(
         u.action = 'guarding';
         u.tx = target?.x ?? s.home.x;
         u.ty = target?.y ?? s.home.y;
-      } else if (verb === 'V_05' && args.includes('O_09'))
-        assignBuildingJob(s, u, 'archive', tokens);
-      else if (verb === 'V_05' && args.includes('O_12')) {
+      } else if (verb === 'V_05' && args.includes('O_12')) {
         u.action = 'saving';
         u.command = [...tokens];
       } else if (verb === 'V_05' && args.includes('O_01')) {
@@ -458,16 +489,24 @@ export function issueCommand(
           u.action = 'planting';
           u.tx = target?.x ?? u.x;
           u.ty = target?.y ?? u.y;
-        } else assignBuildingJob(s, u, 'farm', tokens);
+        }
       } else if (verb === 'V_10') {
         if (e) {
           u.action = 'domesticating';
           u.targetId = e.id;
           u.tx = e.x;
           u.ty = e.y;
-        } else assignBuildingJob(s, u, 'pen', tokens);
-      } else if (verb === 'V_12') assignBuildingJob(s, u, 'foundry', tokens);
+        }
+      }
     }
+  if (!assigned) {
+    log(s, 'Non ci sono posti liberi o persone con le competenze richieste.', 'warning');
+    return s;
+  }
+  s.voice--;
+  s.stats.commands++;
+  for (const id of tokens) s.words[id].uses++;
+  if (droppedCargo) log(s, 'Il carico è rimasto a terra dopo il nuovo ordine.', 'warning');
   log(
     s,
     `«${tokens.map((w) => WORDS[w].label).join(' · ')}»: ${workers.length === 1 ? workers[0].name : 'il gruppo'} ha compreso.`,
@@ -756,6 +795,21 @@ export function serializeGame(s: GameState) {
 export function parseGame(raw: string): GameState | null {
   try {
     const s: unknown = JSON.parse(raw);
+    // Older idle countdowns could expire between browser ticks and be saved
+    // slightly below zero. Recover only that known case; work progress and
+    // the rest of the imported world still pass the full validator.
+    if (s && typeof s === 'object' && 'units' in s && Array.isArray(s.units))
+      for (const u of s.units)
+        if (
+          u &&
+          typeof u === 'object' &&
+          u.action === 'idle' &&
+          u.command === undefined &&
+          typeof u.progress === 'number' &&
+          u.progress >= -0.25 &&
+          u.progress < 0
+        )
+          u.progress = 0;
     return validSave(s) ? { ...s, paused: true } : null;
   } catch {
     return null;

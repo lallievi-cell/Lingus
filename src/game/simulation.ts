@@ -688,6 +688,15 @@ function drop(s: GameState, u: Unit, r: Resource, amount: number) {
     sectorId: `sector-${Math.floor(u.x / 100)}-${Math.floor(u.y / 100)}`,
   });
 }
+/** An accepted replacement order leaves the old load at the carrier's real position (A-35). */
+export function dropCarriedLoad(s: GameState, u: Unit) {
+  const carried = u.carry;
+  if (!carried) return false;
+  u.carry = undefined;
+  if (carried.amount <= 0) return false;
+  drop(s, u, carried.resource, carried.amount);
+  return true;
+}
 function finishConstruction(s: GameState, u: Unit) {
   if (!u.buildingKind) return;
   trainStrength(u);
@@ -1409,7 +1418,7 @@ function startInstinct(s: GameState, u: Unit, dt: number) {
       u.ty = s.home.y + (random(s) - 0.5) * 24;
       u.progress = 8 + random(s) * 10;
     }
-    u.progress -= dt;
+    u.progress = Math.max(0, u.progress - dt);
     move(s, u, u.tx, u.ty ?? s.home.y, dt, 0.6);
   }
 }

@@ -3,14 +3,14 @@ import { expect, test, type Page } from '@playwright/test';
 const SAVE_KEY = 'lingus.save.v2';
 const details = (page: Page) => page.getByRole('status', { name: 'Dettagli del bersaglio' });
 
-type Fixture = 'known' | 'unknown' | 'numbered' | 'transport';
+type Fixture = 'known' | 'unknown' | 'numbered' | 'transport' | 'interrupted';
 
 async function seedResources(page: Page, scenario: Fixture = 'known') {
   await page.goto('/');
   const raw = await page.evaluate(async (scenario) => {
-    const { createGame } = await import('/src/game/engine.ts');
+    const { createGame, issueCommand, tick } = await import('/src/game/engine.ts');
     const { emptyInventory } = await import('/src/game/content.ts');
-    const s = createGame(6842);
+    let s = createGame(6842);
     s.started = true;
     s.paused = true;
     s.tier = 2;
@@ -36,8 +36,9 @@ async function seedResources(page: Page, scenario: Fixture = 'known') {
     };
     for (const id of ['S_02', 'O_02', 'O_04', 'M_02']) learn(id);
     if (scenario !== 'unknown') learn('O_03');
-    if (scenario === 'numbered' || scenario === 'transport') learn('O_08');
-    if (scenario === 'transport') for (const id of ['V_04', 'O_01']) learn(id);
+    if (['numbered', 'transport', 'interrupted'].includes(scenario)) learn('O_08');
+    if (scenario === 'transport' || scenario === 'interrupted')
+      for (const id of ['V_04', 'O_01']) learn(id);
     s.entities = [
       {
         id: 'source-tree',
@@ -103,6 +104,26 @@ async function seedResources(page: Page, scenario: Fixture = 'known') {
         maxHp: 30,
       },
     ];
+    if (scenario === 'interrupted') {
+      // Isolated transport fixture. The load itself must come from a real order
+      // and elapsed collection, rather than being injected into the unit.
+      learn('V_05');
+      s.units = s.units.slice(0, 1);
+      Object.assign(s.units[0], { x: 250, y: 250 });
+      s.entities = s.entities.slice(0, 2);
+      Object.assign(s.entities[0], { x: 260, y: 250 });
+      s.paused = false;
+      s = issueCommand(s, ['S_01', 'V_04', 'O_03'], {
+        type: 'entity',
+        id: s.entities[0].id,
+        x: 260,
+        y: 250,
+      });
+      for (let step = 0; step < 80 && !s.units[0].carry; step++) s = tick(s, 0.25);
+      if (s.units[0].action !== 'returning' || s.units[0].carry?.amount !== 3)
+        throw new Error('The fixture never reached a real loaded return journey.');
+      s.paused = true;
+    }
     return JSON.stringify(s);
   }, scenario);
   await page.addInitScript(
@@ -232,6 +253,42 @@ test('carrying an extracted pile through a real order increases stocks only afte
   const delivered = await saveAndRead(page);
   expect(delivered.entities.find((e: { id: string }) => e.id === 'wood-a').amount).toBeLessThan(4);
   expect(delivered.resources.wood).toBeGreaterThan(0);
+});
+
+test('a new order leaves interrupted cargo as a selectable real pile without crediting stocks', async ({
+  page,
+}) => {
+  await seedResources(page, 'interrupted');
+  const before = await saveAndRead(page);
+  const carrier = before.units[0];
+  expect(carrier.action).toBe('returning');
+  expect(carrier.carry).toEqual({ resource: 'wood', amount: 3 });
+  expect(before.entities.some((e: { kind: string }) => e.kind === 'ground')).toBe(false);
+
+  await mapClick(page, { x: 250, y: 250 });
+  await page.getByRole('button', { name: /^Gruppo:/ }).click();
+  await page.getByRole('button', { name: /^Andare:/ }).click();
+  await page.getByRole('button', { name: /^Qui:/ }).click();
+  await page.getByRole('button', { name: 'Pronuncia', exact: true }).click();
+
+  const interrupted = await saveAndRead(page);
+  expect(interrupted.stats.commands).toBe(before.stats.commands + 1);
+  expect(interrupted.units[0].action).toBe('moving');
+  expect(interrupted.units[0].carry).toBeUndefined();
+  expect(interrupted.resources.wood).toBe(0);
+  const pile = interrupted.entities.find(
+    (e: { kind: string; resource?: string }) => e.kind === 'ground' && e.resource === 'wood',
+  );
+  expect(pile).toMatchObject({ x: carrier.x, y: carrier.y, resource: 'wood', amount: 3 });
+  expect(
+    interrupted.entities.find((e: { id: string }) => e.id === 'source-tree').amount + pile.amount,
+  ).toBe(20);
+
+  await mapClick(page, await pilePoint(page, 'wood'));
+  await expect(details(page)).toContainText(/Legno/i);
+  await expect(details(page)).toContainText(/a terra/i);
+  await expect(details(page).locator('strong')).toHaveText('Legno a terra · 3');
+  await expect(details(page)).toContainText(/Portare/i);
 });
 
 test('the resource explanation remains readable and selectable on a narrow screen', async ({

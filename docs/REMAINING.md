@@ -16,7 +16,7 @@ La fonte intitola “25” il catalogo delle leggi, ma presenta 23 frasi distint
 
 ## Produzione, riposo e memoria
 
-[GROWTH-AUDIT.md](GROWTH-AUDIT.md) documenta i difetti trovati nel lavoro stagionale: perdita permanente degli incarichi durante il riposo, Sempre che impedisce il sonno e raccolto nullo quando gli addetti hanno lasciato gli slot a fine notte. La contabilità temporale A-34 corregge questi comportamenti senza aumentare la formula delle nascite. Gli ultimi custodi sono segnalati con avvisi e trasmissione ordinaria al Falò. Il replay ha inoltre individuato e corretto la fuga permanente da vecchie ferite e l’annullamento retroattivo della produzione per manutenzione non pagata. Queste correzioni non chiudono automaticamente le campagne sotto elencate.
+[GROWTH-AUDIT.md](GROWTH-AUDIT.md) documenta i difetti trovati nel lavoro stagionale: perdita permanente degli incarichi durante il riposo, Sempre che impedisce il sonno e raccolto nullo quando gli addetti hanno lasciato gli slot a fine notte. La contabilità temporale A-34 corregge questi comportamenti senza aumentare la formula delle nascite. Gli ultimi custodi sono segnalati con avvisi e trasmissione ordinaria al Falò. Il replay ha inoltre individuato e corretto la fuga permanente da vecchie ferite, l’annullamento retroattivo della produzione per manutenzione non pagata e la scomparsa del vecchio carico al cambio d'incarico (A-35). Queste correzioni non chiudono automaticamente le campagne sotto elencate.
 
 ## Verifiche ancora aperte
 
