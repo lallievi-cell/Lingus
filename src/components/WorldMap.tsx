@@ -15,6 +15,12 @@ import {
 import { getGroundPiles } from './mapResourceLayout';
 import { getCustodianStatuses } from '../game/custodianStatus';
 import { getLifeStage } from '../game/demography';
+import {
+  createMapMotionSession,
+  createAnimationClock,
+  continuousAnimationTime,
+  readUnitDisplay,
+} from './mapMotion';
 import { entityTargetPresentation, targetPresentation } from './targetPresentation';
 import './WorldMap.css';
 
@@ -127,6 +133,8 @@ export function WorldMap({
   const containerRef = useRef<HTMLDivElement>(null),
     canvasRef = useRef<HTMLCanvasElement>(null),
     minimapRef = useRef<HTMLCanvasElement>(null);
+  const motionSessionRef = useRef(createMapMotionSession());
+  const animationClockRef = useRef(createAnimationClock());
   const stateRef = useRef(state),
     anchorRef = useRef(groupAnchor),
     selectedRef = useRef(selectedTarget),
@@ -284,6 +292,10 @@ export function WorldMap({
       ) => {
         if (!isVisibleAt(current, x, y)) return;
         const spritePixels = SPRITE_SCALE * t.scale;
+        display ??=
+          (type === 'unit' || type === 'entity') && !current.paused
+            ? readUnitDisplay(motionSessionRef.current, id)
+            : undefined;
         const dx = (p.x - (display?.x ?? x)) * WORLD_X * t.scale - horizontalOffset * spritePixels,
           dy = (p.y - (display?.y ?? y)) * WORLD_Y * t.scale + verticalOffset * spritePixels;
         const actualX = rx * spritePixels + 2,
@@ -497,7 +509,13 @@ export function WorldMap({
         ctx,
         current,
         terrain,
-        current.paused ? current.time : current.time + (timestamp % 1000) / 1000,
+        continuousAnimationTime(
+          animationClockRef.current,
+          current.time,
+          timestamp,
+          current.paused,
+          current.speed,
+        ),
         selectedRef.current,
         hoveredRef.current,
         readyRef.current,
@@ -511,6 +529,7 @@ export function WorldMap({
           maxX: (width - t.x) / t.scale / WORLD_X,
           maxY: (height - t.y) / t.scale / WORLD_Y,
         },
+        motionSessionRef.current,
       );
       const mw = 134,
         mh = 88;

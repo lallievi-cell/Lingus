@@ -1,4 +1,5 @@
 import type { MapEntity } from '../game/types';
+import { observeAnimalAnimation, type AnimalAnimationContext } from './animalAnimation';
 
 /** Illustrated natural objects. Coordinates are local to the real ground anchor. */
 type Point = [number, number];
@@ -721,28 +722,6 @@ function animalBody(
     ctx.closePath();
     ctx.fillStyle = gradient;
     ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(27, -32);
-    ctx.bezierCurveTo(40, -23, 27, -2, 37, 0);
-    ctx.bezierCurveTo(43, 1, 44, -7, 41, -11);
-    ctx.strokeStyle = '#6c513c';
-    ctx.lineWidth = 6;
-    ctx.lineCap = 'round';
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(25, -21);
-    ctx.bezierCurveTo(35, -9, 43, -8, 44, -20);
-    ctx.strokeStyle = '#d9cdaa';
-    ctx.lineWidth = 2.6;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(23, -20);
-    ctx.bezierCurveTo(31, -8, 37, -6, 40, -14);
-    ctx.strokeStyle = '#f0e5c6';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ellipse(ctx, 16, -33, 8, 12, '#65503b', -0.18);
-    ellipse(ctx, 14, -35, 5.2, 8, '#947450', -0.18);
     ellipse(ctx, 27, -34, 1.2, 1.1, '#292c23');
     for (let i = 0; i < 48; i++) {
       const x = -29 + random() * 47,
@@ -757,190 +736,28 @@ function animalBody(
         0.65,
       );
     }
-    stroke(
-      ctx,
-      [
-        [-34, -22],
-        [-42, -13],
-        [-43, -5],
-      ],
-      dark,
-      1.5,
-    );
     return;
   }
   const gradient = ctx.createLinearGradient(-16, -29, 15, -7);
   gradient.addColorStop(0, winter && wolf ? '#a4afa1' : wolf ? '#b1b49d' : '#d1ad77');
   gradient.addColorStop(0.45, coat);
   gradient.addColorStop(1, dark);
+  ctx.beginPath();
   if (wolf) {
-    ctx.beginPath();
     ctx.moveTo(-21, -15);
     ctx.bezierCurveTo(-22, -26, -8, -26, 1, -22);
-    ctx.bezierCurveTo(10, -27, 16, -24, 17, -20);
-    ctx.lineTo(30, -16);
-    ctx.lineTo(32, -13);
-    ctx.lineTo(20, -12);
+    ctx.bezierCurveTo(12, -26, 17, -23, 17, -16);
     ctx.bezierCurveTo(13, -7, 10, -5, 5, -8);
     ctx.bezierCurveTo(-5, -4, -18, -7, -21, -15);
-    ctx.closePath();
-    ctx.fillStyle = gradient;
-    ctx.fill();
-    polygon(
-      ctx,
-      [
-        [11, -21],
-        [10, -32],
-        [17, -25],
-        [20, -29],
-        [22, -20],
-      ],
-      '#667263',
-    );
-    polygon(
-      ctx,
-      [
-        [12, -24],
-        [12, -29],
-        [15.4, -25],
-      ],
-      '#c0b69a',
-    );
-    stroke(
-      ctx,
-      [
-        [-20, -15],
-        [-28, -12],
-        [-32, -6],
-      ],
-      '#687565',
-      4.6,
-    );
-    stroke(
-      ctx,
-      [
-        [-28, -12],
-        [-32, -6],
-      ],
-      '#a3a891',
-      1.6,
-    );
-    stroke(
-      ctx,
-      [
-        [18, -12],
-        [26, -12],
-      ],
-      '#b9b69b',
-      1.3,
-    );
-    ellipse(ctx, 31, -15, 1.6, 1.2, '#30392f');
-    ellipse(ctx, 20.5, -20, 0.9, 0.7, '#302f25');
   } else {
-    ctx.beginPath();
     ctx.moveTo(-21, -16);
     ctx.bezierCurveTo(-19, -25, -4, -25, 6, -20);
-    ctx.bezierCurveTo(12, -20, 12, -30, 17, -32);
-    ctx.bezierCurveTo(21, -35, 28, -30, 30, -27);
-    ctx.lineTo(32, -25);
-    ctx.lineTo(27, -23);
-    ctx.lineTo(20, -24);
-    ctx.bezierCurveTo(19, -16, 16, -8, 7, -8);
-    ctx.bezierCurveTo(-5, -5, -20, -9, -21, -16);
-    ctx.closePath();
-    ctx.fillStyle = gradient;
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(-6, -10);
-    ctx.bezierCurveTo(5, -8, 12, -14, 16, -23);
-    ctx.strokeStyle = '#dbc39a';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    polygon(
-      ctx,
-      [
-        [18, -29],
-        [11, -34],
-        [10, -38],
-        [18, -35],
-        [20, -31],
-      ],
-      '#a28b60',
-    );
-    polygon(
-      ctx,
-      [
-        [23, -30],
-        [25, -37],
-        [29, -37],
-        [26, -31],
-      ],
-      '#b69b6f',
-    );
-    stroke(
-      ctx,
-      [
-        [-21, -17],
-        [-25, -20],
-        [-24, -15],
-      ],
-      '#e0d2ad',
-      2.7,
-    );
-    ellipse(ctx, 26, -28.4, 0.85, 0.8, '#322d23');
-    ellipse(ctx, 31, -25.5, 1, 0.7, '#4a3c2d');
-    if (variant % 3 !== 1) {
-      stroke(
-        ctx,
-        [
-          [19, -32],
-          [16, -38],
-          [16, -43],
-          [14, -46],
-        ],
-        '#6b6246',
-        0.9,
-      );
-      stroke(
-        ctx,
-        [
-          [16, -39],
-          [11, -42],
-          [10, -45],
-        ],
-        '#6b6246',
-        0.75,
-      );
-      stroke(
-        ctx,
-        [
-          [16, -41],
-          [20, -44],
-        ],
-        '#6b6246',
-        0.7,
-      );
-      stroke(
-        ctx,
-        [
-          [23, -32],
-          [25, -40],
-          [29, -44],
-        ],
-        '#827452',
-        0.8,
-      );
-      stroke(
-        ctx,
-        [
-          [25, -39],
-          [23, -43],
-        ],
-        '#827452',
-        0.7,
-      );
-    }
+    ctx.bezierCurveTo(14, -21, 18, -15, 14, -10);
+    ctx.bezierCurveTo(6, -5, -20, -9, -21, -16);
   }
+  ctx.closePath();
+  ctx.fillStyle = gradient;
+  ctx.fill();
   for (let i = 0; i < 25; i++) {
     const x = -17 + random() * 28,
       y = -12 - random() * 8;
@@ -956,46 +773,238 @@ function animalBody(
   }
 }
 
-type Motion = {
-  x: number;
-  y: number;
-  originX?: number;
-  originY?: number;
-  time: number;
-  movingUntil: number;
-  facing: number;
-};
-const motion = new Map<string, Motion>();
-function animalMotion(entity: MapEntity, time: number) {
-  let value = motion.get(entity.id);
-  if (
-    !value ||
-    time < value.time ||
-    value.originX !== entity.originX ||
-    value.originY !== entity.originY
-  ) {
-    value = {
-      x: entity.x,
-      y: entity.y,
-      originX: entity.originX,
-      originY: entity.originY,
-      time,
-      movingUntil: -Infinity,
-      facing: seedOf(entity.id) % 2 ? -1 : 1,
-    };
-    if (motion.size > 1024) motion.delete(motion.keys().next().value!);
+function deerHead(ctx: CanvasRenderingContext2D, variant: number, angle: number, alert: boolean) {
+  ctx.save();
+  ctx.translate(9, -17);
+  ctx.rotate(angle);
+  const coat = ctx.createLinearGradient(-2, -16, 17, 9);
+  coat.addColorStop(0, '#d7b680');
+  coat.addColorStop(0.5, '#b28b58');
+  coat.addColorStop(1, '#785b39');
+  ctx.beginPath();
+  ctx.moveTo(-4, 7);
+  ctx.bezierCurveTo(3, 4, 3, -12, 8, -15);
+  ctx.bezierCurveTo(12, -18, 18, -13, 21, -10);
+  ctx.lineTo(23, -8);
+  ctx.lineTo(18, -6);
+  ctx.lineTo(11, -7);
+  ctx.bezierCurveTo(9, 0, 7, 9, -4, 7);
+  ctx.closePath();
+  ctx.fillStyle = coat;
+  ctx.fill();
+  stroke(
+    ctx,
+    [
+      [-3, 7],
+      [3, 3],
+      [7, -6],
+    ],
+    '#d9c39b',
+    1.7,
+  );
+  polygon(
+    ctx,
+    [
+      [9, -12],
+      [2, -17],
+      [1, alert ? -23 : -21],
+      [9, -18],
+      [11, -14],
+    ],
+    '#a28b60',
+  );
+  polygon(
+    ctx,
+    [
+      [14, -13],
+      [16, alert ? -23 : -20],
+      [20, -20],
+      [17, -14],
+    ],
+    '#b69b6f',
+  );
+  ellipse(ctx, 17, -11.4, 0.85, 0.8, '#322d23');
+  ellipse(ctx, 22, -8.5, 1, 0.7, '#4a3c2d');
+  if (variant % 3 !== 1) {
+    stroke(
+      ctx,
+      [
+        [10, -15],
+        [7, -21],
+        [7, -26],
+        [5, -29],
+      ],
+      '#6b6246',
+      0.9,
+    );
+    stroke(
+      ctx,
+      [
+        [7, -22],
+        [2, -25],
+        [1, -28],
+      ],
+      '#6b6246',
+      0.75,
+    );
+    stroke(
+      ctx,
+      [
+        [7, -24],
+        [11, -27],
+      ],
+      '#6b6246',
+      0.7,
+    );
+    stroke(
+      ctx,
+      [
+        [14, -15],
+        [16, -23],
+        [20, -27],
+      ],
+      '#827452',
+      0.8,
+    );
+    stroke(
+      ctx,
+      [
+        [16, -22],
+        [14, -26],
+      ],
+      '#827452',
+      0.7,
+    );
   }
-  const dx = entity.x - value.x,
-    dy = entity.y - value.y;
-  if (Math.hypot(dx, dy) > 0.0001) {
-    if (Math.abs(dx) > 0.0001) value.facing = dx < 0 ? -1 : 1;
-    value.movingUntil = time + 0.45;
-  }
-  value.x = entity.x;
-  value.y = entity.y;
-  value.time = time;
-  motion.set(entity.id, value);
-  return { moving: time < value.movingUntil, facing: value.facing };
+  ctx.restore();
+}
+
+function wolfHead(ctx: CanvasRenderingContext2D, winter: boolean, angle: number, bite: number) {
+  ctx.save();
+  ctx.translate(11, -18);
+  ctx.rotate(angle);
+  const coat = ctx.createLinearGradient(-6, -12, 19, 8);
+  coat.addColorStop(0, winter ? '#b7c0ad' : '#b1b49d');
+  coat.addColorStop(0.45, '#8b9688');
+  coat.addColorStop(1, '#4b5751');
+  ctx.beginPath();
+  ctx.moveTo(-6, -4);
+  ctx.bezierCurveTo(-3, -12, 4, -10, 7, -4);
+  ctx.lineTo(19, 2);
+  ctx.lineTo(21, 5);
+  ctx.lineTo(9, 6);
+  ctx.bezierCurveTo(4, 10, -3, 9, -6, -4);
+  ctx.closePath();
+  ctx.fillStyle = coat;
+  ctx.fill();
+  polygon(
+    ctx,
+    [
+      [0, -3],
+      [-1, -14],
+      [6, -7],
+      [9, -11],
+      [11, -2],
+    ],
+    '#667263',
+  );
+  polygon(
+    ctx,
+    [
+      [1, -6],
+      [1, -11],
+      [4.4, -7],
+    ],
+    '#c0b69a',
+  );
+  if (bite > 0.1) {
+    polygon(
+      ctx,
+      [
+        [8, 6],
+        [19, 4.5],
+        [17, 5 + bite * 4.3],
+        [8, 7 + bite * 2],
+      ],
+      '#493d32',
+    );
+    polygon(
+      ctx,
+      [
+        [17, 5],
+        [15.7, 7.1],
+        [15, 5.2],
+      ],
+      '#dcd3b8',
+    );
+    stroke(
+      ctx,
+      [
+        [8, 8 + bite],
+        [17, 5 + bite * 4.3],
+      ],
+      '#b9b69b',
+      1.1,
+    );
+  } else
+    stroke(
+      ctx,
+      [
+        [7, 6],
+        [15, 6],
+      ],
+      '#b9b69b',
+      1.3,
+    );
+  ellipse(ctx, 20, 3, 1.6, 1.2, '#30392f');
+  ellipse(ctx, 9.5, -2, 0.9, 0.7, '#302f25');
+  ctx.restore();
+}
+
+function mammothDetails(
+  ctx: CanvasRenderingContext2D,
+  time: number,
+  phase: number,
+  moving: boolean,
+  attack: number,
+) {
+  const sway = Math.sin(time * 1.8 + phase) * (moving ? 2.3 : 1.2) - attack * 6;
+  ctx.beginPath();
+  ctx.moveTo(27, -32);
+  ctx.bezierCurveTo(40, -23, 27 + sway, -2 - attack * 9, 37 + sway, -attack * 10);
+  ctx.bezierCurveTo(
+    43 + sway,
+    1 - attack * 10,
+    44 + sway,
+    -7 - attack * 8,
+    41 + sway,
+    -11 - attack * 8,
+  );
+  ctx.strokeStyle = '#6c513c';
+  ctx.lineWidth = 6;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(27, -31);
+  ctx.bezierCurveTo(35, -20, 30 + sway, -1 - attack * 9, 38 + sway, -1 - attack * 10);
+  ctx.strokeStyle = '#a3865a';
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+  const ear = Math.sin(time * 1.3 + phase) * 0.08;
+  ellipse(ctx, 16, -33, 8 + ear * 9, 12, '#65503b', -0.18 + ear);
+  ellipse(ctx, 14, -35, 5.2 + ear * 6, 8, '#947450', -0.18 + ear);
+  ctx.beginPath();
+  ctx.moveTo(25, -21);
+  ctx.bezierCurveTo(35, -9, 43, -8, 44, -20);
+  ctx.strokeStyle = '#d9cdaa';
+  ctx.lineWidth = 2.6;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(23, -20);
+  ctx.bezierCurveTo(31, -8, 37, -6, 40, -14);
+  ctx.strokeStyle = '#f0e5c6';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
 }
 
 function drawAnimal(
@@ -1004,6 +1013,7 @@ function drawAnimal(
   time: number,
   season: number,
   variant: number,
+  context?: AnimalAnimationContext,
 ) {
   const dead = entity.hp <= 0;
   const mammoth = entity.kind === 'mammoth',
@@ -1014,7 +1024,7 @@ function drawAnimal(
     bounds,
     (context) => animalBody(context, entity.kind, variant, dead, season === 3),
   );
-  const pose = animalMotion(entity, time);
+  const pose = observeAnimalAnimation(entity, time, context);
   ctx.save();
   ctx.scale(alpha ? 1.25 : 1, alpha ? 1.25 : 1);
   if (dead) {
@@ -1024,12 +1034,17 @@ function drawAnimal(
   }
   shade(ctx, 4, 3, mammoth ? 44 : 30, mammoth ? 10 : 7, 0.19);
   ctx.scale(pose.facing, 1);
-  const gait = pose.moving ? Math.sin(time * (mammoth ? 5 : 8) + variant) : 0;
+  const gait = pose.gait;
   const isDeer = entity.kind === 'deer';
   const legColor = mammoth ? '#5d4936' : isDeer ? '#765333' : '#596454';
   const legs = mammoth ? [-25, -15, 12, 21] : [-15, -9, 8, 13];
   for (const [index, x] of legs.entries()) {
-    const offset = gait * (index % 2 ? 3 : -3);
+    const offset =
+      gait * (index % 2 ? 1 : -1) * (pose.fleeing ? 5.2 : mammoth ? 2.7 : pose.running ? 4.3 : 3.1);
+    const lift = pose.moving
+      ? Math.max(0, index % 2 ? gait : -gait) *
+        (pose.fleeing ? 2.8 : pose.running && !mammoth ? 2 : 1.2)
+      : 0;
     const hip = mammoth ? -17 : -12,
       knee = mammoth ? -7 : -5;
     const color = index % 2 ? legColor : mammoth ? '#85694a' : isDeer ? '#b48e5b' : '#899680';
@@ -1038,8 +1053,8 @@ function drawAnimal(
       [
         [x, hip],
         [x + offset * 0.35 + (x < 0 ? -1 : 1), knee],
-        [x + offset, 1],
-        [x + offset + 2, 1],
+        [x + offset, 1 - lift],
+        [x + offset + 2, 1 - lift],
       ],
       color,
       mammoth ? 6 : isDeer ? 1.7 : 2.1,
@@ -1048,18 +1063,86 @@ function drawAnimal(
       stroke(
         ctx,
         [
-          [x + offset - 0.5, 0],
-          [x + offset + 2, 0.5],
+          [x + offset - 0.5, -lift],
+          [x + offset + 2, 0.5 - lift],
         ],
         '#4b4230',
         1.4,
       );
   }
+  const bodyLift = pose.moving
+    ? Math.abs(gait) * (pose.fleeing ? 1.7 : mammoth ? 0.35 : pose.running ? 1.1 : 0.55)
+    : 0;
   ctx.translate(
-    0,
-    Math.sin(time * 1.7 + variant) * 0.17 + (pose.moving ? Math.abs(gait) * 0.5 : 0),
+    pose.attack * (mammoth ? 1 : 2) - pose.hurt * 1.5,
+    Math.sin(time * 1.7 + pose.phase) * 0.17 - bodyLift + pose.hurt * 0.55,
   );
+  // Tails trail the actual gait; the raised white deer tail makes flight legible.
+  if (mammoth) {
+    stroke(
+      ctx,
+      [
+        [-34, -22],
+        [-41, -13],
+        [-43 + Math.sin(time * 2 + pose.phase), -5],
+      ],
+      '#4f4032',
+      1.5,
+    );
+  } else if (isDeer) {
+    stroke(
+      ctx,
+      [
+        [-21, -17],
+        [-25, pose.fleeing ? -24 : -20],
+        [-24, pose.fleeing ? -19 : -15],
+      ],
+      '#e0d2ad',
+      2.7,
+    );
+  } else {
+    const wag = Math.sin(time * (pose.attacking ? 5 : 2) + pose.phase) * 1.8;
+    stroke(
+      ctx,
+      [
+        [-20, -15],
+        [-28, -12 + wag],
+        [-32, -6 + wag],
+      ],
+      '#687565',
+      4.6,
+    );
+    stroke(
+      ctx,
+      [
+        [-28, -12 + wag],
+        [-32, -6 + wag],
+      ],
+      '#a3a891',
+      1.6,
+    );
+  }
   show(ctx, body);
+  if (mammoth) mammothDetails(ctx, time, pose.phase, pose.moving, pose.attack);
+  else if (isDeer) {
+    const browse = Math.max(0, Math.sin(time * 0.65 + pose.phase) - 0.25) * 1.1;
+    deerHead(
+      ctx,
+      variant,
+      pose.alert ? (pose.fleeing ? 0.12 : -0.13) : pose.moving ? 0.1 : browse,
+      pose.alert,
+    );
+  } else
+    wolfHead(
+      ctx,
+      season === 3,
+      pose.attacking
+        ? -pose.attack * 0.16
+        : pose.alert
+          ? -0.08
+          : 0.1 + Math.sin(time * 1.3 + pose.phase) * 0.06,
+      pose.attack,
+    );
   ctx.restore();
 }
 
@@ -1070,11 +1153,12 @@ export function drawPainterlyNature(
   time: number,
   seasonIndex: number,
   unknown: boolean,
+  context?: AnimalAnimationContext,
 ): boolean {
   const variant = seedOf(entity.id) % 8,
     season = seasonIndex % 4;
   if (['deer', 'wolf', 'alpha', 'mammoth'].includes(entity.kind)) {
-    drawAnimal(ctx, entity, time, season, variant);
+    drawAnimal(ctx, entity, time, season, variant, context);
     return true;
   }
   if (entity.kind === 'tree') {

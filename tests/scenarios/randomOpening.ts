@@ -64,6 +64,7 @@ export function replayRandomOpening(seed: number) {
   const pair = pairs[0];
   let stage: 'meal' | 'wood' | 'stone' | 'home' | 'craft' = 'meal';
   let lastOrderAt = -Infinity;
+  let firstFireAt: number | null = null;
 
   const say = (tokens: string[], target?: Target) => {
     const adults = state.units.filter(
@@ -103,8 +104,11 @@ export function replayRandomOpening(seed: number) {
       (building) =>
         !building.cityId && building.kind === 'campfire' && building.active && building.hp > 0,
     );
-    if (fire)
-      return { state, firstFireAt: state.time, orders, rejectedOrders, discoveries, hiddenTargets };
+    if (fire && firstFireAt === null) firstFireAt = state.time;
+    // Lightning can teach Fire before the first paid craft. Finish the same
+    // material route so that an early fire never skips tools and reserve fuel.
+    if (fire && state.resources.tool >= 1 && state.resources.wood >= 2)
+      return { state, firstFireAt, orders, rejectedOrders, discoveries, hiddenTargets };
     if (step % 40 === 0) {
       const time = state.time;
       if (time === 0 && pair) say(['S_01', 'V_03'], entityTarget(pair.tree));
@@ -115,7 +119,7 @@ export function replayRandomOpening(seed: number) {
         if (food && say(['S_01', 'V_02'], entityTarget(food))) stage = 'wood';
       } else if (stage === 'wood' && hasWord(state, 'V_04') && time >= lastOrderAt + 10) {
         if (say(['S_01', 'V_04', 'O_03'])) stage = 'stone';
-      } else if (stage === 'stone' && state.resources.wood >= 10) {
+      } else if (stage === 'stone' && state.resources.wood >= (fire ? 5 : 10)) {
         if (say(['S_01', 'V_04', 'O_02'])) stage = 'home';
       } else if (stage === 'home' && state.resources.stone >= 5) {
         if (say(['S_01', 'V_01'], home)) stage = 'craft';
@@ -131,7 +135,7 @@ export function replayRandomOpening(seed: number) {
     if (state.time >= 210) break;
     state = tick(state, 0.25);
   }
-  return { state, firstFireAt: null, orders, rejectedOrders, discoveries, hiddenTargets };
+  return { state, firstFireAt, orders, rejectedOrders, discoveries, hiddenTargets };
 }
 
 /** Continues those actual actions through the first winter. Food is eaten
@@ -166,19 +170,29 @@ export function replayRandomFirstYear(seed: number, endTime: 360 | 390 = 360) {
     x: entity.x,
     y: entity.y,
   });
-  const food = () =>
+  const food = (minimum = 0, richest = false) =>
     state.entities
       .filter(
         (entity) =>
           entity.kind === 'berries' &&
-          entity.amount > 0 &&
+          entity.amount > minimum &&
           visible(entity) &&
           Math.hypot(entity.x - HOME.x, entity.y - HOME.y) < 70,
       )
-      .sort((a, b) => b.amount - a.amount)[0];
+      .sort((a, b) =>
+        richest
+          ? b.amount - a.amount
+          : Math.hypot(a.x - HOME.x, a.y - HOME.y) - Math.hypot(b.x - HOME.x, b.y - HOME.y),
+      )[0];
   const wood = () =>
     state.entities
-      .filter((entity) => entity.kind === 'tree' && entity.amount > 12 && visible(entity))
+      .filter(
+        (entity) =>
+          entity.kind === 'ground' &&
+          entity.resource === 'wood' &&
+          entity.amount > 0 &&
+          visible(entity),
+      )
       .sort(
         (a, b) => Math.hypot(a.x - HOME.x, a.y - HOME.y) - Math.hypot(b.x - HOME.x, b.y - HOME.y),
       )[0];
@@ -203,6 +217,7 @@ export function replayRandomFirstYear(seed: number, endTime: 360 | 390 = 360) {
     }
   };
   if (opening.firstFireAt === null) return { ...opening, snapshots };
+  const depotAt = Math.ceil(state.time / 10) * 10;
 
   while (!state.gameOver) {
     for (const spark of [...state.sparks]) {
@@ -230,11 +245,17 @@ export function replayRandomFirstYear(seed: number, endTime: 360 | 390 = 360) {
     const time = state.time;
     if ([270, 330, 360, 390].includes(time)) snapshots.push({ at: time, state });
     if (time >= endTime) break;
-    if (time === 190 && food()) say(['S_01', 'V_02'], target(food()!));
-    if (time === 200) say(['S_01', 'V_05', 'O_02'], { type: 'point', x: HOME.x, y: HOME.y - 3 });
-    if (time === 210 && wood()) say(['S_01', 'V_04', 'O_03'], target(wood()!));
-    if (time === 230 && food()) say(['S_01', 'V_02'], target(food()!));
-    if (time === 260) say(['S_01', 'V_01'], pointHome);
+    // The material depot frees the shared starting capacity for actual winter
+    // food. Give each haul time to return before asking for the next task.
+    if (time === depotAt)
+      say(['S_01', 'V_05', 'O_02'], { type: 'point', x: HOME.x, y: HOME.y - 3 });
+    if ((time === depotAt + 10 || time === depotAt + 30) && food(8))
+      say(['S_01', 'V_04'], target(food(8)!));
+    if (time === depotAt + 50 && time < 250 && state.resources.wood < 7 && wood())
+      say(['S_01', 'V_04', 'O_03', 'O_05'], target(wood()!));
+    if (time === 250 && food(0, true)) say(['S_01', 'V_02'], target(food(0, true)!));
+    if (time === 270) say(['S_01', 'V_01'], pointHome);
+    if (time === 360 && fire() && !fire()!.active) say(['S_01', 'V_05', 'O_05']);
     state = tick(state, 0.25);
   }
   return {

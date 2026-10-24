@@ -25,8 +25,10 @@ Verifica della revisione: **769 test del motore/componenti e 50 test browser sup
 
 Il terreno viene preparato una volta per stagione o cambiamento della geografia. Le varianti naturali usano una cache LRU limitata a 128 immagini; gli edifici memorizzano al massimo venti disegni statici. Il renderer scarta gli oggetti fuori dalla visuale lasciando margine per chiome e fumo, mentre animazioni e notte seguono il tempo del gioco e si fermano in pausa.
 
-Una misura tecnica in Chromium headless, con una mappa interamente rivelata da 456 elementi e 150 abitanti sintetici, ha registrato mediane di circa 11–17 ms per l'invio del disegno al canvas dopo il riscaldamento delle cache. È una prova di carico preparata, non una campagna né una garanzia di frame rate sui telefoni. La rifinitura per una pubblicazione richiede ancora prove prolungate su dispositivi reali, giudizio artistico sull'intera partita e verifica dell'accessibilità visiva.
+Nella prima revisione grafica, una misura tecnica in Chromium headless, con una mappa interamente rivelata da 456 elementi e 150 abitanti sintetici, ha registrato mediane di circa 11–17 ms per l'invio del disegno al canvas dopo il riscaldamento delle cache. È una prova di carico preparata, non una campagna né una garanzia di frame rate sui telefoni. La rifinitura per una pubblicazione richiede ancora prove prolungate su dispositivi reali, giudizio artistico sull'intera partita e verifica dell'accessibilità visiva.
 
 ## Organizzazione
+
+[ANIMATION.md](ANIMATION.md) documenta la successiva revisione delle pose, dell'interpolazione e dei posti di lavoro fisici.
 
 `mapTerrainArt.ts`, `mapNatureArt.ts`, `mapPeopleArt.ts`, `mapBuildingArt.ts` e `mapStrategicArt.ts` contengono i disegni. `mapDrawing.ts` mantiene composizione della scena, visibilità, selezioni e indicatori; `WorldMap.tsx` gestisce camera e interazione. Questa separazione permette di rifinire l'arte senza cambiare la simulazione.

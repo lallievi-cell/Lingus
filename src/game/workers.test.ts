@@ -83,10 +83,10 @@ describe('village work, rest and seasonal production', () => {
 
   it('lets all seven people sleep with an Always order, including those outside the three slots', () => {
     let s = order(village(), ['C_02', 'S_01', 'V_09', 'O_04']);
-    s = advance(s, 60);
+    s = advance(s, 64);
     expect(s.units.every((u) => u.action === 'sleeping' && u.sleptThisNight)).toBe(true);
     expect(farm(s).workerIds).toEqual([]);
-    s = advance(s, 30);
+    s = advance(s, 26);
     expect(s.resources.food).toBeCloseTo((50 * 59.75) / 60);
     expect(farm(s).workerIds).toHaveLength(3);
   });
@@ -107,11 +107,11 @@ describe('village work, rest and seasonal production', () => {
   });
 
   it('finishes a real carried delivery home before resting rather than discarding its load', () => {
-    let s = village(235);
+    let s = village(232);
     s.entities.push({
       id: 'tree',
       kind: 'tree',
-      x: HOME.x + 10,
+      x: HOME.x + 15,
       y: HOME.y,
       hp: 100,
       maxHp: 100,
@@ -122,10 +122,43 @@ describe('village work, rest and seasonal production', () => {
       for (const u of s.units) u.knows.push(id);
     }
     s = issueCommand(s, ['C_02', 'S_01', 'V_04', 'O_03']);
-    s = advance(s, 5);
-    expect(s.units.every((u) => u.action === 'returning' && u.carry)).toBe(true);
-    s = advance(s, 5);
+    const carriedBy = new Set<string>();
+    const physicalWood = (current: GameState) =>
+      current.resources.wood +
+      current.entities.reduce(
+        (total, entity) =>
+          total + (entity.kind === 'tree' || entity.resource === 'wood' ? entity.amount : 0),
+        0,
+      ) +
+      current.units.reduce(
+        (total, unit) => total + (unit.carry?.resource === 'wood' ? unit.carry.amount : 0),
+        0,
+      );
+    for (let elapsed = 0; elapsed < 8 && carriedBy.size < 7; elapsed += 0.25) {
+      s = advance(s, 0.25);
+      for (const unit of s.units)
+        if (unit.carry?.resource === 'wood') {
+          expect(unit.action).toBe('returning');
+          expect(unit.carry.amount).toBe(1);
+          carriedBy.add(unit.id);
+        }
+      expect(physicalWood(s)).toBe(1100);
+    }
+    expect(carriedBy.size).toBe(7);
+    s = advance(s, 240 - s.time);
+    expect(s.units.some((u) => u.carry?.resource === 'wood' && u.action === 'returning')).toBe(
+      true,
+    );
+    for (
+      let elapsed = 0;
+      elapsed < 12 && !s.units.every((u) => !u.carry && u.action === 'sleeping');
+      elapsed += 0.25
+    ) {
+      s = advance(s, 0.25);
+      expect(physicalWood(s)).toBe(1100);
+    }
     expect(s.resources.wood).toBe(107);
+    expect(s.entities.find((e) => e.id === 'tree')?.amount).toBe(993);
     expect(s.units.every((u) => !u.carry && u.action === 'sleeping')).toBe(true);
   });
 
@@ -140,10 +173,10 @@ describe('village work, rest and seasonal production', () => {
       age: 0,
       weight: 10,
     });
-    s = advance(order(s), 5);
+    s = advance(order(s), 8);
     expect(farm(s).workerIds).toEqual([]);
     expect(s.units.slice(0, 3).every((u) => u.suspendedJob && u.action === 'sleeping')).toBe(true);
-    s = advance(s, 30);
+    s = advance(s, 27);
     expect(farm(s).workerIds).toHaveLength(3);
   });
 
@@ -153,7 +186,7 @@ describe('village work, rest and seasonal production', () => {
     for (const u of s.units) u.x = HOME.x + 30;
     s = order(s);
     s = advance(s, 61);
-    expect(s.units[0].action).toBe('moving');
+    expect(s.units[0].action).toBe('resting');
     expect(s.units[0].suspendedJob?.buildingId).toBe(farm(s).id);
     expect(s.units[0].jobBuildingId).toBeUndefined();
     s = advance(s, 20);
@@ -230,10 +263,10 @@ describe('village work, rest and seasonal production', () => {
       weight: 10,
     });
     s = order(s, ['C_02', 'S_01', 'V_09', 'O_04']);
-    s = advance(s, 1);
+    s = advance(s, 4);
     expect(s.units.every((u) => u.action === 'sleeping' && u.restedThisSeason)).toBe(true);
     expect(s.units.some((u) => u.sleptThisNight)).toBe(false);
-    s = advance(s, 39);
+    s = advance(s, 36);
     expect(farm(s).workerIds).toHaveLength(3);
   });
 

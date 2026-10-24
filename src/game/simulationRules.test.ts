@@ -464,7 +464,9 @@ describe('laws change actual individual behavior', () => {
     expect(seasonalDutyFulfilled(s, duty, u)).toBe(false);
     processWork(s, u, 2);
     expect(seasonalDutyFulfilled(s, duty, u)).toBe(false);
-    processWork(s, u, 1);
+    // Delivery has a real, separate unloading place within the camp. Reach it
+    // before counting the work; lifting the wood above still fulfilled nothing.
+    for (let i = 0; i < 8 && !seasonalDutyFulfilled(s, duty, u); i++) processWork(s, u, 0.25);
     expect(seasonalDutyFulfilled(s, duty, u)).toBe(true);
     expect(s.resources.wood).toBe(1);
   });

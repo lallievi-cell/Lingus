@@ -383,9 +383,10 @@ describe('dogmas and saved worlds', () => {
       u.y = HOME.y;
     }
     s = tick(s, 1);
-    expect(s.units.every((u) => u.action === 'sleeping' && u.x === HOME.x && u.y === HOME.y)).toBe(
-      true,
-    );
+    s = tick(s, 1);
+    expect(
+      s.units.every((u) => u.action === 'sleeping' && Math.hypot(u.x - HOME.x, u.y - HOME.y) <= 4),
+    ).toBe(true);
   });
   it('cannot bypass a resource taboo with an implicit clicked target', () => {
     const s = unlock(sacred(), ['O_03']),

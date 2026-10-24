@@ -93,7 +93,8 @@ describe('the GDD combat interrupt requires a new hostile wound', () => {
     expect(s.units[0].command).toBeUndefined();
     expect(s.units[0].pendingCombatDamage).toBe(false);
     s = advance(s, 9);
-    expect(s.units[0].x).toBeCloseTo(HOME.x);
+    expect(Math.hypot(s.units[0].x - HOME.x, s.units[0].y - HOME.y)).toBeLessThanOrEqual(10);
+    expect(s.units[0].action).not.toBe('fleeing');
     s = cook(s);
     s = advance(s, 5);
     expect(s.resources.cooked).toBe(1);

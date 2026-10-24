@@ -57,7 +57,7 @@ Una parola appresa e poi perduta resta visibile come tassello spento, inutilizza
 
 `tests/scenarios/guidedOpening.ts` parte dal Seed Zero 6842 in Guidata e usa soltanto API del giocatore, vere Scintille e risorse estratte e consegnate. Le decisioni vengono prese ogni cinque secondi: nessun isolamento individuale né posizionamento al decimale.
 
-Con nove ordini di gruppo accende il Falò al centro del giaciglio a **180,25 secondi**, mantiene **sette persone vive** e **6,4 legna** di riserva: restano **89,75 secondi** prima dell'inverno. Il test richiede accensione entro 210 secondi, massimo dieci ordini, combustibile residuo e salvataggio valido.
+La prova richiede il Falò al centro del giaciglio **entro 210 secondi**, massimo **dieci ordini di gruppo**, almeno sei persone vive, combustibile residuo e salvataggio valido. Restano almeno sessanta secondi prima del gelo. I percorsi aggiornati dopo la revisione delle posizioni sono descritti in [ANIMATION.md](ANIMATION.md).
 
 Questa prova dimostra il margine per il primo Falò. Non dimostra un'intera economia invernale sostenibile: durante il gelo serve nutrimento e contro le tormente occorrono anche ripari o vestiti. Le campagne fino a trentacinque e centocinquanta abitanti restano nel registro delle verifiche aperte.
 
@@ -65,17 +65,11 @@ Questa prova dimostra il margine per il primo Falò. Non dimostra un'intera econ
 
 `tests/scenarios/guidedFirstYear.ts` estende la verifica a **390 secondi**, usando soltanto azioni pubbliche: estrazione, trasporto, lavorazione, pasti, guardia del fuoco, esplorazione effettiva di una pianura e insegnamenti pagati. I bersagli alimentari dell'esplorazione sono indicati solo dopo che le persone li hanno raggiunti e resi visibili. Non prepara inventari, conoscenze, posizione dell'artigiano o tiri casuali.
 
-Cinque prove coprono i seed 6842, 1, 42 e 12, più una partenza e raccolta del cibo ritardate di dieci secondi sul 6842. Ogni percorso usa **tredici ordini di gruppo a decisioni distanziate di dieci secondi**, senza selezioni individuali né isolamento. Il Falò nasce fra **125,75 e 140 secondi**; sono pagati **tre insegnamenti**. Durante l'inverno, ai secondi 270 e 330, il fuoco resta acceso.
+Cinque prove coprono le sequenze casuali 6842, 1, 42 e 12 sullo scenario Seed Zero, più una partenza e raccolta del cibo ritardate di dieci secondi sul 6842. Le decisioni avvengono sulla griglia di dieci secondi, con **al massimo sedici ordini di gruppo**, senza selezioni individuali né isolamento. Un ordine di costruzione lascia un solo esecutore al campo mentre il resto del gruppo conclude l'esplorazione. Il percorso paga prima la manutenzione del Falò e poi il Deposito, così il materiale edilizio non consuma l'ultima riserva di combustibile.
 
-| Partita                                 | Vivi a 390 s | Coesione | Legna residua |
-| --------------------------------------- | ------------ | -------- | ------------- |
-| 6842                                    | 7            | 73       | 5,82          |
-| 6842, esplorazione e raccolta ritardate | 8            | 100      | 5,82          |
-| 1                                       | 6            | 73       | 2,39          |
-| 42                                      | 7            | 92       | 2,30          |
-| 12                                      | 7            | 92       | 2,39          |
+Le asserzioni richiedono **prima accensione entro 150 secondi**, almeno **tre insegnamenti pagati**, Deposito completato, riserva di legna e almeno **sei persone vive a 390 secondi**. Durante l'inverno, ai secondi 270 e 330, il fuoco resta acceso e le scorte alimentari sono state consegnate. Le sole morti ammesse in queste prove sono di vecchiaia: una nascita non può mascherare la perdita per fame o freddo di un personaggio iniziale.
 
-Le sole morti di questi percorsi sono di vecchiaia. La variante ritardata conserva tutti e sette i personaggi iniziali e ottiene una nascita reale. Il primo inverno usa la protezione climatica esplicita della Guidata; tre prove separate verificano tiro preservato, rischio dal secondo inverno e Classica/salvataggi precedenti. Una tempesta della primavera successiva spegne correttamente il Falò sul seed 1: la prova non lo dichiara protetto oltre l'inverno.
+Le nuove posizioni e i tragitti cambiano quando la normale sequenza casuale viene campionata. Nella variante ritardata Uma può morire di vecchiaia alla primavera; non si forza il dado per riprodurre il precedente elenco dei superstiti. Una tempesta primaverile può spegnere il Falò dopo l'inverno: il percorso risponde con una guardia ordinaria e combustibile effettivo. Il primo inverno conserva la protezione climatica esplicita della Guidata; il rischio delle tormente successive e della Classica rimane invariato.
 
 Questa verifica supera la sola prima accensione e include cibo consegnato e trasmissione delle parole. Alla fine dell'inverno il cibo è esaurito e la fame alta: occorre rifornirsi nella nuova primavera. Non dimostra un'economia sostenibile per più anni, una strategia contro le tormente successive o la crescita fino a trentacinque e centocinquanta abitanti.
 

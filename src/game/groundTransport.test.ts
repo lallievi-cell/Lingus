@@ -57,13 +57,13 @@ function fragment(id: string, x = 254, resource: 'stone' | 'wood' = 'stone'): Ma
 describe('carrying a physical pile of extracted materials', () => {
   it('fills two carriers from real one-piece extraction drops without touching the remaining rock', () => {
     let s = camp('classic');
-    s = advance(order(s, 'V_03', s.entities[0]), 7);
+    s = advance(order(s, 'V_03', s.entities[0]), 9);
     const pile = s.entities.filter((e) => e.kind === 'ground');
     expect(pile.length).toBeGreaterThanOrEqual(6);
     expect(pile.every((e) => e.amount === 1)).toBe(true);
     const rock = s.entities[0].amount;
     const original = structuredClone(s);
-    s = advance(order(s, 'V_04', pile[0]), 5);
+    s = advance(order(s, 'V_04', pile[0]), 8);
     expect(s.resources.stone).toBe(6);
     expect(s.entities[0].amount).toBe(rock);
     expect(s.units.every((u) => !u.carry && !u.command)).toBe(true);

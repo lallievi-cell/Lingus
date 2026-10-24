@@ -1,6 +1,8 @@
 import { getLifeStage, resolveUnitSex } from '../game/demography';
 import type { Unit } from '../game/types';
 import type { VisibleUnitEquipment } from '../game/unitEquipment';
+import { getUnitAnimation, type UnitAnimationPose } from './unitAnimation';
+export { isWalkingPose } from './unitAnimation';
 
 type ColorSet = { base: string; light: string; shade: string };
 const hides: ColorSet[] = [
@@ -70,20 +72,26 @@ function limb(ctx: CanvasRenderingContext2D, points: number[][], color: ColorSet
   );
 }
 
-export function isWalkingPose(unit: Unit) {
-  if (/mov|walk|return|flee|patrol|delegat|going|frontline-return/i.test(unit.action)) return true;
-  return (
-    ['gathering', 'hunting'].includes(unit.action) &&
-    Math.hypot((unit.tx ?? unit.x) - unit.x, (unit.ty ?? unit.y) - unit.y) > 2
-  );
-}
-
 /** Local artwork: feet stay at the actual unit position, with no effect on its FSM. */
 export function drawPainterlyBody(
   ctx: CanvasRenderingContext2D,
   unit: Unit,
   time: number,
   equipment: VisibleUnitEquipment,
+  pose = getUnitAnimation(unit, time, { equipment }),
+) {
+  ctx.save();
+  ctx.scale(pose.facing, 1);
+  paintBody(ctx, unit, time, equipment, pose);
+  ctx.restore();
+}
+
+function paintBody(
+  ctx: CanvasRenderingContext2D,
+  unit: Unit,
+  time: number,
+  equipment: VisibleUnitEquipment,
+  pose: UnitAnimationPose,
 ) {
   const id = Array.from(unit.id).reduce((sum, c) => sum + c.charCodeAt(0), 0);
   const stage = getLifeStage(unit),
@@ -95,13 +103,8 @@ export function drawPainterlyBody(
   const hide = hides[(id + (female ? 1 : 0) + (child ? 3 : 0)) % hides.length];
   const hair = elder ? '#c5c6b5' : ['#3e3a2e', '#514437', '#423d30'][id % 3];
   const hairLight = elder ? '#edead8' : '#78654d';
-  const sleeping = /sleep|dorm/i.test(unit.action),
-    walking = isWalkingPose(unit);
-  const working =
-    !walking &&
-    /gather|craft|build|work|cook|smelt|hunt|combat|farm|research|copy/i.test(unit.action);
-  const step = walking ? Math.sin(time * 8.3 + id) : 0;
-  const labor = working ? Math.sin(time * 5 + id) : 0;
+  const sleeping = pose.kind === 'sleep';
+  const step = pose.step;
 
   if (newborn) {
     const wrap = shade(ctx, hide, -4, -14, 5, 0);
@@ -152,6 +155,7 @@ export function drawPainterlyBody(
     return;
   }
   if (sleeping) {
+    ctx.scale(1, 1 + Math.sin(time * 1.6 + id) * 0.012);
     const blanket = shade(ctx, hide, -7, -7, 7, 3);
     ctx.beginPath();
     ctx.moveTo(-8, -0.8);
@@ -199,23 +203,26 @@ export function drawPainterlyBody(
   }
 
   // Jointed legs and small hide-wrapped feet anchor the figure to the soil.
-  const stride = step * (unit.action === 'fleeing' ? 3.7 : 2.5);
+  const stride = step * (pose.kind === 'run' ? 3.7 : 2.5);
+  const crouch = pose.bodyDrop * 0.35;
+  const liftLeft = Math.max(0, step) * 1.2,
+    liftRight = Math.max(0, -step) * 1.2;
   limb(
     ctx,
     [
-      [-2, -10],
-      [-2.6 - stride * 0.45, -5],
-      [-2.2 + stride * 0.65, -0.1],
+      [-2, -10 + crouch],
+      [-2.6 - stride * 0.45 - crouch * 0.4, -5 + crouch * 0.2],
+      [-2.2 + stride * 0.65, -0.1 - liftLeft],
     ],
     skin,
     2.1,
   );
-  ellipse(ctx, -2 + stride * 0.65, 0.1, 2.1, 0.85, '#534738');
+  ellipse(ctx, -2 + stride * 0.65, 0.1 - liftLeft, 2.1, 0.85, '#534738');
   stroke(
     ctx,
     [
-      [-3 + stride * 0.65, -0.1],
-      [-1 + stride * 0.65, 0.1],
+      [-3 + stride * 0.65, -0.1 - liftLeft],
+      [-1 + stride * 0.65, 0.1 - liftLeft],
     ],
     '#b19a73',
     0.55,
@@ -223,39 +230,44 @@ export function drawPainterlyBody(
   limb(
     ctx,
     [
-      [2, -9.4],
-      [2.3 + stride * 0.35, -4.7],
-      [2.5 - stride * 0.65, 0.7],
+      [2, -9.4 + crouch],
+      [2.3 + stride * 0.35 + crouch * 0.4, -4.7 + crouch * 0.2],
+      [2.5 - stride * 0.65, 0.7 - liftRight],
     ],
     skin,
     2.3,
   );
-  ellipse(ctx, 3.1 - stride * 0.65, 0.8, 2.2, 0.95, '#65513c');
+  ellipse(ctx, 3.1 - stride * 0.65, 0.8 - liftRight, 2.2, 0.95, '#65513c');
   stroke(
     ctx,
     [
-      [1.9 - stride * 0.65, 0.35],
-      [3.9 - stride * 0.65, 0.55],
+      [1.9 - stride * 0.65, 0.35 - liftRight],
+      [3.9 - stride * 0.65, 0.55 - liftRight],
     ],
     '#c1a47b',
     0.6,
   );
 
+  ctx.save();
+  ctx.translate(0, -9);
+  ctx.rotate(pose.torsoAngle);
+  ctx.translate(pose.bodyLean, 9 + pose.bodyDrop);
   const shoulderY = elder ? -18.3 : -20.5;
-  const lean = elder ? 1.25 : working ? labor * 0.45 : 0;
-  const handY = working ? -12 - labor * 1.5 : -10.7 + step * 1.3;
-  // Far arm is painted behind the hide garment.
+  const lean = elder ? 1.25 : 0;
+  const left = pose.leftArm,
+    right = pose.rightArm;
+  // Arms and equipment use the same joints, including reaching and two-handed blows.
   limb(
     ctx,
     [
       [-4.1 + lean, shoulderY + 1.5],
-      [-6.4 + lean, -14.3 - step],
-      [-6.4 - step * 0.45, -10.5 + step * 1.3],
+      [left.elbow.x, left.elbow.y],
+      [left.hand.x, left.hand.y],
     ],
     skin,
     2.15,
   );
-  ellipse(ctx, -6.4 - step * 0.45, -9.9 + step * 1.3, 1.15, 1.6, skin.base);
+  ellipse(ctx, left.hand.x, left.hand.y + 0.3, 1.15, 1.6, skin.base);
 
   const width = female ? 4.35 : 4.75,
     hem = female ? 5.7 : 4.9;
@@ -426,18 +438,18 @@ export function drawPainterlyBody(
     ctx,
     [
       [4.1 + lean, shoulderY + 1.4],
-      [6.3 + lean, -15 + labor * 0.5],
-      [7, handY],
+      [right.elbow.x, right.elbow.y],
+      [right.hand.x, right.hand.y],
     ],
     skin,
     2.3,
   );
-  ellipse(ctx, 7, handY + 0.6, 1.25, 1.65, skin.base);
+  ellipse(ctx, right.hand.x, right.hand.y + 0.4, 1.25, 1.65, skin.base);
   stroke(
     ctx,
     [
-      [6.4, handY],
-      [6.6, handY + 1],
+      [right.hand.x - 0.6, right.hand.y],
+      [right.hand.x - 0.4, right.hand.y + 1],
     ],
     skin.light,
     0.5,
@@ -446,12 +458,7 @@ export function drawPainterlyBody(
   const hx = elder ? 1.8 : lean * 0.65,
     hy = elder ? -24 : -26.6;
   const headWidth = child ? 3.5 : 3.1;
-  const look =
-    unit.tx === undefined || Math.abs(unit.tx - unit.x) < 0.5
-      ? id % 2
-        ? -1
-        : 1
-      : Math.sign(unit.tx - unit.x);
+  const look = 1;
   // Wavy lengths behind the neck distinguish tied and loose hair without a symbol.
   if (female && !child) {
     ctx.beginPath();
@@ -642,7 +649,7 @@ export function drawPainterlyBody(
   }
   ctx.restore();
 
-  if (elder && !equipment.held) {
+  if (elder && !equipment.held && ['idle', 'walk', 'guard'].includes(pose.kind)) {
     ctx.beginPath();
     ctx.moveTo(7, -10);
     ctx.quadraticCurveTo(9, -12, 10.1, -9.8);
@@ -682,4 +689,5 @@ export function drawPainterlyBody(
     );
     ellipse(ctx, 0, -17.5, 1.15, 0.6, '#cad0a5');
   }
+  ctx.restore();
 }

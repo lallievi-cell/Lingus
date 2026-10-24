@@ -905,6 +905,7 @@ export const BUILDING_NAMES = Object.fromEntries(
   BUILDING_ORDER.map((k) => [k, BUILDING_SPECS[k].label]),
 ) as Record<BuildingKind, string>;
 export const ACTION_NAMES: Record<string, string> = {
+  resting: 'Raggiunge il giaciglio',
   idle: 'Osserva',
   moving: 'In cammino',
   eating: 'Si nutre',

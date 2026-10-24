@@ -7,8 +7,13 @@ import { getGroundPiles, groundPileFor, resourceKnown, type GroundPile } from '.
 import { createPainterlyTerrain } from './mapTerrainArt';
 import { drawPainterlyNature } from './mapNatureArt';
 import { drawPainterlyBuilding } from './mapBuildingArt';
-import { drawPainterlyBody, isWalkingPose } from './mapPeopleArt';
+import { drawPainterlyBody } from './mapPeopleArt';
+import { getUnitAnimation, type UnitAnimationPose } from './unitAnimation';
+import { createMapMotionSession, observeUnitMotion, type MapMotionSession } from './mapMotion';
+import type { AnimalAnimationContext } from './animalAnimation';
 import { drawPainterlyBattalion, drawPainterlyCaravan } from './mapStrategicArt';
+
+const fallbackMotionSession = createMapMotionSession();
 
 export const visibleBorderRadius = (state: GameState) => (hasBuilding(state, 'palace') ? 100 : 35);
 
@@ -549,11 +554,12 @@ function drawEntity(
   seasonIndex: number,
   selected: boolean,
   unknown = false,
+  animationContext?: AnimalAnimationContext,
 ) {
   const { x, y } = worldPoint(entity.x, entity.y);
   ctx.save();
   ctx.translate(x, y);
-  drawPainterlyNature(ctx, entity, time, seasonIndex, unknown);
+  drawPainterlyNature(ctx, entity, time, seasonIndex, unknown, animationContext);
   ctx.restore();
   if (selected && entity.hp !== undefined && entity.maxHp && entity.hp < entity.maxHp) {
     const ratio = Math.max(0, entity.hp / entity.maxHp);
@@ -581,20 +587,13 @@ function drawHandheld(
   equipment: VisibleUnitEquipment,
   time: number,
   id: number,
-  unit: GameState['units'][number],
+  pose: UnitAnimationPose,
 ) {
   if (!equipment.held) return;
   ctx.save();
-  const walking = isWalkingPose(unit);
-  const working =
-    !walking &&
-    /gather|craft|build|work|cook|smelt|hunt|combat|farm|research|copy/i.test(unit.action);
-  const step = walking ? Math.sin(time * 8.3 + id) : 0;
-  const labor = working ? Math.sin(time * 5 + id) : 0;
-  const handY = working ? -12 - labor * 1.5 : -10.7 + step * 1.3;
-  ctx.translate(7, handY);
-  const swing = working ? labor : step * 0.15;
-  ctx.rotate(equipment.held === 'spear' ? -0.22 + swing * 0.08 : -0.28 + swing * 0.28);
+  ctx.translate(pose.rightHand.x, pose.rightHand.y);
+  ctx.scale(pose.facing, 1);
+  ctx.rotate(pose.toolAngle);
   // Scale the object around its grip; the person's hand keeps its true size.
   const size = equipment.held === 'spear' ? 1 : equipment.held === 'metal-blade' ? 0.82 : 0.75;
   ctx.save();
@@ -758,7 +757,7 @@ function drawHandheld(
       '#dce3cd',
       0.4,
     );
-    if (workpiece) {
+    if (workpiece && pose.kind === 'craft' && pose.impact > 0) {
       const flake = (time * 3 + id) % 1;
       oval(ctx, 6 + flake * 3, -9 + flake * 6, 0.7, 0.5, '#d6d7b5');
     }
@@ -780,21 +779,16 @@ function drawUnit(
   newbornArrival = false,
   equipment: VisibleUnitEquipment = {},
   numbered = false,
+  pose = getUnitAnimation(unit, time, { equipment }),
 ) {
   const { x, y } = worldPoint(unit.x, unit.y);
   const id = Array.from(unit.id).reduce((n, c) => n + c.charCodeAt(0), 0);
-  const moving = isWalkingPose(unit);
-  const sleeping = /sleep|dorm/i.test(unit.action);
+  const sleeping = pose.kind === 'sleep';
   const stage = getLifeStage(unit),
     elder = stage === 'elder',
     child = stage === 'child',
     newborn = stage === 'newborn';
-  const bob =
-    sleeping || newborn
-      ? 0
-      : moving
-        ? Math.sin(time * 8.3 + id) * 0.45
-        : Math.sin(time * 2 + id) * 0.12;
+  const bob = pose.bob;
   ctx.save();
   ctx.translate(x, y + bob);
   if (newbornArrival) {
@@ -843,12 +837,15 @@ function drawUnit(
   ctx.save();
   const bodyScale = child ? 0.7 : elder ? 0.94 : newborn ? 0.82 : 1;
   ctx.scale(bodyScale, bodyScale);
-  drawPainterlyBody(ctx, unit, time, equipment);
+  drawPainterlyBody(ctx, unit, time, equipment, pose);
   if (!newborn && !child && !sleeping && equipment.held)
-    drawHandheld(ctx, equipment, time, id, unit);
+    drawHandheld(ctx, equipment, time, id, pose);
   if (unit.carry && unit.carry.amount > 0 && !sleeping) {
     ctx.save();
-    ctx.translate(8, -10);
+    ctx.translate(
+      (pose.leftHand.x + pose.rightHand.x) / 2,
+      (pose.leftHand.y + pose.rightHand.y) / 2 + 1,
+    );
     ctx.scale(0.38, 0.38);
     drawMaterial(ctx, unit.carry.resource, 0, 0, carryRecognized);
     ctx.restore();
@@ -1047,6 +1044,7 @@ export function drawWorld(
     time: number;
   } | null,
   viewport?: { minX: number; minY: number; maxX: number; maxY: number },
+  motionSession: MapMotionSession = fallbackMotionSession,
 ) {
   ctx.drawImage(terrain, 0, 0, MAP_WIDTH, MAP_HEIGHT);
   const nearHome = (target: WorldTarget | null) =>
@@ -1060,6 +1058,39 @@ export function drawWorld(
       point.y >= viewport.minY - 16 &&
       point.y <= viewport.maxY + 16);
   const lineScale = Math.max(0.1, Math.hypot(ctx.getTransform().a, ctx.getTransform().b));
+  const motions = new Map(
+    state.units
+      .filter((u) => u.hp > 0)
+      .map(
+        (unit) =>
+          [
+            unit.id,
+            observeUnitMotion(motionSession, unit, state.time, time, state.paused),
+          ] as const,
+      ),
+  );
+  const renderUnits = new Map(
+    state.units.map((unit) => {
+      const motion = motions.get(unit.id);
+      return [
+        unit.id,
+        motion ? { ...unit, x: motion.displayX, y: motion.displayY } : unit,
+      ] as const;
+    }),
+  );
+  const renderEntities = new Map(
+    state.entities.map((entity) => {
+      if (!['deer', 'wolf', 'alpha', 'mammoth'].includes(entity.kind) || entity.hp <= 0)
+        return [entity.id, entity] as const;
+      const motion = observeUnitMotion(motionSession, entity, state.time, time, state.paused);
+      return [entity.id, { ...entity, x: motion.displayX, y: motion.displayY }] as const;
+    }),
+  );
+  const animalContext: AnimalAnimationContext = {
+    units: state.units,
+    simulationTime: state.time,
+    sessionKey: motionSession,
+  };
   const piles = getGroundPiles(state);
   const custodians = new Map(getCustodianStatuses(state).map((status) => [status.unitId, status]));
   const focused = hovered?.type === 'building' ? hovered : selected;
@@ -1138,11 +1169,9 @@ export function drawWorld(
   }
   const liveTarget = (target: WorldTarget) =>
     target.type === 'unit'
-      ? (state.units.find((u) => u.id === target.id) ?? target)
+      ? (renderUnits.get(target.id ?? '') ?? target)
       : target.type === 'entity'
-        ? (groundPileFor(state, target.id, piles) ??
-          state.entities.find((e) => e.id === target.id) ??
-          target)
+        ? (groundPileFor(state, target.id, piles) ?? renderEntities.get(target.id ?? '') ?? target)
         : target.type === 'city'
           ? (state.cities.find((c) => c.id === target.id) ?? target)
           : target;
@@ -1172,7 +1201,7 @@ export function drawWorld(
     );
   }
   const objects: { y: number; draw: () => void }[] = [];
-  for (const entity of state.entities) {
+  for (const entity of renderEntities.values()) {
     if (
       entity.kind === 'ground' ||
       (entity.amount <= 0 && !['tree', 'stone'].includes(entity.kind)) ||
@@ -1195,7 +1224,15 @@ export function drawWorld(
       y: entity.y,
       draw: () =>
         sprite(entity, () => {
-          drawEntity(ctx, entity, time, state.seasonIndex, selected?.id === entity.id, unknown);
+          drawEntity(
+            ctx,
+            entity,
+            time,
+            state.seasonIndex,
+            selected?.id === entity.id,
+            unknown,
+            animalContext,
+          );
         }),
     });
   }
@@ -1211,7 +1248,7 @@ export function drawWorld(
       (b) => b.hp > 0 && inView(b) && isVisibleAt(state, b.x, b.y),
     ))
       objects.push({ y: b.y, draw: () => sprite(b, () => drawBuilding(ctx, b, time)) });
-  for (const unit of state.units.filter(
+  for (const unit of [...renderUnits.values()].filter(
     (u) =>
       u.hp > 0 &&
       inView(u) &&
@@ -1229,6 +1266,74 @@ export function drawWorld(
             liveAnchor &&
             Math.hypot(unit.x - liveAnchor.x, unit.y - liveAnchor.y) <= 15
           );
+          const actual = state.units.find((u) => u.id === unit.id)!;
+          const target =
+            state.entities.find((e) => e.id === actual.targetId) ??
+            state.buildings.find(
+              (b) => b.id === actual.jobBuildingId || b.id === actual.targetId,
+            ) ??
+            (actual.action === 'guarding'
+              ? state.buildings.find(
+                  (b) =>
+                    b.kind === 'campfire' &&
+                    b.hp > 0 &&
+                    Math.hypot(b.x - actual.x, b.y - actual.y) <= 15,
+                )
+              : undefined) ??
+            state.units.find((u) => u.id === actual.targetId) ??
+            (actual.tx !== undefined && actual.ty !== undefined
+              ? { x: actual.tx, y: actual.ty }
+              : undefined);
+          const motion = motions.get(unit.id);
+          const equipment = visibleUnitEquipment(state, actual);
+          const range = ['combat', 'hunting'].includes(actual.action)
+            ? target && 'kind' in target && equipment.held === 'spear'
+              ? 3
+              : 1.5
+            : actual.action === 'crafting' || actual.action === 'cooking'
+              ? 0.1
+              : actual.jobBuildingId
+                ? 3
+                : 3.7;
+          const cyclicWork = [
+            'gathering',
+            'crafting',
+            'cooking',
+            'building',
+            'planting',
+            'eating',
+            'domesticating',
+            'hunting',
+            'combat',
+          ].includes(actual.action);
+          const workedRecently = Object.entries(actual.lastEventAt ?? {}).some(
+            ([key, at]) =>
+              key.startsWith('WORK:') && at >= (actual.lastOrderAt ?? 0) && state.time - at < 2,
+          );
+          const ready =
+            (!target || Math.hypot(target.x - actual.x, target.y - actual.y) <= range + 0.01) &&
+            (!cyclicWork || actual.progress > 0 || workedRecently) &&
+            (!['combat', 'hunting'].includes(actual.action) ||
+              !target ||
+              !('hp' in target) ||
+              target.hp > 0);
+          const targetFacing =
+            target && Math.abs(target.x - unit.x) > 0.1 ? (target.x > unit.x ? 1 : -1) : undefined;
+          const recentEvent =
+            state.time - (actual.lastEventAt?.DELIVERY ?? -Infinity) < 0.6
+              ? 'deposit'
+              : state.time - (actual.lastEventAt?.MEAL ?? -Infinity) < 0.8
+                ? 'meal'
+                : undefined;
+          const pose = getUnitAnimation(actual, time, {
+            moving: motion?.moving ?? false,
+            facing: motion?.moving ? motion.facing : (targetFacing ?? motion?.facing),
+            targetKind: target && 'kind' in target ? target.kind : undefined,
+            target,
+            ready,
+            equipment,
+            recentEvent,
+          });
           drawUnit(
             ctx,
             unit,
@@ -1244,8 +1349,9 @@ export function drawWorld(
                 state.time >= event.time &&
                 state.time - event.time < 5,
             ),
-            visibleUnitEquipment(state, unit),
+            equipment,
             hasConcept(state, 'O_08'),
+            pose,
           );
         }),
     });
@@ -1346,8 +1452,8 @@ export function drawWorld(
     });
   objects.sort((a, b) => a.y - b.y).forEach((o) => o.draw());
   for (const spark of state.sparks) {
-    const u = state.units.find((u) => u.id === spark.unitId && u.hp > 0);
-    if (!u || !inView(u)) continue;
+    const u = renderUnits.get(spark.unitId);
+    if (!u || u.hp <= 0 || !inView(u)) continue;
     sprite(u, () => {
       const p = worldPoint(u.x, u.y),
         x = p.x,

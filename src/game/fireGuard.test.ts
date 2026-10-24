@@ -66,15 +66,15 @@ describe('fire caretakers remain real guards through work interruptions', () => 
   });
 
   it('pauses for a real meal, resumes guarding at night and spends real fuel to rekindle', () => {
-    let s = advance(guard(camp()), 0.25);
+    let s = advance(guard(camp()), 1);
     s.units[0].hunger = 74.9;
     s = advance(s, 0.25);
     expect(s.units[0].suspendedJob?.buildingId).toBe(fire(s).id);
     expect(s.units[0].jobBuildingId).toBeUndefined();
-    expect(s.units[0].action).toBe('sleeping');
+    expect(['resting', 'sleeping']).toContain(s.units[0].action);
     fire(s).active = false;
     s.resources.cooked = 2;
-    s = advance(s, 0.5);
+    s = advance(s, 3);
     expect(s.units[0].action).toBe('guarding');
     expect(s.units[0].suspendedJob).toBeUndefined();
     expect(fire(s).active).toBe(true);
@@ -103,7 +103,7 @@ describe('fire caretakers remain real guards through work interruptions', () => 
   });
 
   it('still obeys the night taboo and a replacement direct order', () => {
-    let taboo = advance(guard(camp()), 0.25);
+    let taboo = advance(guard(camp()), 1);
     taboo.dogmas.push({
       id: 'night-taboo',
       targetId: 'C_01',
@@ -113,12 +113,12 @@ describe('fire caretakers remain real guards through work interruptions', () => 
       age: 0,
       weight: 10,
     });
-    taboo = advance(taboo, 0.25);
+    taboo = advance(taboo, 2);
     expect(taboo.units[0].action).toBe('sleeping');
     expect(taboo.units[0].suspendedJob?.buildingId).toBe(fire(taboo).id);
     expect(fire(taboo).workerIds).not.toContain(taboo.units[0].id);
 
-    let replaced = advance(guard(camp()), 0.25);
+    let replaced = advance(guard(camp()), 1);
     replaced = issueCommand(replaced, ['S_01', 'V_01'], { type: 'point', ...HOME });
     replaced = advance(replaced, 1);
     expect(replaced.units[0].action).not.toBe('guarding');
@@ -127,7 +127,7 @@ describe('fire caretakers remain real guards through work interruptions', () => 
   });
 
   it('recovers a saved fire caretaker resumed as a generic worker without granting free fuel', () => {
-    let s = advance(guard(camp()), 0.25);
+    let s = advance(guard(camp()), 1);
     s.units[0].action = 'working';
     fire(s).active = false;
     s = parseGame(serializeGame(s))!;
@@ -140,7 +140,7 @@ describe('fire caretakers remain real guards through work interruptions', () => 
   });
 
   it('enforces a new prohibition before a rested caretaker can resume', () => {
-    let s = advance(guard(camp()), 0.25);
+    let s = advance(guard(camp()), 1);
     s.units[0].hunger = 74.9;
     s = advance(s, 0.25);
     s.resources.cooked = 1;

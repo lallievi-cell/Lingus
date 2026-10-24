@@ -83,6 +83,9 @@ function advanceUntil(s: GameState, condition: (s: GameState) => boolean) {
 }
 function loaded(people = 1) {
   let s = village(people);
+  // Five distinct work places need a long enough return leg to observe all
+  // loads in transit at once; they no longer lift from one shared point.
+  if (people >= 5) s.entities.find((entity) => entity.id === 'wood-source')!.x = HOME.x + 20;
   s = issueCommand(s, ['S_01', 'V_04', 'O_03'], target(s, 'wood-source'));
   s = advanceUntil(s, (state) =>
     state.units.every((u) => u.action === 'returning' && u.carry?.amount === 3),
@@ -223,12 +226,13 @@ describe('cargo conservation when an order replaces a real return journey', () =
     const before = loaded(5);
     createReadyBuilding(before, 'farm');
     const farm = before.buildings.find((b) => b.kind === 'farm')!;
-    const s = issueCommand(before, ['S_01', 'V_09', 'O_04', 'O_01'], {
-      type: 'building',
-      id: farm.id,
-      x: farm.x,
-      y: farm.y,
-    });
+    const s = issueCommand(
+      before,
+      ['S_01', 'V_09', 'O_04', 'O_01'],
+      { type: 'building', id: farm.id, x: farm.x, y: farm.y },
+      undefined,
+      { type: 'point', x: before.units[0].x, y: before.units[0].y },
+    );
     expect(s.units.slice(0, 3).every((u) => u.action === 'working' && !u.carry)).toBe(true);
     expect(s.units.slice(3)).toEqual(before.units.slice(3));
     expect(s.entities.filter((e) => e.kind === 'ground')).toHaveLength(3);

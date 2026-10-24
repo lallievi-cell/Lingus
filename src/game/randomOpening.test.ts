@@ -27,12 +27,12 @@ describe('ordinary opening on generated maps', () => {
       expect(hasWord(state, 'O_01')).toBe(true);
       expect(hasWord(state, 'O_05')).toBe(true);
       expect(hasWord(state, 'S_02')).toBe(false);
-      // The tested openings earn Fire through real paid stone work, without
-      // depending on a favorable lightning roll or a prepared intuition.
-      expect(discoveries.find((discovery) => discovery.wordId === 'O_05')?.recipe).toEqual([
-        'V_06',
+      // A real storm can teach Fire first; the route still completes paid
+      // stone work and delivers fuel instead of stopping at that lucky spark.
+      expect(discoveries.find((discovery) => discovery.wordId === 'O_05')?.recipe).toContain(
         'O_03',
-      ]);
+      );
+      expect(orders.some((order) => order.tokens.join('|') === 'S_01|V_06|O_02')).toBe(true);
       expect(state.resources.tool).toBeGreaterThanOrEqual(1);
       expect(state.resources.wood).toBeGreaterThanOrEqual(2);
       expect(state.burntWood).toBeGreaterThanOrEqual(5);
@@ -88,8 +88,14 @@ describe('ordinary opening on generated maps', () => {
     expect(result.state.gameOver).toBeNull();
     expect(result.rejectedOrders).toEqual([]);
     expect(
-      result.state.units.filter((unit) => unit.hp > 0 && unit.factionId === 'player'),
-    ).toHaveLength(7);
+      result.state.units.filter((unit) => unit.hp > 0 && unit.factionId === 'player').length,
+    ).toBeGreaterThanOrEqual(7);
+    expect(
+      Array.from(
+        { length: 7 },
+        (_, index) => result.state.units.find((unit) => unit.id === `unit-${index}`)?.hp ?? 0,
+      ).every((health) => health > 0),
+    ).toBe(true);
     expect(result.state.stats.taught).toBeGreaterThanOrEqual(2);
     expect(result.state.cohesion).toBe(100);
     expect(

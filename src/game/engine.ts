@@ -318,6 +318,12 @@ export function issueCommand(
     return s;
   }
   const localCraft = ['V_06', 'V_07'].includes(verb) && !kind;
+  // A group order chooses a real artisan who can reach the inputs. Work places
+  // around the same source differ by a few metres; roster order is not a cost rule.
+  if (localCraft && subject !== 'S_02') {
+    const index = workers.findIndex((worker) => canPayLocally(s, cost, worker));
+    if (index > 0) workers.unshift(...workers.splice(index, 1));
+  }
   if (!canPay(s.resources, cost) && !(localCraft && canPayLocally(s, cost, workers[0]))) {
     log(
       s,

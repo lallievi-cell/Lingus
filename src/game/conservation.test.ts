@@ -48,7 +48,10 @@ describe('Conservare limits autonomous meals without overriding Mangiare', () =>
     (knowledge) => {
       let s = camp(knowledge === 'forgotten');
       if (knowledge === 'forgotten') s.words.V_05.retention = 0;
-      s = advance(s, 5);
+      // A real meal now includes the walk to a place beside the food. Wait for
+      // satiety, rather than requiring all bites at the former shared anchor.
+      for (let elapsed = 0; elapsed < 8 && s.units[0].hunger >= 1; elapsed += 0.25)
+        s = tick(s, 0.25);
       expect(s.entities[0].amount).toBe(2);
       expect(s.units[0].hunger).toBeLessThan(1);
     },
@@ -118,7 +121,8 @@ describe('Conservare limits autonomous meals without overriding Mangiare', () =>
     processWork(s, s.units[0], 0.25);
     expect(s.resources.food).toBe(1);
     expect(s.units[0].hunger).toBe(70);
-    expect(s.units[0].x).toBe(HOME.x + 12);
+    expect(s.units[0].x).toBeGreaterThan(HOME.x + 11);
+    expect(Math.hypot(s.units[0].x - (HOME.x + 11), s.units[0].y - HOME.y)).toBeCloseTo(1);
     s.units[0].x = HOME.x;
     s.dogmas.push({
       id: 'food-taboo',

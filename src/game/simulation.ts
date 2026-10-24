@@ -61,6 +61,7 @@ import { combatEquipmentFor, gatheringEquipmentFor } from './unitEquipment';
 import { eligibleParents, villageHousing } from './growthReadiness';
 import { lethalCombatSource, rememberCombatWound } from './damageAttribution';
 import { sameGroundPile } from './groundPiles';
+import { resolveInteractionPosition, type InteractionKind } from './interactionPositions';
 import type {
   Building,
   BuildingKind,
@@ -430,6 +431,24 @@ function move(s: GameState, u: Unit, x: number, y: number, dt: number, speed = 4
   u.y += ((y - u.y) / d) * step;
   return false;
 }
+/** tx/ty remain the logical target; feet approach a stable working place beside it. */
+function moveToInteraction(
+  s: GameState,
+  u: Unit,
+  anchor: { x: number; y: number; id?: string },
+  kind: InteractionKind,
+  dt: number,
+  speed = 4,
+  maxRadius?: number,
+) {
+  const place = resolveInteractionPosition(s, u, anchor, {
+    kind,
+    key: `${kind}:${anchor.id ?? `${anchor.x.toFixed(3)}:${anchor.y.toFixed(3)}`}`,
+    maxRadius,
+  });
+  return move(s, u, place.x, place.y, dt, speed);
+}
+
 function closest<T extends { x: number; y: number }>(items: T[], p: { x: number; y: number }) {
   return items.reduce<T | undefined>(
     (best, e) => (!best || distance(p, e) < distance(p, best) ? e : best),
@@ -588,6 +607,8 @@ export function consume(s: GameState, u: Unit, e?: MapEntity) {
   } else u.hunger = clamp(u.hunger - (RESOURCE_SPECS[resource].nutrition * amount) / ration);
   if (e) e.amount -= amount;
   else source![resource] -= amount;
+  u.lastEventAt ??= {};
+  u.lastEventAt.MEAL = s.time;
   if (resource === 'meat' && random(s) < 0.1) {
     u.hp -= 15 * (u.caste === 'slave' ? imperialLawEffects(s).slaveMortalityMultiplier : 1);
     u.parasiteUntil = s.time + 45;
@@ -690,19 +711,25 @@ function workCycle(s: GameState, u: Unit, dt: number, seconds = CORE_DEFAULTS.wo
   }
   return true;
 }
-function drop(s: GameState, u: Unit, r: Resource, amount: number) {
+function drop(
+  s: GameState,
+  u: Unit,
+  r: Resource,
+  amount: number,
+  at: { x: number; y: number } = u,
+) {
   if (amount <= 0) return;
   s.entities.push({
     id: nextId(s, 'ground'),
     kind: 'ground',
-    x: u.x,
-    y: u.y,
+    x: at.x,
+    y: at.y,
     amount,
     maxAmount: amount,
     hp: 0,
     maxHp: 1,
     resource: r,
-    sectorId: `sector-${Math.floor(u.x / 100)}-${Math.floor(u.y / 100)}`,
+    sectorId: `sector-${Math.floor(at.x / 100)}-${Math.floor(at.y / 100)}`,
   });
 }
 /** An accepted replacement order leaves the old load at the carrier's real position (A-35). */
@@ -722,7 +749,7 @@ function finishConstruction(s: GameState, u: Unit) {
     completed: Building[] = [];
   const count = u.command?.[0] === 'S_09' && u.buildingKind === 'house' ? 4 : 1;
   for (let i = 0; i < count; i++) {
-    const b = createBuilding(s, u.buildingKind, u.x + i * 2, u.y, u.cityId);
+    const b = createBuilding(s, u.buildingKind, (u.tx ?? u.x) + i * 2, u.ty ?? u.y, u.cityId);
     completed.push(b);
     if (b.kind === 'stele')
       b.fixedWordId =
@@ -1031,9 +1058,10 @@ export function processWork(s: GameState, u: Unit, dt: number) {
   if (citizen && verb === 'V_03') {
     u.action = 'combat';
     if (distance(u, citizen) > 1.5) {
-      move(s, u, citizen.x, citizen.y, dt);
+      moveToInteraction(s, u, citizen, 'hunt', dt, 4, 1.4);
       return;
     }
+    moveToInteraction(s, u, citizen, 'hunt', dt, 4, 1.4);
     if (!workCycle(s, u, dt, 1)) return;
     civilStrike(s, u, citizen);
     if (citizen.hp <= 0 && u.hp > 0) resetUnit(u);
@@ -1046,9 +1074,10 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       return;
     }
     if (distance(u, foreign) > 1.5) {
-      move(s, u, foreign.x, foreign.y, dt);
+      moveToInteraction(s, u, foreign, 'hunt', dt, 4, 1.4);
       return;
     }
+    moveToInteraction(s, u, foreign, 'hunt', dt, 4, 1.4);
     if (!workCycle(s, u, dt, 1)) return;
     const weapon = weaponFor(s, u),
       fx = getDogmaEffects(s, {
@@ -1108,18 +1137,33 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     return;
   }
   if (u.action === 'moving' || u.action === 'fleeing' || u.action === 'patrolling') {
-    if (move(s, u, u.tx ?? s.home.x, u.ty ?? s.home.y, dt, u.action === 'fleeing' ? 4.8 : 4))
-      resetInstinct(u);
+    const destination = { x: u.tx ?? s.home.x, y: u.ty ?? s.home.y };
+    const homeward = distance(destination, s.home) < 0.01;
+    const individualPoint = u.command?.[0] === 'S_02' && !homeward;
+    const arrived = individualPoint
+      ? move(s, u, destination.x, destination.y, dt, 4)
+      : moveToInteraction(
+          s,
+          u,
+          destination,
+          homeward ? 'return' : 'move',
+          dt,
+          u.action === 'fleeing' ? 4.8 : 4,
+          homeward && getDogmaEffects(s, { unit: u }).nightTaboo ? 3.5 : undefined,
+        );
+    if (arrived) resetInstinct(u);
     return;
   }
   if (u.action === 'returning') {
-    if (!move(s, u, s.home.x, s.home.y, dt)) return;
+    if (!moveToInteraction(s, u, s.home, 'return', dt)) return;
     if (u.carry) {
       const carried = u.carry;
       u.carry = undefined;
       const n = addResource(s, carried.resource, carried.amount);
       if (n < carried.amount) drop(s, u, carried.resource, carried.amount - n);
       if (n > 0) {
+        u.lastEventAt ??= {};
+        u.lastEventAt.DELIVERY = s.time;
         recordLawWork(s, u.id, tokens, n);
         recordCraft(s, u, 'V_08');
         recordCraft(s, u, 'V_05');
@@ -1166,7 +1210,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     return;
   }
   if (u.action === 'building') {
-    if (!move(s, u, u.tx ?? s.home.x, u.ty ?? s.home.y, dt)) return;
+    if (!moveToInteraction(s, u, { x: u.tx ?? s.home.x, y: u.ty ?? s.home.y }, 'build', dt)) return;
     if (workCycle(s, u, dt, CORE_DEFAULTS.constructionSeconds)) finishConstruction(s, u);
     return;
   }
@@ -1224,7 +1268,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
         u,
       );
     }
-    if (!fire || !move(s, u, fire.x, fire.y, dt)) return;
+    if (!fire || !moveToInteraction(s, u, fire, 'fire', dt, 4, 2.7)) return;
     u.jobBuildingId = fire.id;
     fire.workerIds ??= [];
     if (!fire.workerIds.includes(u.id)) fire.workerIds.push(u.id);
@@ -1276,7 +1320,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       resetUnit(u);
       return;
     }
-    if (!move(s, u, b.x, b.y, dt)) return;
+    if (!moveToInteraction(s, u, b, 'work', dt, 4, 2.7)) return;
     if (b.kind === 'foundry' && workCycle(s, u, dt, 5)) {
       const coin = tokens.includes('O_08'),
         arms = tokens.includes('V_03') || tokens.includes('S_08'),
@@ -1320,9 +1364,10 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     const weapon = weaponFor(s, u),
       range = weapon.kind === 'spear' ? 3 : 1.5;
     if (distance(u, e) > range) {
-      move(s, u, e.x, e.y, dt);
+      moveToInteraction(s, u, e, 'hunt', dt, 4, range - 0.1);
       return;
     }
+    moveToInteraction(s, u, e, 'hunt', dt, 4, range - 0.1);
     if (!workCycle(s, u, dt, 1)) return;
     const fx = getDogmaEffects(s, {
       unit: u,
@@ -1374,7 +1419,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       resetInstinct(u);
       return;
     }
-    if (!move(s, u, e.x, e.y, dt)) return;
+    if (!moveToInteraction(s, u, e, 'meal', dt)) return;
     if (!workCycle(s, u, dt, 1.5)) return;
     if (!consume(s, u, e) || u.hunger <= 0 || (conserve && u.hunger < 60)) resetInstinct(u);
     return;
@@ -1384,7 +1429,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       resetUnit(u);
       return;
     }
-    if (!move(s, u, e.x, e.y, dt)) return;
+    if (!moveToInteraction(s, u, e, 'forage', dt)) return;
     if (!workCycle(s, u, dt, 5)) return;
     e.domesticated = true;
     if (e.kind === 'wolf') {
@@ -1409,20 +1454,21 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     return;
   }
   if (u.action === 'planting') {
-    if (!move(s, u, u.tx ?? s.home.x, u.ty ?? s.home.y, dt)) return;
+    if (!moveToInteraction(s, u, { x: u.tx ?? s.home.x, y: u.ty ?? s.home.y }, 'forage', dt))
+      return;
     if (!workCycle(s, u, dt, 5)) return;
     recordLawWork(s, u.id, tokens);
     s.entities.push({
       id: nextId(s, 'tree'),
       kind: 'tree',
-      x: u.x,
-      y: u.y,
+      x: u.tx ?? u.x,
+      y: u.ty ?? u.y,
       amount: 20,
       maxAmount: 20,
       hp: 100,
       maxHp: 100,
-      originX: u.x,
-      originY: u.y,
+      originX: u.tx ?? u.x,
+      originY: u.ty ?? u.y,
     });
     resetUnit(u);
     return;
@@ -1436,7 +1482,16 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       resetUnit(u);
       return;
     }
-    if (!move(s, u, e.x, e.y, dt)) return;
+    if (
+      !moveToInteraction(
+        s,
+        u,
+        e,
+        e.kind === 'tree' ? 'tree' : e.kind === 'stone' || e.kind === 'ore' ? 'stone' : 'forage',
+        dt,
+      )
+    )
+      return;
     const resource = entityResource(e),
       equipment = gatheringEquipmentFor(s, u, resource),
       gatherTool = equipment.kind === 'tool',
@@ -1524,7 +1579,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
         ],
         n,
       );
-      drop(s, u, resource, n);
+      drop(s, u, resource, n, e);
       if (gatherTool) s.resources.tool = Math.max(0, s.resources.tool - 0.1);
       if (s.sparks.some((p) => p.unitId === u.id && ['O_02', 'O_03'].includes(p.wordId)))
         resetUnit(u);
@@ -1532,6 +1587,20 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     onDogmaticUse(s, tokens, u);
     return;
   }
+}
+function settleForRest(s: GameState, u: Unit, dt: number, night: boolean, taboo = false) {
+  const place = resolveInteractionPosition(s, u, s.home, {
+    kind: 'rest',
+    key: 'home-rest',
+    maxRadius: taboo ? 3.5 : 6.5,
+  });
+  u.action = 'resting';
+  if (!move(s, u, place.x, place.y, dt)) return false;
+  u.action = 'sleeping';
+  // Rest is earned at the real bed, inside the existing ten-metre cluster.
+  u.sleptThisNight = night;
+  u.restedThisSeason = true;
+  return true;
 }
 function startInstinct(s: GameState, u: Unit, dt: number) {
   const fx = getDogmaEffects(s, { unit: u }),
@@ -1555,19 +1624,10 @@ function startInstinct(s: GameState, u: Unit, dt: number) {
     }
   }
   if (sleep) {
-    if (distance(u, s.home) > 8) {
-      u.action = 'moving';
-      u.tx = s.home.x;
-      u.ty = s.home.y;
-      return;
-    }
-    u.action = 'sleeping';
-    // Biological rest may move to daytime; Qui still requires actual nights together.
-    u.sleptThisNight = night;
-    u.restedThisSeason = true;
+    settleForRest(s, u, dt, night);
     return;
   }
-  if (u.action === 'sleeping') u.action = 'idle';
+  if (u.action === 'sleeping' || u.action === 'resting') u.action = 'idle';
   if (u.action === 'idle') {
     if (!u.tx || u.progress <= 0) {
       u.tx = s.home.x + (random(s) - 0.5) * 24;
@@ -1754,7 +1814,7 @@ export function updateUnits(s: GameState, dt: number) {
     if (u.isolation >= 30) recordEvent(s, u, 'ENV_ISOLATION', 35, ['S_02'], 1);
     if (
       phase.isNight &&
-      ['moving', 'fleeing'].includes(u.action) &&
+      ['moving', 'fleeing', 'resting'].includes(u.action) &&
       u.lastNightEvent !== Math.floor(s.time / 90)
     ) {
       recordEvent(s, u, 'ENV_NIGHTFALL', 25, ['C_01']);
@@ -1815,15 +1875,7 @@ export function updateUnits(s: GameState, dt: number) {
       resetUnit(u);
     if (fx.nightTaboo && phase.isNight) {
       u.command = undefined;
-      if (distance(u, s.home) > 4) {
-        u.action = 'moving';
-        u.tx = s.home.x;
-        u.ty = s.home.y;
-        processWork(s, u, dt);
-      } else {
-        u.action = 'sleeping';
-        u.sleptThisNight = true;
-        u.restedThisSeason = true;
+      if (settleForRest(s, u, dt, true, true)) {
         if (u.hunger >= 60) consume(s, u);
       }
       evaluateDiscoveries(s, u);
@@ -1860,7 +1912,7 @@ export function updateUnits(s: GameState, dt: number) {
       u.ty = s.home.y;
       u.command = undefined;
     }
-    if (['idle', 'sleeping'].includes(u.action)) {
+    if (['idle', 'sleeping', 'resting'].includes(u.action)) {
       const assigned =
         u.hunger < 75 && u.temp > 30 && (resumeBuildingJob(s, u) || assignTradition(s, u));
       if (u.hp <= 0 || u.factionId !== 'player') continue;
