@@ -14,6 +14,7 @@ import {
 } from './mapDrawing';
 import { getGroundPiles } from './mapResourceLayout';
 import { getCustodianStatuses } from '../game/custodianStatus';
+import { getLifeStage } from '../game/demography';
 import { entityTargetPresentation, targetPresentation } from './targetPresentation';
 import './WorldMap.css';
 
@@ -251,7 +252,7 @@ export function WorldMap({
       const p = toWorld(clientX, clientY),
         current = stateRef.current,
         t = getTransform();
-      const candidates: { target: WorldTarget; distance: number }[] = [];
+      const candidates: { target: WorldTarget; distance: number; padded: boolean }[] = [];
       const add = (
         type: WorldTarget['type'],
         id: string,
@@ -265,7 +266,36 @@ export function WorldMap({
         const dx = (p.x - (display?.x ?? x)) * WORLD_X * t.scale,
           dy = ((p.y - (display?.y ?? y)) * WORLD_Y + verticalOffset * SPRITE_SCALE) * t.scale;
         const d = Math.hypot(dx, dy);
-        if (d < radius) candidates.push({ target: { type, id, x, y }, distance: d });
+        if (d < radius) candidates.push({ target: { type, id, x, y }, distance: d, padded: false });
+      };
+      // Artwork sizes are local sprite pixels. Scale the selectable silhouette with
+      // the drawing, while retaining a small touch target when zoomed out.
+      const addArt = (
+        type: WorldTarget['type'],
+        id: string,
+        x: number,
+        y: number,
+        rx: number,
+        ry: number,
+        verticalOffset: number,
+        minimum = 16,
+        horizontalOffset = 0,
+        display?: { x: number; y: number },
+      ) => {
+        if (!isVisibleAt(current, x, y)) return;
+        const spritePixels = SPRITE_SCALE * t.scale;
+        const dx = (p.x - (display?.x ?? x)) * WORLD_X * t.scale - horizontalOffset * spritePixels,
+          dy = (p.y - (display?.y ?? y)) * WORLD_Y * t.scale + verticalOffset * spritePixels;
+        const actualX = rx * spritePixels + 2,
+          actualY = ry * spritePixels + 2;
+        const paddedX = Math.max(minimum, actualX),
+          paddedY = Math.max(minimum, actualY);
+        if (Math.hypot(dx / paddedX, dy / paddedY) > 1) return;
+        candidates.push({
+          target: { type, id, x, y },
+          distance: Math.hypot(dx, dy),
+          padded: Math.hypot(dx / actualX, dy / actualY) > 1,
+        });
       };
       current.units
         .filter(
@@ -275,17 +305,29 @@ export function WorldMap({
               u.isKing ||
               ['delegating', 'frontline', 'frontline-returning'].includes(u.action)),
         )
-        .forEach((u) => add('unit', u.id, u.x, u.y, 13, 9));
+        .forEach((u) => {
+          const stage = getLifeStage(u);
+          const scale =
+            stage === 'child' ? 0.7 : stage === 'elder' ? 0.94 : stage === 'newborn' ? 0.82 : 1;
+          if (/sleep|dorm/i.test(u.action)) {
+            addArt('unit', u.id, u.x, u.y, 14 * scale, 8 * scale, 2 * scale, 11);
+          } else if (stage === 'newborn') {
+            addArt('unit', u.id, u.x, u.y, 7 * scale, 11 * scale, 8 * scale, 11);
+          } else {
+            addArt('unit', u.id, u.x, u.y, 9 * scale, 20 * scale, 14 * scale, 11);
+          }
+          if (u.hp < 45 || u.hunger >= 80 || u.temp <= 20)
+            addArt('unit', u.id, u.x, u.y, 5, 5, 32, 9, 8);
+          if (u.isolation && u.isolation > 3 && u.isolation < 30)
+            addArt('unit', u.id, u.x, u.y, 5, 5, 32, 9, -7);
+        });
       for (const status of getCustodianStatuses(current)) {
         const unit = current.units.find((u) => u.id === status.unitId);
         if (!unit || current.urbanized) continue;
-        add('unit', unit.id, unit.x, unit.y, 9, 28, {
-          x: unit.x - (15 * SPRITE_SCALE) / WORLD_X,
-          y: unit.y,
-        });
+        addArt('unit', unit.id, unit.x, unit.y, 8, 7, 38, 9, -15);
       }
       for (const pile of getGroundPiles(current)) {
-        add('entity', pile.entity.id, pile.entity.x, pile.entity.y, 18, 0, pile);
+        addArt('entity', pile.entity.id, pile.entity.x, pile.entity.y, 25, 15, 1, 18, 0, pile);
       }
       current.entities.forEach((e) => {
         if (e.kind === 'ground') return;
@@ -298,27 +340,87 @@ export function WorldMap({
         )
           return;
         if (e.amount <= 0 && !['tree', 'stone'].includes(e.kind)) return;
-        add(
-          'entity',
-          e.id,
-          e.x,
-          e.y,
-          e.kind === 'tree' || e.kind === 'mammoth' ? 25 : 20,
-          e.kind === 'tree' ? 15 : 5,
-        );
+        if (e.kind === 'tree') {
+          addArt('entity', e.id, e.x, e.y, 10, e.amount > 0 ? 19 : 10, e.amount > 0 ? 15 : 5);
+          if (e.amount > 0) addArt('entity', e.id, e.x, e.y, 33, 29, 48);
+        } else if (e.kind === 'mammoth') {
+          addArt('entity', e.id, e.x, e.y, 50, 35, 27, 20);
+        } else if (['deer', 'wolf', 'alpha'].includes(e.kind)) {
+          const scale = e.kind === 'alpha' ? 1.25 : 1;
+          addArt('entity', e.id, e.x, e.y, 39 * scale, 27 * scale, 21 * scale, 20);
+        } else if (e.kind === 'seedling') {
+          addArt('entity', e.id, e.x, e.y, 11, 13, 8);
+        } else if (e.kind === 'corpse') {
+          addArt('entity', e.id, e.x, e.y, 15, 9, 3);
+        } else {
+          addArt('entity', e.id, e.x, e.y, e.kind === 'berries' ? 31 : 39, 24, 16, 20);
+        }
       });
       if (!current.urbanized)
         current.buildings
           .filter((b) => b.hp > 0)
-          .forEach((b) => add('building', b.id, b.x, b.y, 22, 10));
+          .forEach((b) => {
+            const flat = ['farm', 'pen', 'palisade', 'walls', 'storage', 'grave'].includes(b.kind);
+            const tall = ['temple', 'palace', 'archive', 'foundry'].includes(b.kind);
+            const narrow = ['menhir', 'stele'].includes(b.kind);
+            if (b.kind === 'campfire') {
+              addArt('building', b.id, b.x, b.y, 25, b.active ? 29 : 13, b.active ? 16 : 3, 22);
+            } else {
+              addArt(
+                'building',
+                b.id,
+                b.x,
+                b.y,
+                narrow ? 22 : flat ? 49 : 41,
+                tall ? 51 : flat ? 28 : 37,
+                tall ? 43 : flat ? 15 : 29,
+                22,
+              );
+            }
+          });
       current.cities.forEach((c) => add('city', c.id, c.x, c.y, 27, 10));
       current.battalions
         .filter((b) => b.hp > 0)
-        .forEach((b) => add('battalion', b.id, b.x, b.y, 22, 10));
+        // Strategic icons use full map scale rather than the individual sprite scale.
+        .forEach((b) => {
+          addArt(
+            'battalion',
+            b.id,
+            b.x,
+            b.y,
+            17 / SPRITE_SCALE,
+            13 / SPRITE_SCALE,
+            10 / SPRITE_SCALE,
+            22,
+          );
+          if (b.catapult)
+            addArt(
+              'battalion',
+              b.id,
+              b.x,
+              b.y,
+              7 / SPRITE_SCALE,
+              8 / SPRITE_SCALE,
+              4 / SPRITE_SCALE,
+              12,
+              11 / SPRITE_SCALE,
+            );
+        });
       current.caravans
         .filter((c) => c.hp > 0 && !c.arrived)
-        .forEach((c) => add('caravan', c.id, c.x, c.y, 21, 7));
-      candidates.sort((a, b) => a.distance - b.distance);
+        .forEach((c) =>
+          addArt(
+            'caravan',
+            c.id,
+            c.x,
+            c.y,
+            11 / SPRITE_SCALE,
+            8 / SPRITE_SCALE,
+            5 / SPRITE_SCALE,
+            21,
+          ),
+        );
+      candidates.sort((a, b) => Number(a.padded) - Number(b.padded) || a.distance - b.distance);
       return (
         candidates[0]?.target ?? {
           type: 'point',
@@ -403,6 +505,12 @@ export function WorldMap({
         groupActiveRef.current,
         pingRef.current,
         orderFeedbackRef.current,
+        {
+          minX: -t.x / t.scale / WORLD_X,
+          minY: -t.y / t.scale / WORLD_Y,
+          maxX: (width - t.x) / t.scale / WORLD_X,
+          maxY: (height - t.y) / t.scale / WORLD_Y,
+        },
       );
       const mw = 134,
         mh = 88;
