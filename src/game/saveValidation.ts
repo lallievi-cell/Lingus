@@ -126,6 +126,18 @@ export function validSave(value: unknown): value is GameState {
   if (!optional(s.playMode, (x) => x === 'guided' || x === 'classic')) return false;
   if (
     !optional(
+      s.mapGeneration,
+      (value) =>
+        record(value) &&
+        ['seed-zero', 'random'].includes(value.mode as string) &&
+        number(value.seed, 0, 4294967295) &&
+        Number.isInteger(value.seed) &&
+        value.version === 1,
+    )
+  )
+    return false;
+  if (
+    !optional(
       s.tribeEvents,
       (events) =>
         Array.isArray(events) &&

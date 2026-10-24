@@ -4,6 +4,7 @@ import { getCustodianStatuses, type CustodianStatus } from '../game/custodianSta
 import { getLifeStage, resolveUnitSex } from '../game/demography';
 import { visibleUnitEquipment, type VisibleUnitEquipment } from '../game/unitEquipment';
 import { getGroundPiles, groundPileFor, resourceKnown, type GroundPile } from './mapResourceLayout';
+import { riverSegments } from '../game/worldGeneration';
 
 export const visibleBorderRadius = (state: GameState) => (hasBuilding(state, 'palace') ? 100 : 35);
 
@@ -635,7 +636,12 @@ function label(
   ctx.restore();
 }
 
-export function createTerrain(seed: number, seasonIndex: number): HTMLCanvasElement {
+export function createTerrain(
+  seed: number,
+  seasonIndex: number,
+  world?: Pick<GameState, 'mapGeneration' | 'sectors' | 'home'>,
+): HTMLCanvasElement {
+  if (world?.mapGeneration?.mode === 'random') return createGeneratedTerrain(world, seasonIndex);
   const canvas = document.createElement('canvas');
   canvas.width = MAP_WIDTH * 3;
   canvas.height = MAP_HEIGHT * 3;
@@ -784,6 +790,134 @@ export function createTerrain(seed: number, seasonIndex: number): HTMLCanvasElem
   label(ctx, 'Le alte pietre', 1064, 710, -0.13, 13);
   label(ctx, 'Il fiume delle nebbie', 920, 500, -0.8, 13);
   label(ctx, 'Terre ancora senza nome', 635, 102, 0, 13);
+  return canvas;
+}
+
+/** Baked from the saved physical world, never from the changing simulation RNG. */
+function createGeneratedTerrain(
+  world: Pick<GameState, 'mapGeneration' | 'sectors' | 'home'>,
+  seasonIndex: number,
+) {
+  const canvas = document.createElement('canvas');
+  canvas.width = MAP_WIDTH * 3;
+  canvas.height = MAP_HEIGHT * 3;
+  const ctx = canvas.getContext('2d')!;
+  ctx.scale(3, 3);
+  const random = seededRandom(world.mapGeneration!.seed);
+  const winter = seasonIndex % 4 === 3;
+  const autumn = seasonIndex % 4 === 2;
+  ctx.fillStyle = winter ? '#d6dcc8' : autumn ? '#cecfaa' : '#cbd2a3';
+  ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+  const colors = winter
+    ? { forest: '#aebfa6', plain: '#e6e5d0', mountain: '#c0c6bc', river: '#bfcebd' }
+    : {
+        forest: '#a4b885',
+        plain: autumn ? '#ddd4a7' : '#d9daa9',
+        mountain: '#b9bda1',
+        river: '#b5c79c',
+      };
+  for (const sector of world.sectors) {
+    const p = worldPoint(sector.x * 100 + 50, sector.y * 100 + 50);
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.scale(1.5, 1);
+    const wash = ctx.createRadialGradient(0, 0, 8, 0, 0, 116);
+    wash.addColorStop(0, colors[sector.biome] + 'ed');
+    wash.addColorStop(0.65, colors[sector.biome] + 'b0');
+    wash.addColorStop(1, colors[sector.biome] + '00');
+    ctx.fillStyle = wash;
+    ctx.fillRect(-120, -120, 240, 240);
+    ctx.restore();
+    if (sector.biome === 'mountain') {
+      ctx.strokeStyle = winter ? '#8c9c8b45' : '#7e8c6242';
+      ctx.lineWidth = 0.9;
+      const angle = (random() - 0.5) * 0.45;
+      for (let i = 0; i < 6; i++) {
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, 27 + i * 12, 13 + i * 7, angle, 0.1, Math.PI * 1.9);
+        ctx.stroke();
+      }
+    }
+  }
+  // Draw exactly the geometry used to keep resources and settlements on the banks.
+  const rivers = riverSegments(world.sectors);
+  ctx.save();
+  ctx.scale(MAP_WIDTH / WORLD_SIZE, MAP_HEIGHT / WORLD_SIZE);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  const traceRiver = () => {
+    ctx.beginPath();
+    for (const [a, b] of rivers) {
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+    }
+  };
+  for (const [color, width] of [
+    ['#9f9e7345', 21],
+    ['#e5ddb2', 18],
+    [winter ? '#9ebeb1' : '#88b5a2', 12],
+    [winter ? '#b9d2c4' : '#add0b8', 9],
+  ] as const) {
+    traceRiver();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.stroke();
+  }
+  for (const [a, b] of rivers) {
+    const length = Math.hypot(b.x - a.x, b.y - a.y);
+    if (!length) continue;
+    for (let i = 0; i < 12; i++) {
+      const t = random(),
+        offset = (random() - 0.5) * 5;
+      const x = a.x + (b.x - a.x) * t + ((b.y - a.y) / length) * offset;
+      const y = a.y + (b.y - a.y) * t - ((b.x - a.x) / length) * offset;
+      line(
+        ctx,
+        [
+          [x, y],
+          [x + ((b.x - a.x) / length) * 2, y + ((b.y - a.y) / length) * 2],
+        ],
+        '#e1ecd099',
+        0.35,
+      );
+    }
+  }
+  ctx.restore();
+  // The starting clearing follows the real home rather than the atlas coordinates.
+  const home = worldPoint(world.home.x, world.home.y);
+  ctx.save();
+  ctx.translate(home.x, home.y);
+  ctx.scale(1.5, 1);
+  const clearing = ctx.createRadialGradient(0, 0, 4, 0, 0, 56);
+  clearing.addColorStop(0, winter ? '#ece8d3' : '#e7dfb3');
+  clearing.addColorStop(1, '#e7dfb300');
+  ctx.fillStyle = clearing;
+  ctx.fillRect(-60, -60, 120, 120);
+  ctx.restore();
+  // Fine scenery is deliberately smaller than actual selectable resources.
+  for (let i = 0; i < 10000; i++) {
+    ctx.fillStyle = random() > 0.5 ? '#758b4921' : '#fff6cb33';
+    ctx.fillRect(
+      random() * MAP_WIDTH,
+      random() * MAP_HEIGHT,
+      0.3 + random() * 0.6,
+      0.2 + random() * 0.4,
+    );
+  }
+  for (let i = 0; i < 550; i++) {
+    const x = random() * MAP_WIDTH,
+      y = random() * MAP_HEIGHT;
+    line(
+      ctx,
+      [
+        [x - 1, y - 2],
+        [x, y],
+        [x + 1, y - 2.7],
+      ],
+      winter ? '#a4b39266' : '#8b9f6266',
+      0.6,
+    );
+  }
   return canvas;
 }
 

@@ -4,6 +4,9 @@ const SAVE_KEY = 'lingus.save.v2';
 
 async function begin(page: Page) {
   await page.goto('/');
+  // These conformance cases intentionally click the canonical GDD coordinates.
+  // Procedural defaults and seed controls are covered in map-generation.spec.ts.
+  await page.getByRole('button', { name: /^Seed Zero/ }).click();
   await page.getByRole('button', { name: 'Dai inizio alla storia' }).click();
 }
 async function closePanel(page: Page) {

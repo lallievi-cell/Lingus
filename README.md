@@ -25,6 +25,8 @@ L'output è in `dist/`. I processi devono essere riavviati quando una sessione c
 
 ## Come giocare
 
+Le nuove storie propongono una **mappa casuale**; puoi inserire un seed per ritrovare la stessa valle oppure scegliere **Seed Zero** per lo scenario originario. La scelta è indipendente da Guidata/Classica. I vecchi salvataggi mantengono il proprio mondo. [MAP-GENERATION.md](docs/MAP-GENERATION.md) descrive generazione, risorse iniziali e prove.
+
 1. Componi **Gruppo + Colpire** e scegli un albero o una roccia. Il gruppo viene chiamato entro un raggio di quindici metri dal punto di selezione; puoi cambiarlo con **Scegli il gruppo**.
 2. Le persone si muovono verso il bersaglio e interagiscono fisicamente. Le prime risorse non hanno ancora un nome: il loro aspetto e i tooltip cambiano con le scoperte.
 3. Apri una Scintilla dalla mappa o dal pannello della tribù. Durante il puzzle il tempo si ferma. Collega l'esperienza alle parole note; un errore riduce la tensione cognitiva e impone un'attesa.

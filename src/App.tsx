@@ -47,6 +47,13 @@ import {
 import { entityTargetPresentation } from './components/targetPresentation';
 import { BrandMark, Glyph } from './components/Glyph';
 import { Modal } from './components/Modal';
+import {
+  MapPicker,
+  freshMapSeed,
+  mapSeedValid,
+  parseMapSeed,
+  type MapChoice,
+} from './components/MapPicker';
 import { GrowthReadiness, IndividualGrowthReadiness } from './components/GrowthReadiness';
 import { OpeningGuide } from './components/OpeningGuide';
 import {
@@ -120,7 +127,7 @@ function loadInitialGame(): GameState {
   } catch {
     /* A fresh game remains available when browser storage is unavailable. */
   }
-  return createGame(6842, 'guided');
+  return createGame(freshMapSeed(), 'guided', 'random');
 }
 
 function loadEventPause(defaultValue: boolean) {
@@ -142,6 +149,7 @@ function timeLabel(time: number) {
 
 function App() {
   const [game, setGame] = useState<GameState>(loadInitialGame);
+  const [mapSession, setMapSession] = useState(0);
   const [panel, setPanel] = useState<Panel>(() => (game.started ? null : 'welcome'));
   const [sentence, setSentence] = useState<string[]>([]);
   const [executorId, setExecutorId] = useState<string | undefined>();
@@ -161,6 +169,11 @@ function App() {
   const [dogmaVector, setDogmaVector] = useState('M_01');
   const [toast, setToast] = useState('');
   const [newMode, setNewMode] = useState<'guided' | 'classic'>(game.playMode ?? 'guided');
+  const [newMap, setNewMap] = useState<MapChoice>(
+    game.mapGeneration?.mode ?? (game.started ? 'random' : 'seed-zero'),
+  );
+  const [newSeed, setNewSeed] = useState(game.mapGeneration ? String(game.mapGeneration.seed) : '');
+  const newMapValid = newMap === 'seed-zero' || mapSeedValid(newSeed);
   const [pauseOnEvents, setPauseOnEvents] = useState(() =>
     loadEventPause(game.playMode === 'guided'),
   );
@@ -587,6 +600,10 @@ function App() {
       const parsed = parseGame(await file.text());
       if (!parsed) throw new Error('invalid');
       setGame({ ...parsed, paused: true });
+      setMapSession((session) => session + 1);
+      setFocusRequest(undefined);
+      setSelectingGroup(false);
+      setOrderFeedback(null);
       setSentence([]);
       setTarget(null);
       setPanel(null);
@@ -594,6 +611,8 @@ function App() {
       setGroupAnchor({ type: 'point', ...parsed.home });
       setExecutorId(undefined);
       setNewMode(parsed.playMode ?? 'classic');
+      setNewMap(parsed.mapGeneration?.mode ?? 'random');
+      setNewSeed(parsed.mapGeneration ? String(parsed.mapGeneration.seed) : '');
       setDismissedEvents(new Set());
       eventSnapshot.current = new Set((parsed.tribeEvents ?? []).map((event) => event.id));
       sparkSnapshot.current = new Set(parsed.sparks.map((spark) => spark.id));
@@ -604,9 +623,56 @@ function App() {
     if (fileInput.current) fileInput.current.value = '';
   }
 
+  function previewMap(map: MapChoice, seedText: string, mode = newMode, chooseNew = false) {
+    if (panel !== 'welcome' || (map === 'random' && !mapSeedValid(seedText))) return;
+    setGame((current) => {
+      const seed =
+        map === 'seed-zero'
+          ? 6842
+          : (parseMapSeed(seedText) ??
+            (!chooseNew && current.mapGeneration?.mode === 'random'
+              ? current.mapGeneration.seed
+              : freshMapSeed(current.mapGeneration?.seed)));
+      return createGame(seed, mode, map);
+    });
+  }
+
+  function changeMap(map: MapChoice) {
+    setNewMap(map);
+    previewMap(map, newSeed);
+  }
+
+  function changeMapSeed(seed: string) {
+    setNewSeed(seed);
+    previewMap(newMap, seed, newMode, seed.trim() === '');
+  }
+
+  function chooseNewSeed() {
+    const seed = String(freshMapSeed(parseMapSeed(newSeed) ?? game.mapGeneration?.seed));
+    setNewSeed(seed);
+    previewMap(newMap, seed);
+  }
+
+  function openRestart() {
+    setNewMode(game.playMode ?? 'classic');
+    setNewMap(game.mapGeneration?.mode ?? 'random');
+    setNewSeed(String(freshMapSeed(game.mapGeneration?.seed)));
+    setPanel('restart');
+  }
+
   function restart() {
-    const fresh = { ...createGame(Math.floor(Math.random() * 1_000_000), newMode), started: true };
+    if (!newMapValid) return;
+    const seed =
+      newMap === 'seed-zero'
+        ? 6842
+        : (parseMapSeed(newSeed) ?? freshMapSeed(game.mapGeneration?.seed));
+    const fresh = { ...createGame(seed, newMode, newMap), started: true };
     setGame(fresh);
+    setMapSession((session) => session + 1);
+    setFocusRequest(undefined);
+    setSelectingGroup(false);
+    setOrderFeedback(null);
+    setNewSeed(String(seed));
     setSentence([]);
     setTarget(null);
     setHasSeenMilestone(false);
@@ -1096,6 +1162,7 @@ function App() {
           </div>
           <div className="map-frame">
             <WorldMap
+              key={mapSession}
               state={game}
               focusRequest={focusRequest}
               selectedTarget={target}
@@ -1662,9 +1729,16 @@ function App() {
             value={newMode}
             onChange={(mode) => {
               setNewMode(mode);
-              setGame(createGame(6842, mode));
+              previewMap(newMap, newSeed, mode);
               setPauseOnEvents(mode === 'guided');
             }}
+          />
+          <MapPicker
+            value={newMap}
+            seed={newSeed}
+            onChange={changeMap}
+            onSeedChange={changeMapSeed}
+            onNewSeed={chooseNewSeed}
           />
           <label className="event-pause-setting">
             <input
@@ -1682,7 +1756,9 @@ function App() {
           </label>
           <button
             className="primary-button"
+            disabled={!newMapValid}
             onClick={() => {
+              if (!newMapValid) return;
               setGame((g) => ({ ...g, started: true, paused: false }));
               closePanel();
             }}
@@ -1765,7 +1841,9 @@ function App() {
           </div>
           <button
             className="primary-button"
+            disabled={!game.started && !newMapValid}
             onClick={() => {
+              if (!game.started && !newMapValid) return;
               setGame((g) => ({ ...g, started: true, paused: false }));
               closePanel();
             }}
@@ -2184,6 +2262,17 @@ function App() {
             Partita {game.playMode === 'guided' ? 'Guidata' : 'Classica'}. La modalità si sceglie
             all’inizio di una nuova storia.
           </p>
+          <p className="current-map-info" aria-label="Mappa attuale">
+            {game.mapGeneration ? (
+              <>
+                {game.mapGeneration.mode === 'random' ? 'Mappa casuale' : 'Seed Zero'}
+                {' · Seed '}
+                <code>{game.mapGeneration.seed}</code>
+              </>
+            ) : (
+              'Scenario esistente · seed originale non registrato'
+            )}
+          </p>
           <label className="event-pause-setting">
             <input
               type="checkbox"
@@ -2223,7 +2312,7 @@ function App() {
               </span>
               <ChevronRight size={17} />
             </button>
-            <button className="restart-action" onClick={() => setPanel('restart')}>
+            <button className="restart-action" onClick={openRestart}>
               <RotateCcw size={19} />
               <span>
                 <strong>Una nuova storia</strong>
@@ -2263,7 +2352,14 @@ function App() {
             La partita attuale verrà sostituita. Puoi esportarla prima di iniziare una nuova storia.
           </p>
           <ModePicker value={newMode} onChange={setNewMode} />
-          <button className="primary-button" onClick={restart}>
+          <MapPicker
+            value={newMap}
+            seed={newSeed}
+            onChange={changeMap}
+            onSeedChange={changeMapSeed}
+            onNewSeed={chooseNewSeed}
+          />
+          <button className="primary-button" onClick={restart} disabled={!newMapValid}>
             Inizia una nuova storia <ArrowRight size={17} />
           </button>
           <button
@@ -2344,7 +2440,7 @@ function App() {
               <small>stagioni vissute</small>
             </span>
           </div>
-          <button className="primary-button" onClick={restart}>
+          <button className="primary-button" onClick={openRestart}>
             Dai voce a un’altra storia <ArrowRight size={17} />
           </button>
           <button className="text-button" onClick={exportGame}>

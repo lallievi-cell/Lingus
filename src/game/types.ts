@@ -420,9 +420,17 @@ export interface DisasterState {
   lastSummerYear: number;
   lastWinterYear: number;
 }
+export type MapMode = 'seed-zero' | 'random';
+export interface MapGeneration {
+  mode: MapMode;
+  /** The original seed, kept separately from the evolving simulation RNG. */
+  seed: number;
+  version: 1;
+}
 export interface GameState {
   version: 2;
   playMode?: 'guided' | 'classic';
+  mapGeneration?: MapGeneration;
   seed: number;
   time: number;
   seasonIndex: number;

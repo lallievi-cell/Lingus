@@ -9,6 +9,7 @@ import {
   WORD_ORDER,
 } from './content';
 import { createInitialState } from './state';
+import type { MapMode } from './types';
 import { canFitCraftOutput, canPayLocally, payLocally } from './craftMaterials';
 import { validSave } from './saveValidation';
 import { cognitiveSlots, compileSentence, getPredicate, resolveConstruction } from './grammar';
@@ -75,8 +76,12 @@ export {
   WORD_ORDER,
 };
 export { getDogmaVectors, previewDogma, inscribeDogma, removeDogma } from './dogmas';
-export function createGame(seed = 6842, playMode: 'guided' | 'classic' = 'classic') {
-  return createInitialState(seed, playMode);
+export function createGame(
+  seed = 6842,
+  playMode: 'guided' | 'classic' = 'classic',
+  mapMode: MapMode = 'seed-zero',
+) {
+  return createInitialState(seed, playMode, mapMode);
 }
 function chooseSubjects(
   s: GameState,

@@ -28,6 +28,8 @@ La revisione [ONBOARDING-CALIBRATION.md](ONBOARDING-CALIBRATION.md) dimostra anc
 
 Questi sono limiti della verifica attuale. Non sono dichiarati meccaniche assenti in mancanza di un difetto identificato. Se un replay o un test rivela un errore, occorre correggerlo prima di chiudere il relativo requisito.
 
+[MAP-GENERATION.md](MAP-GENERATION.md) aggiunge prime accensioni e primi anni ordinari su geografie generate. Questo non chiude le campagne complete sopra elencate. Durante la prova è emerso un comportamento precedente da correggere separatamente: nel trasporto di legna per il Fuoco il bersaglio può essere sostituito con il nodo più vicino, anche fuori dai settori esplorati. Le prove delle nuove mappe usano prelievi ordinari con bersaglio esplicito e visibile; non attribuiscono alla generazione una correzione della ricerca automatica del combustibile.
+
 ## Segnalazioni successive corrette
 
 [BUG-AUDIT.md](BUG-AUDIT.md) documenta quattro ulteriori difetti: sfasamento delle operazioni stagionali, bersagli della Caccia Grossa, effetti della Gerontocrazia e priorità alimentare persistente. Le correzioni includono contabilità del nuovo raccolto provinciale e attribuzione dei risultati di lavoro alla stagione effettivamente conclusa.

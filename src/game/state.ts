@@ -1,10 +1,12 @@
 import { HOME, INNATE_WORDS, BASE_HOUSING, emptyInventory } from './content';
-import type { City, Faction, GameState, MapEntity, Sector, Unit } from './types';
+import { generateWorld } from './worldGeneration';
+import type { City, Faction, GameState, MapEntity, MapMode, Sector, Unit } from './types';
 
 /** Exactly the seven Seed Zero people, in the order stated in the final GDD. */
 export function createInitialState(
   seed = 6842,
   playMode: 'guided' | 'classic' = 'classic',
+  mapMode: MapMode = 'seed-zero',
 ): GameState {
   const people: [string, number, number, number, number, number][] = [
     ['Korg', 8, 8, 4, 100, 20],
@@ -209,9 +211,10 @@ export function createInitialState(
     sectors.find((s) => s.x === sectorX && s.y === sectorY)!.cityId = city.id;
     return city;
   });
-  return {
+  const state: GameState = {
     version: 2,
     playMode,
+    mapGeneration: { mode: mapMode, seed: seed >>> 0, version: 1 },
     seed: seed >>> 0,
     time: 0,
     seasonIndex: 0,
@@ -296,5 +299,7 @@ export function createInitialState(
     home: { ...HOME },
     burntWood: 0,
   };
+  if (mapMode === 'random') Object.assign(state, generateWorld(seed >>> 0, factions));
+  return state;
 }
 export const INITIAL_HOUSING = BASE_HOUSING;

@@ -74,6 +74,12 @@ Le regole esplicite più recenti restano il riferimento. Le eccezioni esplicite 
 
 [ONBOARDING-CALIBRATION.md](ONBOARDING-CALIBRATION.md) distingue questi cambiamenti autorizzati dai parametri letterali della fonte e descrive le prove.
 
+## Generazione delle nuove mappe
+
+| ID   | Punto da precisare nel modello                                                    | Decisione adottata e motivo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ---- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A-39 | Il seed modificava gli eventi ma tutte le partite ricreavano la stessa geografia. | Su richiesta dell'utente, **Casuale predefinita e Seed Zero selezionabile**, separati dalla difficoltà. Seed originale e versione del generatore sono persistenti; uno stream separato genera biomi, risorse, fauna e posizioni dei villaggi con vincoli reali per la partenza. Le quattro culture conservano identità e vocabolario. I salvataggi esistenti non vengono rigenerati e l'API precedente conserva il mondo canonico. [MAP-GENERATION.md](MAP-GENERATION.md) riporta i vincoli e la portata delle prove. |
+
 ## Portata delle decisioni
 
 Risolvere gli indefiniti rende il modello eseguibile e giudicabile. Non certifica da solo che ogni regola esplicita sia implementata o che ogni vittoria sia raggiungibile in una partita ordinaria.

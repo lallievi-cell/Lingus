@@ -163,7 +163,17 @@ export function WorldMap({
     centerX: number;
     centerY: number;
   } | null>(null);
-  const terrain = useMemo(() => createTerrain(6842, state.seasonIndex), [state.seasonIndex]);
+  // Exploration changes every tick; terrain depends only on stable map identity,
+  // geography and season. Never use the evolving state.seed to repaint it.
+  const geography = state.sectors
+    .map((sector) => `${sector.x},${sector.y}:${sector.biome}`)
+    .join('|');
+  const mapMode = state.mapGeneration?.mode;
+  const mapSeed = state.mapGeneration?.seed;
+  const terrain = useMemo(
+    () => createTerrain(mapMode === 'random' ? mapSeed! : 6842, state.seasonIndex, state),
+    [mapMode, mapSeed, geography, state.seasonIndex, state.home.x, state.home.y],
+  );
   useEffect(() => {
     if (focusRequest)
       setView((previous) => ({
