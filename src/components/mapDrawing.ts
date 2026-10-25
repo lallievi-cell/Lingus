@@ -12,6 +12,7 @@ import { getUnitAnimation, type UnitAnimationPose } from './unitAnimation';
 import { createMapMotionSession, observeUnitMotion, type MapMotionSession } from './mapMotion';
 import type { AnimalAnimationContext } from './animalAnimation';
 import { drawPainterlyBattalion, drawPainterlyCaravan } from './mapStrategicArt';
+import { drawMapAtmosphere, isFoundryProducing, type AtmosphereOptions } from './mapAtmosphere';
 
 const fallbackMotionSession = createMapMotionSession();
 
@@ -574,11 +575,12 @@ function drawBuilding(
   ctx: CanvasRenderingContext2D,
   building: GameState['buildings'][number],
   time: number,
+  producing?: boolean,
 ) {
   const { x, y } = worldPoint(building.x, building.y);
   ctx.save();
   ctx.translate(x, y);
-  drawPainterlyBuilding(ctx, building, time);
+  drawPainterlyBuilding(ctx, building, time, { producing });
   ctx.restore();
 }
 
@@ -1045,6 +1047,7 @@ export function drawWorld(
   } | null,
   viewport?: { minX: number; minY: number; maxX: number; maxY: number },
   motionSession: MapMotionSession = fallbackMotionSession,
+  atmosphereOptions?: AtmosphereOptions,
 ) {
   ctx.drawImage(terrain, 0, 0, MAP_WIDTH, MAP_HEIGHT);
   const nearHome = (target: WorldTarget | null) =>
@@ -1247,7 +1250,18 @@ export function drawWorld(
     for (const b of state.buildings.filter(
       (b) => b.hp > 0 && inView(b) && isVisibleAt(state, b.x, b.y),
     ))
-      objects.push({ y: b.y, draw: () => sprite(b, () => drawBuilding(ctx, b, time)) });
+      objects.push({
+        y: b.y,
+        draw: () =>
+          sprite(b, () =>
+            drawBuilding(
+              ctx,
+              b,
+              time,
+              b.kind === 'foundry' ? isFoundryProducing(state, b) : undefined,
+            ),
+          ),
+      });
   for (const unit of [...renderUnits.values()].filter(
     (u) =>
       u.hp > 0 &&
@@ -1538,7 +1552,13 @@ export function drawWorld(
     ctx.fillStyle = `rgba(35,53,66,${darkness * 0.38})`;
     ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
     for (const fire of state.buildings.filter(
-      (b) => b.kind === 'campfire' && b.active && b.hp > 0 && b.completed !== false,
+      (b) =>
+        b.kind === 'campfire' &&
+        b.active &&
+        b.hp > 0 &&
+        b.completed !== false &&
+        inView(b) &&
+        isVisibleAt(state, b.x, b.y),
     )) {
       const p = worldPoint(fire.x, fire.y);
       const light = ctx.createRadialGradient(p.x, p.y, 1, p.x, p.y, 36);
@@ -1549,6 +1569,8 @@ export function drawWorld(
       ctx.fillRect(p.x - 36, p.y - 36, 72, 72);
     }
   }
+
+  drawMapAtmosphere(ctx, state, time, viewport, atmosphereOptions);
 
   // Unexplored margins fade into the paper rather than a hard black RTS mask.
   const vignette = ctx.createRadialGradient(600, 405, 280, 600, 405, 720);

@@ -733,7 +733,7 @@ function App() {
   };
 
   return (
-    <div className={`app ${season.isNight && game.started ? 'night-mode' : ''}`}>
+    <div className={`app tier-${game.tier} ${season.isNight && game.started ? 'night-mode' : ''}`}>
       <header className="topbar">
         <a
           className="brand"

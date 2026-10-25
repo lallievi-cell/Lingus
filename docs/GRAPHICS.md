@@ -31,4 +31,6 @@ Nella prima revisione grafica, una misura tecnica in Chromium headless, con una 
 
 [ANIMATION.md](ANIMATION.md) documenta la successiva revisione delle pose, dell'interpolazione e dei posti di lavoro fisici.
 
+[UI-ATMOSPHERE.md](UI-ATMOSPHERE.md) descrive i materiali dei pannelli nelle sei ere e gli effetti atmosferici collegati alla simulazione.
+
 `mapTerrainArt.ts`, `mapNatureArt.ts`, `mapPeopleArt.ts`, `mapBuildingArt.ts` e `mapStrategicArt.ts` contengono i disegni. `mapDrawing.ts` mantiene composizione della scena, visibilità, selezioni e indicatori; `WorldMap.tsx` gestisce camera e interazione. Questa separazione permette di rifinire l'arte senza cambiare la simulazione.

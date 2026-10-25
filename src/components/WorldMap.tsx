@@ -135,6 +135,7 @@ export function WorldMap({
     minimapRef = useRef<HTMLCanvasElement>(null);
   const motionSessionRef = useRef(createMapMotionSession());
   const animationClockRef = useRef(createAnimationClock());
+  const reducedMotionRef = useRef(false);
   const stateRef = useRef(state),
     anchorRef = useRef(groupAnchor),
     selectedRef = useRef(selectedTarget),
@@ -198,6 +199,16 @@ export function WorldMap({
   readyRef.current = commandReady;
   renderSizeRef.current = size;
   viewRef.current = view;
+
+  useEffect(() => {
+    const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => {
+      reducedMotionRef.current = preference.matches;
+    };
+    update();
+    preference.addEventListener('change', update);
+    return () => preference.removeEventListener('change', update);
+  }, []);
 
   useEffect(() => {
     if (state.tier >= 4 && previousTier.current < 4)
@@ -530,6 +541,7 @@ export function WorldMap({
           maxY: (height - t.y) / t.scale / WORLD_Y,
         },
         motionSessionRef.current,
+        { reducedMotion: reducedMotionRef.current, pixelRatio: dpr },
       );
       const mw = 134,
         mh = 88;

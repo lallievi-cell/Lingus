@@ -1,0 +1,253 @@
+/* Materials follow the actual linguistic era. Shapes never clip controls or focus rings. */
+.app.tier-0 {
+  --ui-material-name: 'stone-ochre';
+  --ui-surface: #eee4cc;
+  --ui-panel: #f5edda;
+  --ui-frame: #99856b;
+  --ui-highlight: #fff9e8;
+  --ui-shadow: #75664a;
+  --ui-accent: #936139;
+  --ui-radius: 9px 4px 11px 5px / 5px 10px 5px 8px;
+  --ui-glyph-weight: 2.15;
+  --ui-grain:
+    radial-gradient(ellipse at 20% 30%, #8b693c0d 0 2px, transparent 3px),
+    radial-gradient(ellipse at 70% 60%, #ffffff58 0 1px, transparent 2px),
+    radial-gradient(ellipse at 12% 80%, #a074400d, transparent 70%);
+  --ui-grain-size: 43px 31px, 29px 37px, auto;
+  --ui-trim: repeating-linear-gradient(105deg, #806748 0 2px, transparent 2px 10px);
+}
+
+.app.tier-1 {
+  --ui-material-name: 'limestone';
+  --ui-surface: #e9e7d8;
+  --ui-panel: #f4f1e3;
+  --ui-frame: #91927a;
+  --ui-highlight: #fffdf0;
+  --ui-shadow: #686d57;
+  --ui-accent: #746b3c;
+  --ui-radius: 7px 10px 4px 8px / 9px 4px 8px 6px;
+  --ui-glyph-weight: 1.95;
+  --ui-grain:
+    radial-gradient(ellipse at 35% 25%, #79785812 0 1px, transparent 2px),
+    radial-gradient(ellipse at 70% 75%, #ffffff68 0 2px, transparent 3px),
+    repeating-linear-gradient(154deg, transparent 0 24px, #7d806710 26px, transparent 28px);
+  --ui-grain-size: 31px 29px, 47px 41px, auto;
+  --ui-trim: repeating-linear-gradient(90deg, #777c5d 0 3px, transparent 3px 12px);
+}
+
+.app.tier-2 {
+  --ui-material-name: 'polished-flint';
+  --ui-surface: #e7ddc7;
+  --ui-panel: #f3ebd9;
+  --ui-frame: #988265;
+  --ui-highlight: #fff7e7;
+  --ui-shadow: #70614b;
+  --ui-accent: #8e593b;
+  --ui-radius: 6px 3px 7px 4px / 4px 7px 3px 6px;
+  --ui-glyph-weight: 1.8;
+  --ui-grain:
+    repeating-linear-gradient(12deg, transparent 0 31px, #8f765e0b 33px, transparent 35px),
+    radial-gradient(ellipse at 25% 60%, #ffffff68 0 1px, transparent 2px);
+  --ui-grain-size: auto, 37px 43px;
+  --ui-trim: repeating-linear-gradient(135deg, #927454 0 2px, transparent 2px 8px);
+}
+
+.app.tier-3 {
+  --ui-material-name: 'clay-copper';
+  --ui-surface: #ead2b7;
+  --ui-panel: #f5e5d0;
+  --ui-frame: #a36c49;
+  --ui-highlight: #fff3e2;
+  --ui-shadow: #7a4f35;
+  --ui-accent: #995c3e;
+  --ui-radius: 8px 8px 6px 6px;
+  --ui-glyph-weight: 1.65;
+  --ui-grain:
+    repeating-linear-gradient(0deg, transparent 0 6px, #7d54310a 7px, transparent 8px),
+    radial-gradient(ellipse at 20% 20%, #fff7df55, transparent 75%);
+  --ui-grain-size: auto;
+  --ui-trim: repeating-linear-gradient(90deg, #b67a4f 0 12px, #7d5036 12px 14px, #e6bf8a 14px 16px);
+}
+
+.app.tier-4 {
+  --ui-material-name: 'bronze';
+  --ui-surface: #e2dcc7;
+  --ui-panel: #f1ead8;
+  --ui-frame: #8a7040;
+  --ui-highlight: #fff1cb;
+  --ui-shadow: #57583f;
+  --ui-accent: #81612c;
+  --ui-radius: 3px;
+  --ui-glyph-weight: 1.5;
+  --ui-grain:
+    repeating-linear-gradient(0deg, transparent 0 3px, #82754a0a 4px, transparent 5px),
+    linear-gradient(125deg, #e7c27b19, transparent 40%, #5f877312);
+  --ui-grain-size: auto;
+  --ui-trim: repeating-linear-gradient(90deg, #6c704e 0 2px, #bb9759 2px 16px, #e7c988 16px 18px);
+}
+
+.app.tier-5 {
+  --ui-material-name: 'marble-iron';
+  --ui-surface: #e5e7e5;
+  --ui-panel: #f6f6ef;
+  --ui-frame: #67736f;
+  --ui-highlight: #ffffff;
+  --ui-shadow: #3e4c49;
+  --ui-accent: #4b625a;
+  --ui-radius: 2px;
+  --ui-glyph-weight: 1.35;
+  --ui-grain:
+    repeating-linear-gradient(148deg, transparent 0 89px, #77877e0d 90px, transparent 92px 145px),
+    repeating-linear-gradient(37deg, transparent 0 137px, #9aa29a10 139px, transparent 142px 210px),
+    linear-gradient(112deg, #ffffff78, transparent 55%);
+  --ui-grain-size: auto;
+  --ui-trim: repeating-linear-gradient(90deg, #4f605b 0 14px, #afbab0 14px 16px, #4f605b 16px 18px);
+}
+
+.app[class*='tier-'] {
+  --line: color-mix(in srgb, var(--ui-frame) 42%, var(--ui-panel));
+  --gold: var(--ui-accent);
+  background-color: var(--ui-surface);
+  background-image:
+    radial-gradient(ellipse at 18% 8%, #ffffff78, transparent 65%),
+    radial-gradient(ellipse at 88% 85%, #78693908, transparent 60%);
+}
+
+.app .topbar {
+  background-color: color-mix(in srgb, var(--ui-panel) 84%, transparent);
+  border-bottom-color: var(--ui-frame);
+}
+
+.app .world-strip {
+  background-color: color-mix(in srgb, var(--ui-surface) 80%, transparent);
+}
+
+.app .language-workbench {
+  background-color: var(--ui-surface);
+  background-image: var(--ui-grain);
+  background-size: var(--ui-grain-size);
+  border-top: 2px solid var(--ui-frame);
+  box-shadow:
+    inset 0 2px 0 var(--ui-highlight),
+    0 -3px 12px #2d2c2110;
+}
+
+.app[class*='tier-'] .word-tile,
+.app[class*='tier-'] .sentence-slot {
+  border-radius: var(--ui-radius);
+  background-image: var(--ui-grain);
+  background-size: var(--ui-grain-size);
+  box-shadow:
+    inset 0 1px 0 var(--ui-highlight),
+    inset 0 -2px 0 #4c422814,
+    0 2px 2px #302c2112;
+}
+
+.app .word-glyph svg {
+  stroke-width: var(--ui-glyph-weight);
+}
+
+.app .word-glyph {
+  filter: drop-shadow(0 1px 0 var(--ui-highlight));
+}
+
+.app .sentence-slot:not(.filled) {
+  background-color: color-mix(in srgb, var(--ui-surface) 70%, white);
+  border-color: var(--ui-frame);
+}
+
+.app .pronounce-button,
+.app .primary-button {
+  border-radius: var(--ui-radius);
+  box-shadow:
+    inset 0 1px 0 #ffffff35,
+    0 2px 0 var(--ui-shadow),
+    0 3px 5px #302c2120;
+}
+
+.app .modal {
+  background-color: var(--ui-panel);
+  background-image: var(--ui-grain);
+  background-size: var(--ui-grain-size);
+  border: 2px solid var(--ui-frame);
+  border-radius: var(--ui-radius);
+  box-shadow:
+    inset 0 0 0 2px var(--ui-highlight),
+    inset 0 0 0 4px #78694312,
+    0 18px 70px #192c2959;
+}
+
+.app .modal::before {
+  content: '';
+  position: absolute;
+  top: 9px;
+  left: 18px;
+  right: 52px;
+  height: 3px;
+  background: var(--ui-trim);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.app .modal p,
+.app .civilization-panel small,
+.app .institution-count,
+.app .city-vocations article {
+  color: #4b5847;
+}
+
+.app .modal .text-danger,
+.app .modal .text-danger :is(p, small) {
+  color: #a33d2c;
+}
+
+.app .civilization-panel .token-sentence > span,
+.app .civilization-panel .inventory-grid > div,
+.app .civilization-panel .city-cohorts,
+.app .civilization-panel .building-codex > article,
+.app .civilization-panel .recipe-prompts > button,
+.app .modal .dogma-preview,
+.app .modal .guide-note {
+  background-color: color-mix(in srgb, var(--ui-panel) 70%, white);
+  background-image: var(--ui-grain);
+  background-size: var(--ui-grain-size);
+  border-color: color-mix(in srgb, var(--ui-frame) 65%, var(--ui-panel));
+  border-radius: var(--ui-radius);
+  color: #384b3c;
+}
+
+.app .civilization-panel .inventory-grid > div > b,
+.app .civilization-panel .city-cohorts > div,
+.app .civilization-panel .building-codex-name,
+.app .civilization-panel .building-codex-name > span {
+  color: #405340;
+}
+
+/* Feedback stays stronger than decoration in every material. */
+.app .word-tile.word-suggested {
+  background-color: #fbf5e5 !important;
+  border-color: #b88022 !important;
+}
+
+.app .word-tile.word-fragile {
+  border-style: dashed !important;
+}
+
+.app .word-tile.word-forgotten {
+  border-style: dashed !important;
+  box-shadow: none !important;
+  background-image: none;
+}
+
+.app .pronounce-button:disabled,
+.app .primary-button:disabled {
+  box-shadow: none;
+}
+
+.app :is(button, a, input, select, canvas):focus-visible {
+  outline-color: #704a24;
+}
+
+.app.tier-5 :is(button, a, input, select, canvas):focus-visible {
+  outline-color: #345c4f;
+}

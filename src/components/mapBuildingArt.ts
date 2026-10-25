@@ -1337,18 +1337,7 @@ function fire(ctx: CanvasRenderingContext2D, time: number, active: boolean, smal
       `rgba(240, 174, 80, ${(1 - phase) * 0.7})`,
     );
   }
-  if (!small)
-    for (let i = 0; i < 5; i++) {
-      const phase = (time * 0.13 + i / 5) % 1;
-      oval(
-        ctx,
-        3 + Math.sin(time * 0.8 + i) * phase * 12,
-        -24 - phase * 59,
-        2 + phase * 10,
-        2 + phase * 5,
-        `rgba(106, 115, 97, ${(1 - phase) * 0.12})`,
-      );
-    }
+  // Smoke is drawn once by the fog-clipped, bounded atmosphere layer.
 }
 function farmland(ctx: CanvasRenderingContext2D, time: number) {
   shadow(ctx, 37);
@@ -1541,6 +1530,7 @@ export function drawPainterlyBuilding(
   ctx: CanvasRenderingContext2D,
   building: Building,
   time: number,
+  options: { producing?: boolean } = {},
 ): boolean {
   if (!supported.has(building.kind)) return false;
   ctx.save();
@@ -1565,22 +1555,11 @@ export function drawPainterlyBuilding(
       textures.set(building.kind, art);
     }
     ctx.drawImage(art, -64, -110, 128, 144);
-    if (building.kind === 'foundry' && building.active) {
+    if (building.kind === 'foundry' && building.active && options.producing !== false) {
       ctx.save();
       ctx.translate(-3, 0);
       fire(ctx, time, true, true);
       ctx.restore();
-      for (let i = 0; i < 4; i++) {
-        const phase = (time * 0.16 + i / 4) % 1;
-        oval(
-          ctx,
-          13 + Math.sin(time + i) * phase * 7,
-          -69 - phase * 32,
-          2 + phase * 7,
-          2 + phase * 4,
-          `rgba(96, 105, 89, ${(1 - phase) * 0.18})`,
-        );
-      }
     }
     if (building.kind === 'workshop') wheel(ctx, time, building.active);
   }
