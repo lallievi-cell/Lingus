@@ -11,8 +11,11 @@ import { drawPainterlyBody } from './mapPeopleArt';
 import { getUnitAnimation, type UnitAnimationPose } from './unitAnimation';
 import { createMapMotionSession, observeUnitMotion, type MapMotionSession } from './mapMotion';
 import type { AnimalAnimationContext } from './animalAnimation';
-import { drawPainterlyBattalion, drawPainterlyCaravan } from './mapStrategicArt';
+import { drawPainterlyBattalion, drawPainterlyCaravan, drawPainterlyCity } from './mapStrategicArt';
 import { drawMapAtmosphere, isFoundryProducing, type AtmosphereOptions } from './mapAtmosphere';
+import { drawRegionalRoutes } from './mapRouteArt';
+import { drawRegionalSieges } from './mapSiegeArt';
+import { getBattalionDisplayPoint } from './regionalLayout';
 
 const fallbackMotionSession = createMapMotionSession();
 
@@ -1050,6 +1053,7 @@ export function drawWorld(
   atmosphereOptions?: AtmosphereOptions,
 ) {
   ctx.drawImage(terrain, 0, 0, MAP_WIDTH, MAP_HEIGHT);
+  drawRegionalRoutes(ctx, state, viewport);
   const nearHome = (target: WorldTarget | null) =>
     target?.type === 'point' && Math.hypot(target.x - state.home.x, target.y - state.home.y) <= 10;
   drawCampground(ctx, state, isGroupActive || nearHome(selected) || nearHome(hovered));
@@ -1177,7 +1181,14 @@ export function drawWorld(
         ? (groundPileFor(state, target.id, piles) ?? renderEntities.get(target.id ?? '') ?? target)
         : target.type === 'city'
           ? (state.cities.find((c) => c.id === target.id) ?? target)
-          : target;
+          : target.type === 'battalion'
+            ? (() => {
+                const army = state.battalions.find((b) => b.id === target.id);
+                return army ? getBattalionDisplayPoint(state, army) : target;
+              })()
+            : target.type === 'caravan'
+              ? (state.caravans.find((c) => c.id === target.id) ?? target)
+              : target;
   const sprite = (point: { x: number; y: number }, draw: () => void, scale = SPRITE_SCALE) => {
     const p = worldPoint(point.x, point.y);
     ctx.save();
@@ -1192,7 +1203,7 @@ export function drawWorld(
     sprite(
       p,
       () => drawSelection(ctx, p.x, p.y, time, commandReady),
-      selected.type === 'city' ? 1 : SPRITE_SCALE,
+      ['city', 'battalion', 'caravan'].includes(selected.type) ? 1 : SPRITE_SCALE,
     );
   }
   if (hovered && hovered.id !== selected?.id) {
@@ -1200,7 +1211,7 @@ export function drawWorld(
     sprite(
       p,
       () => drawSelection(ctx, p.x, p.y, time, commandReady, true),
-      hovered.type === 'city' ? 1 : SPRITE_SCALE,
+      ['city', 'battalion', 'caravan'].includes(hovered.type) ? 1 : SPRITE_SCALE,
     );
   }
   const objects: { y: number; draw: () => void }[] = [];
@@ -1370,81 +1381,121 @@ export function drawWorld(
         }),
     });
   for (const city of state.cities.filter(
-    (c) => isVisibleAt(state, c.x, c.y) && c.factionId !== 'ruins',
+    (c) =>
+      (!viewport ||
+        (c.x >= viewport.minX - 35 &&
+          c.x <= viewport.maxX + 35 &&
+          c.y >= viewport.minY - 40 &&
+          c.y <= viewport.maxY + 40)) &&
+      isVisibleAt(state, c.x, c.y) &&
+      c.factionId !== 'ruins',
   ))
     objects.push({
       y: city.y,
       draw: () => {
         const p = worldPoint(city.x, city.y),
           own = city.factionId === 'player';
-        oval(ctx, p.x, p.y + 2, 19, 7, '#3a4b3025');
-        sprite(
-          city,
-          () => {
-            for (let i = 0; i < 5; i++)
-              drawBuilding(
-                ctx,
-                {
-                  id: 'city-roof',
-                  kind: i === 4 && city.capital ? 'palace' : 'house',
-                  x: city.x + (i % 3) * 11 - 10,
-                  y: city.y + Math.floor(i / 3) * 15 - 8,
-                  hp: 400,
-                  active: true,
-                },
-                time,
-              );
-          },
-          0.45,
-        );
-        // Urbanization keeps the actual institutions visible around the city node.
-        const institutions = state.buildings.filter(
-          (b) =>
-            b.cityId === city.id &&
-            b.hp > 0 &&
-            b.completed !== false &&
-            ['walls', 'market', 'court', 'temple', 'archive', 'school', 'workshop'].includes(
-              b.kind,
-            ),
-        );
-        for (let i = 0; i < institutions.length; i++) {
-          const angle = -Math.PI + (i * Math.PI * 2) / Math.max(7, institutions.length);
-          const building = {
-            ...institutions[i],
-            x: city.x + Math.cos(angle) * 18,
-            y: city.y + Math.sin(angle) * 22,
-          };
-          sprite(building, () => drawBuilding(ctx, building, time), 0.18);
+        if (state.tier >= 4) {
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          drawPainterlyCity(ctx, state, city, time, {
+            reducedMotion: atmosphereOptions?.reducedMotion,
+          });
+          ctx.restore();
+        } else {
+          oval(ctx, p.x, p.y + 2, 19, 7, '#3a4b3025');
+          sprite(
+            city,
+            () => {
+              for (let i = 0; i < 5; i++)
+                drawBuilding(
+                  ctx,
+                  {
+                    id: 'city-roof',
+                    kind: i === 4 && city.capital ? 'palace' : 'house',
+                    x: city.x + (i % 3) * 11 - 10,
+                    y: city.y + Math.floor(i / 3) * 15 - 8,
+                    hp: 400,
+                    active: true,
+                  },
+                  time,
+                );
+            },
+            0.45,
+          );
+          // Urbanization keeps the actual institutions visible around the city node.
+          const institutions = state.buildings.filter(
+            (b) =>
+              b.cityId === city.id &&
+              b.hp > 0 &&
+              b.completed !== false &&
+              ['walls', 'market', 'court', 'temple', 'archive', 'school', 'workshop'].includes(
+                b.kind,
+              ),
+          );
+          for (let i = 0; i < institutions.length; i++) {
+            const angle = -Math.PI + (i * Math.PI * 2) / Math.max(7, institutions.length);
+            const building = {
+              ...institutions[i],
+              x: city.x + Math.cos(angle) * 18,
+              y: city.y + Math.sin(angle) * 22,
+            };
+            sprite(building, () => drawBuilding(ctx, building, time), 0.18);
+          }
         }
         ctx.fillStyle = own ? '#456a48' : '#a57855';
-        ctx.fillRect(p.x - 1, p.y - 27, 1.4, 15);
+        const flagY = state.tier >= 4 ? -42 : -27;
+        ctx.fillRect(p.x - 1, p.y + flagY, 1.4, 15);
         polygon(
           ctx,
           [
-            [p.x, p.y - 27],
-            [p.x + 11, p.y - 23],
-            [p.x, p.y - 19],
+            [p.x, p.y + flagY],
+            [p.x + 11, p.y + flagY + 4],
+            [p.x, p.y + flagY + 8],
           ],
           own ? '#6d8b54' : '#b38e6c',
         );
-        ctx.font = '10px Georgia';
+        const labelScale = Math.max(0.05, lineScale / (atmosphereOptions?.pixelRatio ?? 1));
+        const nameSize =
+          state.tier >= 4 ? Math.max(9, Math.min(16, 10 * labelScale)) / labelScale : 10;
+        ctx.font = `${nameSize}px Georgia`;
         ctx.textAlign = 'center';
         ctx.fillStyle = '#465b3d';
-        ctx.fillText(city.name, p.x, p.y + 23);
+        ctx.strokeStyle = '#f8f3e3';
+        ctx.lineWidth = state.tier >= 4 ? 2 / labelScale : 3;
+        ctx.strokeText(city.name, p.x, p.y + (state.tier >= 4 ? 27 : 23));
+        ctx.fillText(city.name, p.x, p.y + (state.tier >= 4 ? 27 : 23));
         if (hasConcept(state, 'O_08')) {
-          ctx.font = '7px sans-serif';
+          ctx.font = `${state.tier >= 4 ? Math.max(7, Math.min(10, 7 * labelScale)) / labelScale : 7}px sans-serif`;
           ctx.fillStyle = '#7e896c';
-          ctx.fillText(`${Object.values(city.cohorts).reduce((n, v) => n + v, 0)}`, p.x, p.y + 33);
+          ctx.fillText(
+            `${Object.values(city.cohorts).reduce((n, v) => n + v, 0)}`,
+            p.x,
+            p.y + (state.tier >= 4 ? 37 : 33),
+          );
         }
       },
     });
   for (const b of state.battalions.filter(
-    (b) => b.hp > 0 && inView(b) && isVisibleAt(state, b.x, b.y),
+    (b) => b.hp > 0 && inView(getBattalionDisplayPoint(state, b)) && isVisibleAt(state, b.x, b.y),
   ))
     objects.push({
-      y: b.y,
+      y: getBattalionDisplayPoint(state, b).y,
       draw: () => {
-        const p = worldPoint(b.x, b.y);
+        const display = getBattalionDisplayPoint(state, b);
+        const p = worldPoint(display.x, display.y);
+        if (display.x !== b.x || display.y !== b.y) {
+          const anchor = worldPoint(b.x, b.y);
+          line(
+            ctx,
+            [
+              [anchor.x, anchor.y],
+              [p.x, p.y],
+            ],
+            '#9c81644d',
+            0.65,
+          );
+        }
         ctx.save();
         ctx.translate(p.x, p.y);
         drawPainterlyBattalion(ctx, b, time);
@@ -1465,6 +1516,7 @@ export function drawWorld(
       },
     });
   objects.sort((a, b) => a.y - b.y).forEach((o) => o.draw());
+  drawRegionalSieges(ctx, state, time, { ...atmosphereOptions, viewport });
   for (const spark of state.sparks) {
     const u = renderUnits.get(spark.unitId);
     if (!u || u.hp <= 0 || !inView(u)) continue;

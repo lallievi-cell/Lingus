@@ -22,6 +22,9 @@ import {
   readUnitDisplay,
 } from './mapMotion';
 import { entityTargetPresentation, targetPresentation } from './targetPresentation';
+import { CITY_ART_BOUNDS } from './mapStrategicArt';
+import { getBattalionDisplayPoint } from './regionalLayout';
+import { deriveSiegePresentation } from './mapSiegeArt';
 import './WorldMap.css';
 
 interface WorldMapProps {
@@ -401,11 +404,56 @@ export function WorldMap({
               );
             }
           });
-      current.cities.forEach((c) => add('city', c.id, c.x, c.y, 27, 10));
+      current.cities
+        .filter((c) => c.factionId !== 'ruins')
+        .forEach((c) => {
+          if (current.tier >= 4) {
+            addArt(
+              'city',
+              c.id,
+              c.x,
+              c.y,
+              (CITY_ART_BOUNDS.right - CITY_ART_BOUNDS.left) / 2 / SPRITE_SCALE,
+              (CITY_ART_BOUNDS.bottom - CITY_ART_BOUNDS.top) / 2 / SPRITE_SCALE,
+              -(CITY_ART_BOUNDS.bottom + CITY_ART_BOUNDS.top) / 2 / SPRITE_SCALE,
+              20,
+            );
+            // Labels and the occupation meter belong to the same settlement target.
+            addArt(
+              'city',
+              c.id,
+              c.x,
+              c.y,
+              Math.max(
+                20,
+                ((c.name.length * Math.max(9, Math.min(16, 10 * t.scale))) / t.scale) * 0.27,
+              ) / SPRITE_SCALE,
+              9 / SPRITE_SCALE,
+              -30 / SPRITE_SCALE,
+              14,
+            );
+            if (
+              current.battalions.some(
+                (army) => deriveSiegePresentation(current, army)?.cityId === c.id,
+              )
+            )
+              addArt(
+                'city',
+                c.id,
+                c.x,
+                c.y,
+                44 / SPRITE_SCALE,
+                16 / SPRITE_SCALE,
+                -56 / SPRITE_SCALE,
+                14,
+              );
+          } else add('city', c.id, c.x, c.y, 27, 10);
+        });
       current.battalions
         .filter((b) => b.hp > 0)
         // Strategic icons use full map scale rather than the individual sprite scale.
         .forEach((b) => {
+          const display = getBattalionDisplayPoint(current, b);
           addArt(
             'battalion',
             b.id,
@@ -415,6 +463,8 @@ export function WorldMap({
             13 / SPRITE_SCALE,
             10 / SPRITE_SCALE,
             22,
+            0,
+            display,
           );
           if (b.catapult)
             addArt(
@@ -427,6 +477,7 @@ export function WorldMap({
               4 / SPRITE_SCALE,
               12,
               11 / SPRITE_SCALE,
+              display,
             );
         });
       current.caravans

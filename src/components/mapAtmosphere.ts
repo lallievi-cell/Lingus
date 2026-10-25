@@ -1,5 +1,6 @@
 import type { Building, GameState } from '../game/types';
 import { freeCapacity } from '../game/runtime';
+import { CITY_FOUNDRY_CHIMNEY } from './regionalLayout';
 
 export interface AtmosphereOptions {
   reducedMotion?: boolean;
@@ -19,6 +20,7 @@ export type AtmosphereSource = {
   x: number;
   y: number;
   phase: number;
+  urbanFoundry?: boolean;
 };
 export interface AtmosphereFrame {
   weather: 'clear' | 'blizzard' | 'storm' | 'drought';
@@ -166,8 +168,11 @@ export function getAtmosphereFrame(
       const city = state.urbanized ? state.cities.find((c) => c.id === building.cityId) : undefined;
       // City institutions are aggregated around the settlement rather than drawn at village anchors.
       const point = city ?? building;
-      if (!sources.some((s) => s.kind === 'foundry' && s.x === point.x && s.y === point.y))
+      if (!sources.some((s) => s.kind === 'foundry' && s.x === point.x && s.y === point.y)) {
         add(building.id, 'foundry', point);
+        const source = sources.find((entry) => entry.id === building.id);
+        if (source && city) source.urbanFoundry = true;
+      }
     }
   }
   const frame: AtmosphereFrame = { weather, particles, sources, time };
@@ -269,16 +274,30 @@ export function drawMapAtmosphere(
     const decay = sick || source.kind === 'corpse';
     const tree = source.kind === 'burning-tree';
     const count = foundry ? 6 : decay ? 3 : 5;
-    const baseY = foundry ? -69 : sick ? -26 : tree ? -66 : decay ? -3 : -24;
+    const plumeScale = source.urbanFoundry ? spriteScale / 0.2 : spriteScale;
+    const baseY = source.urbanFoundry
+      ? CITY_FOUNDRY_CHIMNEY.y
+      : foundry
+        ? -69
+        : sick
+          ? -26
+          : tree
+            ? -66
+            : decay
+              ? -3
+              : -24;
+    const baseX = source.urbanFoundry ? CITY_FOUNDRY_CHIMNEY.x : foundry ? 13 : 0;
     for (let i = 0; i < count; i++) {
       const phase = fract(frame.time * (decay ? 0.16 : 0.13) + i / count + source.phase);
       const drift = Math.sin(frame.time * 0.6 + source.phase * 6 + i) * phase * (decay ? 9 : 12);
-      const rise = phase * (decay ? 14 : foundry ? 42 : 48);
-      const radius = (decay ? 2 : 2.6) + phase * (decay ? 4 : 9);
+      const rise = phase * (source.urbanFoundry ? 18 : decay ? 14 : foundry ? 42 : 48);
+      const radius = source.urbanFoundry
+        ? 1.2 + phase * 3.5
+        : (decay ? 2 : 2.6) + phase * (decay ? 4 : 9);
       const alpha = Math.sin(phase * Math.PI) * (decay ? 0.19 : foundry ? 0.2 : 0.14);
-      const sx = p.x + ((foundry ? 13 : 0) + drift) * spriteScale;
-      const sy = p.y + (baseY - rise) * spriteScale;
-      const r = Math.max(0.4, radius * spriteScale);
+      const sx = p.x + (baseX + drift * (source.urbanFoundry ? 0.35 : 1)) * plumeScale;
+      const sy = p.y + (baseY - rise) * plumeScale;
+      const r = Math.max(0.4, radius * plumeScale);
       const cloud = ctx.createRadialGradient(sx, sy, r * 0.12, sx, sy, r);
       const color = decay ? '110,116,73' : foundry ? '73,82,78' : '112,116,101';
       cloud.addColorStop(0, `rgba(${color},${alpha})`);

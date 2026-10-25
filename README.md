@@ -94,6 +94,8 @@ Le azioni hanno pose specifiche e il gruppo occupa posti distinti attorno a font
 
 La Barra del Linguaggio e le finestre cambiano materiali nelle sei ere, dalla pietra al marmo e al ferro. Clima, fumo, resti insepolti e malattia hanno effetti visivi legati allo stato reale della valle, con pausa e movimento ridotto. [UI-ATMOSPHERE.md](docs/UI-ATMOSPHERE.md) descrive copertura e verifiche.
 
+La mappa regionale conserva le tracce dei convogli, distingue le vocazioni delle città e mostra colpi alle mura e occupazione. [REGIONAL-MAP.md](docs/REGIONAL-MAP.md) illustra comportamento, compatibilità dei salvataggi e prove.
+
 Le nuove partite propongono **Guidata**, con più margine per il primo Falò, compiti materiali ripetuti e primo inverno senza tormente; **Classica** conserva il ritmo precedente. Entrambe mostrano sesso e fasi di vita, avvisi di nascite e lutti, parole perdute riconoscibili e pausa opzionale sugli eventi. Il pannello della crescita spiega cosa manca alle nascite; gli strumenti in mano corrispondono all'equipaggiamento effettivamente usato. [ONBOARDING-CALIBRATION.md](docs/ONBOARDING-CALIBRATION.md) riporta le differenze e le prove ordinarie.
 
 - `src/game/content.ts`, `types.ts`, `state.ts`: cataloghi, schema e stato iniziale.

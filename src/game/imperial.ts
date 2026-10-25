@@ -7,6 +7,7 @@ import {
   WORDS,
 } from './content';
 import { rememberCombatWound } from './damageAttribution';
+import { recordCaravanTravel } from './regionalHistory';
 import {
   birthProbability,
   cognitiveTension,
@@ -1809,7 +1810,17 @@ function attackCity(s: GameState, b: Battalion, city: City, dt: number) {
           0,
           0.8,
         ) * Math.ceil(b.hp / 100);
+    const previousHp = walls.hp;
     walls.hp = Math.max(0, walls.hp - damage);
+    if (b.catapult && walls.hp < previousHp)
+      b.lastSiegeShot = {
+        time: s.time,
+        cityId: city.id,
+        wallId: walls.id,
+        fromX: b.x,
+        fromY: b.y,
+        damage: previousHp - walls.hp,
+      };
     if (walls.hp <= 0) log(s, `Le mura di ${city.name} sono cadute.`, 'warning');
   } else if ((city.garrisonHp ?? 0) > 0) {
     if (!defense.protected && !protectedByDogma(defenderState, 'S_08', defender)) {
@@ -1973,7 +1984,9 @@ export function updateImperial(s: GameState, dt: number) {
   const delivered: Caravan[] = [];
   for (const car of s.caravans.filter((c) => !c.arrived && c.hp > 0)) {
     if (car.customsRefused && !car.returning) continue;
+    const previous = { x: car.x, y: car.y };
     if (moveTo(car, car.target, hasWord(s, 'O_13') ? 6 : 4, dt)) delivered.push(car);
+    recordCaravanTravel(s, car, previous);
   }
   // The border charge precedes arrival/exchange, including a large time step.
   inspectForeignCustoms(s);

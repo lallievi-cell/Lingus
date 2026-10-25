@@ -33,4 +33,6 @@ Nella prima revisione grafica, una misura tecnica in Chromium headless, con una 
 
 [UI-ATMOSPHERE.md](UI-ATMOSPHERE.md) descrive i materiali dei pannelli nelle sei ere e gli effetti atmosferici collegati alla simulazione.
 
+[REGIONAL-MAP.md](REGIONAL-MAP.md) documenta il successivo sviluppo della vista regionale: strade percorse, identità urbana e assedi.
+
 `mapTerrainArt.ts`, `mapNatureArt.ts`, `mapPeopleArt.ts`, `mapBuildingArt.ts` e `mapStrategicArt.ts` contengono i disegni. `mapDrawing.ts` mantiene composizione della scena, visibilità, selezioni e indicatori; `WorldMap.tsx` gestisce camera e interazione. Questa separazione permette di rifinire l'arte senza cambiare la simulazione.

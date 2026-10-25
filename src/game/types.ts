@@ -376,6 +376,22 @@ export interface Battalion {
   attackProgress?: number;
   lastSoldierLoss?: number;
   metalWeapons?: number;
+  /** Last real catapult impact, retained only for its presentation. */
+  lastSiegeShot?: {
+    time: number;
+    cityId: string;
+    wallId: string;
+    fromX: number;
+    fromY: number;
+    damage: number;
+  };
+}
+/** A bounded piece of ground actually traversed by trade or tax caravans. */
+export interface RegionalRoadSegment {
+  key: string;
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  travelled: number;
 }
 export interface Caravan {
   customsPaid?: number;
@@ -477,6 +493,7 @@ export interface GameState {
   factions: Faction[];
   battalions: Battalion[];
   caravans: Caravan[];
+  regionalRoutes?: RegionalRoadSegment[];
   traditions: Tradition[];
   laws: Law[];
   sectors: Sector[];

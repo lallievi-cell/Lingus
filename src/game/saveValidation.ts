@@ -1,6 +1,11 @@
 import { BUILDING_SPECS, INNATE_WORDS, RESOURCE_ORDER, WORDS } from './content';
 import type { GameState } from './types';
 import { TRIBE_EVENT_LIMIT } from './demography';
+import {
+  REGIONAL_ROUTE_GRID,
+  REGIONAL_ROUTE_LIMIT,
+  REGIONAL_ROUTE_WEAR_LIMIT,
+} from './regionalHistory';
 
 type RecordValue = Record<string, unknown>;
 type Check = (value: unknown) => boolean;
@@ -22,6 +27,26 @@ const combatSource = (v: unknown) =>
   optional(v.id, text) &&
   number(v.time);
 const point = (v: unknown) => record(v) && number(v.x, 0, 500) && number(v.y, 0, 500);
+const regionalRoad = (v: unknown) => {
+  if (
+    !record(v) ||
+    typeof v.key !== 'string' ||
+    v.key.length > 96 ||
+    !/^-?\d+:-?\d+:\d+:\d+(?::\d+)?$/.test(v.key) ||
+    !point(v.from) ||
+    !point(v.to) ||
+    !number(v.travelled, Number.MIN_VALUE, REGIONAL_ROUTE_WEAR_LIMIT)
+  )
+    return false;
+  const from = v.from as { x: number; y: number },
+    to = v.to as { x: number; y: number };
+  const length = Math.hypot(to.x - from.x, to.y - from.y);
+  return (
+    length > 0 &&
+    length <= REGIONAL_ROUTE_GRID * Math.SQRT2 + 0.001 &&
+    (v.travelled as number) >= length - 0.001
+  );
+};
 const inventory = (v: unknown) => record(v) && RESOURCE_ORDER.every((k) => number(v[k]));
 const numericMap = (v: unknown) => record(v) && Object.values(v).every((x) => number(x, -Infinity));
 const named = (v: unknown): v is RecordValue => record(v) && typeof v.id === 'string';
@@ -124,6 +149,17 @@ export function validSave(value: unknown): value is GameState {
   if (!record(value)) return false;
   const s = value;
   if (!optional(s.playMode, (x) => x === 'guided' || x === 'classic')) return false;
+  if (
+    !optional(
+      s.regionalRoutes,
+      (routes) =>
+        Array.isArray(routes) &&
+        routes.length <= REGIONAL_ROUTE_LIMIT &&
+        routes.every(regionalRoad) &&
+        new Set(routes.map((route) => (route as RecordValue).key)).size === routes.length,
+    )
+  )
+    return false;
   if (
     !optional(
       s.mapGeneration,
@@ -352,6 +388,17 @@ export function validSave(value: unknown): value is GameState {
         flag(v.catapult) &&
         number(v.occupation) &&
         optional(v.frontlineSageIds, ids) &&
+        optional(
+          v.lastSiegeShot,
+          (shot) =>
+            record(shot) &&
+            number(shot.time, 0, s.time as number) &&
+            text(shot.cityId) &&
+            text(shot.wallId) &&
+            number(shot.fromX, 0, 500) &&
+            number(shot.fromY, 0, 500) &&
+            number(shot.damage, Number.MIN_VALUE, 200),
+        ) &&
         optional(v.target, target),
     )
   )

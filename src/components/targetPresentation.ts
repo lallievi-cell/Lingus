@@ -5,6 +5,8 @@ import { resolveUnitSex } from '../game/demography';
 import { visibleUnitEquipment } from '../game/unitEquipment';
 import type { GameState, MapEntity, WorldTarget } from '../game/types';
 import { groundPileFor, resourceKnown, resourcePileLabel } from './mapResourceLayout';
+import { getCityPresentation } from './cityPresentation';
+import { deriveSiegePresentation, type SiegePresentation } from './mapSiegeArt';
 import {
   lifeStageLabel,
   physicalWarnings,
@@ -37,6 +39,16 @@ const animals: Record<string, string> = {
   mammoth: 'mammut',
 };
 const capitalized = (label: string) => label[0].toUpperCase() + label.slice(1);
+const siegeDescription = (siege: SiegePresentation, numbered: boolean) =>
+  siege.phase === 'occupation'
+    ? numbered
+      ? `Occupazione: ${siege.occupationSeconds}/30 secondi. L’esercito presidia la città prima dell’annessione.`
+      : 'Occupazione in corso. L’esercito deve mantenere il controllo della città.'
+    : siege.phase === 'walls'
+      ? 'Le mura resistono all’assedio. La barra mostra le difese ancora presenti.'
+      : siege.phase === 'garrison'
+        ? 'Le mura non proteggono più la città. La guarnigione sta ancora combattendo.'
+        : 'La città indifesa viene saccheggiata.';
 const abundance = (entity: MapEntity) =>
   entity.amount <= 0
     ? 'esaurito'
@@ -161,6 +173,49 @@ export function targetPresentation(
   target: WorldTarget | null,
 ): TargetPresentation | null {
   if (!target) return null;
+  if (state.tier >= 4 && target.type === 'city') {
+    const city = state.cities.find(
+      (candidate) => candidate.id === target.id && candidate.factionId !== 'ruins',
+    );
+    if (!city) return null;
+    const profile = getCityPresentation(state, city);
+    const siege = state.battalions
+      .map((army) => deriveSiegePresentation(state, army))
+      .filter((entry): entry is SiegePresentation => entry?.cityId === city.id)
+      .sort((a, b) => b.occupationSeconds - a.occupationSeconds)[0];
+    const production = profile.foundries.length
+      ? profile.productiveFoundries.length
+        ? 'Le fonderie sono al lavoro.'
+        : 'Le fonderie sono ferme.'
+      : '';
+    return {
+      label: city.name,
+      stage: siege ? 'Città sotto assedio' : city.capital ? 'Capitale' : 'Città',
+      kind: 'landmark',
+      description: `${profile.vocationLabels.length ? profile.vocationLabels.join(' · ') : 'Comunità senza vocazione specializzata.'}${production ? ` ${production}` : ''}`,
+      hint: siege
+        ? siegeDescription(siege, hasWord(state, 'O_08'))
+        : 'Le rotte dei convogli lasciano sentieri che si consolidano con i passaggi.',
+    };
+  }
+  if (state.tier >= 4 && target.type === 'battalion') {
+    const army = state.battalions.find(
+      (candidate) => candidate.id === target.id && candidate.hp > 0,
+    );
+    if (!army) return null;
+    const siege = deriveSiegePresentation(state, army);
+    return {
+      label: army.name,
+      stage: siege ? 'Assedio' : army.action === 'moving' ? 'In marcia' : 'Battaglione',
+      kind: 'landmark',
+      description: siege
+        ? siegeDescription(siege, hasWord(state, 'O_08'))
+        : 'Una formazione militare della regione.',
+      hint: army.catapult
+        ? 'La catapulta accompagna il battaglione e colpisce le mura durante l’assedio.'
+        : undefined,
+    };
+  }
   if (target.type === 'unit') {
     const unit = state.units.find((person) => person.id === target.id);
     if (!unit) return null;

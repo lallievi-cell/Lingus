@@ -1,4 +1,6 @@
-import type { Battalion, Caravan } from '../game/types';
+import type { Battalion, Caravan, City, GameState } from '../game/types';
+import { getCityPresentation, type CityPresentation } from './cityPresentation';
+import { CITY_FOUNDRY_CHIMNEY } from './regionalLayout';
 
 type Point = [number, number];
 
@@ -587,5 +589,838 @@ export function drawPainterlyCaravan(
       );
     }
   }
+  ctx.restore();
+}
+
+/** Full-size map pixels around the settlement node, before camera zoom. */
+export const CITY_ART_BOUNDS = { left: -48, right: 48, top: -47, bottom: 16 } as const;
+
+function cityRoof(ctx: CanvasRenderingContext2D, x: number, y: number, size = 1, formal = false) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(size, size);
+  oval(ctx, 1, 1, 8.7, 2.9, '#4c53302a');
+  shape(
+    ctx,
+    [
+      [-7, -8],
+      [2, -10],
+      [7, -7],
+      [7, 0],
+      [-6, 1],
+    ],
+    '#b3a78b',
+  );
+  shape(
+    ctx,
+    [
+      [2, -10],
+      [7, -7],
+      [7, 0],
+      [2, -1],
+    ],
+    '#8e917c',
+  );
+  shape(
+    ctx,
+    [
+      [-9, -8],
+      [-2, -15],
+      [8, -10],
+      [2, -6],
+    ],
+    formal ? '#a17857' : '#9b8d64',
+  );
+  shape(
+    ctx,
+    [
+      [-9, -8],
+      [-2, -15],
+      [-1, -10],
+      [2, -6],
+    ],
+    formal ? '#bd9570' : '#c6b685',
+  );
+  line(
+    ctx,
+    [
+      [-7.7, -8.1],
+      [-2, -13.8],
+      [6.5, -9.7],
+    ],
+    formal ? '#d2af87' : '#d7c89c',
+    0.65,
+  );
+  if (!formal) {
+    for (let i = 0; i < 4; i++)
+      line(
+        ctx,
+        [
+          [-6.8 + i * 1.8, -8.7],
+          [-2 + i * 1.5, -12.8],
+        ],
+        '#897b553f',
+        0.5,
+      );
+  }
+  shape(
+    ctx,
+    [
+      [-2, -5],
+      [0.5, -5.3],
+      [0.7, 0],
+      [-2, 0.3],
+    ],
+    '#4f5a4c',
+  );
+  line(
+    ctx,
+    [
+      [-4.7, -5],
+      [-3, -5.2],
+    ],
+    '#d8cfb3',
+    0.7,
+  );
+  line(
+    ctx,
+    [
+      [3, -5.6],
+      [5, -5.1],
+    ],
+    '#506055',
+    1,
+  );
+  ctx.restore();
+}
+
+function cityFields(ctx: CanvasRenderingContext2D, profile: CityPresentation, season: number) {
+  if (!profile.farms.length) return;
+  const alive = profile.farms.some((farm) => farm.active);
+  const golden = season === 1 || season === 2;
+  const color = !alive ? '#9b9477' : season === 3 ? '#aaa78c' : golden ? '#c2ad66' : '#a5b37b';
+  const highlight = !alive ? '#b3ac8d' : season === 3 ? '#cdc8ae' : golden ? '#dfce8c' : '#c4cf9a';
+  const fields = profile.vocations.includes('agriculture') ? 3 : 2;
+  ctx.save();
+  for (let i = 0; i < fields; i++) {
+    const x = -44 + i * 11,
+      y = 3 + (i % 2) * 4;
+    shape(
+      ctx,
+      [
+        [x, y - 4],
+        [x + 13, y - 9],
+        [x + 23, y - 3],
+        [x + 9, y + 3],
+      ],
+      '#877f4f30',
+    );
+    shape(
+      ctx,
+      [
+        [x + 0.5, y - 4],
+        [x + 13, y - 8],
+        [x + 21, y - 3],
+        [x + 9, y + 2],
+      ],
+      color,
+    );
+    for (let row = 0; row < 6; row++) {
+      const px = x + 2 + row * 2.1;
+      line(
+        ctx,
+        [
+          [px, y - 4],
+          [px + 8, y + 0.4],
+        ],
+        row % 2 ? highlight : '#7e854d65',
+        0.7,
+      );
+      if (alive && season !== 3)
+        line(
+          ctx,
+          [
+            [px + 4, y - 2.2],
+            [px + 4.4, y - 4.2],
+          ],
+          highlight,
+          0.6,
+        );
+    }
+    line(
+      ctx,
+      [
+        [x + 1, y - 4.1],
+        [x + 12.7, y - 8.1],
+      ],
+      '#e5dcb16b',
+      0.65,
+    );
+  }
+  ctx.restore();
+}
+
+function cityGranary(ctx: CanvasRenderingContext2D, active: boolean) {
+  ctx.save();
+  ctx.translate(-25, -5);
+  line(
+    ctx,
+    [
+      [-6, -1],
+      [-6, 3],
+    ],
+    '#7f7553',
+    1.3,
+  );
+  line(
+    ctx,
+    [
+      [6, -1],
+      [6, 3],
+    ],
+    '#7f7553',
+    1.3,
+  );
+  shape(
+    ctx,
+    [
+      [-7, -10],
+      [6, -11],
+      [7, 0],
+      [-6, 1],
+    ],
+    active ? '#b8aa72' : '#a8a48b',
+  );
+  shape(
+    ctx,
+    [
+      [-9, -10],
+      [-1, -17],
+      [9, -10],
+      [2, -7],
+    ],
+    active ? '#c5b274' : '#b8b39a',
+  );
+  shape(
+    ctx,
+    [
+      [-1, -17],
+      [9, -10],
+      [2, -7],
+    ],
+    '#a18f62',
+  );
+  for (let i = 0; i < 5; i++)
+    line(
+      ctx,
+      [
+        [-5.3 + i * 2, -8],
+        [-4.9 + i * 2, 0],
+      ],
+      '#7b785750',
+      0.65,
+    );
+  line(
+    ctx,
+    [
+      [-5.5, -5],
+      [5.5, -5.5],
+    ],
+    '#e1d5a580',
+    0.7,
+  );
+  shape(
+    ctx,
+    [
+      [-1.8, -4],
+      [1.7, -4.2],
+      [1.8, 0.4],
+      [-1.8, 0.5],
+    ],
+    '#74734c',
+  );
+  oval(ctx, -3.8, -2.6, 1.5, 2.2, '#d1bf7e');
+  oval(ctx, 4, -2.8, 1.4, 2, '#cbbb8c');
+  ctx.restore();
+}
+
+function cityFoundry(ctx: CanvasRenderingContext2D, productive: boolean, time: number) {
+  ctx.save();
+  // Keep the chimney mouth shared with the fog-clipped atmosphere layer.
+  ctx.translate(CITY_FOUNDRY_CHIMNEY.x - 1.6, CITY_FOUNDRY_CHIMNEY.y + 30.6);
+  oval(ctx, 1, 3, 13, 4, '#58604c2b');
+  shape(
+    ctx,
+    [
+      [-11, -9],
+      [-6, -19],
+      [6, -21],
+      [11, -10],
+      [10, 3],
+      [-10, 3],
+    ],
+    '#92937f',
+  );
+  shape(
+    ctx,
+    [
+      [5, -20],
+      [11, -10],
+      [10, 3],
+      [5, 0],
+    ],
+    '#6d7b6a',
+  );
+  shape(
+    ctx,
+    [
+      [-1, -18],
+      [-1, -30],
+      [4, -31],
+      [5, -19],
+    ],
+    '#b1b09a',
+  );
+  oval(ctx, 1.6, -30.6, 3, 1.1, '#5b6758');
+  line(
+    ctx,
+    [
+      [0, -26],
+      [3.7, -26.3],
+    ],
+    '#7d897556',
+    0.5,
+  );
+  line(
+    ctx,
+    [
+      [0, -22],
+      [4, -22.4],
+    ],
+    '#7d897556',
+    0.5,
+  );
+  for (let row = 0; row < 3; row++)
+    line(
+      ctx,
+      [
+        [-9 + row, -4 - row * 4],
+        [8, -5 - row * 4],
+      ],
+      '#ccd0b16b',
+      0.5,
+    );
+  ctx.beginPath();
+  ctx.moveTo(-4.7, 2.5);
+  ctx.lineTo(-4.7, -5);
+  ctx.quadraticCurveTo(-1, -11.7, 3, -5);
+  ctx.lineTo(3, 2.5);
+  ctx.closePath();
+  ctx.fillStyle = '#3c4c40';
+  ctx.fill();
+  if (productive) {
+    const glow = ctx.createRadialGradient(-1, -2, 0.4, -1, -2, 9);
+    glow.addColorStop(0, '#eda85f91');
+    glow.addColorStop(1, '#cf883e00');
+    oval(ctx, -1, -2, 9, 7, glow);
+    const flicker = Math.sin(time * 5) * 0.5;
+    shape(
+      ctx,
+      [
+        [-3.7, 1],
+        [-3.6, -2.5],
+        [-1.6, -5.7 - flicker],
+        [-0.6, -2.3],
+        [1, -6.4 + flicker],
+        [2, -1],
+        [1, 1.4],
+      ],
+      '#e4ab65',
+    );
+    shape(
+      ctx,
+      [
+        [-2.3, 1],
+        [-1.6, -3.1],
+        [-0.1, -1.8],
+        [0.7, -3.4],
+        [1.2, 1],
+      ],
+      '#f8d897',
+    );
+  }
+  line(
+    ctx,
+    [
+      [6, 2.5],
+      [11, 1.2],
+    ],
+    '#c7bcb0',
+    1.5,
+  );
+  line(
+    ctx,
+    [
+      [6.8, 1.2],
+      [9.6, -0.2],
+    ],
+    '#637369',
+    1.5,
+  );
+  ctx.restore();
+}
+
+function cityMarket(ctx: CanvasRenderingContext2D, active: boolean) {
+  ctx.save();
+  ctx.translate(-17, 4);
+  const colors = active ? ['#ad7f58', '#c8b78d'] : ['#959780', '#b6b49b'];
+  shape(
+    ctx,
+    [
+      [-8, -9],
+      [5, -11],
+      [10, -5],
+      [-4, -3],
+    ],
+    colors[0],
+  );
+  for (let i = 0; i < 4; i++)
+    shape(
+      ctx,
+      [
+        [-6 + i * 3, -9],
+        [-4 + i * 3, -9.4],
+        [0 + i * 3, -4],
+        [-2 + i * 3, -3.7],
+      ],
+      colors[i % 2],
+    );
+  line(
+    ctx,
+    [
+      [-6, -7],
+      [-6, 2],
+    ],
+    '#726446',
+    0.8,
+  );
+  line(
+    ctx,
+    [
+      [7, -5],
+      [7, 2],
+    ],
+    '#726446',
+    0.8,
+  );
+  shape(
+    ctx,
+    [
+      [-6, -1],
+      [5, -2],
+      [7, 0.4],
+      [-4, 1.7],
+    ],
+    '#9d8c5f',
+  );
+  oval(ctx, -2.5, -1.3, 1.7, 0.8, '#c9b37c');
+  oval(ctx, 2.5, -1.9, 1.5, 0.9, '#8a9970');
+  ctx.restore();
+}
+
+function cityLearningHall(ctx: CanvasRenderingContext2D, active: boolean) {
+  ctx.save();
+  ctx.translate(-5, -19);
+  shape(
+    ctx,
+    [
+      [-10, -8],
+      [8, -9],
+      [8, 2],
+      [-9, 3],
+    ],
+    active ? '#d4cfb2' : '#b5b49e',
+  );
+  shape(
+    ctx,
+    [
+      [-12, -8],
+      [-2, -15],
+      [11, -9],
+      [8, -6],
+      [-11, -6],
+    ],
+    '#9d8c66',
+  );
+  line(
+    ctx,
+    [
+      [-10, -7],
+      [8, -7.5],
+    ],
+    '#ece4c7',
+    1,
+  );
+  for (let i = 0; i < 4; i++) {
+    line(
+      ctx,
+      [
+        [-7 + i * 4, -6],
+        [-7 + i * 4, 1.7],
+      ],
+      '#eeebd3',
+      1.5,
+    );
+    line(
+      ctx,
+      [
+        [-5.7 + i * 4, -5.5],
+        [-5.7 + i * 4, 1],
+      ],
+      '#838e7a',
+      0.55,
+    );
+  }
+  line(
+    ctx,
+    [
+      [-9, 3],
+      [9, 2],
+    ],
+    '#a4aa90',
+    1.2,
+  );
+  ctx.restore();
+}
+
+function cityPalace(ctx: CanvasRenderingContext2D, active: boolean) {
+  ctx.save();
+  ctx.translate(0, -17);
+  shape(
+    ctx,
+    [
+      [-11, -12],
+      [9, -13],
+      [10, 1],
+      [-11, 2],
+    ],
+    active ? '#cfc7ab' : '#a9ac98',
+  );
+  shape(
+    ctx,
+    [
+      [-13, -13],
+      [-2, -22],
+      [12, -14],
+      [9, -10],
+      [-12, -9],
+    ],
+    '#a07f5c',
+  );
+  shape(
+    ctx,
+    [
+      [-13, -13],
+      [-2, -22],
+      [-1, -16],
+      [-12, -9],
+    ],
+    '#c5a175',
+  );
+  line(
+    ctx,
+    [
+      [-9, -8],
+      [-9, 1],
+    ],
+    '#eee0b6',
+    1.8,
+  );
+  line(
+    ctx,
+    [
+      [6.5, -9],
+      [7, 0],
+    ],
+    '#eee0b6',
+    1.8,
+  );
+  shape(
+    ctx,
+    [
+      [-3, -7],
+      [2, -7],
+      [2.5, 1],
+      [-3, 1.5],
+    ],
+    '#536150',
+  );
+  line(
+    ctx,
+    [
+      [-11, 3],
+      [11, 1.8],
+    ],
+    '#8b9277',
+    1.4,
+  );
+  ctx.restore();
+}
+
+function cityRamparts(ctx: CanvasRenderingContext2D, integrity: number, front: boolean) {
+  const y = front ? 2 : -9;
+  if (!front) {
+    line(
+      ctx,
+      [
+        [-31, y + 2],
+        [-20, y - 8],
+        [4, y - 11],
+        [28, y - 1],
+        [33, y + 9],
+      ],
+      '#74806b',
+      3.1,
+    );
+    line(
+      ctx,
+      [
+        [-31, y + 1],
+        [-20, y - 9],
+        [4, y - 12],
+        [28, y - 2],
+      ],
+      '#b6b9a0',
+      1.2,
+    );
+    return;
+  }
+  const leftEnd = integrity < 0.4 ? -16 : -5;
+  line(
+    ctx,
+    [
+      [-32, y - 4],
+      [-25, y + 5],
+      [leftEnd, y + 9],
+    ],
+    '#858f78',
+    4,
+  );
+  line(
+    ctx,
+    [
+      [-31, y - 5],
+      [-25, y + 3.7],
+      [leftEnd, y + 7.7],
+    ],
+    '#c8cab1',
+    1.3,
+  );
+  line(
+    ctx,
+    [
+      [6, y + 9],
+      [26, y + 5],
+      [33, y - 4],
+    ],
+    '#7b8974',
+    4,
+  );
+  line(
+    ctx,
+    [
+      [6, y + 7.5],
+      [26, y + 3.7],
+      [32, y - 5],
+    ],
+    '#c3c6ab',
+    1.3,
+  );
+  for (const x of [-30, -20, 19, 30]) {
+    shape(
+      ctx,
+      [
+        [x - 2.5, y - 5],
+        [x + 2, y - 5.7],
+        [x + 2.5, y + 3],
+        [x - 2.5, y + 3.7],
+      ],
+      '#a0a68e',
+    );
+    line(
+      ctx,
+      [
+        [x - 2.5, y - 5.7],
+        [x + 2, y - 6.4],
+      ],
+      '#d1d2b9',
+      1.1,
+    );
+  }
+  if (integrity < 0.75)
+    line(
+      ctx,
+      [
+        [-21, y - 2],
+        [-22.3, y + 1],
+        [-20.8, y + 1.7],
+        [-21.7, y + 4],
+      ],
+      '#5c6a5b',
+      0.65,
+    );
+  if (integrity < 0.4) {
+    for (let i = 0; i < 5; i++)
+      oval(ctx, -13 + i * 2.9, y + 8 + Math.sin(i) * 1.1, 1.6, 1, '#9ba38a');
+  } else {
+    shape(
+      ctx,
+      [
+        [-4, y + 5],
+        [2.8, y + 4.7],
+        [3, y + 10],
+        [-4.2, y + 10.4],
+      ],
+      '#77734e',
+    );
+    line(
+      ctx,
+      [
+        [-3, y + 7],
+        [2, y + 6.8],
+      ],
+      '#b8a476',
+      0.7,
+    );
+  }
+}
+
+/** A city is a cartographic cluster, while its landmark buildings must really exist. */
+export function drawPainterlyCity(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  city: City,
+  time: number,
+  options: { reducedMotion?: boolean } = {},
+) {
+  const profile = getCityPresentation(state, city);
+  const phase = options.reducedMotion || state.paused ? state.time : time;
+  ctx.save();
+  shadow(ctx, 32);
+  const ground = ctx.createRadialGradient(0, -2, 3, 0, -2, 42);
+  ground.addColorStop(0, '#c5ba9670');
+  ground.addColorStop(0.65, '#c5ba962b');
+  ground.addColorStop(1, '#c5ba9600');
+  oval(ctx, 0, -2, 44, 16, ground);
+  cityFields(ctx, profile, state.seasonIndex % 4);
+  if (profile.walls) cityRamparts(ctx, profile.wallIntegrity, false);
+  if (profile.ruinedWalls && !profile.walls) {
+    for (let i = 0; i < 12; i++)
+      oval(
+        ctx,
+        Math.sin(i * 2.1) * 30,
+        6 + Math.cos(i * 1.7) * 5,
+        1.4 + (i % 3) * 0.5,
+        1.1,
+        '#909b813d',
+      );
+  }
+  const large = profile.population >= 150;
+  for (const [x, y, size] of [
+    [-16, -8, 0.76],
+    [10, -12, 0.85],
+    [-10, 1, 0.85],
+    [9, 4, 0.83],
+  ])
+    cityRoof(ctx, x, y, size, state.tier >= 5);
+  if (large) {
+    cityRoof(ctx, -24, -11, 0.6, state.tier >= 5);
+    cityRoof(ctx, 21, -5, 0.6, state.tier >= 5);
+  }
+  if (profile.palace) cityPalace(ctx, profile.palace.active);
+  else if (profile.learningBuilding) cityLearningHall(ctx, profile.learningBuilding.active);
+  else cityRoof(ctx, -1, -12, 1.1, state.tier >= 5);
+  const granary = profile.institutions.find((building) => building.kind === 'storage');
+  if (granary) cityGranary(ctx, granary.active);
+  if (profile.foundries.length)
+    cityFoundry(ctx, profile.productiveFoundries.length > 0, options.reducedMotion ? 0 : phase);
+  if (profile.market) cityMarket(ctx, profile.market.active);
+  if (profile.walls) cityRamparts(ctx, profile.wallIntegrity, true);
+  // Civic emblems describe specialization, never a stock quantity or production bonus.
+  ctx.save();
+  ctx.translate(-13, 14);
+  for (const vocation of profile.vocations) {
+    if (vocation === 'agriculture') {
+      line(
+        ctx,
+        [
+          [0, -3],
+          [0.4, -8],
+        ],
+        '#9d8749',
+        0.7,
+      );
+      for (let i = 0; i < 3; i++) {
+        oval(ctx, -0.8, -7 + i * 1.2, 0.8, 0.4, '#d5bb70');
+        oval(ctx, 1.2, -7.6 + i * 1.2, 0.8, 0.4, '#c4a358');
+      }
+    } else if (vocation === 'industry') {
+      line(
+        ctx,
+        [
+          [-2, -3],
+          [2, -8],
+        ],
+        '#69766b',
+        1,
+      );
+      shape(
+        ctx,
+        [
+          [0.4, -8],
+          [2.6, -9.8],
+          [4, -8.6],
+          [1.9, -6.8],
+        ],
+        '#8b9a8e',
+      );
+    } else if (vocation === 'commerce') {
+      oval(ctx, 0, -5.5, 2.1, 2.1, '#bd9e5d');
+      oval(ctx, -0.2, -5.7, 1.4, 1.4, '#dfcc8d');
+      line(
+        ctx,
+        [
+          [-0.3, -6.6],
+          [0.2, -4.7],
+        ],
+        '#a4884e',
+        0.5,
+      );
+    } else {
+      shape(
+        ctx,
+        [
+          [-2.7, -7.5],
+          [0, -6.8],
+          [2.7, -7.5],
+          [2.7, -3.4],
+          [0, -2.8],
+          [-2.7, -3.4],
+        ],
+        '#d2c9a4',
+      );
+      line(
+        ctx,
+        [
+          [0, -6.8],
+          [0, -2.8],
+        ],
+        '#948f6d',
+        0.5,
+      );
+    }
+    ctx.translate(8, 0);
+  }
+  ctx.restore();
   ctx.restore();
 }
