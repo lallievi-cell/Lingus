@@ -129,6 +129,8 @@ export interface Building {
   progress?: number;
   livestock?: number;
   lastEfficiency?: number;
+  /** Urban foundry order; omitted in older saves means refining ore into ingots. */
+  productionMode?: 'ingot' | 'metalArms' | 'coin';
   /** Real village work, retained across the boundary until settlement (decision A-34). */
   seasonWork?: Record<
     string,
@@ -354,6 +356,43 @@ export interface Faction {
   peaceUntil?: number;
   intelligibility?: number;
 }
+export interface ForeignRaid {
+  id: string;
+  factionId: string;
+  originCityId: string;
+  memberIds: string[];
+  phase: 'approaching' | 'raiding' | 'returning' | 'ended';
+  resources: Inventory;
+  startedAt: number;
+  target: { x: number; y: number };
+  progress: number;
+  finishedAt?: number;
+  engagedAt?: number;
+}
+export interface ForeignUltimatum {
+  id: string;
+  factionId: string;
+  cityId: string;
+  createdAt: number;
+  expiresAt: number;
+  kind: 'religious' | 'tribute';
+  resource: Resource;
+  amount: number;
+  status: 'pending' | 'dispatched' | 'paid' | 'refused' | 'expired' | 'cancelled';
+  dogmaTargetId?: string;
+  paymentCaravanId?: string;
+}
+export interface ForeignRelation {
+  leftId: string;
+  rightId: string;
+  relation: number;
+  atWar: boolean;
+}
+export interface ForeignPolicyState {
+  raids: ForeignRaid[];
+  ultimata: ForeignUltimatum[];
+  relations: ForeignRelation[];
+}
 export interface Battalion {
   frontlineSageIds?: string[];
   id: string;
@@ -413,6 +452,8 @@ export interface Caravan {
   words?: string[];
   dogmas?: Dogma[];
   delegateCount?: number;
+  /** An already-counted named Sage, when the departing cohort has no anonymous resident. */
+  delegateUnitId?: string;
   returning?: boolean;
   progress?: number;
   sourceResource?: Resource;
@@ -494,6 +535,7 @@ export interface GameState {
   battalions: Battalion[];
   caravans: Caravan[];
   regionalRoutes?: RegionalRoadSegment[];
+  foreignPolicy?: ForeignPolicyState;
   traditions: Tradition[];
   laws: Law[];
   sectors: Sector[];

@@ -27,6 +27,7 @@ const causes: Record<string, string> = {
   oldAge: 'di vecchiaia',
   V_03: 'durante uno scontro',
   STAT_PLAGUE: 'per una malattia',
+  STAT_PARASITES: 'dopo un pasto di carne cruda',
   plague: 'per una malattia',
   disease: 'per una malattia',
   O_14: 'per una sanzione del Tribunale',

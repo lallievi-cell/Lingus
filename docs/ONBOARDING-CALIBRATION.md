@@ -15,7 +15,9 @@ La prova del giocatore ha evidenziato due problemi distinti: poco margine per pr
 | Durata stagioni, fame, calore   | Stessi valori della simulazione                               | Stessi valori della simulazione                       |
 | Portata dei materiali locali    | Quindici metri                                                | Quindici metri                                        |
 
-I compiti ripetuti terminano quando mancano materiali o spazio, arriva il riposo ordinario, intervengono necessità vitali, divieti o un nuovo ordine. Un trasporto già carico completa la consegna. La ripetizione non diventa una tradizione per il giorno successivo. Lance, cucina, cibo e costruzioni rimangono singoli: il gruppo non consuma automaticamente tutte le risorse per fabbricarli. Ogni ciclo aggiuntivo paga il proprio materiale, senza un nuovo costo Voce.
+I compiti ripetuti terminano quando mancano materiali o spazio, arriva il riposo ordinario, intervengono necessità vitali, divieti o un nuovo ordine. Un trasporto già carico completa la consegna. La ripetizione non diventa una tradizione per il giorno successivo. Lance, cucina e costruzioni rimangono singoli: il gruppo non consuma automaticamente tutte le risorse per fabbricarli. Dopo Conservare, la Guidata estende i viaggi ripetuti anche a Portare Preda sullo stesso nodo alimentare; prima di quella scoperta e in Classica resta il viaggio singolo. Ogni ciclo aggiuntivo paga il proprio materiale, senza un nuovo costo Voce.
+
+[FOUR-IMPROVEMENTS.md](FOUR-IMPROVEMENTS.md) descrive le ulteriori calibrazioni Guidate: traguardi demografici reali, lezione da venti memoria, consiglio alimentato con legna consegnata, ripasso pagato dopo l'ultimo allievo e lutto naturale ridotto. Le formule della Classica restano separate.
 
 Non si prelevano materiali lontani aumentando il raggio a trentacinque metri. Portare compie il viaggio effettivo. La creazione del Falò guidato non sottrae legna lasciata presso un artigiano lontano dalla tana.
 

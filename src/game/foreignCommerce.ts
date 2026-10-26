@@ -1,6 +1,7 @@
 import { emptyInventory, RESOURCE_ORDER } from './content';
 import { getDogmaEffects } from './dogmas';
 import { imperialLawEffects } from './imperialLawPolicy';
+import { areFactionsHostile } from './foreignPolicy';
 import { clamp, distance, hasBuilding, hasWord, log, nextId } from './runtime';
 import type { Caravan, City, GameState, Resource } from './types';
 
@@ -146,7 +147,7 @@ export function canInterceptCaravan(s: GameState, car: Caravan, armyFaction: str
     return !!car.customsRefused || !!s.factions.find((f) => f.id === car.factionId)?.hostile;
   if (car.factionId === 'player' && armyFaction !== 'player')
     return armyFaction === 'rebels' || !!s.factions.find((f) => f.id === armyFaction)?.hostile;
-  return true;
+  return areFactionsHostile(s, car.factionId, armyFaction);
 }
 
 /** A foreign route never falls through the player-owned outgoing trade accounting. */

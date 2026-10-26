@@ -1,0 +1,104 @@
+.foreign-pressure {
+  color: #344a39;
+  background: #f7f0df;
+  border: 1px solid #b7a57a;
+  border-radius: 6px;
+  margin: 6px 0;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.foreign-pressure > header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border-bottom: 1px solid #c9b995;
+}
+.foreign-pressure > header small {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 600;
+  color: #76562e;
+}
+.foreign-pressure__list {
+  max-height: 200px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-color: #a58b5d #e9e0c8;
+  scrollbar-width: thin;
+}
+.foreign-pressure__list:focus-visible {
+  outline: 2px solid #76562e;
+  outline-offset: -2px;
+}
+.foreign-pressure article {
+  padding: 8px 10px;
+}
+.foreign-pressure article + article {
+  border-top: 1px solid #d6c8a9;
+}
+.foreign-pressure p {
+  margin: 4px 0;
+  line-height: 1.4;
+}
+.foreign-pressure small {
+  display: block;
+  color: #6d6047;
+}
+.foreign-pressure__raid,
+.foreign-pressure__delivery {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+}
+.foreign-pressure__raid {
+  color: #803e2d;
+  background: #f8e9da;
+}
+.foreign-pressure__raid > div {
+  flex: 1;
+}
+.foreign-pressure button {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 5px 8px;
+  background: #e9e4d2;
+  border: 1px solid #a8ac8c;
+  border-radius: 4px;
+  color: #354b37;
+}
+.foreign-pressure button:disabled {
+  opacity: 0.5;
+}
+.foreign-pressure button:focus-visible {
+  outline: 2px solid #76562e;
+  outline-offset: 2px;
+}
+.foreign-pressure__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 6px;
+}
+@media (max-width: 800px) {
+  .foreign-pressure {
+    margin: 3px 0;
+    font-size: 10px;
+  }
+  .foreign-pressure__list {
+    max-height: 170px;
+  }
+  .foreign-pressure > header {
+    padding: 4px 8px;
+  }
+  .foreign-pressure article {
+    padding: 6px 8px;
+  }
+  .foreign-pressure button {
+    min-height: 34px;
+  }
+}

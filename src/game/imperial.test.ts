@@ -196,7 +196,8 @@ describe('urban demographics and physical logistics', () => {
     p.words = WORD_ORDER.slice(0, 34);
     f.words = [...p.words];
     p.assimilation = { delegateCount: 1, active: true };
-    p.cohorts = { workers: 0, warriors: 0, sages: 0, slaves: 0 };
+    // The resident delegate is a real member of the local scholarly cohort.
+    p.cohorts = { workers: 0, warriors: 0, sages: 1, slaves: 0 };
     city(s);
     seasonalImperial(s);
     expect(p.words).toHaveLength(36);
@@ -561,6 +562,15 @@ describe('battles and final conditions', () => {
       enemyCity.factionId = 'foreign';
       const b = army(s, capital),
         enemy = army(s, enemyCity, 'foreign-army');
+      s.factions.push({
+        id: 'foreign',
+        name: 'Nemico',
+        words: [],
+        dogmas: [],
+        relation: -100,
+        hostile: true,
+        cityId: enemyCity.id,
+      });
       b.x = enemy.x;
       b.y = enemy.y;
       b.hp = 200;
@@ -587,6 +597,15 @@ describe('battles and final conditions', () => {
     enemyCity.factionId = 'foreign';
     const b = army(s, c),
       enemy = army(s, enemyCity, 'foreign-army');
+    s.factions.push({
+      id: 'foreign',
+      name: 'Nemico',
+      words: [],
+      dogmas: [],
+      relation: -100,
+      hostile: true,
+      cityId: enemyCity.id,
+    });
     enemy.x = b.x;
     enemy.y = b.y;
     s.dogmas.push(dogma('S_08', 'O_01'));

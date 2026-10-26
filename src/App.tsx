@@ -55,6 +55,9 @@ import {
   type MapChoice,
 } from './components/MapPicker';
 import { GrowthReadiness, IndividualGrowthReadiness } from './components/GrowthReadiness';
+import { GuidedCouncil } from './components/GuidedCouncil';
+import { ForeignPressure } from './components/ForeignPressure';
+import { resolveForeignUltimatum } from './game/foreignPolicy';
 import { OpeningGuide } from './components/OpeningGuide';
 import {
   acknowledgedTribeEventIds,
@@ -62,12 +65,15 @@ import {
   TribeEvents,
 } from './components/TribeEvents';
 import './components/Onboarding.css';
+import './components/SyntaxAssistant.css';
 import {
   CivilizationPanel,
   describeQuantity,
   type CivilizationMode,
 } from './components/CivilizationPanel';
 import { playerPopulation } from './game/imperial';
+import { orderAcknowledged } from './game/commandAcknowledgement';
+import { canRehearseWord } from './game/guidedProgression';
 import { hasBuilding, isPlayerBuilding } from './game/runtime';
 import {
   canTransmitWord,
@@ -89,12 +95,21 @@ import {
   issueCommand,
   parseGame,
   previewDogma,
+  prepareCampfireCouncil,
+  rehearseWord,
   removeDogma,
   solveSpark,
   teachWord,
   tick,
 } from './game/engine';
 import type { GameState, Spark, Target, WordKind } from './game/types';
+import {
+  getSyntaxSuggestions,
+  phraseRecallIssue,
+  rememberRecentPhrase,
+  STARTER_PHRASES,
+} from './game/syntaxAssistant';
+import { useGameAudio } from './components/useGameAudio';
 
 const SAVE_KEY = 'lingus.save.v2';
 type Panel =
@@ -157,7 +172,8 @@ function App() {
   const [selectingGroup, setSelectingGroup] = useState(false);
   const [target, setTarget] = useState<Target | null>(null);
   const [tab, setTab] = useState<'tribe' | 'chronicle'>('tribe');
-  const [filter, setFilter] = useState<WordKind | 'all'>('all');
+  const [filter, setFilter] = useState<WordKind | 'all' | 'compatible'>('all');
+  const [wordSearch, setWordSearch] = useState('');
   const [mobileSection, setMobileSection] = useState<'map' | 'tribe' | 'discovery'>('map');
   const [sparkId, setSparkId] = useState<string | null>(null);
   const [puzzle, setPuzzle] = useState<string[]>([]);
@@ -184,17 +200,18 @@ function App() {
   const [sound, setSound] = useState(false);
   const [lexiconSearch, setLexiconSearch] = useState('');
   const [hasSeenMilestone, setHasSeenMilestone] = useState(!!game.victory);
-  const [recentPhrases, setRecentPhrases] = useState<string[][]>(() => [
-    ['S_01', 'V_02'],
-    ['S_01', 'V_04', 'O_03'],
-  ]);
+  const [recentPhrases, setRecentPhrases] = useState<string[][]>([]);
   const [orderFeedback, setOrderFeedback] = useState<{
     from: { x: number; y: number }[];
     to: { x: number; y: number };
     time: number;
   } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  const audioContext = useRef<AudioContext | null>(null);
+  const sentenceSlotsRef = useRef<HTMLDivElement>(null);
+  const { unlockFromGesture } = useGameAudio(game, sound, {
+    ambience: !panel,
+    sessionKey: mapSession,
+  });
   const gameRef = useRef(game);
   gameRef.current = game;
   const season = getSeason(game);
@@ -208,6 +225,11 @@ function App() {
   const unreadEvents = (game.tribeEvents ?? []).filter((event) => !dismissedEvents.has(event.id));
   const objective = getObjective(game);
   const compilation = compileSentence(game, sentence, target ?? undefined);
+  const syntax = getSyntaxSuggestions(game, sentence);
+  const compatibleWords = new Set(syntax.tokenIds);
+  const shownPhrases = recentPhrases.length
+    ? recentPhrases
+    : STARTER_PHRASES.filter((phrase) => !phraseRecallIssue(game, phrase));
   const ownedBuildings = game.buildings.filter((b) => isPlayerBuilding(game, b));
   const currentSpark = game.sparks.find((s) => s.id === sparkId);
   const nextSpark = game.sparks[0];
@@ -327,6 +349,17 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const strip = sentenceSlotsRef.current;
+    if (!strip || strip.scrollWidth <= strip.clientWidth) return;
+    const next = strip.children[Math.min(sentence.length, slots - 1)] as HTMLElement | undefined;
+    if (!next) return;
+    const visible = strip.getBoundingClientRect(),
+      slot = next.getBoundingClientRect();
+    if (slot.right > visible.right) strip.scrollLeft += slot.right - visible.right;
+    else if (slot.left < visible.left) strip.scrollLeft += slot.left - visible.left;
+  }, [sentence, slots]);
+
+  useEffect(() => {
     const events = game.tribeEvents ?? [];
     const fresh = events.some((event) => !eventSnapshot.current.has(event.id));
     const idea = game.sparks.some((spark) => !sparkSnapshot.current.has(spark.id));
@@ -400,6 +433,13 @@ function App() {
   useEffect(() => {
     const keydown = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).matches('input,textarea,select') || panel) return;
+      // A focused control keeps native Enter/Space activation. Recalling a
+      // phrase or choosing a word must never also pronounce the old sentence.
+      if (
+        ['Enter', 'NumpadEnter', 'Space'].includes(e.code) &&
+        (e.target as HTMLElement).closest('button,a,[role="button"]')
+      )
+        return;
       if (e.code === 'Enter' || e.code === 'NumpadEnter') {
         if (sentence.length >= 2 && !game.paused && !panel && !game.gameOver) {
           e.preventDefault();
@@ -429,44 +469,13 @@ function App() {
     return () => window.removeEventListener('keydown', keydown);
   }, [panel, sentence, game, target, executorId, groupAnchor]);
 
-  useEffect(() => {
-    if (!sound || !game.started || game.paused || panel || game.gameOver) {
-      void audioContext.current?.suspend();
-      return;
-    }
-    const context = audioContext.current;
-    if (!context) return;
-    void context.resume();
-    const chirp = () => {
-      const now = context.currentTime;
-      const oscillator = context.createOscillator(),
-        gain = context.createGain();
-      oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(season.isNight ? 660 : 1450, now);
-      oscillator.frequency.exponentialRampToValueAtTime(season.isNight ? 440 : 2350, now + 0.12);
-      gain.gain.setValueAtTime(0, now);
-      gain.gain.linearRampToValueAtTime(0.018, now + 0.03);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-      oscillator.connect(gain);
-      gain.connect(context.destination);
-      oscillator.start();
-      oscillator.stop(now + 0.4);
-      oscillator.onended = () => {
-        oscillator.disconnect();
-        gain.disconnect();
-      };
-    };
-    chirp();
-    const timer = window.setInterval(chirp, season.isNight ? 4200 : 6300);
-    return () => window.clearInterval(timer);
-  }, [sound, game.started, game.paused, game.gameOver, panel, season.isNight]);
-
   function addWord(id: string) {
     if (sentence.length >= slots) {
       notify('Il pensiero ha bisogno di spazio. Rimuovi una parola o scoprine di nuove.');
       return;
     }
     setSentence((current) => [...current, id]);
+    setWordSearch('');
   }
 
   function dropWord(e: DragEvent, at?: number) {
@@ -485,11 +494,16 @@ function App() {
   }
 
   function applyRecentPhrase(words: string[]) {
-    const available = words.filter((id) => hasWord(game, id));
-    if (available.length > 0) {
-      setSentence(available);
-      notify(`Frase richiamata: ${available.map((id) => WORDS[id]?.label).join(' · ')}`);
+    const issue = phraseRecallIssue(game, words);
+    if (issue) {
+      notify(issue);
+      return;
     }
+    setSentence([...words]);
+    const check = compileSentence(game, words, target ?? undefined);
+    notify(
+      `Frase richiamata: ${words.map((id) => WORDS[id].label).join(' · ')}.${check.valid ? ' Scegli o verifica il bersaglio, poi pronuncia.' : ` ${check.message}`}`,
+    );
   }
 
   function pronounce() {
@@ -502,19 +516,15 @@ function App() {
       notify('Scegli un bersaglio sulla mappa, poi pronuncia la frase.');
       return;
     }
-    if (game.voice < 1) {
+    if (game.voice < 1 && !['law', 'dogma', 'tradition'].includes(result.kind ?? 'direct')) {
       notify('La voce ha bisogno di riposo. Si rigenera ogni 10 secondi.');
       return;
     }
     const next = issueCommand(game, sentence, target ?? undefined, executorId, groupAnchor);
-    const success = next.stats.commands > game.stats.commands;
+    const success = orderAcknowledged(game, next);
     setGame(next);
     if (success) {
-      setRecentPhrases((prev) => {
-        const key = sentence.join(',');
-        const filtered = prev.filter((p) => p.join(',') !== key);
-        return [[...sentence], ...filtered].slice(0, 4);
-      });
+      setRecentPhrases((prev) => rememberRecentPhrase(prev, sentence));
       if (target) {
         const liveTarget =
           target.type === 'entity'
@@ -605,6 +615,9 @@ function App() {
       setSelectingGroup(false);
       setOrderFeedback(null);
       setSentence([]);
+      setRecentPhrases([]);
+      setWordSearch('');
+      setFilter('all');
       setTarget(null);
       setPanel(null);
       setHasSeenMilestone(!!parsed.victory);
@@ -674,6 +687,9 @@ function App() {
     setOrderFeedback(null);
     setNewSeed(String(seed));
     setSentence([]);
+    setRecentPhrases([]);
+    setWordSearch('');
+    setFilter('all');
     setTarget(null);
     setHasSeenMilestone(false);
     setGroupAnchor({ type: 'point', ...fresh.home });
@@ -695,10 +711,12 @@ function App() {
       memory = game.words[id];
     const suggested = !inPuzzle && suggestedWordIds.has(id);
     const forgotten = !inPuzzle && memory?.retention === 0;
+    const compatible = !inPuzzle && !forgotten && compatibleWords.has(id);
     return (
       <button
         key={id}
-        className={`word-tile word-${word.kind} ${memory && memory.retention < 25 ? 'word-fragile' : ''} ${suggested ? 'word-suggested' : ''} ${forgotten ? 'word-forgotten' : ''}`}
+        className={`word-tile word-${word.kind} ${memory && memory.retention < 25 ? 'word-fragile' : ''} ${suggested ? 'word-suggested' : ''} ${forgotten ? 'word-forgotten' : ''} ${compatible ? 'word-compatible' : ''}`}
+        aria-description={compatible ? 'Suggerita per il prossimo spazio della frase.' : undefined}
         aria-label={
           forgotten
             ? `${word.label}: parola perduta. ${forgottenWordHint(game, id)}`
@@ -768,13 +786,9 @@ function App() {
             aria-label={sound ? 'Disattiva suoni' : 'Attiva suoni'}
             aria-pressed={sound}
             onClick={() => {
-              if (!audioContext.current) {
-                try {
-                  audioContext.current = new AudioContext();
-                } catch {
-                  notify('Audio non disponibile su questo browser.');
-                  return;
-                }
+              if (!sound && !unlockFromGesture()) {
+                notify('Audio non disponibile su questo browser.');
+                return;
               }
               setSound((s) => !s);
             }}
@@ -1130,6 +1144,16 @@ function App() {
             onHome={() => {
               setFocusRequest({ ...game.home, nonce: Date.now() });
               setTarget({ type: 'point', ...game.home });
+            }}
+          />
+          <ForeignPressure
+            state={game}
+            onResolve={(id, choice) =>
+              setGame((current) => resolveForeignUltimatum(current, id, choice))
+            }
+            onFocus={(point) => {
+              setMobileSection('map');
+              setFocusRequest({ x: point.x, y: point.y, nonce: Date.now() });
             }}
           />
           {nextSpark && (
@@ -1488,24 +1512,30 @@ function App() {
               </button>
             )}
           </div>
-          {recentPhrases.length > 0 && (
-            <div className="echo-shelf" aria-label="Frasi recenti">
+          {shownPhrases.length > 0 && (
+            <div
+              className="echo-shelf"
+              aria-label={recentPhrases.length ? 'Frasi recenti' : 'Frasi suggerite'}
+            >
               <span className="echo-label">
                 <History size={12} />
-                Echi:
+                {recentPhrases.length ? 'Echi:' : 'Spunti:'}
               </span>
-              {recentPhrases.map((phrase, idx) => {
-                const isKnown = phrase.every((id) => hasWord(game, id));
-                if (!isKnown) return null;
+              {shownPhrases.map((phrase) => {
+                const unavailable = phraseRecallIssue(game, phrase);
                 const isActive =
                   phrase.length === sentence.length && phrase.every((id, i) => sentence[i] === id);
                 return (
                   <button
-                    key={idx}
+                    key={phrase.join('|')}
                     type="button"
                     className={`echo-chip ${isActive ? 'active' : ''}`}
                     onClick={() => applyRecentPhrase(phrase)}
-                    title="Richiama questa frase negli spazi"
+                    disabled={!!unavailable}
+                    title={
+                      unavailable ??
+                      'Richiama la frase negli spazi. Il bersaglio resta quello selezionato; Pronuncia invia l’ordine.'
+                    }
                   >
                     <span className="echo-chip-dot" />
                     {phrase.map((id) => WORDS[id]?.label).join(' · ')}
@@ -1518,6 +1548,10 @@ function App() {
         <div className="composer-row">
           <div
             className="sentence-slots"
+            ref={sentenceSlotsRef}
+            role="group"
+            aria-label="Spazi della frase"
+            tabIndex={0}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => dropWord(e)}
           >
@@ -1608,6 +1642,33 @@ function App() {
             </span>
           </div>
         </div>
+        {game.tier >= 3 && (
+          <div className="syntax-assistant" aria-label="Assistente sintattico">
+            <span className="syntax-next" title={syntax.explanation} aria-live="polite">
+              <span className="syntax-cue" aria-hidden="true" />
+              <strong>{syntax.nextLabel}</strong>
+              <span className="syntax-disclaimer">Suggerimenti, non vincoli.</span>
+            </span>
+            <button
+              className="syntax-toggle"
+              aria-pressed={filter === 'compatible'}
+              onClick={() =>
+                setFilter((current) => (current === 'compatible' ? 'all' : 'compatible'))
+              }
+            >
+              Solo compatibili
+            </button>
+            <label className="word-search">
+              <input
+                type="search"
+                aria-label="Cerca parole nella barra"
+                placeholder="Trova una parola…"
+                value={wordSearch}
+                onChange={(event) => setWordSearch(event.target.value)}
+              />
+            </label>
+          </div>
+        )}
         <div className="lexicon-bar">
           <div className="lexicon-label">
             <BookOpen size={16} />
@@ -1633,8 +1694,28 @@ function App() {
         </div>
         <div className="word-shelf">
           {discovered
-            .filter((id) => filter === 'all' || WORDS[id].kind === filter)
+            .filter(
+              (id) =>
+                filter === 'all' ||
+                (filter === 'compatible' ? compatibleWords.has(id) : WORDS[id].kind === filter),
+            )
+            .filter((id) =>
+              WORDS[id].label
+                .toLocaleLowerCase('it')
+                .includes(wordSearch.trim().toLocaleLowerCase('it')),
+            )
             .map((id) => renderWord(id))}
+          {(wordSearch || filter === 'compatible') && (
+            <button
+              className="word-bank-reset"
+              onClick={() => {
+                setWordSearch('');
+                setFilter('all');
+              }}
+            >
+              Mostra tutte le parole
+            </button>
+          )}
           <div className="unknown-words">
             <span>· · ·</span>
             <p>
@@ -2055,6 +2136,10 @@ function App() {
               <small> attenzione</small>
             </strong>
           </div>
+          <GuidedCouncil
+            state={game}
+            onPrepare={() => setGame((current) => prepareCampfireCouncil(current))}
+          />
           <TribeEvents
             state={game}
             events={(game.tribeEvents ?? []).filter((event) => event.time >= game.time - 90)}
@@ -2104,10 +2189,18 @@ function App() {
                   </div>
                   <button
                     className="teach-button"
-                    onClick={() => setGame((g) => teachWord(g, id))}
-                    disabled={!canTransmitWord(game, id)}
+                    onClick={() =>
+                      setGame((g) =>
+                        canTransmitWord(g, id) ? teachWord(g, id) : rehearseWord(g, id),
+                      )
+                    }
+                    disabled={!canTransmitWord(game, id) && !canRehearseWord(game, id)}
                   >
-                    Tramanda{' '}
+                    {canTransmitWord(game, id)
+                      ? 'Tramanda'
+                      : canRehearseWord(game, id)
+                        ? 'Ripassa'
+                        : 'Tramanda'}{' '}
                     <small>
                       10 <Flame size={11} />
                     </small>
@@ -2116,9 +2209,11 @@ function App() {
               ))}
           </div>
           <p className="campfire-explanation">
-            Ogni insegnamento spende 10 attenzione e forma un custode. Il recupero base è di 10
-            memoria e può aumentare con i dogmi. La legna nel fuoco e gli anziani generano
-            attenzione al cambio di stagione.
+            Ogni insegnamento spende 10 attenzione e forma un custode. Il recupero base è di{' '}
+            {game.playMode === 'guided' ? 20 : 10} memoria e può aumentare con i dogmi. La legna nel
+            fuoco e gli anziani generano attenzione al cambio di stagione.{' '}
+            {game.playMode === 'guided' &&
+              'Quando tutti gli allievi conoscono una parola, puoi ripassarla durante il consiglio: costa 10 Attenzione e rafforza la memoria senza creare un nuovo custode.'}
           </p>
           <button
             className="primary-button"

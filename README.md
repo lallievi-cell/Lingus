@@ -34,6 +34,8 @@ Le nuove storie propongono una **mappa casuale**; puoi inserire un seed per ritr
 5. Tramanda il sapere ai giovani al Falò. Le parole non innate possono essere dimenticate o andare perdute con l'ultimo custode. Le stele e gli archivi offrono un supporto fisico alla memoria.
 6. Con **Sempre** fissa i mestieri. Nelle ere successive governa città, vocazioni, leggi, tributi e rapporti con altre lingue attraverso frasi. L'interfaccia mostra ricette e informazioni; non sostituisce gli ordini con un menu edilizio autonomo.
 
+La barra evidenzia le parole compatibili con il prossimo spazio. Dal Neolitico puoi cercarle e attivare **Solo compatibili**. La cronologia ricompone le ultime otto frasi accettate senza eseguirle: controlla il bersaglio e poi pronuncia.
+
 Una stagione dura 90 secondi, di cui 60 di luce e 30 di notte; il primo inverno inizia al secondo 270. La voce ha capienza tre, poi cinque con il Re: gli ordini diretti costano un punto e ne viene recuperato uno ogni dieci secondi. Le istituzioni permanenti eseguono i propri cicli senza quel costo ripetuto.
 
 | Controllo                          | Effetto                                                     |
@@ -54,7 +56,7 @@ Sulla mappa, tronchi e frammenti di pietra a terra sono distinti dagli alberi e 
 
 Un fumetto segnala l'ultima voce che custodisce una parola: verde, ambra per l'età avanzata, rosso per un pericolo immediato. Il pannello permette di tramandarla al Falò con l'insegnamento e il costo ordinari. Gli addetti liberano temporaneamente il posto per dormire o mangiare, poi riprendono il lavoro; le rese stagionali conservano il lavoro già svolto. Prove e limiti della crescita sono descritti in [GROWTH-AUDIT.md](docs/GROWTH-AUDIT.md).
 
-Orologio, scorte, coesione e dati numerici dipendono dalle parole corrispondenti. Prima di **Numero**, le quantità del mondo sono descritte qualitativamente. I suoni ambientali sono facoltativi.
+Orologio, scorte, coesione e dati numerici dipendono dalle parole corrispondenti. Prima di **Numero**, le quantità del mondo sono descritte qualitativamente. L'audio facoltativo comprende ambiente e segnali per ordini accettati, Scintille, nascite, perdita dei custodi e disastri; si attiva con il pulsante del suono.
 
 ## Salvataggi
 
@@ -96,7 +98,13 @@ La Barra del Linguaggio e le finestre cambiano materiali nelle sei ere, dalla pi
 
 La mappa regionale conserva le tracce dei convogli, distingue le vocazioni delle città e mostra colpi alle mura e occupazione. [REGIONAL-MAP.md](docs/REGIONAL-MAP.md) illustra comportamento, compatibilità dei salvataggi e prove.
 
+Le culture straniere raccolgono e conservano cibo fisico, possono razziare quando ostili, inviare richieste, addestrare eserciti e finanziare colonie. Presidi e palizzate contrastano le incursioni; i doni viaggiano realmente. Le delegazioni pacifiche condividono parole senza imporre religioni. [FOREIGN-POLICY.md](docs/FOREIGN-POLICY.md) descrive parametri e limiti verificati.
+
 Le nuove partite propongono **Guidata**, con più margine per il primo Falò, compiti materiali ripetuti e primo inverno senza tormente; **Classica** conserva il ritmo precedente. Entrambe mostrano sesso e fasi di vita, avvisi di nascite e lutti, parole perdute riconoscibili e pausa opzionale sugli eventi. Il pannello della crescita spiega cosa manca alle nascite; gli strumenti in mano corrispondono all'equipaggiamento effettivamente usato. [ONBOARDING-CALIBRATION.md](docs/ONBOARDING-CALIBRATION.md) riporta le differenze e le prove ordinarie.
+
+[FOUR-IMPROVEMENTS.md](docs/FOUR-IMPROVEMENTS.md) raccoglie le ulteriori calibrazioni Guidate, la continuità delle scoperte urbane, l'assistente sintattico e l'audio. [VICTORY-ROUTES.md](docs/VICTORY-ROUTES.md) verifica le tre vie finali con tempo e costi reali da società avanzate preparate; queste prove restano separate dalle campagne complete da sette persone.
+
+[CAMPAIGN-AUDIT.md](docs/CAMPAIGN-AUDIT.md) documenta trenta stagioni ordinarie con ricambio generazionale. [MIDGAME-TRANSITION.md](docs/MIDGAME-TRANSITION.md) distingue la prova 35 → 80 con Scrittura da un insediamento preparato dalla crescita fino a 150, ancora da dimostrare.
 
 - `src/game/content.ts`, `types.ts`, `state.ts`: cataloghi, schema e stato iniziale.
 - `src/game/math.ts`: formule isolate; `runtime.ts`: inventario e utilità condivise.

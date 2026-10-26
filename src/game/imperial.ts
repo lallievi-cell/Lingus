@@ -2,12 +2,21 @@ import {
   BASE_HOUSING,
   BUILDING_SPECS,
   ELDER_AGE,
+  INNATE_WORDS,
   RESOURCE_SPECS,
   SPEC_ASSUMPTIONS,
   WORDS,
 } from './content';
 import { rememberCombatWound } from './damageAttribution';
 import { recordCaravanTravel } from './regionalHistory';
+import { guidedBirthMultiplier } from './guidedProgression';
+import {
+  areFactionsHostile,
+  completeForeignExpansion,
+  dispatchForeignPolicy,
+  takeForeignForgeWork,
+} from './foreignPolicy';
+import { newbornName, pairFertileUnits, recordTribeEvent } from './demography';
 import {
   birthProbability,
   cognitiveTension,
@@ -75,6 +84,14 @@ import type {
   Tradition,
   Unit,
 } from './types';
+import {
+  chooseDelegateIdentity,
+  departDelegateIdentity,
+  settleDelegateIdentity,
+  strandDelegateIdentity,
+  synchronizeDelegateIdentities,
+  travellingDelegate,
+} from './delegateIdentity';
 
 /** These parameters are deliberately explicit: the source gives no prices or AI policy. */
 export const IMPERIAL_ASSUMPTIONS = {
@@ -92,6 +109,8 @@ export const IMPERIAL_ASSUMPTIONS = {
   fiscalValuePerBondedCitizen: 100,
   recruitmentCooldownSeconds: 10,
   frontlineCallRadiusMetres: 15,
+  peacefulDelegationRelation: 30,
+  maximumLivingUrbanIdentities: 200,
 } as const;
 
 const PLAYER = 'player';
@@ -260,7 +279,7 @@ export function condenseCities(s: GameState) {
   const cohorts: Cohorts = { workers: 0, warriors: 0, sages: 0, slaves: 0 };
   const home = s.home;
   for (const u of activeUnits(s)) {
-    const caste =
+    const cohort =
       u.caste === 'slave'
         ? 'slaves'
         : u.strength >= 7 && adult(u)
@@ -268,7 +287,17 @@ export function condenseCities(s: GameState) {
           : u.intelligence >= 7 && adult(u)
             ? 'sages'
             : 'workers';
-    cohorts[caste]++;
+    cohorts[cohort]++;
+    // Condensation assigns the same real person to their new macro-role.
+    // Later identities retain that counted role until an explicit transfer.
+    u.caste =
+      cohort === 'slaves'
+        ? 'slave'
+        : cohort === 'warriors'
+          ? 'warrior'
+          : cohort === 'sages'
+            ? 'sage'
+            : 'citizen';
   }
   const c: City = {
     id: nextId(s, 'city'),
@@ -337,10 +366,20 @@ function buildingSelector(s: GameState, c: City, b: Building) {
     (spec.workerKind === 'sage' ? 'S_04' : spec.workerKind === 'warrior' ? 'S_03' : 'S_01')
   );
 }
+/** Named children remain in population counts, but cannot supply a worker slot. */
+function workingCityCohorts(s: GameState, c: City): Cohorts {
+  const pools = { ...c.cohorts };
+  for (const unit of s.units.filter((u) => u.hp > 0 && u.cityId === c.id && !adult(u))) {
+    const cohort = unitCohort(unit);
+    pools[cohort] = Math.max(0, pools[cohort] - 1);
+  }
+  return pools;
+}
+
 export function allocateCityWorkers(s: GameState, c: City) {
   const buildings = cityBuildings(s, c),
     vocation = c.vocations.flatMap((v) => v.tokens);
-  const pools = { ...c.cohorts };
+  const pools = workingCityCohorts(s, c);
   pools.sages = Math.max(
     0,
     pools.sages -
@@ -355,7 +394,8 @@ export function allocateCityWorkers(s: GameState, c: City) {
   // Reserve represented identities even when an ordinary cohort takes a slot,
   // so an individual or royal monopoly cannot reuse them in another building.
   const residents = activeUnits(s).filter(
-    (u) => u.cityId === c.id && !['frontline', 'frontline-returning'].includes(u.action),
+    (u) =>
+      u.cityId === c.id && adult(u) && !['frontline', 'frontline-returning'].includes(u.action),
   );
   const reserved = new Set<string>();
   const takeCohort = (cohort: keyof Cohorts, slots: number) => {
@@ -384,6 +424,8 @@ export function allocateCityWorkers(s: GameState, c: City) {
   let primaryAllocated = 0;
   for (const b of ordered) {
     const spec = BUILDING_SPECS[b.kind];
+    const previouslyReserved = new Set(reserved);
+    b.workerIds = [];
     if (!b.active) {
       b.lastEfficiency = 0;
       continue;
@@ -431,6 +473,9 @@ export function allocateCityWorkers(s: GameState, c: City) {
       primaryAllocated += b.kind === 'farm' ? slaves + workers : 0;
     }
     b.lastEfficiency = Math.min(1.2, weighted / spec.workers);
+    b.workerIds = residents
+      .filter((u) => adult(u) && reserved.has(u.id) && !previouslyReserved.has(u.id))
+      .map((u) => u.id);
   }
 }
 export function cityBuildingEfficiency(s: GameState, c: City, kind: BuildingKind) {
@@ -454,7 +499,7 @@ function cityCapacity(s: GameState, c: City, r: Resource): number {
   );
 }
 function addCityResource(s: GameState, c: City, r: Resource, amount: number): number {
-  const inv = inventoryFor(s, c),
+  const inv = r === 'coin' && c.factionId === PLAYER ? s.resources : inventoryFor(s, c),
     category = RESOURCE_SPECS[r].category,
     total = RESOURCES.filter((k) => RESOURCE_SPECS[k].category === category).reduce(
       (n, k) => n + inv[k],
@@ -676,13 +721,12 @@ export function removeLaw(state: GameState, id: string): GameState {
 }
 
 function unitCohort(u: Unit): keyof Cohorts {
-  return u.caste === 'slave'
-    ? 'slaves'
-    : u.caste === 'warrior' || u.strength >= 7
-      ? 'warriors'
-      : u.caste === 'sage' || u.intelligence >= 7
-        ? 'sages'
-        : 'workers';
+  if (u.caste === 'slave') return 'slaves';
+  if (u.caste === 'citizen') return 'workers';
+  if (u.caste === 'warrior') return 'warriors';
+  if (u.caste === 'sage') return 'sages';
+  if (!adult(u)) return 'workers';
+  return u.strength >= 7 ? 'warriors' : u.intelligence >= 7 ? 'sages' : 'workers';
 }
 function removeCustodian(s: GameState, u: Unit) {
   for (const [id, m] of Object.entries(s.words)) {
@@ -1176,9 +1220,48 @@ export function handleImperialCommand(
   if (subject === 'S_04' && verb === 'V_04' && args.includes('O_09') && args.includes('S_09')) {
     const city = findCity(s, target),
       source = capital(s);
-    if (!city || city.factionId !== PLAYER || !source)
-      return output(false, 'Scegli una provincia del tuo Impero da alfabetizzare.');
+    const faction = s.factions.find((f) => f.id === city?.factionId);
+    const foreign = city && city.factionId !== PLAYER;
+    if (!city || !source || city.factionId === 'ruins')
+      return output(
+        false,
+        'Scegli una provincia o una comunità straniera con cui condividere la scrittura.',
+      );
+    const hostDoctrine = getDogmaEffects(doctrineFor(s, city.factionId, city));
+    if (
+      getDogmaEffects(s).isolated ||
+      getDogmaEffects(s).writingForbidden ||
+      hostDoctrine.isolated ||
+      hostDoctrine.writingForbidden
+    )
+      return output(false, 'Le dottrine attuali impediscono la condivisione della scrittura.');
+    if (
+      foreign &&
+      (!faction ||
+        faction.hostile ||
+        faction.relation < IMPERIAL_ASSUMPTIONS.peacefulDelegationRelation)
+    )
+      return output(
+        false,
+        'La delegazione richiede pace e una relazione di almeno trenta con il popolo ospite.',
+      );
+    if (
+      foreign &&
+      ((city.assimilation.active && city.assimilation.delegateCount > 0) ||
+        s.caravans.some(
+          (car) =>
+            car.kind === 'delegate' &&
+            car.factionId === PLAYER &&
+            car.toCityId === city.id &&
+            !car.arrived &&
+            car.hp > 0,
+        ))
+    )
+      return output(false, 'Una delegazione è già presente o in viaggio verso questa comunità.');
     if (source.cohorts.sages < 1) return output(false, 'La capitale non ha un Saggio disponibile.');
+    const identity = chooseDelegateIdentity(s, source);
+    if (!identity.available)
+      return output(false, 'I Saggi presenti sono già impegnati o lontani dalla capitale.');
     source.cohorts.sages--;
     const car = makeCaravan(
       s,
@@ -1189,9 +1272,13 @@ export function handleImperialCommand(
       1,
     );
     car.delegateCount = 1;
+    departDelegateIdentity(s, car, identity.unit);
+    allocateCityWorkers(s, source);
     return output(
       true,
-      'Un Saggio parte verso la provincia per insegnare due parole per stagione.',
+      foreign
+        ? 'Un Saggio parte in pace: condividerà due parole per stagione con la comunità ospite.'
+        : 'Un Saggio parte verso la provincia per insegnare due parole per stagione.',
     );
   }
   if (verb === 'V_08' && args.includes('O_01') && args.includes('O_10')) {
@@ -1264,6 +1351,7 @@ export function handleImperialCommand(
       if (f) {
         f.hostile = true;
         f.relation = -100;
+        f.peaceUntil = undefined;
       }
       return output(
         true,
@@ -1357,6 +1445,24 @@ export function handleImperialCommand(
       return output(true, 'Cento unità partono fisicamente verso la città indicata.');
     }
     if (['V_09', 'V_10', 'V_12'].includes(verb)) {
+      if (verb === 'V_12') {
+        const mode = args.includes('O_08') ? 'coin' : args.includes('V_03') ? 'metalArms' : 'ingot',
+          foundries = cityBuildings(s, c).filter((b) => b.kind === 'foundry');
+        if (foundries.length && (mode !== 'ingot' || !args.includes('O_05'))) {
+          for (const b of foundries) b.productionMode = mode;
+          allocateCityWorkers(s, c);
+          return output(
+            true,
+            mode === 'coin'
+              ? 'Le fonderie coniano: ogni lingotto lavorato diventa cento monete.'
+              : mode === 'metalArms'
+                ? 'Le fonderie forgiano: ogni lingotto lavorato diventa un’arma metallica.'
+                : 'Le fonderie tornano a raffinare minerale e legna in lingotti.',
+          );
+        }
+        if (mode !== 'ingot')
+          return output(false, 'Costruisci prima una fonderia con Metallo e Fuoco.');
+      }
       const kind: BuildingKind = verb === 'V_09' ? 'farm' : verb === 'V_10' ? 'pen' : 'foundry',
         spec = BUILDING_SPECS[kind],
         inv = inventoryFor(s, c);
@@ -1400,6 +1506,7 @@ export function handleImperialCommand(
 }
 
 function completeCaravan(s: GameState, c: Caravan) {
+  if (completeForeignExpansion(s, c)) return;
   const destination = c.toCityId ? s.cities.find((city) => city.id === c.toCityId) : undefined;
   const from = s.cities.find((city) => city.id === c.fromCityId);
   const foreignResult = completeForeignMerchant(s, c);
@@ -1453,12 +1560,50 @@ function completeCaravan(s: GameState, c: Caravan) {
     return;
   }
   if (c.kind === 'delegate') {
-    if (destination && destination.factionId === PLAYER) {
-      destination.assimilation.active = true;
-      destination.assimilation.delegateCount += c.delegateCount ?? 1;
+    const faction = s.factions.find((f) => f.id === destination?.factionId),
+      sourceDoctrine = getDogmaEffects(s),
+      hostDoctrine = destination
+        ? getDogmaEffects(doctrineFor(s, destination.factionId, destination))
+        : undefined,
+      teachingAllowed =
+        !sourceDoctrine.isolated &&
+        !sourceDoctrine.writingForbidden &&
+        !hostDoctrine?.isolated &&
+        !hostDoctrine?.writingForbidden;
+    const welcoming =
+      destination &&
+      destination.factionId !== 'ruins' &&
+      ((destination.factionId === PLAYER && (c.returning || teachingAllowed)) ||
+        (!c.returning &&
+          teachingAllowed &&
+          faction &&
+          !faction.hostile &&
+          faction.relation >= IMPERIAL_ASSUMPTIONS.peacefulDelegationRelation));
+    if (welcoming && destination) {
+      if (!c.returning) {
+        destination.assimilation.active = true;
+        destination.assimilation.delegateCount += c.delegateCount ?? 1;
+      }
       destination.cohorts.sages += c.population;
+      c.arrived = true;
+      settleDelegateIdentity(s, c, destination);
+      return;
     }
-    c.arrived = true;
+    const refuge = from?.factionId === PLAYER ? from : capital(s);
+    if (refuge) {
+      c.returning = true;
+      c.toCityId = refuge.id;
+      c.target = { type: 'city', id: refuge.id, x: refuge.x, y: refuge.y };
+      log(
+        s,
+        'La delegazione non è più accolta: i Saggi tornano fisicamente a una città amica.',
+        'warning',
+      );
+    } else {
+      c.arrived = true;
+      strandDelegateIdentity(s, c);
+      log(s, 'La delegazione non trova più una città amica a cui tornare.', 'danger');
+    }
     return;
   }
   if (c.kind === 'tax') {
@@ -1913,7 +2058,10 @@ function battleArmies(s: GameState, dt: number) {
       else b.action = 'idle';
     }
     const enemy = s.battalions.find(
-      (other) => other.hp > 0 && other.factionId !== b.factionId && distance(b, other) <= 3,
+      (other) =>
+        other.hp > 0 &&
+        areFactionsHostile(s, b.factionId, other.factionId) &&
+        distance(b, other) <= 3,
     );
     if (enemy) {
       const previous = enemy.hp,
@@ -1966,11 +2114,33 @@ function battleArmies(s: GameState, dt: number) {
 }
 
 export function updateImperial(s: GameState, dt: number) {
+  synchronizeDelegateIdentities(s);
   bindCapital(s);
   condenseCities(s);
+  if (s.urbanized) {
+    for (const unit of activeUnits(s)) {
+      if (
+        unit.cityId ||
+        (unit.caste !== 'slave' && !(unit.caste === 'citizen' && unit.emancipated)) ||
+        travellingDelegate(s, unit)
+      )
+        continue;
+      const destination = ownCities(s)
+        .filter((city) => distance(unit, city) <= 10)
+        .sort((left, right) => distance(unit, left) - distance(unit, right))[0];
+      if (!destination) continue;
+      // A field captive is already a real person. Count them in the city only
+      // upon physical arrival; setting cityId prevents a second enrolment.
+      unit.cityId = destination.id;
+      destination.cohorts[unit.caste === 'slave' ? 'slaves' : 'workers']++;
+    }
+  }
   const effects = getDogmaEffects(s),
     slaves = s.urbanized
-      ? ownCities(s).reduce((n, c) => n + c.cohorts.slaves, 0)
+      ? ownCities(s).reduce((n, c) => n + c.cohorts.slaves, 0) +
+        activeUnits(s).filter(
+          (unit) => unit.caste === 'slave' && !unit.cityId && !travellingDelegate(s, unit),
+        ).length
       : activeUnits(s).filter((u) => u.caste === 'slave').length;
   s.revoltTension = clamp(s.revoltTension + ((slaves * 0.5) / 60) * dt * effects.slaveRevolt);
   if (hasWord(s, 'M_04'))
@@ -1995,6 +2165,7 @@ export function updateImperial(s: GameState, dt: number) {
   }
   updateFrontline(s, dt);
   battleArmies(s, dt);
+  synchronizeDelegateIdentities(s);
   for (const f of s.factions) {
     const penalty = dogmaDiplomaticPenalty(s.dogmas, f.dogmas),
       key = `dogmaDiplomacy:${f.id}`,
@@ -2053,6 +2224,20 @@ export function updateImperial(s: GameState, dt: number) {
   evaluateVictory(s, false);
 }
 
+/** Only living, represented people who occupied this building's finite slots gain experience. */
+function recordUrbanCraft(s: GameState, c: City, b: Building, cycles: number, wordIds: string[]) {
+  if (c.factionId !== PLAYER || cycles < 1) return;
+  const workers = activeUnits(s).filter(
+    (u) => u.cityId === c.id && adult(u) && u.caste !== 'slave' && b.workerIds?.includes(u.id),
+  );
+  if (!workers.length) return;
+  for (let i = 0; i < Math.floor(cycles); i++) {
+    const worker = workers[i % workers.length];
+    for (const wordId of wordIds) recordCraft(s, worker, wordId);
+  }
+  for (const worker of workers) evaluateDiscoveries(s, worker);
+}
+
 function produceCity(s: GameState, c: City, spentCycles = 0) {
   const inv = inventoryFor(s, c),
     effects = getDogmaEffects(doctrineFor(s, c.factionId, c)),
@@ -2067,6 +2252,7 @@ function produceCity(s: GameState, c: City, spentCycles = 0) {
       ? 3
       : 1,
     republic = c.factionId === PLAYER && s.government === 'republic' ? 1.25 : 1;
+  let mintedCoin = 0;
   for (const b of buildings.filter((z) => z.active)) {
     const efficiency = b.lastEfficiency ?? 0,
       producedResource: Resource =
@@ -2075,7 +2261,7 @@ function produceCity(s: GameState, c: City, spentCycles = 0) {
           : b.kind === 'pen'
             ? 'meat'
             : b.kind === 'foundry'
-              ? 'ingot'
+              ? (b.productionMode ?? 'ingot')
               : b.kind === 'market'
                 ? 'coin'
                 : 'stone',
@@ -2105,15 +2291,62 @@ function produceCity(s: GameState, c: City, spentCycles = 0) {
       addCityResource(s, c, 'pelt', 5 * base * ctx.herding);
     }
     if (b.kind === 'foundry' && efficiency > 0) {
-      const output = Math.min(
-        inv.ore,
-        inv.wood / 2,
-        (90 / 5) * base * (vocation.includes('V_12') ? 1.5 : 1),
-      );
-      if (output > 0) {
-        inv.ore -= output;
-        inv.wood -= output * 2;
-        addCityResource(s, c, 'ingot', output);
+      const forgeWork = c.factionId === PLAYER ? 0 : takeForeignForgeWork(s, b.id),
+        mode = b.productionMode ?? 'ingot',
+        workBudget =
+          (Math.max(0, 90 * efficiency - forgeWork) / 5) *
+          ctx.production *
+          republic *
+          (vocation.includes('V_12') ? 1.5 : 1);
+      if (mode === 'ingot') {
+        const output = Math.min(inv.ore, inv.wood / 2, workBudget);
+        if (output > 0) {
+          inv.ore -= output;
+          inv.wood -= output * 2;
+          const stored = addCityResource(s, c, 'ingot', output);
+          // Materials for a refused output remain available instead of vanishing at capacity.
+          inv.ore += output - stored;
+          inv.wood += (output - stored) * 2;
+          recordUrbanCraft(s, c, b, stored, ['V_12', 'O_13']);
+        }
+      } else {
+        const cycles = Math.min(Math.floor(inv.ingot), Math.floor(workBudget));
+        let completed = 0;
+        for (let cycle = 0; cycle < cycles; cycle++) {
+          inv.ingot--;
+          const stored = addCityResource(s, c, mode, mode === 'coin' ? 100 : 1);
+          if (stored < (mode === 'coin' ? 100 : 1)) {
+            inv[mode] -= stored;
+            c.production[mode] -= stored;
+            inv.ingot++;
+            break;
+          }
+          completed++;
+        }
+        if (completed) {
+          recordUrbanCraft(s, c, b, completed, [mode === 'coin' ? 'O_12' : 'V_12', 'O_13']);
+          if (c.factionId === PLAYER) {
+            const tokens = ['S_09', 'V_12', 'O_07', mode === 'coin' ? 'O_08' : 'V_03'];
+            recordLawWork(
+              s,
+              c.id,
+              tokens,
+              completed * (mode === 'coin' ? 100 : 1),
+              Math.max(0, Math.floor(s.time / 90) * 90 - 1e-6),
+            );
+          }
+          if (mode === 'coin') mintedCoin += completed * 100;
+        }
+      }
+      if (
+        c.factionId === PLAYER &&
+        inv.metalArms >= 20 &&
+        s.traditions.some((tradition) => tradition.tokens.includes('S_03'))
+      ) {
+        for (const worker of activeUnits(s).filter((u) => b.workerIds?.includes(u.id))) {
+          recordEvent(s, worker, 'ENV_MILITARY', 100, ['S_08'], 60);
+          evaluateDiscoveries(s, worker);
+        }
       }
     }
     if (b.kind === 'market' && efficiency > 0) {
@@ -2134,20 +2367,23 @@ function produceCity(s: GameState, c: City, spentCycles = 0) {
     }
     if (b.kind === 'temple' && c.factionId === PLAYER)
       s.attention = Math.min(effects.attentionCap, s.attention + 20 * efficiency);
-    if (b.kind === 'archive' && efficiency > 0 && c.factionId === PLAYER)
+    if (b.kind === 'archive' && efficiency > 0 && c.factionId === PLAYER && !ctx.writingForbidden) {
       for (const m of Object.values(s.words))
         m.support = Math.max(m.support ?? 0, efficiency >= 1 ? 1 : efficiency);
+      recordUrbanCraft(s, c, b, (90 * efficiency) / 5, ['O_14', 'V_14']);
+    }
     if (b.kind === 'school' && efficiency > 0) {
       for (const u of activeUnits(s).filter((u) => u.cityId === c.id && u.age < 4))
         u.intelligence = Math.min(10, (u.initialIntelligence ?? u.intelligence) + 2 * efficiency);
     }
   }
   // Unassigned workers use the same 2-second extraction cycle as village labour.
-  const occupied = buildings.reduce(
+  const workforce = workingCityCohorts(s, c),
+    occupied = buildings.reduce(
       (n, b) => n + BUILDING_SPECS[b.kind].workers * (b.lastEfficiency ?? 0),
       0,
     ),
-    free = Math.max(0, c.cohorts.workers + c.cohorts.slaves - occupied),
+    free = Math.max(0, workforce.workers + workforce.slaves - occupied),
     nodes = s.entities.filter(
       (e) =>
         Math.floor(e.x / 100) === c.sectorX &&
@@ -2195,8 +2431,8 @@ function produceCity(s: GameState, c: City, spentCycles = 0) {
       recordLawWork(s, c.id, ['S_09', 'V_10', 'O_04', 'O_01'], c.production.meat, stamp);
     if (c.production.ingot > 0)
       recordLawWork(s, c.id, ['S_09', 'V_12', 'O_07', 'O_05'], c.production.ingot, stamp);
-    if (c.production.coin > 0)
-      recordLawWork(s, c.id, ['S_09', 'V_11', 'O_12'], c.production.coin, stamp);
+    if (c.production.coin > mintedCoin)
+      recordLawWork(s, c.id, ['S_09', 'V_11', 'O_12'], c.production.coin - mintedCoin, stamp);
     if (buildings.some((b) => b.kind === 'archive' && b.active && (b.lastEfficiency ?? 0) > 0))
       recordLawWork(s, c.id, ['S_09', 'V_05', 'O_09', 'M_02'], 1, stamp);
   }
@@ -2245,7 +2481,9 @@ function cityNutritionAndBirths(s: GameState, c: City) {
   const chance =
     birthProbability(cityPopulation(c), c.housing, hut, effects.birthAdd) *
     effects.growth *
-    (c.factionId === PLAYER ? imperialLawEffects(s).birthMultiplier : 1);
+    (c.factionId === PLAYER
+      ? imperialLawEffects(s).birthMultiplier * guidedBirthMultiplier(s, c.id)
+      : 1);
   let births = 0;
   for (
     let pair = 0;
@@ -2254,7 +2492,77 @@ function cityNutritionAndBirths(s: GameState, c: City) {
   )
     if (random(s) < chance) births++;
   c.cohorts.workers += births;
-  if (c.factionId === PLAYER) s.stats.births += births;
+  if (c.factionId === PLAYER) {
+    s.stats.births += births;
+    // These identities represent births already counted in the worker cohort.
+    // A city must retain future pupils and discovery actors after its founders age.
+    // Use an independent metadata hash so names/sex/stats do not redraw birth rolls.
+    const parents = pairFertileUnits(
+      activeUnits(s).filter(
+        (u) =>
+          u.cityId === c.id &&
+          u.age >= 4 &&
+          u.age < 14 &&
+          u.hunger <= 50 &&
+          !(effects.celibateSages && u.intelligence >= 7),
+      ),
+    );
+    let living = activeUnits(s).length;
+    for (
+      let index = 0;
+      index < births && living < IMPERIAL_ASSUMPTIONS.maximumLivingUrbanIdentities;
+      index++, living++
+    ) {
+      const pair = parents.length ? parents[index % parents.length] : undefined;
+      const id = nextId(s, 'unit');
+      let hash = s.seed >>> 0;
+      for (const character of id) hash = (Math.imul(hash, 31) + character.charCodeAt(0)) >>> 0;
+      const sex = hash % 2 ? 'F' : 'M';
+      const strength = clamp(
+        (pair ? (pair[0].strength + pair[1].strength) / 2 : 5) + ((hash >>> 1) % 2 ? 1 : -1),
+        1,
+        10,
+      );
+      const intelligence = clamp(
+        (pair ? (pair[0].intelligence + pair[1].intelligence) / 2 : 5) +
+          ((hash >>> 2) % 2 ? 1 : -1),
+        1,
+        10,
+      );
+      const child: Unit = {
+        id,
+        name: newbornName(s, sex),
+        sex,
+        parentIds: pair ? [pair[0].id, pair[1].id] : undefined,
+        bornAt: s.time,
+        x: c.x,
+        y: c.y,
+        hp: 60,
+        hunger: 10,
+        temp: 100,
+        age: 0,
+        strength,
+        intelligence,
+        initialStrength: strength,
+        initialIntelligence: intelligence,
+        action: 'idle',
+        progress: 0,
+        knows: [...INNATE_WORDS],
+        isolation: 0,
+        caste: 'citizen',
+        factionId: PLAYER,
+        cityId: c.id,
+        eventMemory: [],
+        tension: {},
+        cooldowns: {},
+      };
+      s.units.push(child);
+      for (const word of INNATE_WORDS) if (s.words[word]) s.words[word].custodians.push(id);
+      if (child.parentIds)
+        recordTribeEvent(s, { kind: 'birth', unitId: id, parentIds: child.parentIds });
+      log(s, `${child.name} nasce a ${c.name}.`, 'good');
+    }
+  }
 }
 
 function payArmyUpkeep(s: GameState) {
@@ -2396,17 +2704,46 @@ function applySeasonalLaws(s: GameState) {
     s.cohesion = clamp(s.cohesion - legal.winterCorveeCohesionCost);
 }
 function teachProvinces(s: GameState) {
-  for (const city of ownCities(s).filter(
-    (c) => !c.capital && c.assimilation.active && c.assimilation.delegateCount > 0,
+  for (const city of s.cities.filter(
+    (c) =>
+      !c.capital &&
+      c.factionId !== 'ruins' &&
+      c.assimilation.active &&
+      c.assimilation.delegateCount > 0 &&
+      c.cohorts.sages > 0,
   )) {
+    const foreign = city.factionId !== PLAYER;
+    const host = s.factions.find((f) => f.id === city.factionId);
+    const hostDoctrine = getDogmaEffects(doctrineFor(s, city.factionId, city));
+    if (
+      getDogmaEffects(s).isolated ||
+      getDogmaEffects(s).writingForbidden ||
+      hostDoctrine.isolated ||
+      hostDoctrine.writingForbidden
+    )
+      continue;
+    if (
+      foreign &&
+      (!host || host.hostile || host.relation < IMPERIAL_ASSUMPTIONS.peacefulDelegationRelation)
+    )
+      continue;
     const missing = known(s)
       .filter((w) => !city.words.includes(w))
       .slice(0, 2);
     city.words.push(...missing);
-    const originalFaction = s.factions.find((f) => f.cityId === city.id);
+    const originalFaction = host ?? s.factions.find((f) => f.cityId === city.id);
     if (originalFaction) {
-      originalFaction.words = [...city.words];
-      originalFaction.intelligibility = getIntelligibility(s, city.words);
+      originalFaction.words = [...new Set([...originalFaction.words, ...city.words])];
+      originalFaction.intelligibility = getIntelligibility(s, originalFaction.words);
+    }
+    // A peaceful school shares vocabulary, never imposes the player's religion.
+    if (foreign) {
+      log(
+        s,
+        `${city.name} apprende ${missing.length} parole attraverso la delegazione pacifica.`,
+        'good',
+      );
+      continue;
     }
     if (
       city.dogmas.length &&
@@ -2490,57 +2827,201 @@ function foreignComprehension(s: GameState, f: Faction, c: City) {
       f.words = f.words.filter((w) => w !== id);
   }
 }
-/** Foreign citizens first satisfy the same food need using physical, finite local nodes. */
+/** Foreign food and crafts share the same finite unassigned worker budget.
+ * Meals may be eaten where harvested; only physical surplus enters the stores. */
 function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
   const inv = c.resources,
-    nodes = s.entities.filter(
-      (e) => Math.floor(e.x / 100) === c.sectorX && Math.floor(e.y / 100) === c.sectorY,
+    localNode = (e: { x: number; y: number }) =>
+      Math.floor(e.x / 100) === c.sectorX && Math.floor(e.y / 100) === c.sectorY,
+    nodes = s.entities
+      .filter((e) => {
+        if (localNode(e)) return true;
+        if (
+          distance(e, c) > 90 ||
+          (Math.floor(e.x / 100) === Math.floor(s.home.x / 100) &&
+            Math.floor(e.y / 100) === Math.floor(s.home.y / 100))
+        )
+          return false;
+        const owner = s.cities.find(
+          (city) =>
+            city.sectorX === Math.floor(e.x / 100) &&
+            city.sectorY === Math.floor(e.y / 100) &&
+            city.factionId !== 'ruins',
+        );
+        return !owner || owner.factionId === c.factionId;
+      })
+      .sort(
+        (a, b) => Number(localNode(b)) - Number(localNode(a)) || distance(a, c) - distance(b, c),
+      ),
+    season = endedSeason(s),
+    loadSize = f.words.includes('O_13') ? 5 : f.words.includes('V_05') ? 3 : 1,
+    travelCycles = (e: { x: number; y: number }) =>
+      localNode(e) ? 0 : (2 * distance(e, c)) / 4 / IMPERIAL_ASSUMPTIONS.extractionCycleSeconds;
+  allocateCityWorkers(s, c);
+  const occupied = cityBuildings(s, c).reduce(
+      (n, b) => n + BUILDING_SPECS[b.kind].workers * (b.lastEfficiency ?? 0),
+      0,
     ),
-    season = endedSeason(s);
-  c.seasonFoodConsumed = 0;
-  const population = cityPopulation(c),
-    storedNutrition = FOOD.reduce((n, r) => n + inv[r] * RESOURCE_SPECS[r].nutrition, 0);
-  let needed = Math.max(0, population * 90 * 0.8 - storedNutrition),
-    cycles =
-      ((c.cohorts.workers + c.cohorts.slaves) * 90) / IMPERIAL_ASSUMPTIONS.extractionCycleSeconds;
-  for (const node of nodes.filter((e) => e.kind === 'berries' && e.amount > 0 && season !== 3)) {
-    if (needed <= 0 || cycles <= 0) break;
-    const amount = Math.min(node.amount, Math.ceil(needed / 25), cycles);
-    node.amount -= amount;
-    needed = Math.max(0, needed - amount * 25);
-    c.seasonFoodConsumed += amount * 25;
-    cycles -= amount;
-    for (let i = 0; i < Math.ceil(amount); i++) foreignEvent(s, f, 'ENV_CRAFT', 20, ['V_04'], true);
-    if (f.words.includes('V_04'))
-      for (let i = 0; i < Math.floor(amount); i++) if (random(s) < 0.1) inv.seed++;
-  }
+    available = workingCityCohorts(s, c),
+    workforce = available.workers + available.slaves,
+    initialCycles =
+      (Math.max(0, workforce - occupied) * 90) / IMPERIAL_ASSUMPTIONS.extractionCycleSeconds,
+    population = cityPopulation(c),
+    fullNeed = population * 90 * 0.8;
+  let cycles = initialCycles,
+    reservedNew = 0;
+  const previousNutrition = FOOD.reduce((n, r) => n + inv[r] * RESOURCE_SPECS[r].nutrition, 0);
+  if (previousNutrition < fullNeed) foreignEvent(s, f, 'ENV_STARVATION', 15, ['M_02']);
+  // Reserve real vegetables for the next winter's herd upkeep, accounting for
+  // the intervening spoilage. Surplus meat cannot pay a vegetable requirement.
+  let vegetableTarget =
+    f.words.includes('V_05') && season !== 3
+      ? (BUILDING_SPECS.pen.upkeep.food ?? 0) *
+        Math.max(1, cityBuildings(s, c).filter((b) => b.kind === 'pen').length)
+      : 0;
+  for (let future = season + 1; future < 3; future++)
+    vegetableTarget /=
+      1 -
+      resourceSpoilage(
+        RESOURCE_SPECS.food.spoil,
+        future === 1,
+        cityHas(s, c, 'storage'),
+        inv.pottery > 0,
+      );
+  const reservedVegetables = Math.min(inv.food, vegetableTarget);
+  inv.food -= reservedVegetables;
+  c.seasonFoodConsumed = consumeNutrition(inv, fullNeed);
+  inv.food += reservedVegetables;
+  let needed = Math.max(0, fullNeed - c.seasonFoodConsumed);
+  const expectedHarvest = cityBuildings(s, c).reduce(
+    (n, b) =>
+      n +
+      (b.kind === 'pen' && (b.livestock ?? 0) > 0
+        ? 20 * 40
+        : b.kind === 'farm' && season === 2
+          ? 50 * 25
+          : 0) *
+        (b.lastEfficiency ?? 0),
+    0,
+  );
+  const foodRoom = () =>
+    Math.max(
+      0,
+      cityCapacity(s, c, 'food') -
+        RESOURCES.filter((r) => RESOURCE_SPECS[r].category === 'food').reduce(
+          (n, r) => n + inv[r],
+          0,
+        ),
+    );
+  const wantedNutrition = (vegetables = false) =>
+    Math.max(
+      0,
+      Math.max(0, needed - expectedHarvest) +
+        (f.words.includes('V_05') && cityHas(s, c, 'storage') ? population * 90 * 0.8 : 0) -
+        FOOD.reduce((n, r) => n + inv[r] * RESOURCE_SPECS[r].nutrition, 0),
+    ) + (vegetables ? Math.max(0, vegetableTarget - inv.food) * 25 : 0);
+  const physicalDelivery = (amount: number) => {
+    for (let i = 0; i < Math.floor(amount); i++)
+      foreignEvent(s, f, 'ENV_CRAFT', 20, ['V_04', 'V_05', 'V_08', 'V_10'], true);
+  };
+  const feedOrStore = (resource: 'food' | 'meat' | 'cooked', amount: number) => {
+    const protectedFood =
+      resource === 'food'
+        ? addCityResource(s, c, 'food', Math.min(amount, Math.max(0, vegetableTarget - inv.food)))
+        : 0;
+    const nutrition = RESOURCE_SPECS[resource].nutrition,
+      eaten = Math.min(amount - protectedFood, Math.max(0, needed - expectedHarvest) / nutrition);
+    needed = Math.max(0, needed - eaten * nutrition);
+    c.seasonFoodConsumed = (c.seasonFoodConsumed ?? 0) + eaten * nutrition;
+    const stored = addCityResource(s, c, resource, amount - eaten - protectedFood);
+    return eaten + stored + protectedFood;
+  };
+  const harvest = (node: GameState['entities'][number], resource: 'food' | 'meat') => {
+    const nutrition = RESOURCE_SPECS[resource].nutrition,
+      appetite = Math.max(0, wantedNutrition(resource === 'food'));
+    if (appetite <= 0 || cycles < 1) return 0;
+    let amount = Math.min(
+      node.amount,
+      Math.ceil(appetite / nutrition),
+      Math.floor(cycles),
+      Math.ceil(needed / nutrition) + Math.floor(foodRoom()),
+    );
+    while (amount > 0 && amount + travelCycles(node) * Math.ceil(amount / loadSize) > cycles)
+      amount--;
+    if (amount <= 0) return 0;
+    const tripWork = travelCycles(node) * Math.ceil(amount / loadSize);
+    let raw = amount;
+    if (resource === 'meat' && cityHas(s, c, 'campfire') && inv.wood >= 1) {
+      const cooked = Math.min(
+        raw,
+        Math.floor(inv.wood),
+        Math.max(0, Math.floor(cycles - amount - tripWork)),
+      );
+      if (cooked > 0) {
+        inv.wood -= cooked;
+        raw -= cooked;
+        cycles -= cooked;
+        feedOrStore('cooked', cooked);
+        for (let i = 0; i < cooked; i++)
+          foreignEvent(s, f, 'ENV_CRAFT', 20, ['V_07', 'V_12'], true);
+      }
+    }
+    const received = feedOrStore(resource, raw) + (amount - raw);
+    node.amount = Math.max(0, node.amount - received);
+    cycles -= received + tripWork;
+    physicalDelivery(received);
+    if (resource === 'meat') {
+      foreignEvent(s, f, 'ENV_HUNT_MEAL', 100, ['O_04']);
+      for (let i = 0; i < Math.floor(received); i++)
+        foreignEvent(s, f, 'ENV_CRAFT', 20, ['O_04'], true);
+    } else {
+      foreignEvent(s, f, 'ENV_FORAGE_NODE', 50, ['V_04']);
+      if (f.words.includes('V_04'))
+        for (let i = 0; i < Math.floor(received); i++)
+          if (random(s) < 0.1) addCityResource(s, c, 'seed', 1);
+    }
+    foreignComprehension(s, f, c);
+    return received;
+  };
+  for (const node of nodes.filter((e) => e.kind === 'berries' && e.amount > 0 && season !== 3))
+    harvest(node, 'food');
+  // A leftover carcass remains a real food source; no second hunt is necessary.
+  for (const prey of nodes.filter((e) => e.kind === 'deer' && e.hp <= 0 && e.amount > 0))
+    harvest(prey, 'meat');
   for (const prey of nodes.filter((e) => e.kind === 'deer' && e.hp > 0 && !e.domesticated)) {
-    if (needed <= 0 || cycles <= 0) break;
-    // All initial tribes know Colpire: the real herd loses the killed animal.
-    const requiredAttacks = Math.ceil(prey.hp / effectiveDamage(inv.spear >= 1 ? 15 : 5, 5));
-    if (cycles < requiredAttacks) break;
-    cycles -= requiredAttacks;
+    if (wantedNutrition() <= 0 || cycles < 1) break;
+    if (
+      f.words.includes('V_10') &&
+      nodes.filter((e) => e.kind === 'deer' && e.hp > 0 && !e.domesticated).length <= 1
+    )
+      break;
+    const attacks = Math.ceil(prey.hp / effectiveDamage(inv.spear >= 1 ? 15 : 5, 5));
+    if (cycles < attacks + 1 + travelCycles(prey)) continue;
+    cycles -= attacks;
     prey.hp = 0;
-    const amount = Math.min(prey.amount, Math.ceil(needed / 40));
-    prey.amount -= amount;
-    needed = Math.max(0, needed - amount * 40);
-    c.seasonFoodConsumed += amount * 40;
     if (inv.spear >= 1) inv.spear = Math.max(0, inv.spear - 0.05);
-    if (f.words.includes('V_06')) inv.pelt++;
-    for (let i = 0; i < Math.ceil(amount); i++) foreignEvent(s, f, 'ENV_CRAFT', 20, ['O_04'], true);
+    if (f.words.includes('V_06')) addCityResource(s, c, 'pelt', 1);
+    harvest(prey, 'meat');
   }
-  if (needed > 0) foreignEvent(s, f, 'ENV_STARVATION', 15, ['M_02']);
-  // Seasonal workers actually travel for food; a nocturnal trip is witnessed, once per night.
+  if (needed > expectedHarvest) foreignEvent(s, f, 'ENV_STARVATION', 15, ['M_02']);
   if (c.seasonFoodConsumed > 0) foreignEvent(s, f, 'ENV_NIGHTFALL', 25, ['C_01']);
   if (s.nightCount >= 3) foreignEvent(s, f, 'ENV_SLEEP_CLUSTER', 100, ['O_01']);
   if (season === 0 && inv.seed > 0) foreignEvent(s, f, 'ENV_SEED_SPROUT', 60, ['V_09']);
-  const make = (kind: BuildingKind) => {
-    const spec = BUILDING_SPECS[kind];
-    if (cityBuildings(s, c).some((b) => b.kind === kind) || !canPay(inv, spec.cost)) return false;
+  foreignComprehension(s, f, c);
+  const make = (kind: BuildingKind, maximum = 1) => {
+    const spec = BUILDING_SPECS[kind],
+      existing = cityBuildings(s, c).filter((b) => b.kind === kind);
+    if (existing.length >= maximum || !canPay(inv, spec.cost)) return false;
     const animal =
       kind === 'pen'
         ? nodes.find((e) => e.kind === 'deer' && e.hp > 0 && !e.domesticated)
         : undefined;
+    if (kind === 'pen' && !animal) return false;
+    const work = Math.min(spec.workers * 45, Math.max(0, initialCycles - reservedNew));
+    const animalTravel = animal ? travelCycles(animal) : 0;
+    if (cycles < 2.5 + work + animalTravel) return false;
+    cycles -= 2.5 + work + animalTravel;
+    reservedNew += work;
     pay(inv, spec.cost);
     const b: Building = {
       id: nextId(s, 'foreign-building'),
@@ -2552,91 +3033,59 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
       completed: true,
       workerIds: [],
       cityId: c.id,
-      livestock: kind === 'pen' ? (animal ? 1 : 0) : undefined,
+      livestock: animal ? 1 : undefined,
     };
     if (animal) {
       animal.domesticated = true;
       animal.x = b.x;
       animal.y = b.y;
-      foreignEvent(s, f, 'ENV_CRAFT', 20, ['V_10'], true);
     }
     s.buildings.push(b);
     c.buildingIds.push(b.id);
     c.housing += spec.housing ?? 0;
+    foreignEvent(s, f, 'ENV_CRAFT', 20, ['V_08'], true);
     return true;
   };
+  // A real food source takes priority over spending its last construction wood
+  // on stores and heat. The next extraction shift can then fund infrastructure.
+  if (f.words.includes('V_10')) make('pen', Math.max(1, Math.ceil((population * 72) / 800)));
   if (f.words.includes('V_05')) {
     make('storage');
     make('depot');
   }
   if (f.words.includes('O_05')) make('campfire');
-  if (f.words.includes('V_09')) make('farm');
-  if (f.words.includes('V_10')) make('pen');
+  if (f.words.includes('V_09')) make('farm', Math.max(1, Math.ceil((population * 288) / 1250)));
   if (f.words.includes('V_12')) make('foundry');
   if (f.words.includes('O_09')) make('archive');
   if (f.words.includes('S_07')) make('palace');
   if (f.words.includes('O_14')) make('court');
   if (f.words.includes('V_14')) make('school');
-  if (f.words.includes('V_06') && inv.stone >= 1) {
+  if (f.words.includes('V_06') && inv.stone >= 1 && cycles >= 1) {
     inv.stone--;
     inv.tool++;
+    cycles--;
     foreignEvent(s, f, 'ENV_CRAFT', 20, ['O_05'], true);
   }
   if (cityHas(s, c, 'campfire') && inv.wood >= 10 && nodes.some((e) => e.kind === 'ore'))
     foreignEvent(s, f, 'ENV_HIGH_HEAT', 50, ['O_07']);
-  if (f.words.includes('O_05') && inv.meat >= 1 && inv.wood >= 1) {
-    inv.meat--;
-    inv.wood--;
-    inv.cooked++;
-    foreignEvent(s, f, 'ENV_CRAFT', 20, ['V_07'], true);
+  if (cityHas(s, c, 'campfire') && inv.meat >= 1 && inv.wood >= 1 && cycles >= 1) {
+    const cooked = Math.min(Math.floor(inv.meat), Math.floor(inv.wood), Math.floor(cycles), 5);
+    inv.meat -= cooked;
+    inv.wood -= cooked;
+    cycles -= cooked;
+    const made = addCityResource(s, c, 'cooked', cooked);
+    // Both inputs and food space were freed; no output can overflow its stores.
+    if (made < cooked) inv.meat += cooked - made;
+    for (let i = 0; i < made; i++) foreignEvent(s, f, 'ENV_CRAFT', 20, ['V_07', 'V_12'], true);
   }
-  if (f.words.includes('O_12') && inv.ingot >= 1) {
+  if (f.words.includes('O_12') && inv.ingot >= 1 && cycles >= 1) {
     inv.ingot--;
     inv.coin += 100;
+    cycles--;
     foreignEvent(s, f, 'ENV_CRAFT', 20, ['O_08'], true);
   }
   foreignComprehension(s, f, c);
-  return (
-    ((c.cohorts.workers + c.cohorts.slaves) * 90) / IMPERIAL_ASSUMPTIONS.extractionCycleSeconds -
-    cycles
-  );
-}
-function foreignAI(s: GameState) {
-  for (const faction of s.factions) {
-    const city = s.cities.find((c) => c.id === faction.cityId);
-    if (!city || city.factionId === PLAYER) continue;
-    city.words = [...new Set([...city.words, ...faction.words])];
-    // Foreign societies obey the same inventories and construction costs; no free armies.
-    if (
-      faction.hostile &&
-      city.cohorts.warriors >= 20 &&
-      city.resources.metalArms >= 20 &&
-      !s.battalions.some((b) => b.factionId === faction.id && b.hp > 0)
-    ) {
-      const target = capital(s);
-      if (!target) continue;
-      city.cohorts.warriors -= 20;
-      city.resources.metalArms -= 20;
-      s.battalions.push({
-        id: nextId(s, 'foreign-army'),
-        name: `Guerrieri di ${faction.name}`,
-        x: city.x,
-        y: city.y,
-        cityId: city.id,
-        factionId: faction.id,
-        hp: 2000,
-        maxHp: 2000,
-        morale: 1,
-        action: 'conquering',
-        targetId: target.id,
-        target: { type: 'city', id: target.id, x: target.x, y: target.y },
-        catapult: false,
-        occupation: 0,
-        metalWeapons: 20,
-      });
-    }
-    faction.intelligibility = getIntelligibility(s, faction.words);
-  }
+  return Math.max(0, initialCycles - cycles - reservedNew);
 }
 
 function maintainForeignCity(s: GameState, c: City) {
@@ -2717,7 +3166,7 @@ export function seasonalImperial(s: GameState) {
   taxCities(s);
   payArmyUpkeep(s);
   theftAndInequality(s);
-  foreignAI(s);
+  dispatchForeignPolicy(s);
   if (
     hasWord(s, 'O_12') &&
     activeUnits(s).some((u) => u.action === 'saving' && u.command?.includes('O_12'))

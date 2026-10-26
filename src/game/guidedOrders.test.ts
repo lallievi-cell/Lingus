@@ -86,7 +86,8 @@ describe('guided material transport remains physical and bounded', () => {
     expect(s.units[0].command).toBeUndefined();
     expect(total(s, 'wood')).toBe(7);
     expect(s.stats.commands).toBe(1);
-    expect(s.words.V_04.uses).toBe(1);
+    // One spoken order, plus bounded reinforcement from actual productive work.
+    expect(s.words.V_04.uses).toBe(3);
   });
 
   it.each([
@@ -110,16 +111,33 @@ describe('guided material transport remains physical and bounded', () => {
     },
   );
 
-  it('preserves the single-trip rule for a Classic game and for food in a Guided game', () => {
+  it('preserves the single-trip rule for Classic and repeats Guided food only after Conservare', () => {
     let classic = village('classic');
     classic = advance(issueCommand(classic, ['S_01', 'V_04', 'O_03'], source(classic)), 15);
     expect(classic.resources.wood).toBe(3);
     expect(classic.entities[0].amount).toBe(17);
     let food = village();
-    Object.assign(food.entities[0], { kind: 'berries', amount: 20, hp: 1, maxHp: 1 });
-    food = advance(issueCommand(food, ['S_01', 'V_04', 'O_04'], source(food)), 15);
-    expect(food.resources.food).toBe(3);
-    expect(food.entities[0].amount).toBe(17);
+    food.words.V_05.retention = 0;
+    Object.assign(food.entities[0], { kind: 'berries', amount: 7, hp: 1, maxHp: 1 });
+    food = advance(issueCommand(food, ['S_01', 'V_04', 'O_04'], source(food)), 10);
+    expect(food.resources.food).toBe(1);
+    expect(food.entities[0].amount).toBe(6);
+    learn(food, 'V_05');
+    food = until(
+      issueCommand(food, ['S_01', 'V_04', 'O_04'], source(food)),
+      (state) => state.resources.food === 7 && !state.units[0].carry,
+    );
+    expect(food.entities[0].amount).toBe(0);
+    expect(food.stats.commands).toBe(2);
+    expect(food.units[0].command).toBeUndefined();
+    let classicFood = village('classic');
+    Object.assign(classicFood.entities[0], { kind: 'berries', amount: 20, hp: 1, maxHp: 1 });
+    classicFood = advance(
+      issueCommand(classicFood, ['S_01', 'V_04', 'O_04'], source(classicFood)),
+      15,
+    );
+    expect(classicFood.resources.food).toBe(3);
+    expect(classicFood.entities[0].amount).toBe(17);
   });
 
   it('reserves shared capacity across carriers and leaves the uncollected materials in place', () => {

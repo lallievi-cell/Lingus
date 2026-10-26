@@ -48,6 +48,44 @@ function advance(s: GameState, seconds: number) {
 }
 
 describe('fire caretakers remain real guards through work interruptions', () => {
+  it('stops speculative high heat once Metal is known instead of silently burning repeated loads', () => {
+    let s = camp(20);
+    s.entities.push({
+      id: 'nearby-ore',
+      kind: 'ore',
+      x: 255,
+      y: 250,
+      amount: 100,
+      hp: 100,
+      maxHp: 100,
+    });
+    s.words.O_07 = { retention: 100, custodians: [s.units[0].id], uses: 0 };
+    s = advance(guard(s), 16);
+    expect(s.units[0].action).toBe('guarding');
+    expect(s.resources.wood).toBe(20);
+    expect(s.burntWood).toBe(0);
+  });
+
+  it('pays the real high-heat experiments but stops burning while their Metal intuition awaits resolution', () => {
+    let s = camp(20);
+    s.resources.wood = 40;
+    s.units[0].intelligence = 9;
+    s.words.O_02 = { retention: 100, custodians: [s.units[0].id], uses: 0 };
+    s.entities.push({
+      id: 'nearby-ore',
+      kind: 'ore',
+      x: 255,
+      y: 250,
+      amount: 100,
+      hp: 100,
+      maxHp: 100,
+    });
+    s = advance(guard(s), 22);
+    expect(s.sparks.filter((spark) => spark.wordId === 'O_07')).toHaveLength(1);
+    expect(s.resources.wood).toBe(20);
+    expect(s.burntWood).toBe(20);
+  });
+
   it('keeps a direct caretaker present overnight and protects the actual seasonal storm', () => {
     let s = advance(guard(camp()), 9.75);
     expect(s.units[0].action).toBe('guarding');

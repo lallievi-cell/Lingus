@@ -15,8 +15,10 @@ import type { GameState, MapEntity, Target } from '../../src/game/types';
  * Starting the game mirrors the welcome screen. No simulation fixture is injected.
  */
 export function replayOrdinaryFirstYear(): GameState {
-  let s = { ...createGame(6842), started: true };
-  let artisanCalledToHearth = false;
+  let s = { ...createGame(6842, 'classic'), started: true };
+  let artisanCalledToHearth = false,
+    foodOrdered = false;
+  const winterHunts = new Map<string, string>();
   const hearth: Target = { type: 'point', x: 252, y: 235 };
   const visible = (entity: MapEntity) =>
     s.sectors.some(
@@ -128,21 +130,17 @@ export function replayOrdinaryFirstYear(): GameState {
     const group: Target = fire
       ? { type: 'building', id: fire.id, x: fire.x, y: fire.y }
       : { type: 'point', ...HOME };
-    if (time === 130 || time === 300) {
+    if (time === 130) {
       const deer = s.entities
         .filter((e) => e.kind === 'deer' && e.hp > 0 && visible(e))
         .sort(
           (a, b) => Math.hypot(a.x - HOME.x, a.y - HOME.y) - Math.hypot(b.x - HOME.x, b.y - HOME.y),
         )[0];
-      say(
-        time === 130 ? ['S_02', 'V_03'] : ['S_01', 'V_03'],
-        { type: 'entity', id: deer.id, x: deer.x, y: deer.y },
-        time === 130 ? 'unit-0' : undefined,
-        group,
-      );
+      say(['S_02', 'V_03'], { type: 'entity', id: deer.id, x: deer.x, y: deer.y }, 'unit-0', group);
     }
-    // Let each real return finish; the depot frees material capacity for shelter.
-    if (time === 190 || time === 220) {
+    // Finish the real wood trips. Build the depot and food stores while their
+    // vocabulary is still available, before the elderly custodian can die.
+    if (time === 190 || time === 230) {
       const tree = s.entities
         .filter((e) => e.kind === 'tree' && e.amount > 12 && visible(e))
         .sort(
@@ -167,13 +165,48 @@ export function replayOrdinaryFirstYear(): GameState {
         group,
       );
     }
-    if (time === 230) say(['S_02', 'V_05', 'O_05'], undefined, 'unit-5', group);
-    // Pay for a house before winter, then build stores from the delivered wood.
-    if (time === 260)
-      say(['S_01', 'V_08', 'O_02', 'O_01'], { type: 'point', ...HOME }, undefined, group);
-    if (time === 270)
+    if (time === 220)
       say(['S_01', 'V_05', 'O_04', 'M_02'], { type: 'point', ...HOME }, undefined, group);
-    if (time === 320) say(['S_01', 'V_02', 'O_04'], undefined, undefined, group);
+    if (time === 225) say(['S_02', 'V_05', 'O_05'], undefined, 'unit-5', group);
+    if (!foodOrdered && time >= 253 && time <= 258 && s.resources.stone >= 20) {
+      const berries = s.entities
+        .filter((e) => e.kind === 'berries' && e.amount > 0 && visible(e))
+        .sort(
+          (a, b) => Math.hypot(a.x - HOME.x, a.y - HOME.y) - Math.hypot(b.x - HOME.x, b.y - HOME.y),
+        )[0];
+      if (berries)
+        foodOrdered = say(
+          ['S_01', 'V_02', 'O_04'],
+          { type: 'entity', id: berries.id, x: berries.x, y: berries.y },
+          undefined,
+          { type: 'point', ...HOME },
+        );
+    }
+    if (
+      !s.disasters.blizzard &&
+      (time === 290 || time === 310) &&
+      s.buildings.some((b) => b.kind === 'storage' && !b.cityId)
+    ) {
+      const id = time === 290 ? 'unit-0' : 'unit-3';
+      const deer = s.entities
+        .filter((e) => e.kind === 'deer' && e.hp > 0 && visible(e))
+        .sort(
+          (a, b) => Math.hypot(a.x - HOME.x, a.y - HOME.y) - Math.hypot(b.x - HOME.x, b.y - HOME.y),
+        )[0];
+      if (deer && say(['S_02', 'V_03'], { type: 'entity', id: deer.id, x: deer.x, y: deer.y }, id))
+        winterHunts.set(id, deer.id);
+    }
+    for (const [id, preyId] of winterHunts) {
+      const prey = s.entities.find((e) => e.id === preyId)!;
+      if (
+        prey.hp <= 0 &&
+        prey.amount > 0 &&
+        s.voice >= 1 &&
+        say(['S_02', 'V_04', 'O_04'], { type: 'entity', id: prey.id, x: prey.x, y: prey.y }, id)
+      )
+        winterHunts.delete(id);
+    }
+    if (time === 330) say(['S_01', 'V_05', 'O_05'], undefined, undefined, group);
     if (time === 350) say(['S_02', 'V_05', 'O_05'], undefined, 'unit-3', group);
     s = tick(s, 0.25);
   }

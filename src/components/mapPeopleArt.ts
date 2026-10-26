@@ -79,10 +79,49 @@ export function drawPainterlyBody(
   time: number,
   equipment: VisibleUnitEquipment,
   pose = getUnitAnimation(unit, time, { equipment }),
+  foreign?: 'visitor' | 'hostile',
 ) {
   ctx.save();
   ctx.scale(pose.facing, 1);
   paintBody(ctx, unit, time, equipment, pose);
+  if (foreign) {
+    // Sewn shoulder insignia stays inside the person's existing clickable silhouette.
+    const sleeping = pose.kind === 'sleep';
+    ctx.save();
+    ctx.translate(sleeping ? -2 : -3, sleeping ? -4 : -21 + pose.bodyDrop);
+    ctx.fillStyle = foreign === 'hostile' ? '#9e4f3e' : '#557e85';
+    ctx.strokeStyle = '#f0dfb8';
+    ctx.lineWidth = 0.65;
+    ctx.beginPath();
+    ctx.moveTo(-2.2, -1.5);
+    ctx.lineTo(2.2, -1.5);
+    ctx.lineTo(2.2, 3.2);
+    ctx.lineTo(0, 2.4);
+    ctx.lineTo(-2.2, 3.2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    stroke(
+      ctx,
+      [
+        [-1, -0.4],
+        [1, 1.5],
+      ],
+      '#f0dfb8',
+      0.7,
+    );
+    if (foreign === 'hostile')
+      stroke(
+        ctx,
+        [
+          [1, -0.4],
+          [-1, 1.5],
+        ],
+        '#f0dfb8',
+        0.7,
+      );
+    ctx.restore();
+  }
   ctx.restore();
 }
 

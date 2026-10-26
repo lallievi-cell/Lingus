@@ -13,6 +13,7 @@ import {
   sexLabel,
   unitLifeHint,
   visibleUnitName,
+  foreignUnitDisposition,
 } from './unitReadability';
 
 export interface TargetPresentation {
@@ -252,6 +253,18 @@ export function targetPresentation(
         description: unitLifeHint(unit),
         hint: 'La Cronaca e il riepilogo della tribù conservano il ricordo di questa perdita.',
       };
+    const foreign = foreignUnitDisposition(state, unit);
+    if (foreign)
+      return {
+        label: visibleUnitName(state, unit),
+        stage: `${physicalStage} · ${foreign === 'hostile' ? 'Straniero ostile' : 'Visitatore straniero'}`,
+        kind: 'person',
+        description: `${foreign === 'hostile' ? 'Appartiene a una comunità in conflitto con la tribù.' : 'Appartiene a un’altra comunità.'}${warnings.length ? ` ${warnings.join(' · ')}.` : ''}${equipmentDescription}`,
+        hint:
+          foreign === 'hostile'
+            ? 'Il segno rosso incrociato distingue i combattenti ostili. Proteggi il villaggio e osserva il loro percorso.'
+            : 'Il segno azzurro distingue i visitatori dalle persone della tribù.',
+      };
     const custodian = getCustodianStatuses(state).find((status) => status.unitId === target.id);
     if (custodian)
       return {
@@ -314,6 +327,23 @@ export function targetPresentation(
         kind: 'stores',
         description: 'Aumenta lo spazio per conservare le risorse riportate all’accampamento.',
         hint: 'I materiali lasciati vicino agli alberi o alle rocce devono ancora essere trasportati.',
+      };
+    if (
+      building?.kind === 'pen' &&
+      state.playMode === 'guided' &&
+      !building.cityId &&
+      building.hp > 0 &&
+      building.completed !== false &&
+      !building.active
+    )
+      return {
+        label: BUILDING_NAMES.pen,
+        stage: 'In attesa di mangime',
+        kind: 'stores',
+        description: 'Il recinto ha interrotto la produzione perché mancava il mangime.',
+        hint: hasWord(state, 'O_08')
+          ? 'Consegna 5 vegetali, poi assegna di nuovo Addomesticare · Preda · Qui su questo recinto per riavviarlo.'
+          : 'Consegna vegetali, poi assegna di nuovo Addomesticare · Preda · Qui su questo recinto per riavviarlo.',
       };
   }
   return null;

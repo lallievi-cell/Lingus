@@ -25,6 +25,7 @@ import { entityTargetPresentation, targetPresentation } from './targetPresentati
 import { CITY_ART_BOUNDS } from './mapStrategicArt';
 import { getBattalionDisplayPoint } from './regionalLayout';
 import { deriveSiegePresentation } from './mapSiegeArt';
+import { visibleUnitName } from './unitReadability';
 import './WorldMap.css';
 
 interface WorldMapProps {
@@ -71,10 +72,10 @@ function viewBounds(state: GameState) {
 function targetLabel(state: GameState, target: WorldTarget | null) {
   if (!target) return null;
   const numbered = hasConcept(state, 'O_08');
-  if (target.type === 'unit')
-    return hasConcept(state, 'S_02')
-      ? (state.units.find((u) => u.id === target.id)?.name ?? 'Un compagno')
-      : 'Un compagno';
+  if (target.type === 'unit') {
+    const unit = state.units.find((u) => u.id === target.id);
+    return unit ? visibleUnitName(state, unit) : 'Una persona';
+  }
   if (target.type === 'city') {
     const city = state.cities.find((c) => c.id === target.id);
     if (!city) return 'Un insediamento';
@@ -328,6 +329,7 @@ export function WorldMap({
           (u) =>
             u.hp > 0 &&
             (!current.urbanized ||
+              (u.factionId !== undefined && u.factionId !== 'player') ||
               u.isKing ||
               ['delegating', 'frontline', 'frontline-returning'].includes(u.action)),
         )
@@ -636,16 +638,18 @@ export function WorldMap({
         miniCtx.lineWidth = 0.6;
         miniCtx.stroke();
       }
-      miniCtx.fillStyle = '#61764a';
       current.units
         .filter(
           (u) =>
             u.hp > 0 &&
+            isVisibleAt(current, u.x, u.y) &&
             (!current.urbanized ||
+              (u.factionId !== undefined && u.factionId !== 'player') ||
               u.isKing ||
               ['delegating', 'frontline', 'frontline-returning'].includes(u.action)),
         )
         .forEach((u) => {
+          miniCtx.fillStyle = u.factionId && u.factionId !== 'player' ? '#a2694e' : '#61764a';
           miniCtx.beginPath();
           miniCtx.arc((u.x / WORLD_SIZE) * mw, (u.y / WORLD_SIZE) * mh, 1.5, 0, Math.PI * 2);
           miniCtx.fill();

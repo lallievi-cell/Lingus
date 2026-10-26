@@ -7,9 +7,34 @@ import {
   sexLabel,
   unitLifeHint,
   visibleUnitName,
+  foreignUnitDisposition,
 } from './unitReadability';
 
 describe('observable people before names and arithmetic', () => {
+  it('identifies actual foreign visitors and hostility without exposing their names or vocabulary', () => {
+    const state = createGame(6842);
+    const person = state.units[0];
+    const faction = state.factions[0];
+    person.factionId = faction.id;
+    person.sex = 'M';
+    person.knows = ['O_09'];
+    expect(visibleUnitName(state, person)).toBe('Uno straniero');
+    expect(foreignUnitDisposition(state, person)).toBe('visitor');
+    const target = { type: 'unit' as const, id: person.id, x: person.x, y: person.y };
+    expect(targetPresentation(state, target)?.stage).toContain('Visitatore straniero');
+    faction.hostile = true;
+    expect(foreignUnitDisposition(state, person)).toBe('hostile');
+    const details = targetPresentation(state, target)!;
+    expect(details.stage).toContain('Straniero ostile');
+    expect(`${details.label} ${details.description}`).not.toMatch(/Korg|Scrittura|fertile/);
+    // A paid truce changes the visible danger; no stale hostile badge survives.
+    faction.peaceUntil = state.time + 90;
+    expect(foreignUnitDisposition(state, person)).toBe('visitor');
+    person.factionId = 'player';
+    expect(foreignUnitDisposition(state, person)).toBeUndefined();
+    expect(visibleUnitName(state, person)).toBe('Un compagno');
+  });
+
   it('distinguishes sex and each stage without requiring a learned word', () => {
     const state = createGame(6842);
     const child = state.units.find((unit) => unit.name === 'Ilo')!;

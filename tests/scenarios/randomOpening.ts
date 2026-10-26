@@ -5,16 +5,44 @@ import {
   dismissCampfire,
   hasWord,
   issueCommand,
+  prepareCampfireCouncil,
   solveSpark,
   teachWord,
   tick,
 } from '../../src/game/engine';
 import type { GameState, MapEntity, Target } from '../../src/game/types';
+import { canFitCraftOutput, canPayLocally } from '../../src/game/craftMaterials';
 
 export interface RandomOpeningOrder {
   at: number;
   tokens: string[];
   target?: Target;
+}
+
+function concludeCouncil(state: GameState) {
+  // A fortunate early Fire can leave little naturally accumulated fuel
+  // Attention. Extend the real council while keeping its next upkeep wood.
+  if (state.attention < 10 && state.resources.wood >= 4) state = prepareCampfireCouncil(state);
+  while (state.attention >= 10) {
+    const id = ['O_05', 'V_06', 'V_05', 'M_02', 'O_01']
+      .filter(
+        (id) =>
+          hasWord(state, id) &&
+          state.units.some(
+            (unit) =>
+              unit.hp > 0 &&
+              (!unit.factionId || unit.factionId === 'player') &&
+              unit.age < 14 &&
+              !state.words[id].custodians.includes(unit.id),
+          ),
+      )
+      .sort((a, b) => state.words[a].custodians.length - state.words[b].custodians.length)[0];
+    if (!id) break;
+    const previous = state.stats.taught;
+    state = teachWord(state, id);
+    if (state.stats.taught === previous) break;
+  }
+  return dismissCampfire(state);
 }
 
 /** Ordinary opening on a newly generated map. The player only chooses visible
@@ -62,22 +90,34 @@ export function replayRandomOpening(seed: number) {
     )
     .sort((a, b) => nearHome(a.tree) + nearHome(a.stone) - nearHome(b.tree) - nearHome(b.stone));
   const pair = pairs[0];
-  let stage: 'meal' | 'wood' | 'stone' | 'home' | 'craft' = 'meal';
+  let stage: 'meal' | 'wood' | 'stone' | 'home' | 'craft-site' | 'craft' = 'meal';
   let lastOrderAt = -Infinity;
   let firstFireAt: number | null = null;
 
-  const say = (tokens: string[], target?: Target) => {
+  const selectedGroup = () => {
     const adults = state.units.filter(
       (unit) => unit.hp > 0 && unit.age >= 4 && (!unit.factionId || unit.factionId === 'player'),
     );
+    // A dispersed group's arithmetic centre can be empty ground. Call from a
+    // real, metre-rounded cluster rather than selecting nobody between them.
+    const anchor: Target = adults
+      .map((unit) => ({ type: 'point' as const, x: Math.round(unit.x), y: Math.round(unit.y) }))
+      .sort(
+        (a, b) =>
+          adults.filter((unit) => Math.hypot(unit.x - b.x, unit.y - b.y) <= 15).length -
+            adults.filter((unit) => Math.hypot(unit.x - a.x, unit.y - a.y) <= 15).length ||
+          Math.hypot(a.x - HOME.x, a.y - HOME.y) - Math.hypot(b.x - HOME.x, b.y - HOME.y),
+      )[0];
+    return {
+      anchor,
+      adults: adults.filter((unit) => Math.hypot(unit.x - anchor.x, unit.y - anchor.y) <= 15),
+    };
+  };
+  const say = (tokens: string[], target?: Target) => {
+    const { adults, anchor } = selectedGroup();
     if (!adults.length) return false;
     const compiled = compileSentence(state, tokens, target);
     if (!compiled.valid) return false;
-    const anchor: Target = {
-      type: 'point',
-      x: adults.reduce((sum, unit) => sum + unit.x, 0) / adults.length,
-      y: adults.reduce((sum, unit) => sum + unit.y, 0) / adults.length,
-    };
     const before = state.stats.commands;
     state = issueCommand(state, tokens, target, undefined, anchor);
     if (state.stats.commands === before) {
@@ -100,6 +140,9 @@ export function replayRandomOpening(seed: number) {
       if (!learned && hasWord(state, spark.wordId))
         discoveries.push({ at: state.time, wordId: spark.wordId, recipe: [...spark.recipe] });
     }
+    // An early lightning fire can open a real council before the material
+    // route finishes. Conclude it rather than repeatedly ticking paused time.
+    if (state.campfirePending) state = concludeCouncil(state);
     const fire = state.buildings.find(
       (building) =>
         !building.cityId && building.kind === 'campfire' && building.active && building.hp > 0,
@@ -107,14 +150,38 @@ export function replayRandomOpening(seed: number) {
     if (fire && firstFireAt === null) firstFireAt = state.time;
     // Lightning can teach Fire before the first paid craft. Finish the same
     // material route so that an early fire never skips tools and reserve fuel.
-    if (fire && state.resources.tool >= 1 && state.resources.wood >= 2)
+    const craftedOnOrder = orders.some((order) => order.tokens.join('|') === 'S_01|V_06|O_02');
+    if (fire && craftedOnOrder && state.resources.tool >= 1 && state.resources.wood >= 2)
       return { state, firstFireAt, orders, rejectedOrders, discoveries, hiddenTargets };
     if (step % 40 === 0) {
       const time = state.time;
       if (time === 0 && pair) say(['S_01', 'V_03'], entityTarget(pair.tree));
       if (time === 20 && pair) say(['S_01', 'V_03'], entityTarget(pair.stone));
       if (time === 60) say(['S_01', 'V_01'], home);
-      if (time >= 90 && stage === 'meal' && hasWord(state, 'O_01')) {
+      // If lightning already supplied Fire, an artisan can use the real stone
+      // chips beside the extraction site instead of waiting for another haul.
+      if (
+        fire &&
+        !craftedOnOrder &&
+        (stage === 'craft-site' || (stage === 'stone' && time % 90 >= 60)) &&
+        hasWord(state, 'V_06') &&
+        canFitCraftOutput(state, { stone: 1 }, 'tool') &&
+        selectedGroup().adults.some((unit) => canPayLocally(state, { stone: 1 }, unit))
+      ) {
+        if (say(['S_01', 'V_06', 'O_02'])) stage = 'craft';
+      } else if (
+        fire &&
+        !craftedOnOrder &&
+        stage === 'stone' &&
+        time % 90 >= 60 &&
+        hasWord(state, 'V_06') &&
+        state.resources.wood >= 5 &&
+        pair
+      ) {
+        // The chips are visible at the rock we actually struck. Walking to
+        // that work site is enough; nobody is placed at a crafted coordinate.
+        if (say(['S_01', 'V_01'], entityTarget(pair.stone))) stage = 'craft-site';
+      } else if (time >= 90 && stage === 'meal' && hasWord(state, 'O_01')) {
         const food = source('berries');
         if (food && say(['S_01', 'V_02'], entityTarget(food))) stage = 'wood';
       } else if (stage === 'wood' && hasWord(state, 'V_04') && time >= lastOrderAt + 10) {
@@ -127,7 +194,7 @@ export function replayRandomOpening(seed: number) {
         stage === 'craft' &&
         time >= lastOrderAt + 10 &&
         hasWord(state, 'V_06') &&
-        !state.units.some((unit) => unit.action === 'crafting')
+        (!craftedOnOrder || !state.units.some((unit) => unit.action === 'crafting'))
       ) {
         say(['S_01', 'V_06', 'O_02']);
       }
@@ -150,8 +217,6 @@ export function replayRandomFirstYear(seed: number, endTime: 360 | 390 = 360) {
   const discoveries = [...opening.discoveries];
   const hiddenTargets = [...opening.hiddenTargets];
   const snapshots: { at: number; state: GameState }[] = [];
-  const own = () =>
-    state.units.filter((unit) => unit.hp > 0 && (!unit.factionId || unit.factionId === 'player'));
   const visible = (entity: MapEntity) =>
     state.sectors.some(
       (sector) =>
@@ -226,22 +291,7 @@ export function replayRandomFirstYear(seed: number, endTime: 360 | 390 = 360) {
       if (!learned && hasWord(state, spark.wordId))
         discoveries.push({ at: state.time, wordId: spark.wordId, recipe: [...spark.recipe] });
     }
-    if (state.campfirePending) {
-      while (state.attention >= 10) {
-        const id = ['O_05', 'V_06', 'V_05', 'M_02', 'O_01']
-          .filter(
-            (id) =>
-              hasWord(state, id) &&
-              own().some((unit) => unit.age < 14 && !state.words[id].custodians.includes(unit.id)),
-          )
-          .sort((a, b) => state.words[a].custodians.length - state.words[b].custodians.length)[0];
-        if (!id) break;
-        const previous = state.stats.taught;
-        state = teachWord(state, id);
-        if (state.stats.taught === previous) break;
-      }
-      state = dismissCampfire(state);
-    }
+    if (state.campfirePending) state = concludeCouncil(state);
     const time = state.time;
     if ([270, 330, 360, 390].includes(time)) snapshots.push({ at: time, state });
     if (time >= endTime) break;
@@ -256,6 +306,8 @@ export function replayRandomFirstYear(seed: number, endTime: 360 | 390 = 360) {
     if (time === 250 && food(0, true)) say(['S_01', 'V_02'], target(food(0, true)!));
     if (time === 270) say(['S_01', 'V_01'], pointHome);
     if (time === 360 && fire() && !fire()!.active) say(['S_01', 'V_05', 'O_05']);
+    if (time === 360 && endTime > 360 && fire()?.active && food())
+      say(['S_01', 'V_02'], target(food()!));
     state = tick(state, 0.25);
   }
   return {

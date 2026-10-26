@@ -26,7 +26,10 @@ function fightersAt(state: GameState, inventory: Inventory) {
     .filter(
       (unit) =>
         ownAdult(unit) &&
-        ['hunting', 'combat'].includes(unit.action) &&
+        (['hunting', 'combat'].includes(unit.action) ||
+          (unit.action === 'guarding' &&
+            unit.command?.includes('V_05') &&
+            unit.command.includes('O_01'))) &&
         equipmentInventoryAt(state, unit) === inventory,
     )
     .sort((a, b) => a.id.localeCompare(b.id));
@@ -100,7 +103,10 @@ export interface VisibleUnitEquipment {
 /** The renderer describes equipment actually used now, not all items in stock. */
 export function visibleUnitEquipment(state: GameState, unit: Unit): VisibleUnitEquipment {
   if (!ownAdult(unit)) return {};
-  if (['hunting', 'combat'].includes(unit.action)) {
+  if (
+    ['hunting', 'combat'].includes(unit.action) ||
+    (unit.action === 'guarding' && unit.command?.includes('V_05') && unit.command.includes('O_01'))
+  ) {
     const equipment = combatEquipmentFor(state, unit);
     return {
       held:

@@ -75,8 +75,21 @@ export function isFoundryProducing(state: GameState, building: Building) {
     if (!city) return false;
     const inventory =
       city.capital && city.factionId === 'player' ? state.resources : city.resources;
+    if ((building.lastEfficiency ?? 0) <= 0) return false;
+    // Foreign military forges spend their work during the season, so the last
+    // ingot may already be consumed while the furnace is still visibly hot.
+    const lastForgeWork = state.eventTimes[`foreignForgeLastWork:${building.id}`];
+    if (
+      city.factionId !== 'player' &&
+      lastForgeWork !== undefined &&
+      state.time >= lastForgeWork &&
+      state.time - lastForgeWork <= 1
+    )
+      return true;
     // Urban production settles fractional output at the season boundary.
-    return (building.lastEfficiency ?? 0) > 0 && inventory.ore > 0 && inventory.wood > 0;
+    return building.productionMode && building.productionMode !== 'ingot'
+      ? inventory.ingot > 0
+      : inventory.ore > 0 && inventory.wood > 0;
   }
   return (building.workerIds ?? []).some((id) => {
     const unit = state.units.find((u) => u.id === id);

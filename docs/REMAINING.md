@@ -2,6 +2,8 @@
 
 Gli indefiniti della fonte hanno decisioni eseguibili in [DECISIONS.md](DECISIONS.md). Restano le verifiche sotto elencate: risolvere un parametro non equivale a dimostrare una campagna completa.
 
+La revisione [FOUR-IMPROVEMENTS.md](FOUR-IMPROVEMENTS.md) aggiunge la calibrazione Guidata, continuità dei produttori cognitivi urbani, delegazioni pacifiche, politica straniera proattiva, assistente sintattico e suoni procedurali. I test di questi sistemi non chiudono automaticamente le campagne complete elencate sotto.
+
 ## Ultimi comportamenti espliciti completati
 
 | Voce                               | Completamento e prova                                                                                                                                                                                                                                                                                           |
@@ -20,7 +22,9 @@ La fonte intitola “25” il catalogo delle leggi, ma presenta 23 frasi distint
 
 ## Verifiche ancora aperte
 
-La revisione [ONBOARDING-CALIBRATION.md](ONBOARDING-CALIBRATION.md) dimostra anche un primo anno Guidato fino a 390 secondi: quattro sequenze casuali sul Seed Zero e una variante ritardata, al massimo sedici ordini di gruppo, almeno sei persone vive e tre lezioni pagate. [ANIMATION.md](ANIMATION.md) documenta i tragitti aggiornati e le morti naturali ammesse dalle prove. La Guidata rinvia le tormente al secondo inverno; restano da dimostrare preparazione alle tormente successive e rifornimento sostenibile per più anni. Queste prove dell'apertura non sostituiscono le campagne complete elencate sotto.
+[CAMPAIGN-AUDIT.md](CAMPAIGN-AUDIT.md) aggiunge una rotta Guidata dal Seed Zero fino a 2700 secondi: 15 vivi, 23 nascite, discendenti diventati genitori e nessuna morte ambientale o violenta. Costruzioni, mantenimenti e 74 lezioni sono pagati realmente. Non dimostra crescita fino a 35 o sostenibilità indefinita. [MIDGAME-TRANSITION.md](MIDGAME-TRANSITION.md) verifica separatamente 35 → 80 in otto stagioni da un insediamento preparato ricco e dichiarato, con Scrittura e Archivio effettivi. Lo studio lungo dello stesso pilota raggiunge 113, poi perde la coesione: dieta cruda e mancata manutenzione degli alloggi restano limiti della strategia; 150 e condensazione ordinaria non sono dimostrati.
+
+La revisione [ONBOARDING-CALIBRATION.md](ONBOARDING-CALIBRATION.md) dimostra anche un primo anno Guidato fino a 390 secondi: quattro sequenze casuali sul Seed Zero e una variante ritardata, al massimo sedici ordini di gruppo, almeno sei persone vive e tre lezioni pagate. [ANIMATION.md](ANIMATION.md) documenta i tragitti aggiornati e le morti naturali ammesse dalle prove. La Guidata rinvia le tormente al secondo inverno; la rotta di trenta stagioni sopra documentata esercita anche il rifornimento pluriennale su un seed, senza certificare ogni combinazione di disastri. Queste prove dell'apertura non sostituiscono le campagne complete elencate sotto.
 
 - **Campagne dal Seed Zero alle ere successive:** la rotta ordinaria supera il primo inverno; non sono ancora dimostrate campagne complete fino a 35 e 150 persone, ricambio generazionale, scrittura e città.
 - **Tre vittorie partendo dall’inizio:** condizioni finali e casi limite sono verificati su stati avanzati preparati. Non dimostrano che ciascuna vittoria sia raggiungibile da una nuova partita senza interventi sullo stato.

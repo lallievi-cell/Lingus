@@ -12,6 +12,8 @@ import { createInitialState } from './state';
 import type { MapMode } from './types';
 import { canFitCraftOutput, canPayLocally, payLocally } from './craftMaterials';
 import { validSave } from './saveValidation';
+import { canRehearseWord, GUIDED_PROGRESSION } from './guidedProgression';
+import { updateForeignPolicy } from './foreignPolicy';
 import { cognitiveSlots, compileSentence, getPredicate, resolveConstruction } from './grammar';
 import { getDogmaEffects, inscribeDogma } from './dogmas';
 import { recordLawWork } from './imperialLawPolicy';
@@ -38,6 +40,7 @@ import {
   finishSeasonMemory,
   getSeason,
   initializeUnit,
+  evaluateDiscoveries,
   matchingEntities,
   population,
   recordEvent,
@@ -146,7 +149,7 @@ function assignBuildingJob(
         (!buildingId || b.id === buildingId) &&
         b.kind === kind &&
         b.hp > 0 &&
-        b.active &&
+        (b.active || (s.playMode === 'guided' && kind === 'pen' && !!buildingId && !b.cityId)) &&
         b.completed !== false &&
         (b.workerIds ?? []).filter(
           (id) =>
@@ -156,6 +159,12 @@ function assignBuildingJob(
     u,
   );
   if (!b) return false;
+  if (!b.active) {
+    if (!canPay(s.resources, spec.upkeep)) return false;
+    pay(s.resources, spec.upkeep);
+    b.active = true;
+    log(s, 'Il mangime consegnato riapre il recinto; gli addetti riprendono il lavoro.', 'good');
+  }
   for (const old of s.buildings) old.workerIds = old.workerIds?.filter((id) => id !== u.id);
   dropCarriedLoad(s, u);
   resetUnit(u);
@@ -256,11 +265,21 @@ export function issueCommand(
         b.id === target.id &&
         b.kind === recipe.kind &&
         b.hp > 0 &&
-        b.active &&
+        (b.active || (s.playMode === 'guided' && b.kind === 'pen' && !b.cityId)) &&
         b.completed !== false &&
         isPlayerBuilding(s, b),
     );
   if (workplace && BUILDING_SPECS[workplace.kind].workers > 0) {
+    if (!workplace.active && !canPay(s.resources, BUILDING_SPECS[workplace.kind].upkeep)) {
+      log(
+        s,
+        hasWord(s, 'O_08')
+          ? 'Servono cinque vegetali consegnati per riaprire il recinto.'
+          : 'Serve altro mangime vegetale consegnato per riaprire il recinto.',
+        'warning',
+      );
+      return s;
+    }
     let assigned = 0,
       droppedCargo = false;
     for (const u of workers) {
@@ -463,7 +482,7 @@ export function issueCommand(
         u.action = 'saving';
         u.command = [...tokens];
       } else if (verb === 'V_05' && args.includes('O_01')) {
-        u.action = 'patrolling';
+        u.action = 'guarding';
         u.tx = s.home.x;
         u.ty = s.home.y;
       } else if (verb === 'V_06' || verb === 'V_07') {
@@ -550,7 +569,12 @@ export function solveSpark(state: GameState, id: string, chosen: string[]): Game
     if (s.playMode === 'guided') tryIgnite(s);
     else tryIgnite(s, u.x, u.y);
   }
-  if (spark.wordId === 'C_02' && hasWord(s, 'S_02') && hasWord(s, 'M_03'))
+  if (
+    ['C_02', 'S_02', 'M_03'].includes(spark.wordId) &&
+    hasWord(s, 'S_02') &&
+    hasWord(s, 'C_02') &&
+    hasWord(s, 'M_03')
+  )
     recordEvent(s, u, 'ENV_AUTHORITY', 100, ['S_07']);
   if (spark.wordId === 'M_04') u.wealth = Math.max(1, u.wealth ?? 0);
   log(
@@ -585,13 +609,22 @@ export function teachWord(state: GameState, id: string): GameState {
     pupil = pupils[Math.min(index, pupils.length - 1)];
   s.seed = (Math.imul(s.seed, 1664525) + 1013904223) >>> 0;
   s.attention -= 10;
-  const efficacy = getDogmaEffects(s).teaching;
+  const efficacy =
+    getDogmaEffects(s).teaching *
+    (s.playMode === 'guided' ? GUIDED_PROGRESSION.teachingMultiplier : 1);
   m.retention = clamp(m.retention + 10 * efficacy);
   m.investment = (m.investment ?? 0) + efficacy;
   s.stats.taught++;
   m.custodians.push(pupil.id);
   pupil.knows.push(id);
   pupil.intelligence = clamp(pupil.intelligence + 0.2, 1, 10);
+  if (hasWord(s, 'S_02') && hasWord(s, 'C_02') && hasWord(s, 'M_03') && !hasWord(s, 'S_07')) {
+    const teacher = activeUnits(s).find(
+      (unit) =>
+        m.custodians.includes(unit.id) && unit.id !== pupil.id && distance(unit, s.home) <= 15,
+    );
+    if (teacher) recordEvent(s, teacher, 'ENV_AUTHORITY', 100, ['S_07']);
+  }
   if (id === 'O_09') recordLawWork(s, pupil.id, ['S_01', 'V_05', 'O_09', 'M_02']);
   log(
     s,
@@ -599,6 +632,73 @@ export function teachWord(state: GameState, id: string): GameState {
     'good',
   );
   advanceTier(s);
+  return s;
+}
+
+/** Paid Guided repetition keeps finite oral pupils from becoming a memory dead end. */
+export function rehearseWord(state: GameState, id: string): GameState {
+  if (!canRehearseWord(state, id)) return state;
+  const s = copy(state);
+  const efficacy = GUIDED_PROGRESSION.teachingMultiplier * getDogmaEffects(s).teaching;
+  s.attention -= 10;
+  s.words[id].retention = clamp(s.words[id].retention + 10 * efficacy);
+  log(s, `I custodi ripetono «${WORDS[id].label}» al Falò: la memoria si rafforza.`, 'good');
+  return s;
+}
+
+/** Extra fuel is credited at this council, never carried into the next fuel account. */
+export function prepareCampfireCouncil(state: GameState): GameState {
+  if (
+    state.playMode !== 'guided' ||
+    !state.campfirePending ||
+    !hasBuilding(state, 'campfire') ||
+    state.resources.wood < GUIDED_PROGRESSION.councilWoodCost ||
+    state.attention >= getDogmaEffects(state).attentionCap ||
+    state.gameOver ||
+    state.victory
+  )
+    return state;
+  const s = copy(state);
+  s.resources.wood -= GUIDED_PROGRESSION.councilWoodCost;
+  s.attention = Math.min(
+    getDogmaEffects(s).attentionCap,
+    s.attention + GUIDED_PROGRESSION.councilAttention,
+  );
+  // A paid shared council supports reflection; it never grants a word directly.
+  if (hasWord(s, 'S_06') && hasWord(s, 'S_02') && !hasWord(s, 'M_05')) {
+    const hearth = s.buildings.find(
+      (building) =>
+        building.kind === 'campfire' &&
+        isPlayerBuilding(s, building) &&
+        building.completed !== false &&
+        building.active &&
+        building.hp > 0 &&
+        distance(building, s.home) <= 15,
+    );
+    const people = hearth
+      ? activeUnits(s).filter(
+          (unit) => distance(unit, s.home) <= 15 && distance(unit, hearth) <= 15,
+        )
+      : [];
+    const fedCaptives = people.filter(
+      (unit) =>
+        (unit.caste === 'slave' || unit.emancipated === true) &&
+        unit.hunger < 60 &&
+        (unit.lastEventAt?.MEAL ?? Infinity) <= s.time &&
+        s.time - (unit.lastEventAt?.MEAL ?? -Infinity) <= 60,
+    );
+    for (const observer of people.filter(
+      (unit) => unit.caste !== 'slave' && fedCaptives.some((person) => person.id !== unit.id),
+    )) {
+      recordEvent(s, observer, 'ENV_SHARED_CAPTIVE_MEAL', 100, ['M_05'], 60);
+      evaluateDiscoveries(s, observer);
+    }
+  }
+  log(
+    s,
+    'Il consiglio alimenta il Falò con legna consegnata: più tempo per tramandare il sapere.',
+    'info',
+  );
   return s;
 }
 
@@ -637,6 +737,7 @@ export function tick(state: GameState, dt: number): GameState {
       s.voiceProgress -= 10;
     }
     simulationStep(s, d);
+    updateForeignPolicy(s, d);
     updateImperial(s, d);
     if (Math.floor(s.time / 90) > previous) {
       seasonalCore(s);

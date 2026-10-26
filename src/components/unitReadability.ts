@@ -1,6 +1,7 @@
 import { ADULT_AGE } from '../game/content';
 import { getLifeStage, resolveUnitSex } from '../game/demography';
 import { hasWord } from '../game/runtime';
+import { areFactionsHostile } from '../game/foreignPolicy';
 import type { GameState, Unit } from '../game/types';
 
 export function lifeStageLabel(unit: Unit): string {
@@ -23,11 +24,22 @@ export function sexLabel(unit: Unit): string {
 }
 
 export function visibleUnitName(state: GameState, unit: Unit): string {
+  if (unit.factionId && unit.factionId !== 'player')
+    return hasWord(state, 'S_02')
+      ? unit.name
+      : resolveUnitSex(unit) === 'F'
+        ? 'Una straniera'
+        : 'Uno straniero';
   return hasWord(state, 'S_02')
     ? unit.name
     : resolveUnitSex(unit) === 'F'
       ? 'Una compagna'
       : 'Un compagno';
+}
+
+export function foreignUnitDisposition(state: GameState, unit: Unit) {
+  if (!unit.factionId || unit.factionId === 'player') return undefined;
+  return areFactionsHostile(state, 'player', unit.factionId) ? 'hostile' : 'visitor';
 }
 
 export function unitLifeHint(unit: Unit): string {

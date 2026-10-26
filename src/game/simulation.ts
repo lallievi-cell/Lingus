@@ -61,7 +61,19 @@ import { combatEquipmentFor, gatheringEquipmentFor } from './unitEquipment';
 import { eligibleParents, villageHousing } from './growthReadiness';
 import { lethalCombatSource, rememberCombatWound } from './damageAttribution';
 import { sameGroundPile } from './groundPiles';
+import {
+  guidedBirthMultiplier,
+  GUIDED_PROGRESSION,
+  recordGuidedWorkUse,
+} from './guidedProgression';
+import { availableForeignWarriors } from './foreignPolicy';
+import {
+  onDelegateIdentityDeath,
+  residentForeignDelegate,
+  travellingDelegate,
+} from './delegateIdentity';
 import { resolveInteractionPosition, type InteractionKind } from './interactionPositions';
+import { warmShelterDestination } from './shelterSeeking';
 import type {
   Building,
   BuildingKind,
@@ -141,6 +153,7 @@ export function recordEvent(
   u.eventMemory = u.eventMemory!.filter((e) => s.time - e.time <= 60);
 }
 export function recordCraft(s: GameState, u: Unit, wordId: string) {
+  recordGuidedWorkUse(s, u.command ?? []);
   initializeUnit(u);
   u.tension![wordId] = (u.tension![wordId] ?? 0) + 20;
   recordEvent(s, u, 'ENV_CRAFT', 0, [wordId]);
@@ -162,9 +175,17 @@ export function evaluateDiscoveries(s: GameState, u: Unit) {
       (u.cooldowns![wordId] ?? 0) > s.time
     )
       continue;
-    const recipes = [word.recipe, ...(word.alternatives ?? [])].filter((recipe) =>
-      recipe.every((t) => hasWord(s, t)),
-    );
+    const funeralRecipe =
+      s.playMode === 'guided' &&
+      wordId === 'M_03' &&
+      u.eventMemory.some((event) => event.tag === 'ENV_FUNERAL' && event.wordIds.includes(wordId))
+        ? ['O_06', 'O_01']
+        : undefined;
+    const recipes = [
+      word.recipe,
+      ...(word.alternatives ?? []),
+      ...(funeralRecipe ? [funeralRecipe] : []),
+    ].filter((recipe) => recipe.every((t) => hasWord(s, t)));
     if (!recipes.length || !u.eventMemory.some((e) => e.wordIds.includes(wordId))) continue;
     const craft = u.tension![wordId] ?? 0,
       tension = tc + craft;
@@ -182,10 +203,18 @@ export function evaluateDiscoveries(s: GameState, u: Unit) {
       unitId: u.id,
       eventLabel: craftedFire
         ? 'Sfregando e lavorando il legno, una brace nasce tra le mani.'
-        : word.event,
+        : event.tag === 'ENV_FUNERAL' && wordId === 'M_03'
+          ? 'Il commiato di un compagno diventa un rito condiviso.'
+          : event.tag === 'ENV_SHARED_CAPTIVE_MEAL' && wordId === 'M_05'
+            ? 'Condividere il pasto rivela che anche il prigioniero è un individuo.'
+            : word.event,
       expiresAt: s.time + 45,
       recipe: [...recipe],
-      hint: craftedFire ? 'La lavorazione della pietra incontra il legno.' : word.hint,
+      hint: craftedFire
+        ? 'La lavorazione della pietra incontra il legno.'
+        : funeralRecipe && recipe === funeralRecipe
+          ? 'Il luogo del commiato unisce Morte e Qui.'
+          : word.hint,
     });
     log(s, `${u.name} cerca un nome per un’esperienza nuova.`, 'discovery');
   }
@@ -308,6 +337,28 @@ function witnessAnimalWound(s: GameState, victim: Unit) {
     if (observer.id !== victim.id && distance(observer, victim) <= 20)
       recordEvent(s, observer, 'ENV_ALLY_DAMAGED', 60, ['M_01'], 1);
 }
+/** Visitors represent an existing city resident; raiders are deducted at departure. */
+function detachForeignResident(s: GameState, unit: Unit) {
+  if (!unit.cityId || !unit.factionId || unit.factionId === 'player') return;
+  const city = s.cities.find((entry) => entry.id === unit.cityId);
+  if (city && city.factionId === unit.factionId) {
+    const cohort =
+      unit.caste === 'warrior'
+        ? 'warriors'
+        : unit.caste === 'sage'
+          ? 'sages'
+          : unit.caste === 'slave'
+            ? 'slaves'
+            : 'workers';
+    const previous = city.cohorts[cohort];
+    city.cohorts[cohort] = Math.max(0, previous - 1);
+    if (cohort === 'warriors') {
+      const health = city.garrisonHp ?? previous * 100;
+      city.garrisonHp = previous > 0 ? (health * city.cohorts.warriors) / previous : 0;
+    }
+  }
+  unit.cityId = undefined;
+}
 export function killUnit(s: GameState, u: Unit, cause = 'trauma') {
   if (u.hp <= 0 && u.action === 'dead') return;
   const own = u.factionId === undefined || u.factionId === 'player',
@@ -337,8 +388,14 @@ export function killUnit(s: GameState, u: Unit, cause = 'trauma') {
               : 'workers';
     if (city) city.cohorts[cohort] = Math.max(0, city.cohorts[cohort] - 1);
   }
+  onDelegateIdentityDeath(s, u);
   s.cohesion = clamp(
-    s.cohesion + (dogmatic.handled ? dogmatic.cohesion : -CORE_DEFAULTS.deathTrauma),
+    s.cohesion +
+      (dogmatic.handled
+        ? dogmatic.cohesion
+        : -(s.playMode === 'guided' && own && cause === 'oldAge'
+            ? GUIDED_PROGRESSION.naturalDeathTrauma
+            : CORE_DEFAULTS.deathTrauma)),
   );
   s.attention = clamp(s.attention + dogmatic.attention, 0, getDogmaEffects(s).attentionCap);
   if (dogmatic.collapse) s.cohesion = 0;
@@ -539,6 +596,7 @@ function rationCandidates(s: GameState) {
   ];
 }
 export function consume(s: GameState, u: Unit, e?: MapEntity) {
+  if (u.hp <= 0) return false;
   const effects = getDogmaEffects(s, { unit: u });
   const inv = inventoryAt(s, u);
   let resource: Resource | undefined, source: Inventory | undefined;
@@ -613,6 +671,18 @@ export function consume(s: GameState, u: Unit, e?: MapEntity) {
     u.hp -= 15 * (u.caste === 'slave' ? imperialLawEffects(s).slaveMortalityMultiplier : 1);
     u.parasiteUntil = s.time + 45;
     log(s, `${u.name} si ammala dopo un pasto di carne cruda.`, 'warning');
+    if (u.hp <= 0) {
+      if (u.factionId === undefined || u.factionId === 'player') killUnit(s, u, 'STAT_PARASITES');
+      else {
+        detachForeignResident(s, u);
+        u.hp = 0;
+        u.action = 'dead';
+        u.lastDamageCause = 'STAT_PARASITES';
+        u.deathAt = s.time;
+        log(s, 'Un visitatore straniero muore dopo un pasto di carne cruda.', 'warning');
+      }
+      return true;
+    }
   }
   if (e && ['deer', 'wolf', 'alpha', 'mammoth'].includes(e.kind) && s.time - s.lastHunt <= 60)
     recordEvent(s, u, 'ENV_HUNT_MEAL', 100, ['O_04']);
@@ -743,6 +813,7 @@ export function dropCarriedLoad(s: GameState, u: Unit) {
 }
 function finishConstruction(s: GameState, u: Unit) {
   if (!u.buildingKind) return;
+  recordGuidedWorkUse(s, u.command ?? []);
   trainStrength(u);
   recordLawWork(s, u.id, u.command ?? []);
   const command = [...(u.command ?? [])],
@@ -956,6 +1027,7 @@ function recordBuildingWork(s: GameState, dt: number) {
         work.workerSeconds[id] = Math.min(90, (work.workerSeconds[id] ?? 0) + seconds);
         const command = s.units.find((u) => u.id === id)?.command;
         if (command?.length) {
+          recordGuidedWorkUse(s, command);
           work.commandSeconds ??= {};
           const signatures = (work.commandSeconds[id] ??= {}),
             signature = command.join('|');
@@ -998,12 +1070,12 @@ function guidedDirectTask(s: GameState, u: Unit, tokens: string[]) {
     tokens.every((id) => hasWord(s, id))
   );
 }
-function guidedMaterialTransport(s: GameState, tokens: string[]) {
+function guidedRepeatTransport(s: GameState, tokens: string[]) {
   return (
     s.playMode === 'guided' &&
     tokens.includes('V_04') &&
-    tokens.some((id) => ['O_02', 'O_03', 'O_07'].includes(id)) &&
-    !tokens.includes('O_04') &&
+    (tokens.some((id) => ['O_02', 'O_03', 'O_07'].includes(id)) ||
+      (tokens.includes('O_04') && hasWord(s, 'V_05'))) &&
     !['C_01', 'C_02'].includes(tokens[0])
   );
 }
@@ -1035,7 +1107,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       u.ty = next.y;
     }
   }
-  if (u.action === 'gathering' && guidedMaterialTransport(s, tokens)) {
+  if (u.action === 'gathering' && guidedRepeatTransport(s, tokens)) {
     if (
       !guidedDirectTask(s, u, tokens) ||
       !e ||
@@ -1092,12 +1164,17 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       (s.cohesion < 30 ? 0.7 : 1) * fx.combat * fx.morale,
     );
     const f = s.factions.find((f) => f.id === foreign.factionId);
-    if (f) f.hostile = true;
+    if (f) {
+      f.hostile = true;
+      f.relation = -100;
+      f.peaceUntil = undefined;
+    }
     if (
       foreign.hp - damage <= 15 &&
       (tokens.includes('V_05') || tokens.includes('S_06')) &&
       !fx.slaveryForbidden
     ) {
+      detachForeignResident(s, foreign);
       foreign.hp = Math.min(foreign.hp, 15);
       foreign.factionId = 'player';
       foreign.caste = 'slave';
@@ -1121,6 +1198,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     }
     foreign.hp -= damage;
     if (foreign.hp <= 0) {
+      detachForeignResident(s, foreign);
       foreign.hp = 0;
       foreign.action = 'dead';
       log(s, 'Un combattente straniero è caduto.', 'warning');
@@ -1192,11 +1270,11 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     // always completes physically; only the next trip is conditional.
     if (
       verb === 'V_04' &&
-      guidedMaterialTransport(s, tokens) &&
+      guidedRepeatTransport(s, tokens) &&
       guidedDirectTask(s, u, tokens) &&
       e &&
       e.amount > resourcePreservationFloor(s, e) &&
-      ['wood', 'stone', 'ore'].includes(entityResource(e)) &&
+      ['wood', 'stone', 'ore', 'food', 'meat', 'cooked'].includes(entityResource(e)) &&
       freeCapacity(s, entityResource(e)) > 0 &&
       matchingEntities(s, tokens, u).includes(e) &&
       !forbiddenByDogma(s, tokens, { type: 'entity', id: e.id, x: e.x, y: e.y }, u) &&
@@ -1254,6 +1332,13 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     return;
   }
   if (u.action === 'guarding') {
+    if (tokens.includes('O_01') && !tokens.includes('O_05')) {
+      if (moveToInteraction(s, u, s.home, 'work', dt, 4, 2.7) && workCycle(s, u, dt, 5)) {
+        recordLawWork(s, u.id, tokens);
+        recordGuidedWorkUse(s, tokens);
+      }
+      return;
+    }
     let fire = closest(
       s.buildings.filter((b) => isPlayerBuilding(s, b) && b.kind === 'campfire' && b.hp > 0),
       u,
@@ -1278,7 +1363,10 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       fire.active = true;
     }
     if (workCycle(s, u, dt, 5)) {
+      if (fire.active) recordGuidedWorkUse(s, tokens);
       if (
+        !hasWord(s, 'O_07') &&
+        !s.sparks.some((spark) => spark.wordId === 'O_07') &&
         s.resources.wood >= 10 &&
         s.entities.some((e) => e.kind === 'ore' && e.amount > 0 && distance(e, fire!) < 30)
       ) {
@@ -1405,6 +1493,20 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     // Conservare restrains an autonomous meal; an explicit Mangiare order
     // still means eating to satiety, as specified by the sentence grammar.
     const conserve = verb !== 'V_02' && hasWord(s, 'V_05');
+    if (verb === 'V_02' && u.hunger <= 0) {
+      resetUnit(u);
+      return;
+    }
+    // An explicit meal can use physically accessible stores, before walking
+    // to a fallback forage node. It still takes real meal cycles and rations.
+    if (verb === 'V_02' && nearInventory(s, u) && totalFood(inventoryAt(s, u)) > 0) {
+      if (!workCycle(s, u, dt, 1.5)) return;
+      if (consume(s, u)) {
+        if (u.hp <= 0) return;
+        if (u.hunger <= 0) resetUnit(u);
+        return;
+      }
+    }
     if (conserve && u.hunger < 60) {
       resetInstinct(u);
       return;
@@ -1412,6 +1514,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     // A delivery may have arrived since this forager chose a distant node.
     // Recheck real accessible stocks before leaving their physical reach.
     if (conserve && nearInventory(s, u) && consume(s, u)) {
+      if (u.hp <= 0) return;
       if (u.hunger < 60) resetInstinct(u);
       return;
     }
@@ -1421,7 +1524,9 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     }
     if (!moveToInteraction(s, u, e, 'meal', dt)) return;
     if (!workCycle(s, u, dt, 1.5)) return;
-    if (!consume(s, u, e) || u.hunger <= 0 || (conserve && u.hunger < 60)) resetInstinct(u);
+    const ate = consume(s, u, e);
+    if (u.hp <= 0) return;
+    if (!ate || u.hunger <= 0 || (conserve && u.hunger < 60)) resetInstinct(u);
     return;
   }
   if (u.action === 'domesticating') {
@@ -1609,6 +1714,24 @@ function startInstinct(s: GameState, u: Unit, dt: number) {
   if (u.hunger >= 60) {
     if (nearInventory(s, u) && consume(s, u)) return;
     const food = closest(edibleEntities(s, u), u);
+    const stock = inventoryAt(s, u);
+    // Guided instincts can return to a nearer delivered meal. Children cannot
+    // receive work orders, and should not leave nearby stores for distant forage.
+    if (
+      s.playMode === 'guided' &&
+      !s.urbanized &&
+      !nearInventory(s, u) &&
+      (stock.food > 0 || (!fx.vegetarian && (stock.meat > 0 || stock.cooked > 0))) &&
+      (!food || distance(u, s.home) <= distance(u, food)) &&
+      !forbiddenByDogma(s, ['S_01', 'V_02', 'O_04'], undefined, u)
+    ) {
+      u.action = 'moving';
+      u.tx = s.home.x;
+      u.ty = s.home.y;
+      u.targetId = undefined;
+      u.command = undefined;
+      return;
+    }
     if (food) {
       u.action = 'eating';
       u.targetId = food.id;
@@ -1699,7 +1822,8 @@ function assignTradition(s: GameState, u: Unit) {
     else if (verb === 'V_04') u.action = 'gathering';
     else if (verb === 'V_01') u.action = 'moving';
     else if (verb === 'V_02') u.action = 'eating';
-    else if (verb === 'V_05' && tokens.includes('O_05')) u.action = 'guarding';
+    else if (verb === 'V_05' && (tokens.includes('O_05') || tokens.includes('O_01')))
+      u.action = 'guarding';
     else {
       resetUnit(u);
       continue;
@@ -1750,7 +1874,10 @@ export function updateUnits(s: GameState, dt: number) {
     }
     const protectedFromFamine = elderPrivilege && u.age >= ELDER_AGE;
     if (s.urbanized && u.cityId && !u.isKing) {
-      const city = s.cities.find((c) => c.id === u.cityId && c.factionId === 'player');
+      const city = s.cities.find(
+        (c) =>
+          c.id === u.cityId && (c.factionId === 'player' || residentForeignDelegate(s, u, c.id)),
+      );
       if (!city) continue;
       u.hunger = clamp(u.hunger + 0.8 * dt);
       const mortality = u.caste === 'slave' ? imperialLawEffects(s).slaveMortalityMultiplier : 1;
@@ -1762,8 +1889,19 @@ export function updateUnits(s: GameState, dt: number) {
         continue;
       }
       if (u.hunger >= 60) consume(s, u);
+      if (u.hp <= 0) continue;
       if (u.hunger >= 80 && totalFood(city.resources) <= 0)
         recordEvent(s, u, 'ENV_STARVATION', 15, ['M_02'], 1);
+      // A represented citizen still witnesses real city life after jobs become cohorts.
+      if (s.entities.some((e) => e.kind === 'corpse' && e.amount > 0 && distance(e, u) <= 10))
+        recordEvent(s, u, 'ENV_CORPSE', 80, ['O_06'], 1);
+      if (s.cohesion < 25) recordEvent(s, u, 'ENV_COHESION_CRITICAL', 100, ['M_03'], 1);
+      if (
+        u.age >= CORE_DEFAULTS.sageDiscoveryAgeSeasons &&
+        hasWord(s, 'O_05') &&
+        hasWord(s, 'M_02')
+      )
+        recordEvent(s, u, 'ENV_ELDER', 100, ['S_04'], 30);
       evaluateDiscoveries(s, u);
       continue;
     }
@@ -1806,6 +1944,11 @@ export function updateUnits(s: GameState, dt: number) {
       continue;
     }
     if (foodAccessRank(s, u) > 0 && u.hunger >= 60 && nearInventory(s, u)) consume(s, u);
+    if (u.hp <= 0) continue;
+    if (travellingDelegate(s, u)) {
+      if (u.hunger >= 60 && nearInventory(s, u)) consume(s, u);
+      continue;
+    }
     const ally = closest(
       activeUnits(s).filter((v) => v.id !== u.id),
       u,
@@ -1855,6 +1998,16 @@ export function updateUnits(s: GameState, dt: number) {
       u.command.includes('O_05')
     )
       u.action = 'guarding';
+    if (
+      s.playMode === 'guided' &&
+      u.jobBuildingId &&
+      u.command?.[0] === 'C_02' &&
+      u.hunger >= 75 &&
+      !outsideShift
+    ) {
+      const worked = fireJob?.seasonWork?.[Math.floor(s.time / 90)]?.workerSeconds[u.id] ?? 0;
+      if (worked >= 5) recordEvent(s, u, 'ENV_DISOBEDIENCE', 100, ['C_03'], 30);
+    }
     if (u.jobBuildingId && (u.hunger >= 75 || outsideShift || (fx.nightTaboo && phase.isNight)))
       pauseBuildingJob(s, u);
     else if (u.command?.[0] === 'C_02' && resting && u.action !== 'returning') resetUnit(u);
@@ -1885,6 +2038,59 @@ export function updateUnits(s: GameState, dt: number) {
     const savingFire =
       u.command?.includes('O_05') ||
       (u.jobBuildingId && s.buildings.find((b) => b.id === u.jobBuildingId)?.kind === 'campfire');
+    const recoveringInShelter =
+      !u.command &&
+      u.action === 'resting' &&
+      s.buildings.some(
+        (building) =>
+          building.id === u.targetId && ['house', 'hut', 'campfire'].includes(building.kind),
+      );
+    if (
+      s.playMode === 'guided' &&
+      !martial &&
+      !savingFire &&
+      u.action !== 'guarding' &&
+      (u.hunger < 60 || nearInventory(s, u)) &&
+      (u.temp <= 15 || (recoveringInShelter && u.temp <= 30)) &&
+      (u.cooldowns!.coldShelter ?? 0) <= s.time
+    ) {
+      const destination = warmShelterDestination(
+        s,
+        u,
+        ambient,
+        clothing - (shelter?.kind === 'house' ? 2.5 : shelter?.kind === 'hut' ? 1 : 0),
+      );
+      if (destination) {
+        const target = {
+          type: 'building' as const,
+          id: destination.id,
+          x: destination.x,
+          y: destination.y,
+        };
+        const movingHome = ['S_01', 'V_01', 'O_01'];
+        const allowed =
+          !forbiddenByDogma(s, movingHome, target, u) &&
+          (recoveringInShelter || enforceActionLaws(s, movingHome, target, [u.id]));
+        if (allowed && u.hp > 0) {
+          if (u.jobBuildingId) pauseBuildingJob(s, u);
+          dropCarriedLoad(s, u);
+          resetKeepingJob(u);
+          u.action = 'resting';
+          u.targetId = destination.id;
+          u.tx = destination.x;
+          u.ty = destination.y;
+          if (u.hunger >= 60 && nearInventory(s, u)) consume(s, u);
+          if (u.hp <= 0) continue;
+          if (move(s, u, destination.x, destination.y, dt)) {
+            u.restedThisSeason = true;
+            u.sleptThisNight ||= phase.isNight;
+          }
+          evaluateDiscoveries(s, u);
+          continue;
+        }
+        u.cooldowns!.coldShelter = s.time + 30;
+      }
+    }
     if (!martial && (u.hunger >= 95 || (u.temp <= 15 && !savingFire))) {
       if (u.command) recordEvent(s, u, 'ENV_DISOBEDIENCE', 100, ['C_03'], 30);
       if (u.carry) {
@@ -2163,6 +2369,9 @@ export function seasonalCore(s: GameState) {
       )) {
         corpse.amount = 0;
         s.cohesion = clamp(s.cohesion + 5);
+        if (s.playMode === 'guided')
+          for (const witness of activeUnits(s).filter((unit) => distance(unit, b) <= 20))
+            recordEvent(s, witness, 'ENV_FUNERAL', 100, ['M_03']);
       }
     if (b.kind === 'temple') s.attention = clamp(s.attention + 20 * efficiency, 0, fx.attentionCap);
   }
@@ -2231,15 +2440,18 @@ export function seasonalCore(s: GameState) {
   if (!s.urbanized) {
     const housing = villageHousing(s),
       fertile = eligibleParents(s, { restedIds: rested, celibateSages: fx.celibateSages });
-    const chance =
+    const chance = Math.min(
+      1,
       birthProbability(
         activeUnits(s).length,
         housing,
         hasBuilding(s, 'hut') ? 0.25 : 0,
         fx.birthAdd,
       ) *
-      fx.growth *
-      imperialLawEffects(s).birthMultiplier;
+        fx.growth *
+        imperialLawEffects(s).birthMultiplier *
+        guidedBirthMultiplier(s),
+    );
     const pairs = pairFertileUnits(fertile);
     for (let pair = 0; pair < pairs.length && activeUnits(s).length < housing; pair++)
       if (random(s) < chance) {
@@ -2316,13 +2528,19 @@ export function finishSeasonMemory(s: GameState) {
       continue;
     }
     let support = 0;
-    for (const b of s.buildings.filter((b) => isPlayerBuilding(s, b) && b.hp > 0 && b.active)) {
-      if (b.kind === 'stele' && b.fixedWordId === id) support = Math.max(support, 0.95);
-      if (b.kind === 'archive')
-        support = Math.max(
-          support,
-          b.cityId ? Math.min(1, b.lastEfficiency ?? 0) : buildingEfficiency(s, b),
-        );
+    for (const b of s.buildings.filter((b) => isPlayerBuilding(s, b) && b.hp > 0)) {
+      if (b.kind === 'stele' && b.active && b.fixedWordId === id) support = Math.max(support, 0.95);
+      if (b.kind === 'archive') {
+        // Copying belongs to the shift just completed, including scribes now
+        // asleep and copies made before next season's upkeep became unpaid.
+        const ended = Math.floor(s.time / 90) - 1;
+        const copied = b.cityId
+          ? b.active
+            ? Math.min(1, b.lastEfficiency ?? 0)
+            : 0
+          : Math.min(1, (b.seasonWork?.[ended]?.efficiencySeconds ?? 0) / 60);
+        support = Math.max(support, copied);
+      }
     }
     m.support = support;
     const remembered = m.retention > 0;
@@ -2343,12 +2561,13 @@ export function simulationStep(s: GameState, dt: number) {
     (c) => c.factionId !== 'player' && activeUnits(s).some((u) => distance(u, c) <= 30),
   )) {
     if (s.units.some((u) => u.id === `envoy-${city.id}`)) continue;
+    if (availableForeignWarriors(s, city) < 1) continue;
     const foreign: Unit = {
       id: `envoy-${city.id}`,
       name: `Pattuglia di ${city.name}`,
       x: city.x,
       y: city.y,
-      hp: 100,
+      hp: Math.max(1, (city.garrisonHp ?? city.cohorts.warriors * 100) / city.cohorts.warriors),
       hunger: 20,
       temp: 100,
       age: 8,

@@ -150,6 +150,88 @@ export function validSave(value: unknown): value is GameState {
   const s = value;
   if (!optional(s.playMode, (x) => x === 'guided' || x === 'classic')) return false;
   if (
+    !optional(s.foreignPolicy, (value) => {
+      if (
+        !record(value) ||
+        !Array.isArray(value.raids) ||
+        !Array.isArray(value.ultimata) ||
+        !Array.isArray(value.relations)
+      )
+        return false;
+      if (value.raids.length > 12 || value.ultimata.length > 16 || value.relations.length > 64)
+        return false;
+      if (!unique(value.raids) || !unique(value.ultimata)) return false;
+      if (
+        !value.raids.every(
+          (raid) =>
+            named(raid) &&
+            text(raid.factionId) &&
+            text(raid.originCityId) &&
+            ids(raid.memberIds) &&
+            (raid.memberIds as unknown[]).length >= 2 &&
+            (raid.memberIds as unknown[]).length <= 3 &&
+            new Set(raid.memberIds as string[]).size === (raid.memberIds as unknown[]).length &&
+            ['approaching', 'raiding', 'returning', 'ended'].includes(raid.phase as string) &&
+            inventory(raid.resources) &&
+            number(raid.startedAt, 0, s.time as number) &&
+            point(raid.target) &&
+            number(raid.progress, 0, 1.001) &&
+            optional(raid.finishedAt, (time) =>
+              number(time, raid.startedAt as number, s.time as number),
+            ) &&
+            optional(raid.engagedAt, (time) =>
+              number(time, raid.startedAt as number, s.time as number),
+            ),
+        )
+      )
+        return false;
+      if (
+        !value.ultimata.every(
+          (ultimatum) =>
+            named(ultimatum) &&
+            text(ultimatum.factionId) &&
+            text(ultimatum.cityId) &&
+            number(ultimatum.createdAt, 0, s.time as number) &&
+            number(
+              ultimatum.expiresAt,
+              ultimatum.createdAt as number,
+              (ultimatum.createdAt as number) + 3600,
+            ) &&
+            ['religious', 'tribute'].includes(ultimatum.kind as string) &&
+            RESOURCE_ORDER.includes(ultimatum.resource as never) &&
+            number(ultimatum.amount, Number.MIN_VALUE, 100) &&
+            ['pending', 'dispatched', 'paid', 'refused', 'expired', 'cancelled'].includes(
+              ultimatum.status as string,
+            ) &&
+            optional(ultimatum.dogmaTargetId, word) &&
+            optional(ultimatum.paymentCaravanId, text) &&
+            (ultimatum.status !== 'dispatched' || text(ultimatum.paymentCaravanId)),
+        )
+      )
+        return false;
+      if (
+        !value.relations.every(
+          (pair) =>
+            record(pair) &&
+            text(pair.leftId) &&
+            text(pair.rightId) &&
+            (pair.leftId as string) < (pair.rightId as string) &&
+            number(pair.relation, -100, 100) &&
+            flag(pair.atWar),
+        )
+      )
+        return false;
+      return (
+        new Set(
+          value.relations.map(
+            (pair) => `${(pair as RecordValue).leftId}|${(pair as RecordValue).rightId}`,
+          ),
+        ).size === value.relations.length
+      );
+    })
+  )
+    return false;
+  if (
     !optional(
       s.regionalRoutes,
       (routes) =>
@@ -318,6 +400,9 @@ export function validSave(value: unknown): value is GameState {
         number(v.hp) &&
         flag(v.active) &&
         optional(v.workerIds, ids) &&
+        optional(v.productionMode, (mode) =>
+          ['ingot', 'metalArms', 'coin'].includes(mode as string),
+        ) &&
         optional(
           v.seasonWork,
           (x) =>
@@ -418,11 +503,23 @@ export function validSave(value: unknown): value is GameState {
         target(v.target) &&
         optional(v.customsPaid, number) &&
         optional(v.customsRefused, flag) &&
+        optional(
+          v.delegateUnitId,
+          (id) =>
+            text(id) &&
+            v.kind === 'delegate' &&
+            v.population === 1 &&
+            (s.units as unknown[]).some((unit) => record(unit) && unit.id === id),
+        ) &&
         optional(v.words, words) &&
         optional(v.dogmas, (x) => list(x, dogma)),
     )
   )
     return false;
+  const delegateIdentities = (s.caravans as Record<string, unknown>[])
+    .map((caravan) => caravan.delegateUnitId)
+    .filter((id) => id !== undefined);
+  if (new Set(delegateIdentities).size !== delegateIdentities.length) return false;
   if (
     !list(
       s.laws,

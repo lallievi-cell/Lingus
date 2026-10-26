@@ -643,6 +643,12 @@ export function forbiddenByDogma(
   target?: Target,
   unit?: Unit,
 ): string | null {
+  // Examining an existing belief is the explicit philosophical way to change
+  // it. Merely naming that belief must not count as performing its taboo act.
+  const examinedTarget =
+    tokens.length === 4 && tokens[0] === 'S_04' && tokens[1] === 'V_14' && tokens[2] === 'M_03'
+      ? tokens[3]
+      : undefined;
   const entity = target?.type === 'entity' ? s.entities.find((e) => e.id === target.id) : undefined;
   const resource = entity
     ? entity.kind === 'tree'
@@ -675,6 +681,7 @@ export function forbiddenByDogma(
           !!s.factions.find((f) => f.id === humanTarget.factionId)?.hostile
         : entity?.attacked;
   for (const d of s.dogmas) {
+    if (d.targetId === examinedTarget) continue;
     const a = d.targetId,
       b = d.vectorId,
       touches =

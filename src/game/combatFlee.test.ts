@@ -259,6 +259,15 @@ describe('the GDD combat interrupt requires a new hostile wound', () => {
   it('marks a real frontline wound caused by an enemy battalion', () => {
     const s = world(),
       u = s.units[0];
+    s.factions.push({
+      id: 'enemy',
+      name: 'Nemici',
+      cityId: '',
+      words: [],
+      dogmas: [],
+      relation: -100,
+      hostile: true,
+    });
     Object.assign(u, { x: HOME.x + 40, action: 'frontline', targetId: 'own' });
     s.dogmas.push({
       id: 'war',

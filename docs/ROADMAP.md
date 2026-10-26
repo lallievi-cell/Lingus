@@ -34,6 +34,8 @@ Un replay deve dichiarare seed, ordini, pause, scoperte, usi di Attenzione e ris
 
 ## 4. Qualità del gioco
 
+[FOUR-IMPROVEMENTS.md](FOUR-IMPROVEMENTS.md) raccoglie gli interventi su crescita, iniziativa straniera, composizione delle frasi e suono. Parametri Guidati e soglie della politica sono espliciti; la Classica conserva le formule demografiche e orali precedenti. La continuità delle scoperte urbane e le rotte diplomatiche sono ora esercitate separatamente dai replay ordinari.
+
 Dopo la verifica delle regole, servono playtest più lunghi per valutare leggibilità, difficoltà, tempi morti e conseguenze dei dogmi. Il bilanciamento richiesto dal prodotto è una scelta successiva e distinta dalla trasposizione letterale del documento.
 
 Miglioramenti di interfaccia, navigazione degli ostacoli, accessibilità e spiegazioni possono essere sviluppati senza alterare tacitamente formule e costi. Ogni nuova meccanica non prevista richiede di essere riconosciuta come estensione del progetto, nel rispetto della regola del mondo chiuso.

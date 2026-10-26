@@ -4,7 +4,8 @@ import {
   GROWTH_BLOCKER_TEXT,
   individualGrowthHint,
 } from '../game/growthReadiness';
-import { hasWord } from '../game/runtime';
+import { hasBuilding, hasWord } from '../game/runtime';
+import { guidedGrowthMilestones, guidedBirthMultiplier } from '../game/guidedProgression';
 import type { GameState, Unit } from '../game/types';
 import './GrowthReadiness.css';
 
@@ -13,6 +14,7 @@ export function GrowthReadiness({ state }: { state: GameState }) {
   const growth = getGrowthReadiness(state);
   const possible = growth.readyPairs > 0 && growth.freePlaces > 0;
   const numbered = hasWord(state, 'O_08');
+  const guidedMilestones = guidedGrowthMilestones(state);
   const partnerText =
     growth.missingSex === 'M'
       ? 'Manca un uomo che sia in età fertile al prossimo cambio.'
@@ -56,6 +58,26 @@ export function GrowthReadiness({ state }: { state: GameState }) {
           <li>Cibo, riposo nella stagione in corso e ritorno al giaciglio.</li>
           <li>Un posto libero negli alloggi; solo i ripari completati aggiungono spazio.</li>
         </ul>
+        {state.playMode === 'guided' && (
+          <p>
+            La Guidata sostiene la crescita attraverso cibo preparato, coltivazioni o allevamenti e
+            case in pietra. Dopo Conservare, Portare Preda ripete i viaggi alimentari durante la
+            giornata.
+            {Object.values(guidedMilestones).some(Boolean) &&
+              (numbered
+                ? ` Bonus attuale alle probabilità: ×${guidedBirthMultiplier(state).toLocaleString('it-IT')}.`
+                : ' I progressi della comunità rendono più favorevoli le nascite.')}
+          </p>
+        )}
+        {growth.population >= 10 &&
+          !hasBuilding(state, 'storage') &&
+          ['V_05', 'O_04', 'M_02'].every((id) => hasWord(state, id)) && (
+            <p>
+              La comunità ha bisogno di scorte più grandi: Conservare · Preda · Domani costruisce un
+              Pozzo scorte con legna o pietra consegnata. Senza spazio, parte del raccolto non può
+              essere conservata per la notte e la stagione successiva.
+            </p>
+          )}
         <small>
           È una previsione condizionata: età, fame, riposo e posizione si verificano a fine
           stagione. Anche con tutto pronto, la nascita non è garantita.

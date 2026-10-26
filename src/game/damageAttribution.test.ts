@@ -126,6 +126,15 @@ describe('actual attackers, not the unit’s historical target', () => {
   it('records the enemy army that actually kills a sage on the frontline', () => {
     const s = world(),
       sage = s.units[0];
+    s.factions.push({
+      id: 'enemy',
+      name: 'Nemici',
+      cityId: '',
+      words: [],
+      dogmas: [],
+      relation: -100,
+      hostile: true,
+    });
     Object.assign(sage, {
       x: HOME.x + 40,
       hp: 1,

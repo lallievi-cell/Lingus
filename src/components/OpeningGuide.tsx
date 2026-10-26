@@ -59,7 +59,10 @@ export function OpeningGuide({ state, onHome }: { state: GameState; onHome: () =
   } else {
     title = 'Scorte prima del gelo';
     text =
-      'Porta cibo prima che il gelo blocchi le bacche; esplora altre pianure se quelle vicine finiscono. Tieni legna per alimentare il Falò e assegna una guardia con Conservare + Fuoco contro le tempeste. Ripari e pelli proteggono dal freddo.';
+      'Porta cibo prima che il gelo blocchi le bacche; esplora altre pianure se quelle vicine finiscono. Tieni legna per alimentare il Falò e assegna una guardia con Conservare + Fuoco contro le tempeste. Ripari e pelli proteggono dal freddo.' +
+      (guided && hasWord(state, 'V_05')
+        ? ' In Guidata, Portare Preda ripete i viaggi sullo stesso nodo durante il giorno.'
+        : '');
   }
   const autumn = state.time >= 180 && !fire;
   return (

@@ -16,6 +16,7 @@ import { drawMapAtmosphere, isFoundryProducing, type AtmosphereOptions } from '.
 import { drawRegionalRoutes } from './mapRouteArt';
 import { drawRegionalSieges } from './mapSiegeArt';
 import { getBattalionDisplayPoint } from './regionalLayout';
+import { foreignUnitDisposition } from './unitReadability';
 
 const fallbackMotionSession = createMapMotionSession();
 
@@ -785,6 +786,7 @@ function drawUnit(
   equipment: VisibleUnitEquipment = {},
   numbered = false,
   pose = getUnitAnimation(unit, time, { equipment }),
+  foreign?: 'visitor' | 'hostile',
 ) {
   const { x, y } = worldPoint(unit.x, unit.y);
   const id = Array.from(unit.id).reduce((n, c) => n + c.charCodeAt(0), 0);
@@ -842,7 +844,7 @@ function drawUnit(
   ctx.save();
   const bodyScale = child ? 0.7 : elder ? 0.94 : newborn ? 0.82 : 1;
   ctx.scale(bodyScale, bodyScale);
-  drawPainterlyBody(ctx, unit, time, equipment, pose);
+  drawPainterlyBody(ctx, unit, time, equipment, pose, foreign);
   if (!newborn && !child && !sleeping && equipment.held)
     drawHandheld(ctx, equipment, time, id, pose);
   if (unit.carry && unit.carry.amount > 0 && !sleeping) {
@@ -1279,6 +1281,7 @@ export function drawWorld(
       inView(u) &&
       isVisibleAt(state, u.x, u.y) &&
       (!state.urbanized ||
+        (u.factionId !== undefined && u.factionId !== 'player') ||
         u.isKing ||
         ['delegating', 'frontline', 'frontline-returning'].includes(u.action)),
   ))
@@ -1377,6 +1380,7 @@ export function drawWorld(
             equipment,
             hasConcept(state, 'O_08'),
             pose,
+            foreignUnitDisposition(state, actual),
           );
         }),
     });

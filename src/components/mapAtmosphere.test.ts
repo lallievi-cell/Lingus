@@ -152,6 +152,50 @@ describe('world atmosphere follows the real simulation', () => {
     expect(getAtmosphereFrame(state, 1).sources).toEqual([]);
   });
 
+  it('uses the selected urban recipe and capital inventory rather than obsolete ore inputs', () => {
+    const state = createGame(6842);
+    const city = state.cities[0];
+    city.factionId = 'player';
+    city.capital = true;
+    const foundry: Building = {
+      ...fire,
+      kind: 'foundry',
+      cityId: city.id,
+      lastEfficiency: 1,
+      productionMode: 'metalArms',
+    };
+    Object.assign(state.resources, { ingot: 1, ore: 0, wood: 0 });
+    Object.assign(city.resources, { ingot: 0, ore: 10, wood: 20 });
+    expect(isFoundryProducing(state, foundry)).toBe(true);
+    foundry.productionMode = 'coin';
+    expect(isFoundryProducing(state, foundry)).toBe(true);
+    state.resources.ingot = 0;
+    expect(isFoundryProducing(state, foundry)).toBe(false);
+    foundry.productionMode = 'ingot';
+    expect(isFoundryProducing(state, foundry)).toBe(false);
+    Object.assign(state.resources, { ore: 1, wood: 2 });
+    expect(isFoundryProducing(state, foundry)).toBe(true);
+  });
+
+  it('retains brief foreign forging smoke only after actual recent work on an active staffed furnace', () => {
+    const state = createGame(6842);
+    const city = state.cities[0];
+    const foundry: Building = { ...fire, kind: 'foundry', cityId: city.id, lastEfficiency: 1 };
+    Object.assign(city.resources, { ingot: 0, ore: 0, wood: 0 });
+    state.time = 20;
+    expect(isFoundryProducing(state, foundry)).toBe(false);
+    state.eventTimes[`foreignForgeLastWork:${foundry.id}`] = 20;
+    expect(isFoundryProducing(state, foundry)).toBe(true);
+    state.time = 22;
+    expect(isFoundryProducing(state, foundry)).toBe(false);
+    state.time = 20;
+    foundry.active = false;
+    expect(isFoundryProducing(state, foundry)).toBe(false);
+    foundry.active = true;
+    foundry.lastEfficiency = 0;
+    expect(isFoundryProducing(state, foundry)).toBe(false);
+  });
+
   it('draws a single localized summer strike only when the real tree ignites, including later years', () => {
     const state = createGame(6842);
     state.paused = false;

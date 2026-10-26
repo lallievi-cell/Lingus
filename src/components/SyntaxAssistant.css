@@ -1,0 +1,127 @@
+/* Syntax is a separate cue from the gold target suggestions and danger colors. */
+.app .word-tile.word-compatible:not(.word-forgotten):not(.word-suggested) {
+  border-color: #527a6c !important;
+  box-shadow:
+    inset 0 -3px 0 #527a6c86,
+    inset 0 1px 0 var(--ui-highlight);
+}
+.app .word-tile.word-compatible .word-label::after {
+  content: ' ·';
+  color: #386353;
+  font-weight: 800;
+}
+.app .syntax-assistant {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 4px 0;
+  font-size: 10px;
+  color: #395344;
+}
+.app .syntax-next {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-right: auto;
+}
+.app .syntax-cue {
+  width: 6px;
+  height: 6px;
+  border: 1px solid #527a6c;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.app .syntax-disclaimer {
+  color: #586b5c;
+}
+.app .syntax-toggle,
+.app .word-bank-reset {
+  padding: 4px 8px;
+  border: 1px solid #93a99b;
+  border-radius: 5px;
+  background: #f6f7ee;
+  color: #304e3e;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.app .syntax-toggle[aria-pressed='true'] {
+  background: #335747;
+  color: #fffdf1;
+}
+.app .word-search {
+  display: block;
+  min-width: 80px;
+  width: 170px;
+}
+.app .word-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 4px 7px;
+  border: 1px solid #a8b7a7;
+  border-radius: 5px;
+  background: #fffdf4;
+  color: #233f30;
+  font-size: 11px;
+}
+.app .word-search input::placeholder {
+  color: #637463;
+}
+.app .echo-shelf .echo-chip:disabled {
+  opacity: 0.6;
+  border-style: dashed;
+  text-decoration: line-through;
+}
+.app .word-bank-reset {
+  align-self: center;
+  flex-shrink: 0;
+}
+@media (max-width: 800px) {
+  .app .language-workbench .sentence-slots {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: thin;
+    padding-bottom: 3px;
+    overscroll-behavior-x: contain;
+  }
+  .app .language-workbench .slot-group {
+    flex: 0 0 112px !important;
+    min-width: 112px !important;
+  }
+  .app .language-workbench .composer-actions {
+    flex-shrink: 0 !important;
+  }
+  .app .language-workbench .sentence-slots:focus-visible {
+    outline: 2px solid #527a6c;
+    outline-offset: 2px;
+  }
+  .app .syntax-assistant {
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 3px 0;
+  }
+  .app .syntax-next {
+    flex: 1 1 auto;
+    font-size: 9px;
+  }
+  .app .syntax-disclaimer {
+    display: none;
+  }
+  .app .syntax-toggle {
+    font-size: 9px;
+    padding: 3px 6px;
+  }
+  .app .word-search {
+    width: 100%;
+  }
+  .app .word-search input {
+    height: 26px;
+    font-size: 11px;
+  }
+  .app .word-tile.word-compatible:not(.word-forgotten):not(.word-suggested) {
+    box-shadow:
+      inset 0 -3px 0 #527a6c86,
+      inset 0 1px 0 var(--ui-highlight) !important;
+  }
+}
