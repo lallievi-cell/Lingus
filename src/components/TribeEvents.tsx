@@ -127,11 +127,15 @@ export function TribeEvents({
   state,
   events,
   onFocus,
+  onInspect,
+  onWord,
   summary = false,
 }: {
   state: GameState;
   events: TribeEvent[];
   onFocus?: (id: string) => void;
+  onInspect?: (id: string) => void;
+  onWord?: (id: string) => void;
   summary?: boolean;
 }) {
   const shown = distinctTribeEvents(events).slice(0, summary ? 6 : 3);
@@ -154,16 +158,42 @@ export function TribeEvents({
               <strong>{message.title}</strong>
               <p>{message.text}</p>
             </div>
-            {onFocus && event.unitId && (
-              <button
-                className="text-button"
-                onClick={() => onFocus(event.unitId!)}
-                aria-label={`Mostra sulla mappa: ${message.title}`}
-              >
-                <MapPin size={14} />
-                <span>Mostra</span>
-              </button>
-            )}
+            <div className="event-actions">
+              {onFocus && event.unitId && (
+                <button
+                  className="text-button"
+                  onClick={() => onFocus(event.unitId!)}
+                  aria-label={`Mostra sulla mappa: ${message.title}`}
+                >
+                  <MapPin size={14} />
+                  <span>Mostra</span>
+                </button>
+              )}
+              {onInspect &&
+                event.unitId &&
+                state.units.some((unit) => unit.id === event.unitId && unit.hp > 0) && (
+                  <button className="text-button" onClick={() => onInspect(event.unitId!)}>
+                    Scheda
+                  </button>
+                )}
+              {onWord &&
+                [
+                  ...new Set(
+                    event.kind === 'word-lost' ? [event.wordId!] : (event.lostWordIds ?? []),
+                  ),
+                ]
+                  .filter((id) => WORDS[id])
+                  .map((id) => (
+                    <button
+                      className="text-button"
+                      key={id}
+                      onClick={() => onWord(id)}
+                      aria-label={`Come riscoprire ${WORDS[id].label}`}
+                    >
+                      Riscopri {WORDS[id].label}
+                    </button>
+                  ))}
+            </div>
           </article>
         );
       })}

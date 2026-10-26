@@ -179,12 +179,17 @@ function assignBuildingJob(
   b.workerIds.push(u.id);
   return true;
 }
+/** Optional read-only receipt used by the UI preview; never persisted in a save. */
+export interface CommandTrace {
+  assignedUnitIds: string[];
+}
 export function issueCommand(
   state: GameState,
   tokens: string[],
   target?: Target,
   executorId?: string,
   selectionCenter?: Target,
+  trace?: CommandTrace,
 ): GameState {
   let s = copy(state);
   const compiled = compileSentence(s, tokens, target);
@@ -286,6 +291,7 @@ export function issueCommand(
       const loaded = (u.carry?.amount ?? 0) > 0;
       if (assignBuildingJob(s, u, workplace.kind, tokens, workplace.id)) {
         assigned++;
+        trace?.assignedUnitIds.push(u.id);
         droppedCargo ||= loaded;
       }
     }
@@ -380,6 +386,7 @@ export function issueCommand(
   if (kind) {
     const builder = workers[0];
     assigned++;
+    trace?.assignedUnitIds.push(builder.id);
     droppedCargo = dropCarriedLoad(s, builder);
     resetUnit(builder);
     builder.action = 'building';
@@ -414,6 +421,7 @@ export function issueCommand(
         const loaded = (u.carry?.amount ?? 0) > 0;
         if (assignBuildingJob(s, u, buildingJob, tokens)) {
           assigned++;
+          trace?.assignedUnitIds.push(u.id);
           u.lastOrderAt = s.time;
           droppedCargo ||= loaded;
         }
@@ -421,6 +429,7 @@ export function issueCommand(
       }
       droppedCargo = dropCarriedLoad(s, u) || droppedCargo;
       assigned++;
+      trace?.assignedUnitIds.push(u.id);
       resetUnit(u);
       u.command = [...tokens];
       u.lastOrderAt = s.time;

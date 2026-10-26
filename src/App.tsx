@@ -59,6 +59,15 @@ import { GuidedCouncil } from './components/GuidedCouncil';
 import { ForeignPressure } from './components/ForeignPressure';
 import { resolveForeignUltimatum } from './game/foreignPolicy';
 import { OpeningGuide } from './components/OpeningGuide';
+import { OrderPreview } from './components/OrderPreview';
+import { SeasonReadiness } from './components/SeasonReadiness';
+import { BuildingWorkStatus, UnitWorkStatus } from './components/WorkStatus';
+import {
+  matchesTribeFilter,
+  matchesTribeTask,
+  type TribeFilter,
+  type TribeTask,
+} from './game/workDiagnostics';
 import {
   acknowledgedTribeEventIds,
   forgottenWordHint,
@@ -122,6 +131,8 @@ type Panel =
   | 'restart'
   | 'milestone'
   | 'spark'
+  | 'word-help'
+  | 'readiness'
   | CivilizationMode
   | null;
 const KIND_NAMES: Record<WordKind, string> = {
@@ -172,6 +183,11 @@ function App() {
   const [selectingGroup, setSelectingGroup] = useState(false);
   const [target, setTarget] = useState<Target | null>(null);
   const [tab, setTab] = useState<'tribe' | 'chronicle'>('tribe');
+  const [tribeFilter, setTribeFilter] = useState<TribeFilter>('all');
+  const [tribeSort, setTribeSort] = useState<'original' | 'urgent'>('original');
+  const [tribeTask, setTribeTask] = useState<TribeTask>('any');
+  const [helpWordId, setHelpWordId] = useState<string | null>(null);
+  const [councilInspection, setCouncilInspection] = useState(false);
   const [filter, setFilter] = useState<WordKind | 'all' | 'compatible'>('all');
   const [wordSearch, setWordSearch] = useState('');
   const [mobileSection, setMobileSection] = useState<'map' | 'tribe' | 'discovery'>('map');
@@ -208,6 +224,7 @@ function App() {
   } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const sentenceSlotsRef = useRef<HTMLDivElement>(null);
+  const personDetailsRef = useRef<HTMLDivElement>(null);
   const { unlockFromGesture } = useGameAudio(game, sound, {
     ambience: !panel,
     sessionKey: mapSession,
@@ -291,9 +308,11 @@ function App() {
         ? BUILDING_NAMES[selectedBuilding.kind]
         : target?.type === 'city'
           ? game.cities.find((c) => c.id === target.id)?.name
-          : target
-            ? 'Punto sulla mappa'
-            : null;
+          : target?.type === 'battalion'
+            ? (game.battalions.find((b) => b.id === target.id)?.name ?? 'Un battaglione')
+            : target
+              ? 'Punto sulla mappa'
+              : null;
   const livingUnits = game.units.filter(
     (u) => u.hp > 0 && (u.factionId === undefined || u.factionId === 'player'),
   );
@@ -306,6 +325,23 @@ function App() {
     ? custodianStatuses.find((status) => status.risk !== 'safe')
     : undefined;
   const selectedCustodian = selectedUnit ? custodianByUnit.get(selectedUnit.id) : undefined;
+  const filteredUnits = livingUnits.filter(
+    (unit) =>
+      matchesTribeFilter(game, unit, tribeFilter, new Set(custodianByUnit.keys())) &&
+      matchesTribeTask(unit, tribeTask),
+  );
+  if (tribeSort === 'urgent') {
+    const priority = (unit: (typeof livingUnits)[number]) =>
+      (unit.temp <= 20 ? 8 : 0) +
+      (unit.hunger >= 95 ? 8 : unit.hunger >= 75 ? 3 : 0) +
+      (unit.hp <= 30 ? 8 : 0) +
+      (custodianByUnit.get(unit.id)?.risk === 'critical'
+        ? 4
+        : custodianByUnit.get(unit.id)?.risk === 'ageing'
+          ? 1
+          : 0);
+    filteredUnits.sort((a, b) => priority(b) - priority(a));
+  }
   const transmissionHint = (status: CustodianStatus) => {
     if (!hasWord(game, 'O_05')) return 'Proteggi questa memoria finché potrai tramandarla.';
     if (!hasBuilding(game, 'campfire')) return 'Serve un falò acceso e attivo per tramandare.';
@@ -358,6 +394,10 @@ function App() {
     if (slot.right > visible.right) strip.scrollLeft += slot.right - visible.right;
     else if (slot.left < visible.left) strip.scrollLeft += slot.left - visible.left;
   }, [sentence, slots]);
+
+  useEffect(() => {
+    if (target?.type === 'unit') personDetailsRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [target?.type, target?.id, mobileSection]);
 
   useEffect(() => {
     const events = game.tribeEvents ?? [];
@@ -423,12 +463,21 @@ function App() {
       setPanel(null);
       return;
     }
-    if (game.campfirePending && !panel && !game.gameOver) setPanel('campfire');
+    if (!game.campfirePending && councilInspection) setCouncilInspection(false);
+    if (game.campfirePending && !panel && !game.gameOver && !councilInspection)
+      setPanel('campfire');
     if (game.victory && !hasSeenMilestone && !panel) {
       setHasSeenMilestone(true);
       setPanel('milestone');
     }
-  }, [game.campfirePending, game.victory, game.gameOver, hasSeenMilestone, panel]);
+  }, [
+    game.campfirePending,
+    game.victory,
+    game.gameOver,
+    hasSeenMilestone,
+    panel,
+    councilInspection,
+  ]);
 
   useEffect(() => {
     const keydown = (e: KeyboardEvent) => {
@@ -437,7 +486,7 @@ function App() {
       // phrase or choosing a word must never also pronounce the old sentence.
       if (
         ['Enter', 'NumpadEnter', 'Space'].includes(e.code) &&
-        (e.target as HTMLElement).closest('button,a,[role="button"]')
+        (e.target as HTMLElement).closest('button,a,summary,[role="button"]')
       )
         return;
       if (e.code === 'Enter' || e.code === 'NumpadEnter') {
@@ -506,7 +555,56 @@ function App() {
     );
   }
 
+  function focusTarget(picked: Target, inspect = false) {
+    setTarget(picked);
+    setSelectingGroup(false);
+    if (
+      picked.id &&
+      ((picked.type === 'unit' &&
+        game.units.some(
+          (u) => u.id === picked.id && u.hp > 0 && (!u.factionId || u.factionId === 'player'),
+        )) ||
+        (picked.type === 'city' &&
+          game.cities.some((c) => c.id === picked.id && c.factionId === 'player')) ||
+        (picked.type === 'battalion' &&
+          game.battalions.some((b) => b.id === picked.id && b.factionId === 'player')))
+    )
+      setExecutorId(picked.id);
+    setFocusRequest({ x: picked.x, y: picked.y, nonce: Date.now() });
+    setMobileSection(inspect ? 'tribe' : 'map');
+    if (inspect) setTab('tribe');
+  }
+
+  function inspectPerson(id: string) {
+    const unit = game.units.find((u) => u.id === id && u.hp > 0);
+    if (unit) focusTarget({ type: 'unit', id, x: unit.x, y: unit.y }, true);
+  }
+
+  function preparePhrase(words: string[], destination?: Target) {
+    const issue = phraseRecallIssue(game, words);
+    if (issue) {
+      notify(issue);
+      return;
+    }
+    setSentence([...words]);
+    setWordSearch('');
+    setFilter('all');
+    setPanel(null);
+    setMobileSection('map');
+    if (destination) focusTarget(destination);
+    notify('Frase preparata. Verifica esecutori e bersaglio nell’anteprima, poi premi Pronuncia.');
+  }
+
+  function showWordHelp(id: string) {
+    setHelpWordId(id);
+    setPanel('word-help');
+  }
+
   function pronounce() {
+    if (game.campfirePending) {
+      notify('Concludi il consiglio al falò prima di inviare un nuovo ordine.');
+      return;
+    }
     const result = compileSentence(game, sentence, target ?? undefined);
     if (!result.valid) {
       notify(result.message);
@@ -623,6 +721,11 @@ function App() {
       setHasSeenMilestone(!!parsed.victory);
       setGroupAnchor({ type: 'point', ...parsed.home });
       setExecutorId(undefined);
+      setTribeFilter('all');
+      setTribeSort('original');
+      setTribeTask('any');
+      setHelpWordId(null);
+      setCouncilInspection(false);
       setNewMode(parsed.playMode ?? 'classic');
       setNewMap(parsed.mapGeneration?.mode ?? 'random');
       setNewSeed(parsed.mapGeneration ? String(parsed.mapGeneration.seed) : '');
@@ -694,6 +797,11 @@ function App() {
     setHasSeenMilestone(false);
     setGroupAnchor({ type: 'point', ...fresh.home });
     setExecutorId(undefined);
+    setTribeFilter('all');
+    setTribeSort('original');
+    setTribeTask('any');
+    setHelpWordId(null);
+    setCouncilInspection(false);
     setPauseOnEvents(newMode === 'guided');
     setDismissedEvents(new Set());
     eventSnapshot.current = new Set();
@@ -995,31 +1103,69 @@ function App() {
                   )}
                 </div>
               )}
-              <div className="unit-list" aria-label="Membri della tribù">
-                {!game.urbanized &&
-                  livingUnits.map((unit, index) => {
-                    const spark = game.sparks.find((s) => s.unitId === unit.id);
-                    return (
-                      <TribeMemberCard
-                        key={unit.id}
-                        state={game}
-                        unit={unit}
-                        index={index}
-                        selected={target?.id === unit.id}
-                        custodian={custodianByUnit.get(unit.id)}
-                        onActivate={() => {
-                          if (spark) openSpark(spark);
-                          else {
-                            setExecutorId(unit.id);
-                            setTarget({ type: 'unit', id: unit.id, x: unit.x, y: unit.y });
-                          }
-                        }}
-                      />
-                    );
-                  })}
-              </div>
+              {!game.urbanized && (
+                <details className="tribe-tools" aria-label="Gestione della tribù" key={mapSession}>
+                  <summary>
+                    Filtri e priorità
+                    {tribeFilter !== 'all' || tribeTask !== 'any' ? ' · filtro attivo' : ''}
+                  </summary>
+                  <div className="tribe-filters" role="group" aria-label="Filtra la tribù">
+                    {(
+                      [
+                        ['all', 'Tutti'],
+                        ['urgent', 'In difficoltà'],
+                        ['idle', 'Senza incarico'],
+                        ['working', 'Al lavoro'],
+                        ['recovering', 'In recupero'],
+                        ['custodians', 'Ultimi custodi'],
+                        ['young', 'Bambini'],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <button
+                        key={value}
+                        aria-pressed={tribeFilter === value}
+                        onClick={() => setTribeFilter(value)}
+                      >
+                        {label}
+                        {numbered
+                          ? ` (${livingUnits.filter((u) => matchesTribeFilter(game, u, value, new Set(custodianByUnit.keys()))).length})`
+                          : ''}
+                      </button>
+                    ))}
+                  </div>
+                  <label>
+                    Attività
+                    <select
+                      aria-label="Filtra per attività"
+                      value={tribeTask}
+                      onChange={(event) => setTribeTask(event.target.value as TribeTask)}
+                    >
+                      <option value="any">Tutte le attività</option>
+                      <option value="transport">Trasporto</option>
+                      <option value="gathering">Raccolta e caccia</option>
+                      <option value="craft">Artigianato e cucina</option>
+                      <option value="guard">Sorveglianza</option>
+                      <option value="building">Costruzione</option>
+                      <option value="assigned">Incarichi agli edifici</option>
+                    </select>
+                  </label>
+                  <label>
+                    Ordine dell’elenco
+                    <select
+                      aria-label="Ordina la tribù"
+                      value={tribeSort}
+                      onChange={(event) =>
+                        setTribeSort(event.target.value as 'original' | 'urgent')
+                      }
+                    >
+                      <option value="original">Ordine abituale</option>
+                      <option value="urgent">Prima le urgenze</option>
+                    </select>
+                  </label>
+                </details>
+              )}
               {selectedUnit && (
-                <div className="individual-card person-details">
+                <div className="individual-card person-details" ref={personDetailsRef}>
                   <div>
                     <span className="eyebrow">
                       {visibleUnitName(game, selectedUnit).toUpperCase()} ·{' '}
@@ -1051,6 +1197,20 @@ function App() {
                     )}
                   </p>
                   <p className="person-life-hint">{unitLifeHint(selectedUnit)}</p>
+                  <UnitWorkStatus state={game} unit={selectedUnit} onFocus={focusTarget} />
+                  <button
+                    className="text-button"
+                    onClick={() =>
+                      focusTarget({
+                        type: 'unit',
+                        id: selectedUnit.id,
+                        x: selectedUnit.x,
+                        y: selectedUnit.y,
+                      })
+                    }
+                  >
+                    <MapPin size={12} /> Inquadra sulla mappa
+                  </button>
                   <IndividualGrowthReadiness state={game} unit={selectedUnit} />
                   {physicalWarnings(selectedUnit).length > 0 && (
                     <p className="person-danger">
@@ -1086,6 +1246,52 @@ function App() {
                   )}
                 </div>
               )}
+              <div className="unit-list" aria-label="Membri della tribù">
+                {!game.urbanized &&
+                  filteredUnits.map((unit) => {
+                    const spark = game.sparks.find((s) => s.unitId === unit.id);
+                    return (
+                      <TribeMemberCard
+                        key={unit.id}
+                        state={game}
+                        unit={unit}
+                        index={livingUnits.indexOf(unit)}
+                        selected={target?.id === unit.id}
+                        custodian={custodianByUnit.get(unit.id)}
+                        onActivate={() => {
+                          if (spark) openSpark(spark);
+                          else {
+                            focusTarget({ type: 'unit', id: unit.id, x: unit.x, y: unit.y }, true);
+                          }
+                        }}
+                      />
+                    );
+                  })}
+                {!game.urbanized && !filteredUnits.length && (
+                  <p className="empty-tribe-filter">
+                    Nessun compagno in questa categoria.{' '}
+                    <button
+                      className="text-button"
+                      onClick={() => {
+                        setTribeFilter('all');
+                        setTribeTask('any');
+                      }}
+                    >
+                      Mostra tutti
+                    </button>
+                  </p>
+                )}
+              </div>
+              {selectedBuilding && (
+                <div className="selected-work-details">
+                  <BuildingWorkStatus
+                    state={game}
+                    building={selectedBuilding}
+                    onFocus={focusTarget}
+                    onCompose={preparePhrase}
+                  />
+                </div>
+              )}
               {ownedBuildings.length > 0 && (
                 <div className="village-card">
                   <span className="eyebrow">IL NOSTRO LUOGO</span>
@@ -1093,8 +1299,18 @@ function App() {
                     {ownedBuildings.map((b) => (
                       <button
                         key={b.id}
-                        title={b.active ? 'Attivo' : 'Inattivo: manca manutenzione'}
-                        onClick={() => setTarget({ type: 'building', id: b.id, x: b.x, y: b.y })}
+                        title={
+                          b.completed === false
+                            ? 'Costruzione in corso'
+                            : b.hp <= 0
+                              ? 'Distrutto'
+                              : b.active
+                                ? 'Seleziona per vedere addetti e attività'
+                                : 'Seleziona per capire perché è fermo'
+                        }
+                        onClick={() =>
+                          focusTarget({ type: 'building', id: b.id, x: b.x, y: b.y }, true)
+                        }
                       >
                         <Glyph
                           id={
@@ -1103,12 +1319,20 @@ function App() {
                           size={16}
                         />
                         <span>{BUILDING_NAMES[b.kind]}</span>
-                        <span className={`status-dot ${!b.active ? 'amber' : ''}`} />
+                        <span
+                          className={`status-dot ${!b.active || b.completed === false || b.hp <= 0 ? 'amber' : ''}`}
+                        />
                       </button>
                     ))}
                   </div>
                 </div>
               )}
+              <SeasonReadiness
+                state={game}
+                onFocus={focusTarget}
+                onCompose={preparePhrase}
+                onRecipes={() => setPanel('recipes')}
+              />
               <div className="tribe-footnote">
                 <Wind size={21} />
                 <p>
@@ -1156,6 +1380,21 @@ function App() {
               setFocusRequest({ x: point.x, y: point.y, nonce: Date.now() });
             }}
           />
+          {game.campfirePending && councilInspection && (
+            <div className="council-inspection" role="status">
+              <Flame size={14} />
+              <span>Consiglio in attesa · il tempo resta fermo.</span>
+              <button
+                className="text-button"
+                onClick={() => {
+                  setCouncilInspection(false);
+                  setPanel('campfire');
+                }}
+              >
+                Torna al consiglio
+              </button>
+            </div>
+          )}
           {nextSpark && (
             <button
               type="button"
@@ -1201,7 +1440,9 @@ function App() {
                   setTarget(picked);
                   if (
                     (picked.type === 'unit' &&
-                      game.units.some((u) => u.id === picked.id && u.factionId === 'player')) ||
+                      game.units.some(
+                        (u) => u.id === picked.id && (!u.factionId || u.factionId === 'player'),
+                      )) ||
                     (picked.type === 'battalion' &&
                       game.battalions.some(
                         (b) => b.id === picked.id && b.factionId === 'player',
@@ -1213,6 +1454,7 @@ function App() {
                 }
               }}
               commandReady={compilation.valid && sentence.length >= 2}
+              selectingGroup={selectingGroup}
               onSpark={(id) => {
                 const spark = game.sparks.find((s) => s.id === id);
                 if (spark) openSpark(spark);
@@ -1261,6 +1503,15 @@ function App() {
             </span>
             <div className="time-controls">
               <button
+                className="icon-button preparation-button"
+                onClick={() => setPanel('readiness')}
+                aria-label="Controlla la prossima stagione"
+                title="Preparazione alla prossima stagione"
+              >
+                <Leaf size={15} />
+                <span>Preparazione</span>
+              </button>
+              <button
                 className="icon-button"
                 onClick={() => setGame((g) => ({ ...g, paused: !g.paused }))}
                 aria-label={game.paused ? 'Riprendi il tempo' : 'Metti in pausa'}
@@ -1287,6 +1538,16 @@ function App() {
               </div>
             </div>
           </div>
+          {selectedBuilding && (
+            <div className="map-work-details">
+              <BuildingWorkStatus
+                state={game}
+                building={selectedBuilding}
+                onFocus={focusTarget}
+                onCompose={preparePhrase}
+              />
+            </div>
+          )}
         </section>
 
         <aside
@@ -1615,8 +1876,12 @@ function App() {
             <button
               className="pronounce-button"
               onClick={pronounce}
-              disabled={!game.started || sentence.length < 2 || !!game.gameOver}
-              title="Pronuncia (Invio)"
+              disabled={
+                !game.started || sentence.length < 2 || !!game.gameOver || game.campfirePending
+              }
+              title={
+                game.campfirePending ? 'Concludi prima il consiglio al falò' : 'Pronuncia (Invio)'
+              }
             >
               <span>Pronuncia</span>
               <ArrowRight size={18} />
@@ -1642,6 +1907,13 @@ function App() {
             </span>
           </div>
         </div>
+        <OrderPreview
+          state={game}
+          sentence={sentence}
+          target={target ?? undefined}
+          executorId={executorId}
+          groupAnchor={groupAnchor}
+        />
         {game.tier >= 3 && (
           <div className="syntax-assistant" aria-label="Assistente sintattico">
             <span className="syntax-next" title={syntax.explanation} aria-live="polite">
@@ -1741,6 +2013,8 @@ function App() {
           <TribeEvents
             state={game}
             events={unreadEvents}
+            onInspect={inspectPerson}
+            onWord={showWordHelp}
             onFocus={(id) => {
               const unit = game.units.find((u) => u.id === id);
               if (!unit) return;
@@ -1778,6 +2052,68 @@ function App() {
             <X size={14} />
           </button>
         </div>
+      )}
+
+      {panel === 'word-help' && helpWordId && WORDS[helpWordId] && (
+        <Modal
+          title={`Riscoprire ${WORDS[helpWordId].label}`}
+          onClose={closePanel}
+          className="word-help-modal"
+        >
+          <span className="eyebrow">UNA MEMORIA DA RITROVARE</span>
+          <h2>{WORDS[helpWordId].label}</h2>
+          <p className="modal-intro">{forgottenWordHint(game, helpWordId)}</p>
+          <div className="recovery-experience">
+            <strong>Ricrea l’esperienza</strong>
+            <p>{WORDS[helpWordId].event}</p>
+            <p>{WORDS[helpWordId].hint}</p>
+          </div>
+          <p>Quando ricompare la Scintilla, ricomponi questi concetti:</p>
+          <div className="recovery-words">
+            {WORDS[helpWordId].recipe.map((id, i) => (
+              <span key={`${id}-${i}`}>
+                {hasWord(game, id) ? WORDS[id].label : 'Un concetto da riscoprire'}
+              </span>
+            ))}
+          </div>
+          <p>
+            Una frase di scoperta si ricompone nella Scintilla; gli ordini nella barra fanno vivere
+            l’esperienza.
+          </p>
+          <div className="qol-actions">
+            <button
+              className="text-button"
+              onClick={() => {
+                setLexiconSearch(WORDS[helpWordId].label);
+                setPanel('lexicon');
+              }}
+            >
+              Apri nel lessico
+            </button>
+            <button className="text-button" onClick={() => setPanel('recipes')}>
+              Costruzioni conosciute
+            </button>
+          </div>
+        </Modal>
+      )}
+      {panel === 'readiness' && (
+        <Modal
+          title="Preparazione alla prossima stagione"
+          onClose={closePanel}
+          className="readiness-modal"
+        >
+          <h2>Prepariamo il domani.</h2>
+          <SeasonReadiness
+            expanded
+            state={game}
+            onFocus={(destination) => {
+              closePanel();
+              focusTarget(destination);
+            }}
+            onCompose={preparePhrase}
+            onRecipes={() => setPanel('recipes')}
+          />
+        </Modal>
       )}
 
       {panel === 'welcome' && (
@@ -2144,6 +2480,25 @@ function App() {
             state={game}
             events={(game.tribeEvents ?? []).filter((event) => event.time >= game.time - 90)}
             summary
+            onFocus={(id) => {
+              const unit = game.units.find((u) => u.id === id);
+              if (unit) {
+                setCouncilInspection(game.campfirePending);
+                closePanel();
+                focusTarget({
+                  type: unit.hp > 0 ? 'unit' : 'point',
+                  id: unit.hp > 0 ? unit.id : undefined,
+                  x: unit.x,
+                  y: unit.y,
+                });
+              }
+            }}
+            onInspect={(id) => {
+              setCouncilInspection(game.campfirePending);
+              closePanel();
+              inspectPerson(id);
+            }}
+            onWord={showWordHelp}
           />
           <div className="teaching-list">
             {known
@@ -2505,14 +2860,7 @@ function App() {
               target={target}
               onChange={setGame}
               onClose={closePanel}
-              onCompose={(tokens, destination) => {
-                if (tokens.length > slots) {
-                  notify('Questa frase richiede una capacità di pensiero maggiore.');
-                  return;
-                }
-                setSentence(tokens);
-                if (destination) setTarget(destination);
-              }}
+              onCompose={preparePhrase}
             />
           </Modal>
         )}

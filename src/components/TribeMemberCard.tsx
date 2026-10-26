@@ -1,5 +1,5 @@
 import { MessageCircle, Snowflake, Sparkles, TriangleAlert } from 'lucide-react';
-import { ACTION_NAMES, ADULT_AGE, WORDS } from '../game/content';
+import { ADULT_AGE, WORDS } from '../game/content';
 import type { CustodianStatus } from '../game/custodianStatus';
 import { getLifeStage, resolveUnitSex } from '../game/demography';
 import { hasWord } from '../game/runtime';
@@ -12,6 +12,7 @@ import {
   visibleUnitName,
 } from './unitReadability';
 import './TribeReadability.css';
+import { UnitWorkStatus } from './WorkStatus';
 
 interface Props {
   state: GameState;
@@ -62,13 +63,7 @@ export function TribeMemberCard({ state, unit, index, selected, custodian, onAct
           </span>
           <span className={`person-stage stage-${stage}`}>{lifeStageLabel(unit)}</span>
         </span>
-        <span className="person-action">
-          {young
-            ? 'Può imparare · non lavora'
-            : !named && unit.isolation >= 3
-              ? 'Lontano dal gruppo'
-              : (ACTION_NAMES[unit.action] ?? unit.action)}
-        </span>
+        <UnitWorkStatus state={state} unit={unit} compact />
         {young && (
           <span
             className="child-growth"

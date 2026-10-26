@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Crosshair, Minus, Plus, Move, MapPin, MousePointer2 } from 'lucide-react';
+import { Crosshair, Minus, Plus, Move, MapPin, MousePointer2, X } from 'lucide-react';
 import type { GameState, WorldTarget } from '../game/types';
 import {
   createTerrain,
@@ -34,6 +34,7 @@ interface WorldMapProps {
   onSelect: (target: WorldTarget) => void;
   onSelectGroupAnchor?: (target: WorldTarget) => void;
   commandReady?: boolean;
+  selectingGroup?: boolean;
   onSpark?: (sparkId: string) => void;
   groupAnchor?: WorldTarget | null;
   isGroupActive?: boolean;
@@ -122,12 +123,38 @@ function targetLabel(state: GameState, target: WorldTarget | null) {
     : 'Terra ancora inesplorata';
 }
 
+/** Recheck moving targets against live coordinates before exposing a choice. */
+function liveMapChoice(state: GameState, target: WorldTarget): WorldTarget | null {
+  if (target.type === 'point') return isVisibleAt(state, target.x, target.y) ? target : null;
+  const source =
+    target.type === 'unit'
+      ? state.units.find((u) => u.id === target.id && u.hp > 0)
+      : target.type === 'entity'
+        ? state.entities.find(
+            (e) =>
+              e.id === target.id &&
+              (e.amount > 0 || ['tree', 'stone'].includes(e.kind)) &&
+              (e.kind !== 'ore' || hasConcept(state, 'O_07')),
+          )
+        : target.type === 'building'
+          ? state.buildings.find((b) => b.id === target.id && b.hp > 0)
+          : target.type === 'city'
+            ? state.cities.find((c) => c.id === target.id && c.factionId !== 'ruins')
+            : target.type === 'battalion'
+              ? state.battalions.find((b) => b.id === target.id && b.hp > 0)
+              : state.caravans.find((c) => c.id === target.id && c.hp > 0 && !c.arrived);
+  return source && isVisibleAt(state, source.x, source.y)
+    ? { ...target, x: source.x, y: source.y }
+    : null;
+}
+
 export function WorldMap({
   state,
   selectedTarget,
   onSelect,
   onSelectGroupAnchor,
   commandReady = false,
+  selectingGroup = false,
   onSpark,
   groupAnchor = null,
   isGroupActive = false,
@@ -148,6 +175,14 @@ export function WorldMap({
     groupActiveRef = useRef(isGroupActive),
     orderFeedbackRef = useRef(orderFeedback);
   const [ping, setPing] = useState<{ x: number; y: number; time: number } | null>(null);
+  const [targetChoices, setTargetChoices] = useState<WorldTarget[]>([]);
+  const choiceRef = useRef<HTMLDivElement>(null);
+  const currentChoices = targetChoices
+    .map((item) => liveMapChoice(state, item))
+    .filter((item): item is WorldTarget => item !== null);
+  const choiceIdentity = currentChoices
+    .map((item) => `${item.type}:${item.id ?? 'ground'}`)
+    .join('|');
   const pingRef = useRef(ping);
   pingRef.current = ping;
   groupActiveRef.current = isGroupActive;
@@ -271,7 +306,7 @@ export function WorldMap({
   );
 
   const hitTest = useCallback(
-    (clientX: number, clientY: number): WorldTarget => {
+    (clientX: number, clientY: number, collect?: WorldTarget[]): WorldTarget => {
       const p = toWorld(clientX, clientY),
         current = stateRef.current,
         t = getTransform();
@@ -497,6 +532,16 @@ export function WorldMap({
           ),
         );
       candidates.sort((a, b) => Number(a.padded) - Number(b.padded) || a.distance - b.distance);
+      if (collect) {
+        const precise = candidates.some((c) => !c.padded);
+        for (const candidate of candidates) {
+          if (precise && candidate.padded) continue;
+          if (
+            !collect.some((t) => t.type === candidate.target.type && t.id === candidate.target.id)
+          )
+            collect.push(candidate.target);
+        }
+      }
       return (
         candidates[0]?.target ?? {
           type: 'point',
@@ -508,9 +553,31 @@ export function WorldMap({
     [getTransform, toWorld],
   );
 
+  useEffect(() => {
+    if (!targetChoices.length) return;
+    choiceRef.current?.querySelector<HTMLButtonElement>('button[data-target-choice]')?.focus();
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      setTargetChoices([]);
+      canvasRef.current?.focus({ preventScroll: true });
+    };
+    const outside = (event: PointerEvent) => {
+      if (!choiceRef.current?.contains(event.target as Node)) setTargetChoices([]);
+    };
+    window.addEventListener('keydown', dismiss, true);
+    window.addEventListener('pointerdown', outside);
+    return () => {
+      window.removeEventListener('keydown', dismiss, true);
+      window.removeEventListener('pointerdown', outside);
+    };
+  }, [targetChoices.length, choiceIdentity]);
+
   const handleGroupSelect = useCallback(
     (clientX: number, clientY: number) => {
       if (!onSelectGroupAnchor) return;
+      setTargetChoices([]);
       const target = hitTest(clientX, clientY);
       onSelectGroupAnchor(target);
       const now = stateRef.current.paused ? stateRef.current.time : performance.now() / 1000;
@@ -704,6 +771,7 @@ export function WorldMap({
     >
       <canvas
         ref={canvasRef}
+        tabIndex={0}
         className="lingus-world__canvas"
         aria-label="Mappa della valle: seleziona risorse, abitanti e luoghi per dare un ordine alla tribù"
         role="img"
@@ -820,7 +888,14 @@ export function WorldMap({
             onSpark(spark.id);
             return;
           }
-          onSelect(hitTest(event.clientX, event.clientY));
+          const choices: WorldTarget[] = [];
+          const picked = hitTest(event.clientX, event.clientY, choices);
+          if (choices.length > 1 && !selectingGroup) {
+            setTargetChoices([...choices, { type: 'point', x: p.x, y: p.y }]);
+            return;
+          }
+          setTargetChoices([]);
+          onSelect(picked);
         }}
         onDoubleClick={(event) => {
           event.preventDefault();
@@ -843,6 +918,53 @@ export function WorldMap({
           setHovered(null);
         }}
       />
+      {targetChoices.length > 0 && (
+        <div
+          className="map-target-choices"
+          ref={choiceRef}
+          role="group"
+          aria-label="Scegli tra gli elementi sovrapposti"
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          <div className="map-target-choices-heading">
+            <strong>Cosa vuoi selezionare?</strong>
+            <button
+              className="icon-button small"
+              aria-label="Chiudi scelta bersaglio"
+              onClick={() => {
+                setTargetChoices([]);
+                canvasRef.current?.focus({ preventScroll: true });
+              }}
+            >
+              <X size={13} />
+            </button>
+          </div>
+          <p>Più elementi in questo punto. Scegli il bersaglio; l’ordine partirà con Pronuncia.</p>
+          <div className="map-target-choice-list">
+            {currentChoices.map((item, index) => (
+              <button
+                data-target-choice
+                key={`${item.type}-${item.id ?? index}`}
+                onClick={() => {
+                  const live = liveMapChoice(stateRef.current, item);
+                  if (!live) return;
+                  onSelect(live);
+                  setTargetChoices([]);
+                  canvasRef.current?.focus({ preventScroll: true });
+                }}
+              >
+                <MapPin size={12} />
+                <span>
+                  {item.type === 'point' ? 'Punto sul terreno' : targetLabel(state, item)}
+                  {item.type === 'unit'
+                    ? ` · ${getLifeStage(state.units.find((u) => u.id === item.id)!) === 'elder' ? 'persona anziana' : state.units.find((u) => u.id === item.id)!.age < 4 ? 'giovane' : 'persona adulta'}`
+                    : ''}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="lingus-world__location" aria-hidden="true">
         <MapPin size={13} strokeWidth={1.5} />
         <div>

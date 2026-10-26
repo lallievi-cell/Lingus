@@ -1070,7 +1070,7 @@ function guidedDirectTask(s: GameState, u: Unit, tokens: string[]) {
     tokens.every((id) => hasWord(s, id))
   );
 }
-function guidedRepeatTransport(s: GameState, tokens: string[]) {
+export function guidedRepeatTransport(s: GameState, tokens: string[]) {
   return (
     s.playMode === 'guided' &&
     tokens.includes('V_04') &&
@@ -1079,7 +1079,7 @@ function guidedRepeatTransport(s: GameState, tokens: string[]) {
     !['C_01', 'C_02'].includes(tokens[0])
   );
 }
-function plainToolCraft(tokens: string[]) {
+export function plainToolCraft(tokens: string[]) {
   return tokens.includes('V_06') && tokens.length === 3 && tokens[2] === 'O_02';
 }
 export function processWork(s: GameState, u: Unit, dt: number) {

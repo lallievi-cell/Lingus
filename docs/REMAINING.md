@@ -6,6 +6,8 @@ La revisione [FOUR-IMPROVEMENTS.md](FOUR-IMPROVEMENTS.md) aggiunge la calibrazio
 
 ## Ultimi comportamenti espliciti completati
 
+La revisione [UI-QUALITY-OF-LIFE.md](UI-QUALITY-OF-LIFE.md) aggiunge anteprima degli ordini con il gestore reale, motivi correnti di inattività, stime stagionali, avvisi azionabili, filtri della tribù e selezione degli elementi sovrapposti. Le stime dichiarano le proprie assunzioni e non certificano una campagna completa.
+
 | Voce                               | Completamento e prova                                                                                                                                                                                                                                                                                           |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Mercanti stranieri e dazio del 20% | Partenze autonome con merci e monete sottratte alle scorte straniere; riscossione una sola volta alla frontiera, arresto e intercettazione in caso di rifiuto, scambio e ritorno fisico. 13 test in `foreignCommerce.test.ts`; nessun doppio accredito e nessuna ricompensa per scambi vuoti.                   |

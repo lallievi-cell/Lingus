@@ -36,6 +36,8 @@ Le nuove storie propongono una **mappa casuale**; puoi inserire un seed per ritr
 
 La barra evidenzia le parole compatibili con il prossimo spazio. Dal Neolitico puoi cercarle e attivare **Solo compatibili**. La cronologia ricompone le ultime otto frasi accettate senza eseguirle: controlla il bersaglio e poi pronuncia.
 
+Apri **Anteprima dell’ordine** per verificare esecutori, destinazioni, costi e attività interrotte prima di pronunciare. **Filtri e priorità** organizza la tribù per bisogni e attività; le schede spiegano incarichi e pause. Il pulsante con la foglia accanto al tempo apre la **preparazione stagionale**: manutenzione, cibo, carne cruda e riparo. Gli avvisi sulle parole perdute indicano come rivivere l’esperienza. Se sulla mappa più elementi si sovrappongono, puoi scegliere esplicitamente quale selezionare. Dettagli e limiti delle stime in [UI-QUALITY-OF-LIFE.md](docs/UI-QUALITY-OF-LIFE.md).
+
 Una stagione dura 90 secondi, di cui 60 di luce e 30 di notte; il primo inverno inizia al secondo 270. La voce ha capienza tre, poi cinque con il Re: gli ordini diretti costano un punto e ne viene recuperato uno ogni dieci secondi. Le istituzioni permanenti eseguono i propri cicli senza quel costo ripetuto.
 
 | Controllo                          | Effetto                                                     |

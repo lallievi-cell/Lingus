@@ -1,0 +1,337 @@
+.order-preview,
+.season-readiness {
+  color: var(--ink, #405345);
+  background: var(--ui-panel, #f5f3e9);
+  border: 1px solid #cbd1bc;
+  border-radius: var(--ui-radius, 8px);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.order-preview {
+  margin: 0 22px 9px;
+}
+.order-preview.blocked {
+  border-color: #cdb89b;
+}
+.order-preview summary,
+.season-readiness summary {
+  position: relative;
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+}
+.order-preview summary > svg,
+.season-readiness summary > svg {
+  flex-shrink: 0;
+}
+.order-preview summary > span {
+  color: #64705c;
+}
+.order-preview summary::after,
+.season-readiness summary::after {
+  content: '+';
+  font-size: 17px;
+  margin-left: auto;
+}
+.order-preview[open] summary::after,
+.season-readiness[open] summary::after {
+  content: '−';
+}
+.order-preview summary:focus-visible,
+.season-readiness summary:focus-visible {
+  outline: 2px solid #668363;
+  outline-offset: 3px;
+  border-radius: 5px;
+}
+.order-preview-body,
+.readiness-body {
+  padding: 0 11px 11px;
+  border-top: 1px solid #d8dccd;
+  max-height: 260px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.order-preview-body p,
+.readiness-body p {
+  margin: 7px 0;
+}
+.order-preview-body small,
+.qol-assumption {
+  color: #68715f;
+  font-size: 10px;
+}
+.qol-warning {
+  color: #935139;
+}
+.season-readiness {
+  margin: 12px 16px;
+}
+.season-readiness summary > span:first-of-type {
+  display: grid;
+  gap: 1px;
+}
+.season-readiness summary small {
+  font-size: 10px;
+  color: #67715d;
+}
+.season-readiness .readiness-open {
+  margin-left: auto;
+  font-size: 10px;
+  color: #67715d;
+}
+.season-readiness.needs-attention {
+  border-color: #c8b591;
+}
+.readiness-body h3 {
+  font: 650 11px var(--font-sans, sans-serif);
+  margin: 13px 0 6px;
+}
+.readiness-row {
+  display: grid;
+  padding: 7px 0;
+  border-bottom: 1px solid #e2dfcf;
+  gap: 2px;
+}
+.readiness-row > span {
+  font-size: 10px;
+}
+.readiness-body button {
+  font-size: 10px;
+  text-align: left;
+  margin: 4px 0;
+}
+.raw-food-warning {
+  display: flex;
+  gap: 6px;
+  color: #925137;
+  padding: 8px;
+  background: #b97a4c0b;
+  border-radius: 5px;
+}
+.raw-food-warning > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.raw-food-warning p {
+  margin: 3px 0;
+}
+.council-inspection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--ui-panel, #f3f2e8);
+  border-bottom: 1px solid #c9cbb7;
+  font-size: 11px;
+}
+.council-inspection > svg {
+  flex-shrink: 0;
+}
+.council-inspection button {
+  margin-left: auto;
+  font-size: 11px;
+}
+.work-status {
+  padding: 10px 12px;
+  background: var(--ui-panel, #f3f2e9);
+  border: 1px solid #d2d6c5;
+  border-radius: var(--ui-radius, 7px);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.work-status p {
+  margin: 4px 0;
+}
+.work-status > span {
+  display: block;
+  color: #6d755f;
+  font-size: 10px;
+}
+.work-status .text-button {
+  margin-top: 7px;
+  font-size: 10px;
+}
+.qol-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.person-work-status {
+  color: #65705c;
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: normal;
+}
+.person-work-status.status-warning,
+.work-status.status-warning {
+  color: #8e623a;
+}
+.person-work-status.status-danger,
+.work-status.status-danger {
+  color: #9a4d39;
+}
+.tribe-tools {
+  margin: 10px 0 5px;
+}
+.tribe-tools summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: #52664c;
+  padding: 7px 0;
+}
+.tribe-tools[open] > label {
+  margin-top: 7px;
+}
+.tribe-panel > .season-readiness {
+  margin-inline: 0;
+}
+.tribe-filters {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.tribe-filters button {
+  border: 1px solid #d2d5c3;
+  border-radius: 14px;
+  background: var(--ui-panel, #f7f5eb);
+  color: #5a6752;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 10px;
+  min-height: 28px;
+}
+.tribe-filters button[aria-pressed='true'] {
+  background: #dfe8d5;
+  border-color: #849674;
+  color: #354d38;
+}
+.tribe-tools label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  color: #61705a;
+  font-size: 10px;
+}
+.tribe-tools select {
+  max-width: 155px;
+  font: inherit;
+  padding: 4px;
+  background: #faf8ef;
+  border: 1px solid #cfd4be;
+  border-radius: 5px;
+  color: #45543e;
+}
+.empty-tribe-filter {
+  font-size: 11px;
+  color: #6c765e;
+  padding: 10px 16px;
+}
+.selected-work-details {
+  margin: 10px 16px;
+}
+.map-work-details {
+  padding: 8px 12px;
+  border-top: 1px solid #d6dac7;
+}
+.map-work-details .work-status {
+  padding: 8px 10px;
+}
+.map-work-details .qol-actions {
+  gap: 10px;
+}
+.map-toolbar .preparation-button {
+  width: auto;
+  display: inline-flex;
+  gap: 4px;
+  font-size: 10px;
+  padding: 4px 6px;
+}
+@media (max-width: 1200px) {
+  .preparation-button span {
+    display: none;
+  }
+}
+.readiness-modal .season-readiness {
+  margin: 15px 0 0;
+}
+.readiness-modal .readiness-body {
+  max-height: min(60dvh, 550px);
+  padding: 0 15px 15px;
+}
+.readiness-modal .season-readiness summary {
+  padding: 12px 15px;
+}
+.tribe-event .event-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 145px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.tribe-event .event-actions:empty {
+  display: none;
+}
+.event-actions button {
+  justify-content: flex-start;
+  text-align: left;
+  white-space: normal;
+}
+.recovery-experience {
+  border-left: 3px solid #9eac83;
+  padding: 10px 14px;
+  background: #f3f4e9;
+  line-height: 1.6;
+  font-size: 13px;
+  margin: 16px 0;
+}
+.recovery-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0;
+}
+.recovery-words span {
+  padding: 5px 8px;
+  border: 1px solid #d6d9c6;
+  border-radius: 5px;
+  font-size: 12px;
+}
+@media (max-width: 700px) {
+  .order-preview {
+    margin: 0 10px 7px;
+  }
+  .order-preview summary {
+    flex-wrap: wrap;
+    gap: 4px 7px;
+  }
+  .order-preview summary > span {
+    width: calc(100% - 30px);
+    order: 3;
+    margin-left: 21px;
+  }
+  .order-preview summary::after {
+    position: absolute;
+    right: 20px;
+  }
+  .order-preview-body {
+    max-height: 180px;
+  }
+  .tribe-event {
+    flex-wrap: wrap;
+  }
+  .tribe-event .event-actions {
+    flex-direction: row;
+    max-width: 100%;
+    max-height: 80px;
+    flex-wrap: wrap;
+    margin-left: 28px;
+  }
+  .tribe-filters button {
+    min-height: 34px;
+  }
+}

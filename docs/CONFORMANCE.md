@@ -17,7 +17,7 @@ I 39 punti di interpretazione, rappresentazione, calibrazione e generazione cens
 
 ## Prove eseguite e loro portata
 
-Verifica complessiva della revisione: **991 test unitari e di integrazione superati in 69 file**, oltre alle 72 prove del browser. Stati preparati, replay ordinari e loro limiti rimangono distinti.
+Verifica complessiva della revisione: **1.017 test unitari e di integrazione superati in 72 file**, oltre alle 84 prove del browser. Stati preparati, replay ordinari e loro limiti rimangono distinti.
 
 - **P1 — `npx vitest run src/game/conformance.test.ts --reporter=dot`: 156 test superati.** Valori attesi trascritti dalla fonte, Seed Zero, cataloghi, tutti i costi e le manutenzioni dei20edifici, formule, soglie e alcune transizioni reali. La suite prepara stati per isolare le regole: non è un replay completo dal primo istante.
 - **P2 — `npx vitest run src/game/grammar.test.ts --reporter=dot`: 123 test superati.** Frasi della fonte, ruoli semantici, ricette e archetipi dogmatici. Una frase accettata dal parser non prova che ogni effetto sia stato esercitato nella simulazione.
@@ -37,6 +37,7 @@ Verifica complessiva della revisione: **991 test unitari e di integrazione super
 - **P16 — progressione e strumenti successivi:** [FOUR-IMPROVEMENTS.md](FOUR-IMPROVEMENTS.md) collega la calibrazione Guidata, i produttori cognitivi urbani, le delegazioni e la loro identità, la logistica e politica straniere, l’assistenza sintattica e i suoni procedurali alle suite dedicate. [CAMPAIGN-AUDIT.md](CAMPAIGN-AUDIT.md) verifica sette fondatori fino a trenta stagioni: 15 vivi, 23 nascite, nipoti e nessuna morte ambientale o violenta. [MIDGAME-TRANSITION.md](MIDGAME-TRANSITION.md) verifica 35 → 80 e Scrittura/Archivio da una dotazione preparata dichiarata; non dimostra 150. [VICTORY-ROUTES.md](VICTORY-ROUTES.md) dimostra scorrimento continuo, costi e tre condizioni finali da società avanzate preparate; non sostituisce la campagna ordinaria.
 - **Ambiente:** `npm ci`, `npm run build` e `npm run format:check` eseguiti; avvio Vite e browser verificati.
 - **Raggiungibilità ordinaria oltre il primo anno:** non ancora dimostrata per la crescita a35/150 persone e per ciascuna delle tre vittorie. Non si ricava dai test con stati preparati.
+- **P17 — leggibilità e qualità della vita:** 26 prove nei modelli di anteprima, lavoro e preparazione stagionale, e 12 prove dedicate nel browser. [UI-QUALITY-OF-LIFE.md](UI-QUALITY-OF-LIFE.md) documenta ricevute degli ordini reali, costi e carichi, immutabilità dello stato, incarichi sospesi, scorte provinciali, manutenzioni annuali, cibo e calore, filtri, tastiera e mobile, fonti inesplorate, selezione di elementi mobili, ispezione durante il consiglio e limiti espliciti delle stime militari. Le prove preparate di UI non sostituiscono i replay di campagna.
 
 Le voci “verificato” sotto indicano soltanto la parte nominata nella colonna. I restanti requisiti della stessa riga conservano la propria verifica aperta.
 
