@@ -77,7 +77,11 @@ async function pinchTo(page: Page, previous: number, desired: number) {
   });
   await session.send('Input.dispatchTouchEvent', {
     type: 'touchMove',
-    touchPoints: [finger(1, x - 20), finger(2, x - 20 + (40 * desired) / previous)],
+    // Keep the midpoint fixed: translated pinches deliberately pan the map.
+    touchPoints: [
+      finger(1, x - (20 * desired) / previous),
+      finger(2, x + (20 * desired) / previous),
+    ],
   });
   await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await expect(page.locator('.lingus-world__control-stack > span')).toHaveText(

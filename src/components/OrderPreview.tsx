@@ -58,8 +58,11 @@ export function OrderPreview({
       className={`order-preview ${preview.accepted ? 'ready' : 'blocked'}`}
       aria-label="Anteprima dell’ordine"
     >
-      <summary>
+      <summary aria-label="Dettagli dell’ordine" title="Anteprima: esecutori, costi e requisiti">
         {preview.accepted ? <Eye size={14} /> : <TriangleAlert size={14} />}
+        <span className="preview-mobile-label" aria-hidden="true">
+          Dettagli
+        </span>
         <strong>{preview.accepted ? 'Ordine pronto' : 'Ordine da verificare'}</strong>
         <span>
           {preview.accepted

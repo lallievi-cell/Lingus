@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openWordBank } from './mobile-ui';
 
 const SAVE_KEY = 'lingus.save.v2';
 
@@ -503,6 +504,7 @@ test('mobile layout preserves map interactions and six-slot composition without 
   await expect(page.locator('.lingus-world__control-stack')).toContainText('480');
   await seed(page, 'empire');
   await expect(page.locator('.sentence-slot')).toHaveCount(6);
+  await openWordBank(page);
   for (const name of ['Città', 'Portare', 'Tributo', 'Metallo', 'Altrimenti', 'Schiavo'])
     await page.getByRole('button', { name: new RegExp(`^${name}:`) }).click();
   await expect(page.locator('.sentence-slot.filled')).toHaveCount(6);

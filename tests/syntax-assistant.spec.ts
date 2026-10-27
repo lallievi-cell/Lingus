@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openWordBank, showRecentPhrases } from './mobile-ui';
 
 /** Prepared knowledge isolates late-game composition; these are UI cases, not a campaign. */
 async function loadComposer(page: Page, forgotten = false) {
@@ -59,6 +60,7 @@ async function loadComposer(page: Page, forgotten = false) {
   );
   await page.reload();
   await expect(page.getByRole('button', { name: 'Riprendi il tempo', exact: true })).toBeVisible();
+  await openWordBank(page);
   return page.getByRole('region', { name: 'Costruttore di frasi' });
 }
 
@@ -140,7 +142,7 @@ test('recalling an acknowledged order restores the full phrase without executing
   await workbench.getByRole('button', { name: 'Rimuovi ultima parola' }).click();
   await expect(workbench.locator('.sentence-slot.filled')).toHaveCount(0);
   await page
-    .getByLabel('Frasi recenti')
+    .locator('.echo-shelf[aria-label="Frasi recenti"]:visible')
     .getByRole('button', { name: 'Gruppo · Andare', exact: true })
     .click();
   await expect(workbench.locator('.sentence-slot.filled')).toHaveCount(2);
@@ -155,7 +157,7 @@ test('recalling an acknowledged order restores the full phrase without executing
   // Enter on a history button must not also fire the global pronounce shortcut.
   await page.getByRole('button', { name: 'Riprendi il tempo', exact: true }).click();
   const recall = page
-    .getByLabel('Frasi recenti')
+    .locator('.echo-shelf[aria-label="Frasi recenti"]:visible')
     .getByRole('button', { name: 'Gruppo · Andare', exact: true });
   await recall.focus();
   await page.keyboard.press('Enter');
@@ -188,7 +190,7 @@ test('next-slot guidance and phrase recall remain usable in a narrow viewport', 
   await expect(workbench.locator('.sentence-slot.filled')).toHaveCount(4);
   await expect(workbench.getByRole('button', { name: 'Pronuncia', exact: true })).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  const remembered = page.getByLabel('Frasi recenti').getByRole('button').first();
+  const remembered = (await showRecentPhrases(page)).getByRole('button').first();
   await remembered.focus();
   await expect(remembered).toBeFocused();
   await page.keyboard.press('Enter');

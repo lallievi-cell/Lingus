@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openWordBank } from './mobile-ui';
 
 /** Explicit UI fixtures. Actions, receipts and deaths use the real engine. */
 async function loadScene(
@@ -176,6 +177,7 @@ async function readSaved(page: Page) {
   return s;
 }
 async function compose(page: Page, labels: string[]) {
+  await openWordBank(page);
   const composer = page.getByRole('region', { name: 'Costruttore di frasi' });
   for (const label of labels)
     await composer.getByRole('button', { name: new RegExp(`^${label}:`) }).click();

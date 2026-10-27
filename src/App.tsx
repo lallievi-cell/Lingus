@@ -17,6 +17,7 @@ import {
   MapPin,
   MessageCircle,
   Pause,
+  Pencil,
   Play,
   Plus,
   RotateCcw,
@@ -58,6 +59,7 @@ import { GrowthReadiness, IndividualGrowthReadiness } from './components/GrowthR
 import { GuidedCouncil } from './components/GuidedCouncil';
 import { TeachingPanel } from './components/TeachingPanel';
 import { MobileActionDock } from './components/MobileActionDock';
+import { useMobileViewport } from './components/useMobileViewport';
 import { ContextualWordShelf } from './components/ContextualWordShelf';
 import { SurvivalAdvisor } from './components/SurvivalAdvisor';
 import { TaskOutcomes } from './components/TaskOutcomes';
@@ -190,6 +192,15 @@ function timeLabel(time: number) {
 }
 
 function App() {
+  const { mobile, keyboardOpen } = useMobileViewport();
+  const [wordBankRequest, setWordBankRequest] = useState(0);
+  const [wordBankCloseRequest, setWordBankCloseRequest] = useState(0);
+  const [wordBankOpen, setWordBankOpen] = useState(false);
+  const [editingSlot, setEditingSlot] = useState<number | null>(null);
+  const onWordBankOpenChange = useCallback((open: boolean) => {
+    setWordBankOpen(open);
+    if (!open) setEditingSlot(null);
+  }, []);
   const [game, setGame] = useState<GameState>(loadInitialGame);
   const [mapSession, setMapSession] = useState(0);
   const [panel, setPanel] = useState<Panel>(() => (game.started ? null : 'welcome'));
@@ -260,7 +271,8 @@ function App() {
   const objective = getObjective(game);
   const survivalAdvice = getSurvivalAdvice(game);
   const compilation = compileSentence(game, sentence, target ?? undefined);
-  const syntax = getSyntaxSuggestions(game, sentence);
+  const bankSentence = mobile && editingSlot !== null ? sentence.slice(0, editingSlot) : sentence;
+  const syntax = getSyntaxSuggestions(game, bankSentence);
   const compatibleWords = new Set(syntax.tokenIds);
   const shownPhrases = recentPhrases.length
     ? recentPhrases
@@ -544,12 +556,38 @@ function App() {
   }, [panel, sentence, game, target, executorId, groupAnchor]);
 
   function addWord(id: string) {
+    if (mobile && editingSlot !== null) {
+      setSentence((current) => current.map((word, index) => (index === editingSlot ? id : word)));
+      setEditingSlot(null);
+      setWordSearch('');
+      return;
+    }
     if (sentence.length >= slots) {
       notify('Il pensiero ha bisogno di spazio. Rimuovi una parola o scoprine di nuove.');
       return;
     }
     setSentence((current) => [...current, id]);
     setWordSearch('');
+  }
+
+  function closeWordBank() {
+    setWordBankCloseRequest((request) => request + 1);
+    setEditingSlot(null);
+  }
+
+  useEffect(() => {
+    if (mobile && (panel || mobileSection !== 'map')) closeWordBank();
+  }, [mobile, panel, mobileSection]);
+
+  function editSentenceSlot(index: number) {
+    if (!mobile) {
+      if (sentence[index]) setSentence((current) => current.filter((_, at) => at !== index));
+      return;
+    }
+    setEditingSlot(sentence[index] ? index : null);
+    setWordSearch('');
+    setFilter('compatible');
+    setWordBankRequest((request) => request + 1);
   }
 
   function dropWord(e: DragEvent, at?: number) {
@@ -675,6 +713,7 @@ function App() {
     const success = orderAcknowledged(game, next);
     setGame(next);
     if (success) {
+      closeWordBank();
       setRecentPhrases((prev) => rememberRecentPhrase(prev, sentence));
       if (target) {
         const liveTarget =
@@ -965,7 +1004,9 @@ function App() {
   );
 
   return (
-    <div className={`app tier-${game.tier} ${season.isNight && game.started ? 'night-mode' : ''}`}>
+    <div
+      className={`app tier-${game.tier} ${season.isNight && game.started ? 'night-mode' : ''} ${keyboardOpen ? 'is-mobile-keyboard' : ''} ${wordBankOpen ? 'word-bank-open' : ''}`}
+    >
       <header className="topbar">
         <a
           className="brand"
@@ -1467,88 +1508,92 @@ function App() {
           className={`map-section ${mobileSection === 'map' ? 'mobile-visible' : ''}`}
           aria-label="Mappa e ordini"
         >
-          {survivalAdvice ? (
-            <SurvivalAdvisor
-              state={game}
-              advice={survivalAdvice}
-              onRecall={gatherAtCamp}
-              onTeach={() => setPanel('campfire')}
-              onFocus={focusTarget}
-              onCompose={(words, destination) => {
-                if (!destination) setTarget(null);
-                preparePhrase(words, destination);
-              }}
-            />
-          ) : (
-            <OpeningGuide
-              state={game}
-              onSpark={(id) => {
-                const spark = game.sparks.find((entry) => entry.id === id);
-                if (spark) openSpark(spark);
-              }}
-              onTeach={() => setPanel('campfire')}
-              onHome={() => {
-                setFocusRequest({ ...game.home, nonce: Date.now() });
-                setTarget({ type: 'point', ...game.home });
-              }}
-            />
-          )}
-          {!survivalAdvice && (
-            <TaskOutcomes
-              state={game}
-              outcomes={taskOutcomes}
-              onCompose={(words, destination) => {
-                if (!destination) setTarget(null);
-                preparePhrase(words, destination);
-              }}
-              onFocus={focusTarget}
-              onDismiss={(id) => setTaskOutcomes((items) => items.filter((item) => item.id !== id))}
-            />
-          )}
-          <ForeignPressure
-            state={game}
-            onResolve={(id, choice) =>
-              setGame((current) => resolveForeignUltimatum(current, id, choice))
-            }
-            onFocus={(point) => {
-              setMobileSection('map');
-              setFocusRequest({ x: point.x, y: point.y, nonce: Date.now() });
-            }}
-          />
-          {game.campfirePending && councilInspection && (
-            <div className="council-inspection" role="status">
-              <Flame size={14} />
-              <span>Consiglio in attesa · il tempo resta fermo.</span>
-              <button
-                className="text-button"
-                onClick={() => {
-                  setCouncilInspection(false);
-                  setPanel('campfire');
+          <div className="map-notices" role="region" aria-label="Avvisi della valle" tabIndex={0}>
+            {survivalAdvice ? (
+              <SurvivalAdvisor
+                state={game}
+                advice={survivalAdvice}
+                onRecall={gatherAtCamp}
+                onTeach={() => setPanel('campfire')}
+                onFocus={focusTarget}
+                onCompose={(words, destination) => {
+                  if (!destination) setTarget(null);
+                  preparePhrase(words, destination);
                 }}
+              />
+            ) : (
+              <OpeningGuide
+                state={game}
+                onSpark={(id) => {
+                  const spark = game.sparks.find((entry) => entry.id === id);
+                  if (spark) openSpark(spark);
+                }}
+                onTeach={() => setPanel('campfire')}
+                onHome={() => {
+                  setFocusRequest({ ...game.home, nonce: Date.now() });
+                  setTarget({ type: 'point', ...game.home });
+                }}
+              />
+            )}
+            {!survivalAdvice && (
+              <TaskOutcomes
+                state={game}
+                outcomes={taskOutcomes}
+                onCompose={(words, destination) => {
+                  if (!destination) setTarget(null);
+                  preparePhrase(words, destination);
+                }}
+                onFocus={focusTarget}
+                onDismiss={(id) =>
+                  setTaskOutcomes((items) => items.filter((item) => item.id !== id))
+                }
+              />
+            )}
+            <ForeignPressure
+              state={game}
+              onResolve={(id, choice) =>
+                setGame((current) => resolveForeignUltimatum(current, id, choice))
+              }
+              onFocus={(point) => {
+                setMobileSection('map');
+                setFocusRequest({ x: point.x, y: point.y, nonce: Date.now() });
+              }}
+            />
+            {game.campfirePending && councilInspection && (
+              <div className="council-inspection" role="status">
+                <Flame size={14} />
+                <span>Consiglio in attesa · il tempo resta fermo.</span>
+                <button
+                  className="text-button"
+                  onClick={() => {
+                    setCouncilInspection(false);
+                    setPanel('campfire');
+                  }}
+                >
+                  Torna al consiglio
+                </button>
+              </div>
+            )}
+            {nextSpark && (
+              <button
+                type="button"
+                className="mobile-spark-pill"
+                onClick={() => openSpark(nextSpark)}
+                aria-label="Nuova intuizione disponibile"
               >
-                Torna al consiglio
+                <Sparkles size={14} className="spark-spin" />
+                <span>
+                  Scintilla:{' '}
+                  {individuality
+                    ? (game.units.find((u) => u.id === nextSpark.unitId)?.name ?? 'un compagno')
+                    : 'un compagno'}
+                </span>
+                <span className="spark-timer-badge">
+                  {Math.max(0, Math.ceil(nextSpark.expiresAt - game.time))}s
+                </span>
               </button>
-            </div>
-          )}
-          {nextSpark && (
-            <button
-              type="button"
-              className="mobile-spark-pill"
-              onClick={() => openSpark(nextSpark)}
-              aria-label="Nuova intuizione disponibile"
-            >
-              <Sparkles size={14} className="spark-spin" />
-              <span>
-                Scintilla:{' '}
-                {individuality
-                  ? (game.units.find((u) => u.id === nextSpark.unitId)?.name ?? 'un compagno')
-                  : 'un compagno'}
-              </span>
-              <span className="spark-timer-badge">
-                {Math.max(0, Math.ceil(nextSpark.expiresAt - game.time))}s
-              </span>
-            </button>
-          )}
+            )}
+          </div>
           <div className="map-header">
             <div>
               <span className="eyebrow">UN MONDO DA COMPRENDERE</span>
@@ -1569,6 +1614,7 @@ function App() {
               orderFeedback={orderFeedback}
               onSelectGroupAnchor={handleSetGroupAnchor}
               onSelect={(picked) => {
+                closeWordBank();
                 if (selectingGroup) {
                   handleSetGroupAnchor(picked);
                 } else {
@@ -1905,8 +1951,10 @@ function App() {
                 }
                 title="Pronuncia Gruppo · Andare verso il riparo vicino al campo. Consuma un punto Voce e sostituisce gli incarichi; i carichi sono lasciati a terra."
               >
-                <Home size={13} /> Raduna al campo
-                <span aria-hidden="true">· 1 Voce</span>
+                <Home size={16} />
+                <span className="recall-label">
+                  Raduna al campo<small aria-hidden="true">1 Voce</small>
+                </span>
               </button>
             )}
             <div className="secondary-selection-controls">
@@ -1918,7 +1966,7 @@ function App() {
           </div>
           {shownPhrases.length > 0 && (
             <div
-              className="echo-shelf"
+              className="echo-shelf desktop-echo-shelf"
               aria-label={recentPhrases.length ? 'Frasi recenti' : 'Frasi suggerite'}
             >
               <span className="echo-label">
@@ -1963,18 +2011,18 @@ function App() {
               <div className="slot-group" key={i}>
                 {i > 0 && <Plus size={13} className="slot-plus" />}
                 <button
-                  className={`sentence-slot ${sentence[i] ? `filled word-${WORDS[sentence[i]]?.kind}` : ''}`}
+                  className={`sentence-slot ${sentence[i] ? `filled word-${WORDS[sentence[i]]?.kind}` : ''} ${editingSlot === i ? 'editing' : ''}`}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
                     e.stopPropagation();
                     dropWord(e, i);
                   }}
-                  onClick={() =>
-                    sentence[i] && setSentence((s) => s.filter((_, index) => index !== i))
-                  }
+                  onClick={() => editSentenceSlot(i)}
+                  disabled={mobile && i > sentence.length}
+                  aria-pressed={mobile && sentence[i] ? editingSlot === i : undefined}
                   aria-label={
                     sentence[i]
-                      ? `Rimuovi ${WORDS[sentence[i]].label}`
+                      ? `${mobile ? 'Modifica' : 'Rimuovi'} ${WORDS[sentence[i]].label}`
                       : `Spazio ${i + 1}: ${i === 0 ? 'chi?' : i === 1 ? 'cosa fa?' : 'con cosa?'}`
                   }
                 >
@@ -1982,7 +2030,11 @@ function App() {
                     <>
                       <Glyph id={sentence[i]} size={23} />
                       <strong>{WORDS[sentence[i]].label}</strong>
-                      <X size={11} className="slot-remove" />
+                      {mobile ? (
+                        <Pencil size={11} className="slot-edit" />
+                      ) : (
+                        <X size={11} className="slot-remove" />
+                      )}
                     </>
                   ) : (
                     <>
@@ -2031,7 +2083,10 @@ function App() {
             </button>
           </div>
         </div>
-        <div className="sentence-feedback" aria-live="polite">
+        <div
+          className={`sentence-feedback ${sentence.length && !compilation.valid ? 'has-issue' : ''}`}
+          aria-live="polite"
+        >
           <span className={`feedback-dot ${compilation.valid ? 'valid' : ''}`} />
           <span>
             {sentence.length === 0
@@ -2061,13 +2116,34 @@ function App() {
           targetLabel={targetName}
           onClearTarget={() => setTarget(null)}
           sessionKey={mapSession}
+          openRequest={wordBankRequest}
+          closeRequest={wordBankCloseRequest}
+          onOpenChange={onWordBankOpenChange}
+          onRemoveEditingWord={() => {
+            if (editingSlot !== null)
+              setSentence((words) => words.filter((_, index) => index !== editingSlot));
+            closeWordBank();
+          }}
+          editingLabel={
+            editingSlot !== null
+              ? `Sostituisci ${WORDS[sentence[editingSlot]]?.label ?? 'la parola'}`
+              : undefined
+          }
+          compactStatus={
+            <span
+              className="mobile-voice"
+              aria-label={`Voce disponibile: ${Math.floor(game.voice)} su ${voiceMax}`}
+            >
+              <Wind size={14} />
+              <b>
+                {Math.floor(game.voice)}/{voiceMax}
+              </b>
+            </span>
+          }
         >
-          <div className="mobile-selection-controls" aria-label="Selezione vicina sulla mappa">
-            {nearbySelectionControls()}
-          </div>
           <ContextualWordShelf
             state={game}
-            sentence={sentence}
+            sentence={bankSentence}
             filter={filter}
             onFilterChange={setFilter}
             search={wordSearch}
@@ -2075,6 +2151,45 @@ function App() {
             renderWord={renderWord}
             onOpenLexicon={() => setPanel('lexicon')}
           />
+          <details className="mobile-order-tools">
+            <summary>Persone e ordini</summary>
+            <div className="mobile-selection-controls" aria-label="Selezione vicina sulla mappa">
+              {nearbySelectionControls()}
+            </div>
+            {shownPhrases.length > 0 && (
+              <div
+                className="echo-shelf mobile-echo-shelf"
+                aria-label={recentPhrases.length ? 'Frasi recenti' : 'Frasi suggerite'}
+              >
+                <span className="echo-label">
+                  <History size={12} />
+                  {recentPhrases.length ? 'Echi:' : 'Spunti:'}
+                </span>
+                {shownPhrases.map((phrase) => {
+                  const unavailable = phraseRecallIssue(game, phrase);
+                  const isActive =
+                    phrase.length === sentence.length &&
+                    phrase.every((id, i) => sentence[i] === id);
+                  return (
+                    <button
+                      key={phrase.join('|')}
+                      type="button"
+                      className={`echo-chip ${isActive ? 'active' : ''}`}
+                      onClick={() => applyRecentPhrase(phrase)}
+                      disabled={!!unavailable}
+                      title={
+                        unavailable ??
+                        'Richiama la frase negli spazi. Il bersaglio resta quello selezionato; Pronuncia invia l’ordine.'
+                      }
+                    >
+                      <span className="echo-chip-dot" />
+                      {phrase.map((id) => WORDS[id]?.label).join(' · ')}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </details>
         </MobileActionDock>
       </section>
       <footer className="page-footer">

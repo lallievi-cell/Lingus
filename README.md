@@ -44,12 +44,14 @@ In Guidata, **Io** può nascere da un pasto autonomo o da manufatti personali: n
 
 Su cellulare, **Parole** apre il banco sopra il compositore senza ridurre ogni volta la mappa. Bersaglio e comandi principali restano accessibili; selezioni vicine e filtri stanno nel banco. Un riepilogo degli incarichi distingue lavoro concluso, fonte esaurita e interruzioni: **Prepara di nuovo** ricompone la frase, che richiede ancora Pronuncia. [PLAYTEST-QUALITY-OF-LIFE.md](docs/PLAYTEST-QUALITY-OF-LIFE.md) riporta parametri, differenze tra modalità e prove.
 
+Il successivo [audit mobile](docs/MOBILE-PLAYTEST-AUDIT.md) riorganizza la schermata per lasciare la mappa visibile all’avvio, corregge i gesti touch e verifica comandi realmente raggiungibili, rotazione e spazio sottratto dalle barre del browser. Sul telefono una parola già inserita si può sostituire senza cancellare quelle successive.
+
 Una stagione dura 90 secondi, di cui 60 di luce e 30 di notte; il primo inverno inizia al secondo 270. La voce ha capienza tre, poi cinque con il Re: gli ordini diretti costano un punto e ne viene recuperato uno ogni dieci secondi. Le istituzioni permanenti eseguono i propri cicli senza quel costo ripetuto.
 
 | Controllo                          | Effetto                                                     |
 | ---------------------------------- | ----------------------------------------------------------- |
 | Clic o trascinamento di una parola | Aggiunge un concetto alla frase.                            |
-| Clic su uno spazio pieno           | Rimuove quella parola.                                      |
+| Spazio pieno                       | Desktop: rimuove. Telefono: apre la sostituzione.           |
 | Clic sulla mappa                   | Seleziona un bersaglio o un punto.                          |
 | Scegli il gruppo                   | Imposta il centro del selettore spaziale.                   |
 | Tutti gli adulti                   | Seleziona gli adulti disponibili, anche distanti fra loro.  |

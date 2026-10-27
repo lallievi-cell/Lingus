@@ -129,6 +129,8 @@ for (const viewport of [
     const map = page.getByRole('button', { name: 'Bersaglio sulla mappa' });
     const pronounce = page.getByRole('button', { name: 'Pronuncia', exact: true });
     const words = page.locator('.mobile-word-sheet');
+    await expect(words).not.toBeVisible();
+    await page.getByRole('button', { name: 'Mostra parole', exact: true }).click();
     await expect(words).toBeVisible();
     await expect(pronounce).toBeInViewport();
     const expanded = (await map.boundingBox())!;
@@ -148,7 +150,7 @@ for (const viewport of [
     );
     await page.getByRole('button', { name: 'Rimuovi bersaglio del comando' }).click();
     await expect(page.getByRole('status', { name: 'Bersaglio del comando' })).toContainText(
-      'Scegli il bersaglio',
+      /Scegli.*mappa/,
     );
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
@@ -259,6 +261,8 @@ for (const viewport of [
     await all.click();
     await expect(all).toHaveAttribute('aria-pressed', 'true');
     const composer = page.getByRole('region', { name: 'Costruttore di frasi' });
+    await expect(page.locator('.mobile-word-sheet')).not.toBeVisible();
+    await composer.getByRole('button', { name: 'Mostra parole', exact: true }).click();
     await composer.getByRole('button', { name: /^Gruppo:/ }).click();
     await composer.getByRole('button', { name: /^Andare:/ }).click();
     await expect(composer.locator('.sentence-slot.filled')).toHaveCount(2);

@@ -17,7 +17,7 @@ I 48 punti di interpretazione, rappresentazione, calibrazione e generazione cens
 
 ## Prove eseguite e loro portata
 
-Verifica complessiva della revisione: **1.094 test unitari e di integrazione superati in 78 file**, oltre alle **102 prove del browser**. Stati preparati, replay ordinari e loro limiti rimangono distinti.
+Verifica complessiva della revisione: **1.098 test unitari e di integrazione superati in 79 file**, oltre alle **114 prove del browser**. Stati preparati, replay ordinari e loro limiti rimangono distinti.
 
 - **P1 — `npx vitest run src/game/conformance.test.ts --reporter=dot`: 156 test superati.** Valori attesi trascritti dalla fonte, Seed Zero, cataloghi, tutti i costi e le manutenzioni dei20edifici, formule, soglie e alcune transizioni reali. La suite prepara stati per isolare le regole: non è un replay completo dal primo istante.
 - **P2 — `npx vitest run src/game/grammar.test.ts --reporter=dot`: 123 test superati.** Frasi della fonte, ruoli semantici, ricette e archetipi dogmatici. Una frase accettata dal parser non prova che ogni effetto sia stato esercitato nella simulazione.
@@ -40,6 +40,8 @@ Verifica complessiva della revisione: **1.094 test unitari e di integrazione sup
 - **P17 — leggibilità e qualità della vita:** 26 prove nei modelli di anteprima, lavoro e preparazione stagionale, e 12 prove dedicate nel browser. [UI-QUALITY-OF-LIFE.md](UI-QUALITY-OF-LIFE.md) documenta ricevute degli ordini reali, costi e carichi, immutabilità dello stato, incarichi sospesi, scorte provinciali, manutenzioni annuali, cibo e calore, filtri, tastiera e mobile, fonti inesplorate, selezione di elementi mobili, ispezione durante il consiglio e limiti espliciti delle stime militari. Le prove preparate di UI non sostituiscono i replay di campagna.
 
 - **P18 — correzioni dopo il playtest:** [PLAYTEST-QUALITY-OF-LIFE.md](PLAYTEST-QUALITY-OF-LIFE.md) documenta A-43–A-48: ricordo di parole già risolte dopo una nuova Scintilla reale, accesso personale a Io, continuazioni grammaticali da ogni Tier, selezione globale degli adulti e richiamo fisico pagato, lezioni anticipate con insegnante/allievo e legna reale, calore Guidato distinto dalla Classica, soccorso anticipato e ordini di rientro eseguibili, priorità vitali, esiti degli incarichi e compositore mobile. Le suite verificano anche assenza di risorse o parole gratuite, visibilità e compatibilità dei salvataggi. I replay ordinari restano distinti dai casi preparati di interfaccia.
+
+- **P19 — audit mobile dopo screenshot reale:** [MOBILE-PLAYTEST-AUDIT.md](MOBILE-PLAYTEST-AUDIT.md) documenta il banco chiuso all’avvio, la mappa misurata e raggiungibile al tocco, i comandi senza scorrimento laterale, la sostituzione di un singolo token, ricerca e tastiera, avvisi limitati, safe area, ridimensionamento e rotazione. Quattro prove geometriche e quattro browser esercitano pinch ancorato, rilascio, annullamento, scelta esplicita degli oggetti sovrapposti e schede informative. I criteri superano la sola assenza di overflow e le prove critiche bloccano la pubblicazione in caso di errore. Le verifiche emulano il touch in Chromium; la portata sui telefoni fisici è dichiarata separatamente.
 
 Le voci “verificato” sotto indicano soltanto la parte nominata nella colonna. I restanti requisiti della stessa riga conservano la propria verifica aperta.
 

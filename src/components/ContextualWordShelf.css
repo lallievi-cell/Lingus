@@ -43,30 +43,216 @@
   color: #6f705c;
   line-height: 1.4;
 }
-@media (max-width: 760px) {
-  .contextual-word-shelf .contextual-word-options {
-    flex-wrap: wrap;
+
+@media (max-width: 860px) {
+  .app .mobile-word-sheet .contextual-word-shelf {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-height: 140px;
+    min-width: 0;
+    padding: 0;
+  }
+  .mobile-bank-toolbar {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
     gap: 6px;
+    min-height: 50px;
   }
-  .contextual-word-shelf .word-filters {
-    flex-wrap: wrap;
+  .app .mobile-word-sheet .mobile-bank-toolbar .syntax-toggle,
+  .app .mobile-word-sheet .mobile-bank-toolbar .word-filters > button,
+  .word-bank-tools-toggle {
+    min-height: 44px !important;
+    min-width: 44px;
+    font-size: 11px !important;
+    padding: 0 9px !important;
+    border-radius: 8px !important;
+    font-weight: 650;
+    white-space: nowrap;
   }
-  .contextual-word-shelf .word-filters button {
-    min-height: 36px;
+  .app .mobile-word-sheet .mobile-bank-toolbar .word-filters {
+    display: flex !important;
+    flex: 0 0 auto;
+    gap: 0 !important;
+    width: auto !important;
+    padding: 0 !important;
+    overflow: visible !important;
   }
-  .contextual-word-shelf .syntax-toggle {
-    min-height: 36px;
+  .word-bank-tools-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-left: auto;
+    border: 1px solid #a4b29c;
+    background: transparent;
+    color: #3a563c;
   }
-  .contextual-word-shelf .word-search {
-    flex: 1 1 130px;
-    max-width: 100%;
+  .app .mobile-word-sheet .contextual-word-shelf .syntax-assistant {
+    flex: 0 0 auto;
+    min-height: 23px;
+    padding: 0 0 5px;
+    font-size: 11px;
   }
-  .contextual-word-shelf .word-search input {
+  .app .mobile-word-sheet .contextual-word-shelf .syntax-next {
+    display: flex;
+    gap: 6px;
+    font-size: 11px;
+    line-height: 1.3;
+  }
+  .app .mobile-word-sheet .contextual-ready-hint {
+    display: none;
+  }
+  .mobile-bank-tools {
+    flex: 0 0 auto;
+    padding: 3px 0 7px;
+    max-height: min(24dvh, 160px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .app .mobile-word-sheet .mobile-bank-tools .word-search {
+    display: flex;
     width: 100%;
-    min-height: 34px;
+    gap: 6px;
+    margin-bottom: 5px;
   }
-  .contextual-word-shelf .contextual-empty,
-  .contextual-word-shelf .word-bank-reset {
+  .app .mobile-word-sheet .word-search input {
+    width: 100%;
+    height: 44px;
+    min-height: 44px;
+    font-size: 16px;
+    padding: 8px 10px;
+  }
+  .app .mobile-word-sheet .mobile-bank-tools .word-filters {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    height: auto !important;
+    width: 100% !important;
+    gap: 5px !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+  .app .mobile-word-sheet .mobile-bank-tools .word-filters button {
+    min-height: 44px !important;
+    padding: 5px 10px !important;
+    border-radius: 8px !important;
+    font-size: 11px !important;
+  }
+  .app .mobile-word-sheet .word-bank-lexicon {
+    display: inline-flex;
+    min-height: 44px;
+    font-size: 12px;
+    margin-top: 4px;
+  }
+  .word-bank-active-filter {
+    flex: 0 0 auto;
+    padding: 5px 0;
+    min-height: 36px;
+    border: 0;
+    background: transparent;
+    color: #4e644a;
+    text-align: left;
+    font-size: 11px;
+  }
+  .app .mobile-word-sheet .contextual-word-shelf .word-shelf {
+    display: grid !important;
+    flex: 1 1 auto;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-rows: max-content;
+    align-content: start;
+    min-height: 62px;
+    max-height: none !important;
+    width: 100% !important;
+    gap: 7px !important;
+    margin: 0;
+    padding: 2px 0 7px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+  .app .mobile-word-sheet .word-shelf .word-tile {
+    display: flex !important;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 66px !important;
+    padding: 7px 4px !important;
+    margin: 0 !important;
+  }
+  .app .mobile-word-sheet .word-tile .word-label {
+    font-size: 12px !important;
+    line-height: 1.2;
+    white-space: normal !important;
+    text-align: center;
+  }
+  .app .mobile-word-sheet .word-tile .word-kind {
+    font-size: 9px !important;
+  }
+  .app .mobile-word-sheet .word-tile .word-glyph svg {
+    width: 24px;
+    height: 24px;
+  }
+  .app .mobile-word-sheet .word-shelf .contextual-empty {
     grid-column: 1 / -1;
+    margin: 0;
+    padding: 8px 2px;
+    font-size: 12px;
+  }
+  .app .mobile-word-sheet .word-bank-reset {
+    grid-column: 1 / -1;
+    min-height: 44px;
+    white-space: normal;
+    font-size: 11px;
+    justify-self: start;
+  }
+  .app .mobile-word-sheet .contextual-law-hint {
+    flex: 0 0 auto;
+    max-height: 30px;
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 860px) and (max-height: 540px) and (orientation: landscape) {
+  .app .mobile-word-sheet .contextual-word-shelf .word-shelf {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .mobile-bank-toolbar {
+    min-height: 46px;
+  }
+  .app .mobile-word-sheet .contextual-word-shelf .syntax-assistant {
+    min-height: 18px;
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 860px) {
+  /* Search is a temporary editing mode. Keep its results reachable above the
+     software keyboard instead of spending that space on optional controls. */
+  .app.is-mobile-keyboard .mobile-word-sheet .mobile-bank-toolbar,
+  .app.is-mobile-keyboard .mobile-word-sheet .syntax-assistant,
+  .app.is-mobile-keyboard .mobile-word-sheet .mobile-bank-tools .word-filters,
+  .app.is-mobile-keyboard .mobile-word-sheet .word-bank-lexicon,
+  .app.is-mobile-keyboard .mobile-word-sheet .mobile-order-tools {
+    display: none !important;
+  }
+  .app.is-mobile-keyboard .mobile-word-sheet .mobile-bank-tools {
+    max-height: none;
+    padding: 4px 0;
+    overflow: visible;
+  }
+  .app.is-mobile-keyboard .mobile-word-sheet .word-search {
+    margin: 0;
+  }
+}
+
+@media (max-width: 860px) {
+  .app.is-mobile-keyboard .mobile-word-sheet .contextual-word-shelf {
+    min-height: 120px;
   }
 }

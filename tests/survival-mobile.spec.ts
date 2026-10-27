@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { closeWordBank } from './mobile-ui';
 
 /** Prepared emergency isolates the real rescue command and responsive layout. */
 async function loadColdEmergency(page: Page) {
@@ -76,7 +77,7 @@ for (const viewport of [
     await loadColdEmergency(page);
     const advisor = page.getByRole('alert', { name: 'Priorità della tribù' });
     await expect(advisor).toContainText('Un compagno sta gelando');
-    await page.getByRole('button', { name: 'Nascondi parole', exact: true }).click();
+    await closeWordBank(page);
     const rescue = advisor.getByRole('button', { name: 'Raduna al riparo', exact: true });
     const composer = page.getByRole('region', { name: 'Costruttore di frasi' });
     for (const control of [

@@ -368,7 +368,8 @@ async function regionalZoom(page: Page, zoom: number) {
   });
   await session.send('Input.dispatchTouchEvent', {
     type: 'touchMove',
-    touchPoints: [finger(1, x - 20), finger(2, x - 20 + 40 * zoom)],
+    // A centred pinch tests painted hit areas without also translating the camera.
+    touchPoints: [finger(1, x - 20 * zoom), finger(2, x + 20 * zoom)],
   });
   await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await session.detach();

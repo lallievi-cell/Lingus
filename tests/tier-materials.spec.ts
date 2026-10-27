@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openWordBank } from './mobile-ui';
 
 /** Prepared saves isolate the six interface materials, not campaign progression. */
 async function loadTier(page: Page, tier: number, night = false) {
@@ -55,6 +56,7 @@ async function loadTier(page: Page, tier: number, night = false) {
   await page.reload();
   await expect(page.getByRole('button', { name: 'Riprendi il tempo', exact: true })).toBeVisible();
   await expect(page.locator('.app')).toHaveClass(new RegExp(`\\btier-${tier}\\b`));
+  await openWordBank(page);
 }
 
 test('all six materials preserve composing, lost-word cues and accessible civilization dialogs', async ({

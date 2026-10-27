@@ -26,6 +26,7 @@ import { CITY_ART_BOUNDS } from './mapStrategicArt';
 import { getBattalionDisplayPoint } from './regionalLayout';
 import { deriveSiegePresentation } from './mapSiegeArt';
 import { visibleUnitName } from './unitReadability';
+import { anchoredPinchView, type MapPinchAnchor } from './mapGestures';
 import './WorldMap.css';
 
 interface WorldMapProps {
@@ -177,6 +178,7 @@ export function WorldMap({
   const [ping, setPing] = useState<{ x: number; y: number; time: number } | null>(null);
   const [targetChoices, setTargetChoices] = useState<WorldTarget[]>([]);
   const choiceRef = useRef<HTMLDivElement>(null);
+  const choiceActivationRef = useRef<string | null>(null);
   const currentChoices = targetChoices
     .map((item) => liveMapChoice(state, item))
     .filter((item): item is WorldTarget => item !== null);
@@ -206,12 +208,8 @@ export function WorldMap({
     moved: boolean;
   } | null>(null);
   const activePointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
-  const pinchStartRef = useRef<{
-    dist: number;
-    zoom: number;
-    centerX: number;
-    centerY: number;
-  } | null>(null);
+  const pinchStartRef = useRef<MapPinchAnchor | null>(null);
+  const pointerTypeRef = useRef('mouse');
   // Exploration changes every tick; terrain depends only on stable map identity,
   // geography and season. Never use the evolving state.seed to repaint it.
   const geography = state.sectors
@@ -767,7 +765,7 @@ export function WorldMap({
   return (
     <div
       ref={containerRef}
-      className={`lingus-world ${dragging ? 'is-panning' : ''} ${commandReady ? 'is-targeting' : ''} ${details ? 'has-resource-focus' : ''}`}
+      className={`lingus-world ${size.height < 200 ? 'is-short-map' : ''} ${dragging ? 'is-panning' : ''} ${commandReady ? 'is-targeting' : ''} ${details ? 'has-resource-focus' : ''}`}
     >
       <canvas
         ref={canvasRef}
@@ -776,23 +774,29 @@ export function WorldMap({
         aria-label="Mappa della valle: seleziona risorse, abitanti e luoghi per dare un ordine alla tribù"
         role="img"
         onPointerDown={(event) => {
+          choiceActivationRef.current = null;
+          pointerTypeRef.current = event.pointerType;
           if (event.pointerType === 'mouse' && event.button !== 0) return;
           try {
             event.currentTarget.setPointerCapture(event.pointerId);
           } catch {
             /* capture failed */
           }
+          if (event.pointerType !== 'mouse') {
+            hoveredRef.current = null;
+            setHovered(null);
+          }
           activePointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
           if (activePointersRef.current.size === 2) {
             const [p1, p2] = Array.from(activePointersRef.current.values());
             const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-            const t = getTransform();
+            const anchor = toWorld((p1.x + p2.x) / 2, (p1.y + p2.y) / 2);
             pinchStartRef.current = {
-              dist,
+              distance: dist,
               zoom: viewRef.current.zoom,
-              centerX: t.centerX,
-              centerY: t.centerY,
+              worldX: anchor.x,
+              worldY: anchor.y,
             };
             pointerRef.current = null;
             setDragging(false);
@@ -817,21 +821,31 @@ export function WorldMap({
           if (activePointersRef.current.size >= 2 && pinchStartRef.current) {
             const [p1, p2] = Array.from(activePointersRef.current.values());
             const currentDist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-            if (currentDist > 8 && pinchStartRef.current.dist > 8) {
-              const bounds = viewBounds(stateRef.current),
-                span = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
-              const minZoom = stateRef.current.tier >= 4 ? 0.9 : Math.max(1, 400 / span);
-              const scaleFactor = currentDist / pinchStartRef.current.dist;
-              const nextZoom = clamp(
-                Math.round(pinchStartRef.current.zoom * scaleFactor * 100) / 100,
-                minZoom,
-                16,
-              );
-              setView((previous) => ({
-                ...previous,
-                zoom: nextZoom,
-              }));
-            }
+            const bounds = viewBounds(stateRef.current),
+              span = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
+            const minimumZoom = stateRef.current.tier >= 4 ? 0.9 : Math.max(1, 400 / span);
+            const canvasBounds = event.currentTarget.getBoundingClientRect();
+            const fit = stateRef.current.tier >= 4 ? Math.min : Math.max;
+            const next = anchoredPinchView(
+              pinchStartRef.current,
+              {
+                distance: currentDist,
+                midpointX: (p1.x + p2.x) / 2 - canvasBounds.left,
+                midpointY: (p1.y + p2.y) / 2 - canvasBounds.top,
+              },
+              {
+                width: renderSizeRef.current.width,
+                height: renderSizeRef.current.height,
+                baseScale: fit(
+                  renderSizeRef.current.width / MAP_WIDTH,
+                  renderSizeRef.current.height / MAP_HEIGHT,
+                ),
+                worldScaleX: WORLD_X,
+                worldScaleY: WORLD_Y,
+              },
+              minimumZoom,
+            );
+            if (next) setView(next);
             return;
           }
 
@@ -849,7 +863,7 @@ export function WorldMap({
                 centerY: pointer.centerY - dy / t.scale / WORLD_Y,
               }));
             }
-          } else {
+          } else if (event.pointerType === 'mouse' && activePointersRef.current.size === 0) {
             const nextTarget = hitTest(event.clientX, event.clientY),
               next = nextTarget.type === 'point' ? null : nextTarget;
             hoveredRef.current = next;
@@ -899,11 +913,11 @@ export function WorldMap({
         }}
         onDoubleClick={(event) => {
           event.preventDefault();
-          handleGroupSelect(event.clientX, event.clientY);
+          if (pointerTypeRef.current === 'mouse') handleGroupSelect(event.clientX, event.clientY);
         }}
         onContextMenu={(event) => {
           event.preventDefault();
-          handleGroupSelect(event.clientX, event.clientY);
+          if (pointerTypeRef.current === 'mouse') handleGroupSelect(event.clientX, event.clientY);
         }}
         onPointerCancel={(event) => {
           activePointersRef.current.delete(event.pointerId);
@@ -931,7 +945,12 @@ export function WorldMap({
             <button
               className="icon-button small"
               aria-label="Chiudi scelta bersaglio"
-              onClick={() => {
+              onPointerDown={() => {
+                choiceActivationRef.current = 'close';
+              }}
+              onClick={(event) => {
+                if (event.detail !== 0 && choiceActivationRef.current !== 'close') return;
+                choiceActivationRef.current = null;
                 setTargetChoices([]);
                 canvasRef.current?.focus({ preventScroll: true });
               }}
@@ -945,7 +964,19 @@ export function WorldMap({
               <button
                 data-target-choice
                 key={`${item.type}-${item.id ?? index}`}
-                onClick={() => {
+                onPointerDown={() => {
+                  choiceActivationRef.current = `${item.type}:${item.id ?? index}`;
+                }}
+                onClick={(event) => {
+                  // A touch-generated compatibility click may land on a choice
+                  // which appeared under the finger at pointerup. It is not a
+                  // second deliberate selection; keyboard activation still works.
+                  if (
+                    event.detail !== 0 &&
+                    choiceActivationRef.current !== `${item.type}:${item.id ?? index}`
+                  )
+                    return;
+                  choiceActivationRef.current = null;
                   const live = liveMapChoice(stateRef.current, item);
                   if (!live) return;
                   onSelect(live);
@@ -1020,7 +1051,20 @@ export function WorldMap({
           className="lingus-world__target-card"
           role="status"
           aria-label="Dettagli del bersaglio"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (
+              [' ', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)
+            )
+              event.stopPropagation();
+          }}
           data-resource-stage={details.kind}
+          data-mobile-placement={
+            focusedTarget &&
+            focusedTarget.y * WORLD_Y * getTransform().scale + getTransform().y < size.height / 2
+              ? 'bottom'
+              : 'top'
+          }
         >
           <span className="lingus-world__target-stage">{details.stage}</span>
           <strong>{details.label}</strong>

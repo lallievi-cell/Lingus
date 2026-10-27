@@ -420,3 +420,61 @@
 .map-target-choice-list svg {
   flex-shrink: 0;
 }
+
+/* A selected object stays visible while its explanation moves to the other
+   half of a small map. Long explanations remain reachable by touch/keyboard. */
+@media (max-width: 860px) {
+  .lingus-world .lingus-world__target-card {
+    max-height: min(44%, 170px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+  .lingus-world .lingus-world__target-card[data-mobile-placement='bottom'] {
+    top: auto !important;
+    bottom: 8px !important;
+    max-width: calc(100% - 112px) !important;
+  }
+  .lingus-world .lingus-world__target-card p {
+    display: block !important;
+    -webkit-line-clamp: unset !important;
+    font-size: 11px !important;
+    line-height: 1.4 !important;
+    overflow: visible !important;
+  }
+  .lingus-world__target-card:focus-visible {
+    outline: 2px solid #738b59;
+    outline-offset: -2px;
+  }
+  .lingus-world .map-target-choices {
+    display: flex;
+    flex-direction: column;
+    bottom: 8px;
+    max-height: calc(100% - 16px);
+    overflow: hidden;
+  }
+  .map-target-choices-heading {
+    flex-shrink: 0;
+  }
+  .map-target-choices-heading .icon-button {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+  }
+  .map-target-choice-list {
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+  .map-target-choice-list button {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 860px) {
+  .lingus-world.is-short-map .map-target-choices {
+    padding: 8px;
+  }
+  .lingus-world.is-short-map .map-target-choices > p {
+    display: none;
+  }
+}
