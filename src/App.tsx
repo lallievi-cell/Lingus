@@ -59,6 +59,7 @@ import { GrowthReadiness, IndividualGrowthReadiness } from './components/GrowthR
 import { GuidedCouncil } from './components/GuidedCouncil';
 import { TeachingPanel } from './components/TeachingPanel';
 import { MobileActionDock } from './components/MobileActionDock';
+import { MobileWordPalette } from './components/MobileWordPalette';
 import { useMobileViewport } from './components/useMobileViewport';
 import { ContextualWordShelf } from './components/ContextualWordShelf';
 import { SurvivalAdvisor } from './components/SurvivalAdvisor';
@@ -196,6 +197,7 @@ function App() {
   const [wordBankRequest, setWordBankRequest] = useState(0);
   const [wordBankCloseRequest, setWordBankCloseRequest] = useState(0);
   const [wordBankOpen, setWordBankOpen] = useState(false);
+  const [wordBankMode, setWordBankMode] = useState<'closed' | 'compact' | 'catalog'>('closed');
   const [editingSlot, setEditingSlot] = useState<number | null>(null);
   const onWordBankOpenChange = useCallback((open: boolean) => {
     setWordBankOpen(open);
@@ -253,6 +255,7 @@ function App() {
   } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const sentenceSlotsRef = useRef<HTMLDivElement>(null);
+  const previousSentenceLength = useRef(0);
   const personDetailsRef = useRef<HTMLDivElement>(null);
   const { unlockFromGesture } = useGameAudio(game, sound, {
     ambience: !panel,
@@ -422,15 +425,26 @@ function App() {
   }, [game]);
 
   useEffect(() => {
+    if (editingSlot !== null && editingSlot >= sentence.length) setEditingSlot(null);
+  }, [editingSlot, sentence.length]);
+
+  useEffect(() => {
+    const lengthChanged = previousSentenceLength.current !== sentence.length;
+    previousSentenceLength.current = sentence.length;
+    // Replacing a word keeps its position in view; only advancing/removing a
+    // slot or explicitly choosing another one should move the phone strip.
+    if (mobile && !lengthChanged && editingSlot === null) return;
     const strip = sentenceSlotsRef.current;
     if (!strip || strip.scrollWidth <= strip.clientWidth) return;
-    const next = strip.children[Math.min(sentence.length, slots - 1)] as HTMLElement | undefined;
+    const next = strip.children[editingSlot ?? Math.min(sentence.length, slots - 1)] as
+      | HTMLElement
+      | undefined;
     if (!next) return;
     const visible = strip.getBoundingClientRect(),
       slot = next.getBoundingClientRect();
     if (slot.right > visible.right) strip.scrollLeft += slot.right - visible.right;
     else if (slot.left < visible.left) strip.scrollLeft += slot.left - visible.left;
-  }, [sentence, slots]);
+  }, [sentence, slots, mobile, editingSlot]);
 
   useEffect(() => {
     if (target?.type === 'unit') personDetailsRef.current?.scrollIntoView({ block: 'nearest' });
@@ -555,19 +569,25 @@ function App() {
     return () => window.removeEventListener('keydown', keydown);
   }, [panel, sentence, game, target, executorId, groupAnchor]);
 
-  function addWord(id: string) {
-    if (mobile && editingSlot !== null) {
-      setSentence((current) => current.map((word, index) => (index === editingSlot ? id : word)));
+  function addWord(id: string, fromPalette = false) {
+    if (mobile && editingSlot !== null && editingSlot < sentence.length) {
+      const next = sentence.map((word, index) => (index === editingSlot ? id : word));
+      setSentence(next);
       setEditingSlot(null);
       setWordSearch('');
+      const completion = getSyntaxSuggestions(game, next);
+      if (fromPalette && completion.isComplete && !completion.hasContinuations) closeWordBank();
       return;
     }
     if (sentence.length >= slots) {
       notify('Il pensiero ha bisogno di spazio. Rimuovi una parola o scoprine di nuove.');
       return;
     }
-    setSentence((current) => [...current, id]);
+    const next = [...sentence, id];
+    setSentence(next);
     setWordSearch('');
+    const completion = getSyntaxSuggestions(game, next);
+    if (fromPalette && completion.isComplete && !completion.hasContinuations) closeWordBank();
   }
 
   function closeWordBank() {
@@ -928,7 +948,7 @@ function App() {
     }
   }
 
-  const renderWord = (id: string, inPuzzle = false) => {
+  const renderWord = (id: string, inPuzzle = false, fromPalette = false) => {
     const word = WORDS[id],
       memory = game.words[id];
     const suggested = !inPuzzle && suggestedWordIds.has(id);
@@ -955,7 +975,7 @@ function App() {
         onClick={() =>
           inPuzzle
             ? setPuzzle((p) => (p.length < (currentSpark?.recipe.length ?? 3) ? [...p, id] : p))
-            : addWord(id)
+            : addWord(id, fromPalette)
         }
       >
         <span className="word-glyph">
@@ -1005,7 +1025,7 @@ function App() {
 
   return (
     <div
-      className={`app tier-${game.tier} ${season.isNight && game.started ? 'night-mode' : ''} ${keyboardOpen ? 'is-mobile-keyboard' : ''} ${wordBankOpen ? 'word-bank-open' : ''}`}
+      className={`app tier-${game.tier} ${season.isNight && game.started ? 'night-mode' : ''} ${keyboardOpen ? 'is-mobile-keyboard' : ''} ${wordBankOpen ? `word-bank-open word-bank-${wordBankMode}` : ''}`}
     >
       <header className="topbar">
         <a
@@ -1631,7 +1651,7 @@ function App() {
               orderFeedback={orderFeedback}
               onSelectGroupAnchor={handleSetGroupAnchor}
               onSelect={(picked) => {
-                closeWordBank();
+                if (wordBankMode === 'catalog') closeWordBank();
                 if (selectingGroup) {
                   handleSetGroupAnchor(picked);
                 } else {
@@ -2029,6 +2049,11 @@ function App() {
                 {i > 0 && <Plus size={13} className="slot-plus" />}
                 <button
                   className={`sentence-slot ${sentence[i] ? `filled word-${WORDS[sentence[i]]?.kind}` : ''} ${editingSlot === i ? 'editing' : ''}`}
+                  data-active={
+                    mobile &&
+                    wordBankOpen &&
+                    (editingSlot === i || (editingSlot === null && i === sentence.length))
+                  }
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
                     e.stopPropagation();
@@ -2136,6 +2161,30 @@ function App() {
           openRequest={wordBankRequest}
           closeRequest={wordBankCloseRequest}
           onOpenChange={onWordBankOpenChange}
+          onModeChange={setWordBankMode}
+          compactChildren={({ expand, close }) => (
+            <MobileWordPalette
+              state={game}
+              sentence={bankSentence}
+              renderWord={(id) => renderWord(id, false, true)}
+              onExpand={() => {
+                setFilter('all');
+                setWordSearch('');
+                expand();
+              }}
+              onClose={close}
+              editingLabel={
+                editingSlot !== null
+                  ? `Sostituisci ${WORDS[sentence[editingSlot]]?.label ?? 'la parola'}`
+                  : undefined
+              }
+              onRemoveEditingWord={() => {
+                if (editingSlot !== null)
+                  setSentence((words) => words.filter((_, index) => index !== editingSlot));
+                closeWordBank();
+              }}
+            />
+          )}
           onRemoveEditingWord={() => {
             if (editingSlot !== null)
               setSentence((words) => words.filter((_, index) => index !== editingSlot));
@@ -2159,6 +2208,7 @@ function App() {
           }
         >
           <ContextualWordShelf
+            mobileCatalog
             state={game}
             sentence={bankSentence}
             filter={filter}

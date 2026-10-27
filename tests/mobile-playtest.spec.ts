@@ -173,7 +173,7 @@ for (const viewport of [
     }
   });
 
-test('a touch-composed order returns to the map explicitly, keeps the target visible and charges one real Voice', async ({
+test('a touch-composed order keeps the map usable and charges one real Voice without a return step', async ({
   page,
 }) => {
   const viewport = { width: 384, height: 720 };
@@ -184,14 +184,15 @@ test('a touch-composed order returns to the map explicitly, keeps the target vis
   await page.getByRole('button', { name: 'Spazio 1: chi?', exact: true }).tap();
   const sheet = page.getByRole('region', { name: 'Parole per comporre' });
   await expect(sheet).toBeVisible();
-  for (const word of ['Gruppo', 'Andare'])
-    await sheet.getByRole('button', { name: new RegExp(`^${word}:`) }).tap();
-  await expect(page.locator('.sentence-slot.filled')).toHaveCount(2);
-  await sheet.getByRole('button', { name: 'Scegli il bersaglio', exact: true }).tap();
-  await expectMapFirst(page, viewport);
+  await sheet.getByRole('button', { name: /^Gruppo:/ }).tap();
   const map = page.getByRole('img', { name: /Mappa della valle/ });
   const bounds = (await map.boundingBox())!;
+  // The target is chosen while the word palette is still open.
   await map.tap({ position: { x: bounds.width * 0.78, y: bounds.height * 0.35 } });
+  await expect(sheet).toBeVisible();
+  await sheet.getByRole('button', { name: /^Andare:/ }).tap();
+  await expect(page.locator('.sentence-slot.filled')).toHaveCount(2);
+  await expectMapFirst(page, viewport);
   await expect(
     page.getByRole('button', { name: 'Deseleziona bersaglio', exact: true }),
   ).toBeVisible();
@@ -209,13 +210,14 @@ test('a touch-composed order returns to the map explicitly, keeps the target vis
   // Focusing a recent order used to scroll the shared primary-action strip,
   // leaving the start of Tutti gli adulti cut off as in the reported screenshot.
   await page.getByRole('button', { name: 'Mostra parole', exact: true }).tap();
+  await sheet.getByRole('button', { name: 'Apri catalogo delle parole', exact: true }).tap();
   await sheet.getByText('Persone e ordini', { exact: true }).tap();
   await sheet
     .getByLabel('Frasi recenti')
     .getByRole('button', { name: 'Gruppo · Andare', exact: true })
     .tap();
   if (await sheet.isVisible())
-    await sheet.getByRole('button', { name: /Torna alla mappa|Scegli il bersaglio/ }).tap();
+    await sheet.getByRole('button', { name: 'Chiudi parole', exact: true }).tap();
   await expectMapFirst(page, viewport);
   const nav = page.getByRole('navigation', { name: 'Sezioni di gioco' });
   await nav.getByRole('button', { name: /^Tribù/ }).tap();
@@ -235,7 +237,7 @@ test('browser-bar resizing and rotation preserve a composed phrase and reachable
   const sheet = page.getByRole('region', { name: 'Parole per comporre' });
   for (const word of ['Gruppo', 'Andare'])
     await sheet.getByRole('button', { name: new RegExp(`^${word}:`) }).tap();
-  await sheet.getByRole('button', { name: 'Scegli il bersaglio', exact: true }).tap();
+  await expect(sheet).not.toBeVisible();
   for (const viewport of [
     { width: 390, height: 640 },
     { width: 844, height: 390 },
@@ -262,14 +264,16 @@ test('all six late-game slots remain editable without deleting the following wor
     await button.scrollIntoViewIfNeeded();
     await button.tap();
   }
-  await sheet.getByRole('button', { name: 'Scegli il bersaglio', exact: true }).tap();
+  await expect(sheet).not.toBeVisible();
   await expect(page.locator('.sentence-slot.filled')).toHaveCount(6);
   const verb = page.locator('.sentence-slot').nth(1);
   await verb.scrollIntoViewIfNeeded();
   await verb.tap();
   await expect(sheet).toBeVisible();
-  await sheet.getByRole('button', { name: /^Portare:/ }).tap();
-  await sheet.getByRole('button', { name: 'Scegli il bersaglio', exact: true }).tap();
+  const replacement = sheet.getByRole('button', { name: /^Portare:/ });
+  await replacement.scrollIntoViewIfNeeded();
+  await replacement.tap();
+  await expect(sheet).not.toBeVisible();
   await expect(page.locator('.sentence-slot.filled')).toHaveCount(6);
   const expected = ['Gruppo', 'Portare', ...words.slice(2)];
   for (const [index, word] of expected.entries())
@@ -295,7 +299,7 @@ test('search and close stay visible while a reduced viewport simulates the on-sc
   await page.getByRole('button', { name: 'Mostra parole', exact: true }).tap();
   const sheet = page.getByRole('region', { name: 'Parole per comporre' });
   await sheet.getByRole('button', { name: /^Gruppo:/ }).tap();
-  await sheet.getByRole('button', { name: 'Cerca e filtra parole', exact: true }).tap();
+  await sheet.getByRole('button', { name: 'Apri catalogo delle parole', exact: true }).tap();
   const search = sheet.getByRole('searchbox', { name: 'Cerca parole nella barra', exact: true });
   await search.fill('Portare');
   await page.setViewportSize({ width: 390, height: 480 });
@@ -311,7 +315,7 @@ test('search and close stay visible while a reduced viewport simulates the on-sc
   await expect(sheet.getByRole('button', { name: /^Portare:/ })).toBeVisible();
   await sheet.getByRole('button', { name: /^Portare:/ }).tap();
   await page.setViewportSize({ width: 390, height: 844 });
-  await sheet.getByRole('button', { name: 'Scegli il bersaglio', exact: true }).tap();
+  await sheet.getByRole('button', { name: 'Chiudi parole', exact: true }).tap();
   await expectMapFirst(page, { width: 390, height: 844 });
   await expect(page.locator('.sentence-slot.filled').nth(0)).toContainText('Gruppo');
   await expect(page.locator('.sentence-slot.filled').nth(1)).toContainText('Portare');

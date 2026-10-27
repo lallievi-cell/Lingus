@@ -43,7 +43,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Verify mobile play, screens and map gestures
-        run: npm run test:e2e -- tests/mobile-playtest.spec.ts tests/mobile-screen-review.spec.ts tests/map-touch.spec.ts --workers=1
+        run: npm run test:e2e -- tests/mobile-playtest.spec.ts tests/mobile-composer-flow.spec.ts tests/mobile-screen-review.spec.ts tests/map-touch.spec.ts --workers=1
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

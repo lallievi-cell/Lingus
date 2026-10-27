@@ -76,6 +76,8 @@ test('late-game guidance follows the next slot and keeps forgotten building conc
   page,
 }) => {
   const workbench = await loadComposer(page, true);
+  const compatibility = workbench.getByRole('button', { name: 'Solo compatibili', exact: true });
+  if ((await compatibility.getAttribute('aria-pressed')) !== 'true') await compatibility.click();
   const group = workbench.getByRole('button', { name: /^Gruppo:/ });
   await expect(group).toHaveClass(/word-compatible/);
   await expect(workbench.getByRole('button', { name: /^Sempre:/ })).toHaveClass(/word-compatible/);
@@ -182,11 +184,13 @@ test('next-slot guidance and phrase recall remain usable in a narrow viewport', 
   await workbench.getByRole('button', { name: 'Pronuncia', exact: true }).click();
   await workbench.getByRole('button', { name: 'Rimuovi ultima parola' }).click();
   await workbench.getByRole('button', { name: 'Rimuovi ultima parola' }).click();
-  await workbench.getByRole('button', { name: 'Mostra parole', exact: true }).click();
-  await workbench.getByRole('button', { name: /^Gruppo:/ }).click();
-  await workbench.getByRole('button', { name: /^Costruire:/ }).click();
-  await workbench.getByRole('button', { name: /^Pietra:/ }).click();
-  await workbench.getByRole('button', { name: /^Qui:/ }).click();
+  await openWordBank(page);
+  await workbench.getByRole('button', { name: 'Solo compatibili', exact: true }).click();
+  for (const word of ['Gruppo', 'Costruire', 'Pietra', 'Qui']) {
+    const choice = workbench.getByRole('button', { name: new RegExp(`^${word}:`) });
+    await expect(choice).toHaveClass(/word-compatible/);
+    await choice.click();
+  }
   await expect(workbench.locator('.sentence-slot.filled')).toHaveCount(4);
   await expect(workbench.getByRole('button', { name: 'Pronuncia', exact: true })).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

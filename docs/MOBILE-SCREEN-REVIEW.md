@@ -2,6 +2,8 @@
 
 Questa revisione prosegue l’[audit dei gesti e del layout](MOBILE-PLAYTEST-AUDIT.md). Comprende osservazione di screenshot dell’App reale e uso dei suoi controlli, oltre alle misure automatiche. Il riferimento visivo principale è Chromium con touch, viewport CSS di 390 × 744 e densità 1,5. Le prove di interazione includono anche 360 × 640 e 844 × 390.
 
+Il successivo screenshot del compositore ha evidenziato un problema non risolto da questa revisione: il banco poteva ancora coprire la mappa anche a frase completa. [MOBILE-COMPOSITION.md](MOBILE-COMPOSITION.md) documenta la sostituzione del flusso ordinario con una palette compatta e l’espansione esplicita del catalogo.
+
 ## Schermate osservate
 
 Sono state controllate diciannove viste: avvio, mappa, banco delle parole, tribù, dettaglio individuale, Pensiero, Scintilla, Falò, lessico, ricettario, leggi, Pietra Sacra, popoli senza contatti e con contatti visibili, vittorie, impostazioni, preparazione stagionale, tribù urbanizzata e capitale.

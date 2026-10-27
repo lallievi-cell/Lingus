@@ -270,7 +270,23 @@ for (const viewport of [
     const map = page.getByRole('img', { name: /Mappa della valle/ });
     const expanded = (await map.boundingBox())!;
     expect((await page.locator('.map-frame').boundingBox())!.height).toBeGreaterThanOrEqual(80);
-    expect(expanded.height).toBeGreaterThan(70); // The frame includes its two-pixel border.
+    expect(expanded.height).toBeGreaterThanOrEqual(
+      viewport.height * (viewport.width > viewport.height ? 0.18 : 0.25),
+    );
+    const palette = (await page.locator('.mobile-word-sheet').boundingBox())!;
+    if (viewport.width < viewport.height) {
+      // Portrait composition takes actual layout space instead of covering the canvas.
+      expect(expanded.y + expanded.height).toBeLessThanOrEqual(palette.y);
+    } else {
+      // In landscape the compact choices stay to the right of the broad map area.
+      expect(palette.x).toBeGreaterThanOrEqual(expanded.x + expanded.width / 2);
+    }
+    expect(
+      await map.evaluate((canvas) => {
+        const r = canvas.getBoundingClientRect();
+        return document.elementFromPoint(r.x + r.width * 0.25, r.y + r.height * 0.6) === canvas;
+      }),
+    ).toBe(true);
     await page.screenshot({
       path: `/tmp/lingus-qol-mobile${viewport.width === 844 ? '-landscape' : ''}-open.png`,
       fullPage: true,
@@ -282,7 +298,8 @@ for (const viewport of [
       fullPage: true,
     });
     const collapsed = (await map.boundingBox())!;
-    expect(collapsed.height).toBeCloseTo(expanded.height, 1);
+    if (viewport.width < viewport.height) expect(collapsed.height).toBeGreaterThan(expanded.height);
+    else expect(collapsed.height).toBeCloseTo(expanded.height, 1);
     await recall.click();
     await expect(
       page
@@ -327,10 +344,17 @@ for (const viewport of [
     const toolbar = (await page.locator('.map-toolbar').boundingBox())!;
     expect(toolbar.height).toBeGreaterThanOrEqual(36);
     expect(toolbar.y + toolbar.height).toBeLessThanOrEqual((await composer.boundingBox())!.y);
+    const reopenedPalette = (await page.locator('.mobile-word-sheet').boundingBox())!;
+    const reopenedMap = (await map.boundingBox())!;
+    if (viewport.width < viewport.height)
+      expect(reopenedMap.y + reopenedMap.height).toBeLessThanOrEqual(reopenedPalette.y);
+    else expect(reopenedPalette.x).toBeGreaterThanOrEqual(reopenedMap.x + reopenedMap.width / 2);
     expect(
-      (await page.locator('.mobile-word-sheet').boundingBox())!.y +
-        (await page.locator('.mobile-word-sheet').boundingBox())!.height,
-    ).toBeLessThanOrEqual(toolbar.y);
+      await map.evaluate((canvas) => {
+        const r = canvas.getBoundingClientRect();
+        return document.elementFromPoint(r.x + r.width * 0.25, r.y + r.height * 0.6) === canvas;
+      }),
+    ).toBe(true);
     await page.getByRole('button', { name: 'Velocità 2x', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Velocità 2x', exact: true })).toHaveAttribute(
       'aria-pressed',

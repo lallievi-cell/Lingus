@@ -25,6 +25,7 @@ export function ContextualWordShelf({
   onSearchChange,
   renderWord,
   onOpenLexicon,
+  mobileCatalog = false,
 }: {
   state: GameState;
   sentence: string[];
@@ -34,6 +35,8 @@ export function ContextualWordShelf({
   onSearchChange: (search: string) => void;
   renderWord: (id: string) => ReactNode;
   onOpenLexicon: () => void;
+  /** Explicit expanded phone catalog; the default phone palette lives separately. */
+  mobileCatalog?: boolean;
 }) {
   const [mobile, setMobile] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 860px)').matches : false,
@@ -100,7 +103,7 @@ export function ContextualWordShelf({
       {(['all', 'S', 'V', 'O', 'M', 'C'] as const)
         .filter(
           (kind) =>
-            (allOnly ? kind === 'all' : !mobile || kind !== 'all') &&
+            (allOnly ? kind === 'all' : !mobile || mobileCatalog || kind !== 'all') &&
             (kind === 'all' || discovered.some((id) => WORDS[id].kind === kind)),
         )
         .map((kind) => (
@@ -121,8 +124,24 @@ export function ContextualWordShelf({
     </button>
   );
   return (
-    <div className={`contextual-word-shelf ${toolsOpen ? 'tools-expanded' : ''}`}>
-      {mobile ? (
+    <div
+      className={`contextual-word-shelf ${toolsOpen ? 'tools-expanded' : ''} ${mobile && mobileCatalog ? 'catalog-view' : ''} ${shown.length ? '' : 'has-no-results'}`}
+    >
+      {mobile && mobileCatalog ? (
+        <>
+          <div className="mobile-catalog-search">{searchBox}</div>
+          <div className="mobile-catalog-options" aria-label="Opzioni del catalogo">
+            {compatibilityToggle}
+            {filters()}
+          </div>
+          <div
+            className={`syntax-assistant catalog-status ${syntax.isComplete ? 'contextual-complete' : ''}`}
+            aria-label="Assistente sintattico"
+          >
+            {syntaxCue}
+          </div>
+        </>
+      ) : mobile ? (
         <>
           <div className="mobile-bank-toolbar" aria-label="Opzioni delle parole">
             {compatibilityToggle}
@@ -204,11 +223,12 @@ export function ContextualWordShelf({
                   : 'Nessuna parola in questa categoria.'}
           </p>
         )}
-        {(query || (!mobile && filter === 'compatible')) && (
+        {(query || ((!mobile || mobileCatalog) && filter === 'compatible')) && (
           <button className="word-bank-reset" onClick={showAll}>
             Mostra tutte le parole
           </button>
         )}
+        {mobile && mobileCatalog && openLexicon}
       </div>
       {filter === 'compatible' && syntax.lawOnlyTokenIds.length > 0 && (
         <p className="contextual-law-hint">

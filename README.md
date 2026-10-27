@@ -42,7 +42,9 @@ In Guidata, **Io** può nascere da un pasto autonomo o da manufatti personali: n
 
 **Raduna al campo** pronuncia un vero ordine di movimento: costa una Voce, raggiunge gli adulti disponibili e lascia a terra gli eventuali carichi interrotti. Il richiamo sceglie il miglior riparo reale vicino al campo. Il freddo viene affrontato prima e non annulla un ordine diretto verso un posto più protetto. In Guidata, il Falò ha un nucleo più caldo, visibile nel cerchio interno; in Classica il calore resta uniforme.
 
-Su cellulare, **Parole** apre il banco sopra il compositore senza ridurre ogni volta la mappa. Bersaglio e comandi principali restano accessibili; selezioni vicine e filtri stanno nel banco. Un riepilogo degli incarichi distingue lavoro concluso, fonte esaurita e interruzioni: **Prepara di nuovo** ricompone la frase, che richiede ancora Pronuncia. [PLAYTEST-QUALITY-OF-LIFE.md](docs/PLAYTEST-QUALITY-OF-LIFE.md) riporta parametri, differenze tra modalità e prove.
+Su cellulare, **Parole** o uno spazio della frase aprono una riga compatta di parole compatibili. In verticale la mappa si adatta allo spazio rimasto, senza essere coperta; in orizzontale i suggerimenti stanno sul lato destro. Puoi indicare un bersaglio mentre componi. Una frase completa senza altre continuazioni chiude la palette; i dettagli facoltativi restano disponibili. **Catalogo** apre esplicitamente tutte le parole scoperte e la ricerca. La [revisione del compositore](docs/MOBILE-COMPOSITION.md) documenta geometrie e prove.
+
+Un riepilogo degli incarichi distingue lavoro concluso, fonte esaurita e interruzioni: **Prepara di nuovo** ricompone la frase, che richiede ancora Pronuncia. [PLAYTEST-QUALITY-OF-LIFE.md](docs/PLAYTEST-QUALITY-OF-LIFE.md) riporta parametri, differenze tra modalità e prove.
 
 Il successivo [audit mobile](docs/MOBILE-PLAYTEST-AUDIT.md) riorganizza la schermata per lasciare la mappa visibile all’avvio, corregge i gesti touch e verifica comandi realmente raggiungibili, rotazione e spazio sottratto dalle barre del browser. Sul telefono una parola già inserita si può sostituire senza cancellare quelle successive.
 

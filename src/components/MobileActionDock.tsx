@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { ArrowRight, BookOpen, ChevronUp, MapPin, Trash2, X } from 'lucide-react';
+import { ArrowRight, BookOpen, ChevronLeft, ChevronUp, MapPin, Trash2, X } from 'lucide-react';
 import './MobileActionDock.css';
 
 interface Props {
@@ -17,10 +17,12 @@ interface Props {
   returnToMapLabel?: string;
   editingLabel?: string;
   onRemoveEditingWord?: () => void;
+  compactChildren?: (controls: { expand: () => void; close: () => void }) => ReactNode;
+  onModeChange?: (mode: 'closed' | 'compact' | 'catalog') => void;
 }
 
-/** The phone opens a temporary editor over the map. The closed composer keeps
- * the map visible, and every dismissal preserves the sentence and its target. */
+/** Everyday composition shares the layout with the map. The larger catalogue
+ * is an explicit choice; neither view captures input outside its own bounds. */
 export function MobileActionDock({
   children,
   targetLabel,
@@ -34,8 +36,11 @@ export function MobileActionDock({
   returnToMapLabel,
   editingLabel,
   onRemoveEditingWord,
+  compactChildren,
+  onModeChange,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
+  const [expanded, setExpanded] = useState(false);
   const [mobile, setMobile] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 860px)').matches : false,
   );
@@ -46,9 +51,15 @@ export function MobileActionDock({
   const priorCloseRequest = useRef(closeRequest);
   const contentId = useId();
 
-  useEffect(() => setOpen(defaultOpen), [sessionKey, defaultOpen]);
   useEffect(() => {
-    if (openRequest !== priorOpenRequest.current) setOpen(true);
+    setOpen(defaultOpen);
+    setExpanded(false);
+  }, [sessionKey, defaultOpen]);
+  useEffect(() => {
+    if (openRequest !== priorOpenRequest.current) {
+      setExpanded(false);
+      setOpen(true);
+    }
     priorOpenRequest.current = openRequest;
   }, [openRequest]);
   useEffect(() => {
@@ -56,6 +67,11 @@ export function MobileActionDock({
     priorCloseRequest.current = closeRequest;
   }, [closeRequest]);
   useEffect(() => onOpenChange?.(mobile && open), [mobile, open, onOpenChange]);
+  const compact = !!compactChildren && !expanded;
+  useEffect(
+    () => onModeChange?.(!mobile || !open ? 'closed' : compact ? 'compact' : 'catalog'),
+    [mobile, open, compact, onModeChange],
+  );
 
   useEffect(() => {
     const query = window.matchMedia('(max-width: 860px)');
@@ -77,10 +93,11 @@ export function MobileActionDock({
       const viewportTop = viewport?.offsetTop ?? 0;
       const visibleTop = Math.max(app.getBoundingClientRect().top, viewportTop);
       const clearance = Math.max(44, Math.ceil(workbenchBox.top - toolbarBox.top + 4));
+      const mapHeight = app.querySelector('.map-frame')?.getBoundingClientRect().height;
       workbench.style.setProperty('--map-toolbar-clearance', `${clearance}px`);
       workbench.style.setProperty(
         '--word-sheet-available',
-        `${Math.max(80, Math.floor(workbenchBox.top - clearance - visibleTop - 8))}px`,
+        `${Math.max(80, Math.floor(Math.min(mapHeight ?? Infinity, workbenchBox.top - clearance - visibleTop - 8)))}px`,
       );
     };
     const observer = new ResizeObserver(keepEditorInView);
@@ -109,7 +126,7 @@ export function MobileActionDock({
       details.open = false;
     // Focus a region, not the search input: opening words must not summon the keyboard.
     body.current?.focus({ preventScroll: true });
-  }, [mobile, open]);
+  }, [mobile, open, expanded]);
 
   useEffect(() => {
     if (!mobile) return;
@@ -137,18 +154,94 @@ export function MobileActionDock({
   }, [mobile, open]);
 
   function close() {
+    if (document.activeElement instanceof HTMLInputElement) document.activeElement.blur();
     setOpen(false);
     trigger.current?.focus({ preventScroll: true });
   }
 
   return (
     <div className="mobile-action-dock" data-open={open} ref={root}>
+      <div
+        ref={body}
+        id={contentId}
+        className="mobile-word-sheet"
+        data-mode={compact ? 'compact' : 'catalog'}
+        role="region"
+        tabIndex={mobile ? -1 : undefined}
+        hidden={mobile && !open}
+        aria-label="Parole per comporre"
+        onClickCapture={(event) => {
+          if (!mobile || !(event.target instanceof Element)) return;
+          if (event.target.closest('.mobile-selection-controls button[data-map-selection]'))
+            setOpen(false);
+          if (
+            event.target.closest('.word-tile:not(:disabled)') &&
+            document.activeElement instanceof HTMLInputElement
+          )
+            document.activeElement.blur();
+        }}
+      >
+        {mobile && compactChildren && compact ? (
+          compactChildren({ expand: () => setExpanded(true), close })
+        ) : (
+          <>
+            <header className="mobile-word-sheet-heading">
+              <div>
+                {compactChildren ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (document.activeElement instanceof HTMLInputElement)
+                        document.activeElement.blur();
+                      setExpanded(false);
+                    }}
+                    aria-label="Torna ai suggerimenti"
+                  >
+                    <ChevronLeft size={20} />
+                  </button>
+                ) : (
+                  <BookOpen size={17} />
+                )}
+                <strong>{editingLabel || 'Catalogo delle parole'}</strong>
+              </div>
+              <div className="mobile-sheet-heading-actions">
+                {editingLabel && onRemoveEditingWord && (
+                  <button
+                    type="button"
+                    onClick={onRemoveEditingWord}
+                    aria-label="Rimuovi parola selezionata"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                )}
+                <button type="button" onClick={close} aria-label="Chiudi parole">
+                  <X size={20} />
+                </button>
+              </div>
+            </header>
+            <div className="mobile-word-sheet-content">{children}</div>
+            {!compactChildren && (
+              <footer className="mobile-word-sheet-footer">
+                <span>La frase resta negli spazi qui sotto.</span>
+                <button type="button" onClick={close}>
+                  <MapPin size={16} />
+                  {returnToMapLabel || (targetLabel ? 'Torna alla mappa' : 'Scegli il bersaglio')}
+                  <ArrowRight size={16} />
+                </button>
+              </footer>
+            )}
+          </>
+        )}
+      </div>
       <div className="mobile-dock-header">
         <button
           className="mobile-words-toggle"
           type="button"
           ref={trigger}
-          onClick={() => setOpen((value) => !value)}
+          onClick={() => {
+            setExpanded(false);
+            setOpen((value) => !value);
+          }}
           aria-label={open ? 'Nascondi parole' : 'Mostra parole'}
           aria-expanded={open}
           aria-controls={contentId}
@@ -171,53 +264,6 @@ export function MobileActionDock({
           )}
         </div>
         {compactStatus && <div className="mobile-dock-status">{compactStatus}</div>}
-      </div>
-      <div
-        ref={body}
-        id={contentId}
-        className="mobile-word-sheet"
-        role="region"
-        tabIndex={mobile ? -1 : undefined}
-        hidden={mobile && !open}
-        aria-label="Parole per comporre"
-        onClickCapture={(event) => {
-          if (
-            mobile &&
-            event.target instanceof Element &&
-            event.target.closest('.mobile-selection-controls button[data-map-selection]')
-          )
-            setOpen(false);
-        }}
-      >
-        <header className="mobile-word-sheet-heading">
-          <div>
-            <BookOpen size={17} />
-            <strong>{editingLabel || 'Componi la frase'}</strong>
-          </div>
-          <div className="mobile-sheet-heading-actions">
-            {editingLabel && onRemoveEditingWord && (
-              <button
-                type="button"
-                onClick={onRemoveEditingWord}
-                aria-label="Rimuovi parola selezionata"
-              >
-                <Trash2 size={18} />
-              </button>
-            )}
-            <button type="button" onClick={close} aria-label="Chiudi parole">
-              <X size={20} />
-            </button>
-          </div>
-        </header>
-        <div className="mobile-word-sheet-content">{children}</div>
-        <footer className="mobile-word-sheet-footer">
-          <span>La frase resta negli spazi qui sotto.</span>
-          <button type="button" onClick={close}>
-            <MapPin size={16} />
-            {returnToMapLabel || (targetLabel ? 'Torna alla mappa' : 'Scegli il bersaglio')}
-            <ArrowRight size={16} />
-          </button>
-        </footer>
       </div>
     </div>
   );

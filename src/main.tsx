@@ -7,6 +7,7 @@ import './styles.css';
 import './components/MobileLayout.css';
 import './components/MobileComposer.css';
 import './components/MobileVisual.css';
+import './components/MobileComposition.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

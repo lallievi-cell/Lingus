@@ -168,17 +168,18 @@ test('an invalid order explains itself without consuming Voice, and one replacem
   await page.setViewportSize({ width: 390, height: 744 });
   await scene(page);
   await page.getByRole('button', { name: 'Mostra parole', exact: true }).tap();
+  await page.getByRole('button', { name: 'Apri catalogo delle parole', exact: true }).tap();
   await page.getByRole('button', { name: 'Tutte', exact: true }).tap();
   for (const label of ['Gruppo', 'Mangiare', 'Legno'])
     await page.getByRole('button', { name: new RegExp(`^${label}:`) }).tap();
-  await page.getByRole('button', { name: 'Scegli il bersaglio', exact: true }).tap();
+  await page.getByRole('button', { name: 'Chiudi parole', exact: true }).tap();
   await expect(page.locator('.sentence-feedback.has-issue')).toBeVisible();
   await page.getByRole('button', { name: 'Pronuncia', exact: true }).tap();
   expect((await saved(page)).voice).toBe(3);
   await page.getByRole('button', { name: 'Modifica Mangiare', exact: true }).tap();
   await page.getByRole('button', { name: /^Colpire:/ }).tap();
   await expect(page.getByRole('group', { name: 'Spazi della frase' })).toContainText('Legno');
-  await page.getByRole('button', { name: 'Scegli il bersaglio', exact: true }).tap();
+  await page.getByRole('button', { name: 'Chiudi parole', exact: true }).tap();
   await expect(page.locator('.sentence-feedback.has-issue')).toHaveCount(0);
   expect((await saved(page)).stats.commands).toBe(0);
 });

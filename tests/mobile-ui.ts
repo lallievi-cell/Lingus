@@ -1,9 +1,12 @@
 import type { Page } from '@playwright/test';
 
-/** Desktop shares the same bank; phones open it only while composing. */
+/** Library-oriented tests explicitly expand the phone catalog. The everyday
+ * compact palette has its own flow tests and never opens this catalog for free. */
 export async function openWordBank(page: Page) {
   const trigger = page.getByRole('button', { name: 'Mostra parole', exact: true });
   if (await trigger.isVisible()) await trigger.click();
+  const catalog = page.getByRole('button', { name: 'Apri catalogo delle parole', exact: true });
+  if (await catalog.isVisible()) await catalog.click();
 }
 
 export async function closeWordBank(page: Page) {
