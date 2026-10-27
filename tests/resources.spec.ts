@@ -140,6 +140,8 @@ async function seedResources(page: Page, scenario: Fixture = 'known') {
 }
 
 async function mapClick(page: Page, point: { x: number; y: number }, offset = 0) {
+  const hideWords = page.getByRole('button', { name: 'Nascondi parole', exact: true });
+  if (await hideWords.isVisible()) await hideWords.click();
   const map = page.getByRole('img', { name: /Mappa della valle/ });
   const bounds = await map.boundingBox();
   expect(bounds).not.toBeNull();

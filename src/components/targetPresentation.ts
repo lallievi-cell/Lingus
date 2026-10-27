@@ -1,4 +1,5 @@
 import { BUILDING_NAMES, WORDS } from '../game/content';
+import { FIRE_HEAT } from '../game/thermal';
 import { hasWord } from '../game/runtime';
 import { CUSTODIAN_RISK_LABELS, getCustodianStatuses } from '../game/custodianStatus';
 import { resolveUnitSex } from '../game/demography';
@@ -300,23 +301,31 @@ export function targetPresentation(
   if (target.type === 'building') {
     const building = state.buildings.find((b) => b.id === target.id);
     if (building?.kind === 'campfire') {
-      const lit = building.active && building.hp > 0;
+      const lit = building.active && building.hp > 0 && building.completed !== false;
       const coversRest = Math.hypot(building.x - state.home.x, building.y - state.home.y) + 8 <= 15;
       return {
         label: `${BUILDING_NAMES.campfire} · ${lit ? 'Acceso' : 'Spento'}`,
-        stage: lit ? 'Calore nelle vicinanze' : 'Senza calore',
+        stage: lit
+          ? state.playMode === 'guided'
+            ? 'Nucleo caldo e protezione esterna'
+            : 'Calore nelle vicinanze'
+          : 'Senza calore',
         kind: 'heat',
         description: lit
-          ? hasWord(state, 'O_08')
-            ? 'Riscalda le persone entro 15 metri, dentro il cerchio dorato.'
-            : 'Riscalda le persone dentro il cerchio dorato.'
+          ? state.playMode === 'guided'
+            ? hasWord(state, 'O_08')
+              ? `Entro ${FIRE_HEAT.guidedCoreRadius} metri il nucleo caldo aiuta a recuperare calore nelle normali notti invernali. Fino a ${FIRE_HEAT.radius} metri offre una protezione progressivamente minore.`
+              : 'Il cerchio interno è il nucleo caldo. Il cerchio esterno offre protezione parziale: stare sul bordo può non bastare durante il gelo.'
+            : hasWord(state, 'O_08')
+              ? 'Riscalda le persone entro 15 metri, dentro il cerchio dorato. In Classica il calore è uniforme; il gelo può richiedere anche ripari e pelli.'
+              : 'Riscalda le persone dentro il cerchio dorato. In Classica il calore è uniforme; durante il gelo aiutano anche ripari e pelli.'
           : 'Il focolare spento non riscalda le persone.',
         hint: !lit
           ? hasWord(state, 'O_08')
             ? 'Serve 1 legna per riaccenderlo.'
             : 'Serve legna per riaccenderlo.'
           : coversRest
-            ? 'Il calore raggiunge tutta la zona in cui la tribù si addormenta.'
+            ? 'Il calore raggiunge tutta la zona in cui la tribù si addormenta. Controlla se la temperatura sta risalendo: una tormenta può richiedere anche ripari e pelli.'
             : 'Una parte del giaciglio della tribù è fuori dal calore. Durante il gelo servono anche ripari o vestiti.',
       };
     }

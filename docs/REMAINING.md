@@ -6,6 +6,8 @@ La revisione [FOUR-IMPROVEMENTS.md](FOUR-IMPROVEMENTS.md) aggiunge la calibrazio
 
 ## Ultimi comportamenti espliciti completati
 
+[PLAYTEST-QUALITY-OF-LIFE.md](PLAYTEST-QUALITY-OF-LIFE.md) documenta la revisione successiva alla prova del giocatore: riscoperta Guidata di concetti già risolti dopo una nuova esperienza, via personale a Io, composizione contestuale da subito, selezione di tutti gli adulti e richiamo pagato, lezioni anticipate con costi reali, soccorso dal freddo e banco mobile. Queste calibrazioni sono esplicite in A-43–A-48 e non vengono attribuite alla fonte. La Classica conserva i puzzle, i parametri termici e la preparazione dell’Attenzione precedenti; beneficia delle correzioni comportamentali e della leggibilità.
+
 La revisione [UI-QUALITY-OF-LIFE.md](UI-QUALITY-OF-LIFE.md) aggiunge anteprima degli ordini con il gestore reale, motivi correnti di inattività, stime stagionali, avvisi azionabili, filtri della tribù e selezione degli elementi sovrapposti. Le stime dichiarano le proprie assunzioni e non certificano una campagna completa.
 
 | Voce                               | Completamento e prova                                                                                                                                                                                                                                                                                           |

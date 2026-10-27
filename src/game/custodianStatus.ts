@@ -1,5 +1,6 @@
-import { ELDER_AGE, LEARNING_AGE_LIMIT, WORDS } from './content';
-import { activeUnits, hasBuilding, hasWord } from './runtime';
+import { ELDER_AGE, WORDS } from './content';
+import { activeUnits, hasWord } from './runtime';
+import { getLessonPreview } from './teaching';
 import type { GameState, Unit } from './types';
 
 export type CustodianRisk = 'elder' | 'health' | 'hunger' | 'cold' | 'danger';
@@ -70,18 +71,5 @@ export function getCustodianStatuses(state: GameState): CustodianStatus[] {
 
 /** The existing lesson may create another custodian even when retention is already full. */
 export function canTransmitWord(state: GameState, wordId: string): boolean {
-  const memory = state.words[wordId];
-  return !!(
-    memory &&
-    WORDS[wordId]?.tier > 0 &&
-    memory.retention > 0 &&
-    hasBuilding(state, 'campfire') &&
-    state.attention >= 10 &&
-    activeUnits(state).some(
-      (unit) =>
-        unit.age < LEARNING_AGE_LIMIT &&
-        unit.caste !== 'slave' &&
-        !memory.custodians.includes(unit.id),
-    )
-  );
+  return getLessonPreview(state, wordId).allowed;
 }

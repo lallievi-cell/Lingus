@@ -143,6 +143,12 @@ test('a real death explains the lost word, pauses optionally and lets the player
   await expect(notices(page)).toContainText('Uma è morta per la fame');
   await expect(notices(page)).toContainText('Scheggiare');
   await expect(page.getByRole('button', { name: 'Riprendi il tempo' })).toBeVisible();
+  // Forgotten concepts remain consultable in the complete bank; the default
+  // contextual view contains only words usable in the next sentence slot.
+  await page
+    .locator('.language-workbench')
+    .getByRole('button', { name: 'Tutte', exact: true })
+    .click();
   const lost = page
     .locator('.word-shelf')
     .getByRole('button', { name: /^Scheggiare: parola perduta/ });
@@ -187,6 +193,10 @@ test('death and forgotten tiles remain qualitative before Io and Numero', async 
   await expect(notices(page)).toContainText('un’anziana è morta per la fame');
   await expect(notices(page)).toContainText('Scheggiare');
   await expect(notices(page)).not.toContainText(/Uma|Ayla|Ilo|\d|%/);
+  await page
+    .locator('.language-workbench')
+    .getByRole('button', { name: 'Tutte', exact: true })
+    .click();
   const lost = page
     .locator('.word-shelf')
     .getByRole('button', { name: /^Scheggiare: parola perduta/ });
@@ -205,6 +215,10 @@ test('a real seasonal birth shows its parents at the campfire and forgetting exp
   await expect(summary).toContainText('Una nuova vita');
   await expect(summary).toContainText('Genitori: Korg e Ayla');
   await campfire.getByRole('button', { name: /Custodiamo queste parole/ }).click();
+  await page
+    .locator('.language-workbench')
+    .getByRole('button', { name: 'Tutte', exact: true })
+    .click();
   const lost = page.locator('.word-shelf').getByRole('button', { name: /^Legno: parola perduta/ });
   await expect(lost).toBeDisabled();
   await expect(lost).toHaveAttribute('title', /memoria si è indebolita al cambio di stagione/);

@@ -68,20 +68,22 @@ describe('Guided critical cold seeks actual available protection', () => {
     expect(state.units.every((unit) => unit.hp > 50 && unit.temp > 20)).toBe(true);
   });
 
-  it('keeps both people vulnerable when fire and pelts provide no sufficient shelter', () => {
-    const state = advance(blizzard('guided', false), 40);
+  it('keeps people vulnerable in a blizzard when the only core has no clothing or shelter', () => {
+    const initial = blizzard('guided', false);
+    initial.resources.pelt = 0;
+    const state = advance(initial, 40);
     expect(state.units.every((unit) => unit.hp < 50 && unit.temp === 0)).toBe(true);
     expect(state.buildings).toHaveLength(1);
-    expect(state.resources.pelt).toBe(10);
+    expect(state.resources.pelt).toBe(0);
   });
 
-  it('preserves the Classic critical-cold response and its actual damage', () => {
+  it('preserves Classic uniform heat while fixing its refusal of a beneficial real shelter', () => {
     const state = advance(blizzard('classic'), 8);
     const house = state.buildings.find((building) => building.kind === 'house')!;
     for (const unit of state.units) {
-      expect(Math.hypot(unit.x - house.x, unit.y - house.y)).toBeGreaterThan(10);
-      expect(unit.temp).toBe(0);
-      expect(unit.hp).toBe(88);
+      expect(Math.hypot(unit.x - house.x, unit.y - house.y)).toBeLessThanOrEqual(10);
+      expect(unit.temp).toBeGreaterThan(0);
+      expect(unit.hp).toBeGreaterThanOrEqual(85);
     }
   });
 });

@@ -1,0 +1,110 @@
+.first-lesson-help {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 13px;
+  background: var(--ui-panel, #f2f3e9);
+  border: 1px solid #cad3bb;
+  border-radius: 8px;
+  color: #4d6046;
+  margin: 14px 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.first-lesson-help > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.first-lesson-help p {
+  margin: 5px 0;
+}
+.first-lesson-help small {
+  display: block;
+  font-size: 11px;
+  color: #65715c;
+}
+.teaching-panel .teaching-row {
+  align-items: start;
+}
+.teaching-panel .teaching-row > svg {
+  margin-top: 3px;
+}
+.teaching-panel .teaching-word-details {
+  min-width: 0;
+}
+.teaching-panel .lesson-people {
+  display: grid;
+  gap: 4px;
+  margin-top: 7px;
+  color: #53604c;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.teaching-panel .lesson-people > span {
+  display: block;
+}
+.teaching-panel .lesson-people b {
+  font-weight: 650;
+}
+.teaching-panel .lesson-person-focus {
+  display: inline-flex;
+  vertical-align: middle;
+  padding: 3px;
+  margin-left: 4px;
+  min-width: 25px;
+  min-height: 25px;
+}
+.teaching-panel .teach-button {
+  margin-top: 3px;
+}
+.teaching-panel .teach-button small {
+  display: block;
+  white-space: normal;
+  font-size: 10px;
+  line-height: 1.35;
+}
+.teaching-note,
+.teaching-blocker {
+  display: block;
+  font-size: 11px;
+  line-height: 1.5;
+  margin-top: 6px;
+}
+.teaching-note {
+  color: #627353;
+}
+.teaching-blocker {
+  color: #8d5a38;
+}
+.teaching-outcome {
+  color: #365d3d;
+  padding: 9px 12px;
+  border-left: 3px solid #7d9a66;
+  background: #eaf0df;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.teaching-empty {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #68715d;
+}
+@media (max-width: 600px) {
+  .teaching-panel .teaching-row {
+    grid-template-columns: 25px minmax(0, 1fr);
+    gap: 8px;
+  }
+  .teaching-panel .teach-button {
+    grid-column: 2;
+    justify-self: start;
+    min-height: 40px;
+    display: flex;
+    gap: 9px;
+    align-items: center;
+    margin-top: 0;
+  }
+  .teaching-panel .lesson-person-focus {
+    min-height: 34px;
+    min-width: 34px;
+  }
+}

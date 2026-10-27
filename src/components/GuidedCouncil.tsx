@@ -1,21 +1,35 @@
 import { Flame } from 'lucide-react';
-import { getDogmaEffects } from '../game/dogmas';
-import { hasBuilding, hasWord } from '../game/runtime';
+import { hasWord } from '../game/runtime';
 import type { GameState } from '../game/types';
-import { GUIDED_PROGRESSION } from '../game/guidedProgression';
+import { briefLessonIssue, councilPreparationIssue } from '../game/teaching';
 
-export function GuidedCouncil({ state, onPrepare }: { state: GameState; onPrepare: () => void }) {
-  if (state.playMode !== 'guided' || !state.campfirePending) return null;
+export function GuidedCouncil({
+  state,
+  onPrepare,
+  onPrepareBrief,
+}: {
+  state: GameState;
+  onPrepare: () => void;
+  onPrepareBrief?: () => void;
+}) {
+  if (state.playMode !== 'guided' || (!state.campfirePending && !onPrepareBrief)) return null;
   const numbered = hasWord(state, 'O_08');
+  const issue = state.campfirePending ? councilPreparationIssue(state) : briefLessonIssue(state);
   return (
     <div className="guide-note guided-council">
       <Flame size={18} />
       <div>
-        <strong>Prepara il racconto</strong>
+        <strong>
+          {state.campfirePending ? 'Prepara il racconto' : 'Puoi tramandare già adesso'}
+        </strong>
         <p>
-          In Guidata puoi alimentare il Falò con legna consegnata per ottenere più Attenzione. Ogni
-          lezione costa Attenzione e richiede un nuovo allievo. Quando tutti conoscono una parola,
-          il ripasso pagato ne rafforza la memoria.
+          {state.campfirePending
+            ? 'In Guidata puoi alimentare il Falò con legna consegnata per ottenere più Attenzione.'
+            : state.attention >= 10
+              ? 'Hai già Attenzione per una lezione: puoi scegliere una parola e premere Tramanda. Preparare altra legna è facoltativo.'
+              : 'Non serve attendere la fine della stagione: prepara un breve racconto con legna già consegnata, poi scegli una parola da tramandare.'}{' '}
+          Ogni lezione costa Attenzione e forma un nuovo custode. Durante il consiglio, quando tutti
+          gli allievi idonei conoscono una parola, il ripasso pagato ne rafforza la memoria.
         </p>
         {hasWord(state, 'S_06') && hasWord(state, 'S_02') && !hasWord(state, 'M_05') && (
           <p>
@@ -37,15 +51,18 @@ export function GuidedCouncil({ state, onPrepare }: { state: GameState; onPrepar
           )}
         <button
           className="text-button"
-          onClick={onPrepare}
-          disabled={
-            !hasBuilding(state, 'campfire') ||
-            state.resources.wood < GUIDED_PROGRESSION.councilWoodCost ||
-            state.attention >= getDogmaEffects(state).attentionCap
-          }
+          onClick={state.campfirePending ? onPrepare : onPrepareBrief}
+          disabled={!!issue}
+          aria-describedby="prepare-story-reason"
         >
           {numbered ? 'Brucia 2 legna · fino a +10 Attenzione' : 'Alimenta il Falò · consuma legna'}
         </button>
+        <small id="prepare-story-reason" className={issue ? 'teaching-blocker' : 'teaching-note'}>
+          {issue ??
+            (state.campfirePending
+              ? 'Il costo prepara Attenzione per questo consiglio.'
+              : 'Questo prepara una lezione ordinaria: il tempo e la stagione non avanzano.')}
+        </small>
       </div>
     </div>
   );

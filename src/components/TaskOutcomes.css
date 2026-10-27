@@ -1,0 +1,56 @@
+.task-outcomes {
+  margin: 8px 0;
+  color: #53634b;
+  font-size: 11px;
+}
+.task-outcomes summary {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  cursor: pointer;
+  padding: 6px 0;
+}
+.task-outcomes summary > span {
+  margin-left: auto;
+  font-size: 10px;
+  color: #74816a;
+}
+.task-outcome-list {
+  max-height: 240px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.task-outcome {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 8px 0;
+  border-bottom: 1px solid #cfd5c1;
+}
+.task-outcome > div {
+  flex: 1;
+  min-width: 0;
+}
+.task-outcome p {
+  margin: 4px 0;
+  line-height: 1.5;
+  font-size: 10px;
+}
+.task-outcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.task-outcome-actions .text-button {
+  font-size: 10px;
+  min-height: 28px;
+  text-align: left;
+}
+.task-outcome .icon-button {
+  flex: 0 0 auto;
+}
+@media (max-width: 700px) {
+  .task-outcome-actions .text-button {
+    min-height: 36px;
+  }
+}

@@ -77,9 +77,10 @@ test('late-game guidance follows the next slot and keeps forgotten building conc
   const group = workbench.getByRole('button', { name: /^Gruppo:/ });
   await expect(group).toHaveClass(/word-compatible/);
   await expect(workbench.getByRole('button', { name: /^Sempre:/ })).toHaveClass(/word-compatible/);
-  await expect(workbench.getByRole('button', { name: /^Costruire:/ })).not.toHaveClass(
-    /word-compatible/,
-  );
+  await expect(
+    workbench.getByRole('button', { name: 'Solo compatibili', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(workbench.getByRole('button', { name: /^Costruire:/ })).toHaveCount(0);
   await group.click();
   await expect(workbench.getByRole('button', { name: /^Costruire:/ })).toHaveClass(
     /word-compatible/,
@@ -88,8 +89,12 @@ test('late-game guidance follows the next slot and keeps forgotten building conc
   await expect(workbench.getByRole('button', { name: /^Pietra:/ })).toHaveClass(/word-compatible/);
   await expect(workbench.getByRole('button', { name: /^Legno:/ })).toHaveClass(/word-compatible/);
   const lost = workbench.getByRole('button', { name: /^Scrittura: parola perduta/ });
+  await expect(lost).toHaveCount(0);
+  await workbench.getByRole('button', { name: 'Tutte', exact: true }).click();
   await expect(lost).toBeDisabled();
   await expect(lost).not.toHaveClass(/word-compatible/);
+  await workbench.getByRole('button', { name: 'Solo compatibili', exact: true }).click();
+  await expect(lost).toHaveCount(0);
   const search = workbench.getByRole('searchbox', { name: 'Cerca parole nella barra' });
   await search.fill('pietra');
   await expect(workbench.locator('.word-shelf .word-tile')).toHaveCount(1);
@@ -110,6 +115,9 @@ test('late-game guidance follows the next slot and keeps forgotten building conc
   await expect(workbench.locator('.sentence-slot.filled')).toHaveCount(6);
   await expect(workbench.locator('.sentence-feedback')).toContainText('Legge prescrittiva');
   await expect(workbench.getByRole('button', { name: 'Pronuncia', exact: true })).toBeEnabled();
+  await expect(workbench.locator('.word-shelf .word-tile')).toHaveCount(0);
+  await expect(workbench.locator('.syntax-next')).toContainText('Frase pronta');
+  await expect(workbench.locator('.contextual-empty')).toContainText('non serve riempire');
 });
 
 test('recalling an acknowledged order restores the full phrase without executing or charging voice', async ({
@@ -118,6 +126,8 @@ test('recalling an acknowledged order restores the full phrase without executing
   const workbench = await loadComposer(page);
   for (const word of ['Gruppo', 'Andare'])
     await workbench.getByRole('button', { name: new RegExp(`^${word}:`) }).click();
+  const hideWords = workbench.getByRole('button', { name: 'Nascondi parole', exact: true });
+  if (await hideWords.isVisible()) await hideWords.click();
   const map = page.getByRole('img', { name: /Mappa della valle/ });
   const bounds = (await map.boundingBox())!;
   await map.click({ position: { x: bounds.width * 0.7, y: bounds.height * 0.4 } });
@@ -162,12 +172,15 @@ test('next-slot guidance and phrase recall remain usable in a narrow viewport', 
   const workbench = await loadComposer(page);
   for (const word of ['Gruppo', 'Andare'])
     await workbench.getByRole('button', { name: new RegExp(`^${word}:`) }).click();
+  const hideWords = workbench.getByRole('button', { name: 'Nascondi parole', exact: true });
+  if (await hideWords.isVisible()) await hideWords.click();
   const map = page.getByRole('img', { name: /Mappa della valle/ });
   const bounds = (await map.boundingBox())!;
   await map.click({ position: { x: bounds.width * 0.7, y: bounds.height * 0.4 } });
   await workbench.getByRole('button', { name: 'Pronuncia', exact: true }).click();
   await workbench.getByRole('button', { name: 'Rimuovi ultima parola' }).click();
   await workbench.getByRole('button', { name: 'Rimuovi ultima parola' }).click();
+  await workbench.getByRole('button', { name: 'Mostra parole', exact: true }).click();
   await workbench.getByRole('button', { name: /^Gruppo:/ }).click();
   await workbench.getByRole('button', { name: /^Costruire:/ }).click();
   await workbench.getByRole('button', { name: /^Pietra:/ }).click();

@@ -2,7 +2,7 @@ import { BUILDING_SPECS, WORD_ORDER, WORDS } from './content';
 import { getDogmaVectors, SACRED_TARGETS } from './dogmas';
 import { cognitiveSlots, compileSentence, getPredicate, SANCTIONS } from './grammar';
 import { hasWord } from './runtime';
-import type { GameState } from './types';
+import type { Compilation, GameState, Target } from './types';
 
 export const RECENT_PHRASE_LIMIT = 8;
 export const STARTER_PHRASES = [
@@ -14,6 +14,11 @@ export interface SyntaxSuggestions {
   tokenIds: string[];
   nextLabel: string;
   explanation: string;
+  /** Grammar is complete even if a target, materials or an institution is still missing. */
+  isComplete: boolean;
+  hasContinuations: boolean;
+  /** These tokens can continue only through the six-slot law grammar. */
+  lawOnlyTokenIds: string[];
 }
 
 // These are the argument families accepted by the sentence compiler. Advice is
@@ -66,19 +71,16 @@ const ARGUMENTS: Record<string, string[]> = {
 };
 
 /** Only complete known recipes are consulted; undiscovered blueprints stay hidden. */
-function knownConstructionNext(
-  state: GameState,
-  verb: string,
-  args: string[],
-  leadingSlots: number,
-) {
-  const sequence = [verb, ...args];
+function knownConstructionNext(state: GameState, tokens: string[]) {
+  const predicate = getPredicate(tokens);
+  const sequence = [predicate.verb, ...predicate.args];
+  const leading = predicate.condition ? 2 : 1;
   const recipes = Object.values(BUILDING_SPECS).map((spec) => spec.recipe);
-  if (verb === 'V_08') recipes.push(['V_08', 'O_01', 'O_10'], ['V_08', 'O_13', 'S_08']);
+  if (predicate.verb === 'V_08') recipes.push(['V_08', 'O_01', 'O_10'], ['V_08', 'O_13', 'S_08']);
   return recipes
     .filter(
       (recipe) =>
-        recipe.length + leadingSlots <= cognitiveSlots(state) &&
+        recipe.length + leading <= cognitiveSlots(state) &&
         recipe.every((id) => hasWord(state, id)) &&
         sequence.every((id, index) => recipe[index] === id) &&
         sequence.length < recipe.length,
@@ -86,9 +88,8 @@ function knownConstructionNext(
     .map((recipe) => recipe[sequence.length]);
 }
 
-// The sacred token can occur in any position, while the target must precede its
-// vector after Sacro is removed. Some orders coincide with ordinary subject/verb
-// grammar, so ask the real compiler before offering a sacred continuation.
+// These paths are grammar, including object-first and verb-first sacred rules.
+// Removing Sacro must leave the target before its vector, just as the compiler does.
 const SACRED_PHRASES = [
   ...SACRED_TARGETS.flatMap((target) =>
     getDogmaVectors(target).flatMap((vector) => [
@@ -100,192 +101,276 @@ const SACRED_PHRASES = [
   ['S_04', 'C_02', 'M_04'],
 ];
 
-function knownSacredNext(state: GameState, prefix: string[]) {
-  if (state.tier < 2 || !hasWord(state, 'M_03') || cognitiveSlots(state) < 3) return [];
-  const next = new Set<string>();
-  for (const phrase of SACRED_PHRASES) {
-    if (
-      phrase.length <= prefix.length ||
-      next.has(phrase[prefix.length]) ||
-      !prefix.every((id, index) => phrase[index] === id) ||
-      !phrase.every((id) => hasWord(state, id))
-    )
-      continue;
-    const compiled = compileSentence(state, phrase);
-    if (compiled.valid && compiled.kind === 'dogma') next.add(phrase[prefix.length]);
-  }
-  return [...next];
+/** Grammar must not disappear just because the fire is out or the palace is unpaid.
+ * A shallow view adds only the three institutional grammar gates. It never grants
+ * a word/resource/building to the live state and is never passed to issueCommand.
+ */
+function syntaxState(state: GameState): GameState {
+  return {
+    ...state,
+    gameOver: null,
+    dogmas: [],
+    buildings: [
+      ...state.buildings,
+      ...(['campfire', 'palace', 'school'] as const).map((kind) => ({
+        id: `syntax-only-${kind}`,
+        kind,
+        x: state.home.x,
+        y: state.home.y,
+        hp: 1,
+        active: true,
+        completed: true,
+      })),
+    ],
+  };
+}
+const syntaxTarget: Target = { type: 'entity', id: 'syntax-only-target', x: 0, y: 0 };
+const isPrefix = (prefix: string[], phrase: string[]) => prefix.every((id, i) => phrase[i] === id);
+const known = (state: GameState, ids: string[]) => ids.filter((id) => hasWord(state, id));
+
+function sacredPhrases(state: GameState) {
+  if (state.tier < 2 || !hasWord(state, 'M_03')) return [];
+  return SACRED_PHRASES.filter(
+    (phrase) =>
+      phrase.length <= cognitiveSlots(state) &&
+      phrase.every((id) => hasWord(state, id)) &&
+      compileSentence(state, phrase).kind === 'dogma',
+  );
 }
 
-export function getSyntaxSuggestions(state: GameState, tokens: string[]): SyntaxSuggestions {
-  const sacredNext = knownSacredNext(state, tokens);
-  const result = (ids: string[], nextLabel: string, explanation: string): SyntaxSuggestions => ({
-    tokenIds: WORD_ORDER.filter(
-      (id) => (ids.includes(id) || sacredNext.includes(id)) && hasWord(state, id),
-    ),
+/** Ordinary orders avoid duplicate arguments and terminal decorations. To change
+ * a recipe's product, remove its existing ingredient instead of appending junk.
+ */
+function ordinaryNext(state: GameState, tokens: string[], compiled: Compilation) {
+  if (tokens.length >= cognitiveSlots(state) || tokens.includes('C_03')) return [];
+  const p = getPredicate(tokens),
+    conditionLength = p.condition ? 1 : 0;
+  if (p.condition && (p.condition === 'C_02' ? state.tier < 3 : state.tier < 1)) return [];
+  if (!tokens.length)
+    return known(state, [
+      ...WORD_ORDER.filter((id) => WORDS[id].kind === 'S'),
+      ...(state.tier >= 1 ? ['C_01'] : []),
+      ...(state.tier >= 3 ? ['C_02'] : []),
+    ]);
+  if (tokens.length === conditionLength)
+    return known(
+      state,
+      WORD_ORDER.filter((id) => WORDS[id].kind === 'S'),
+    );
+  if (WORDS[p.subject]?.kind !== 'S') return [];
+  if (!p.verb)
+    return known(state, [
+      ...WORD_ORDER.filter(
+        (id) =>
+          WORDS[id].kind === 'V' &&
+          (id !== 'V_13' || p.subject === 'S_08') &&
+          (id !== 'V_14' || p.subject === 'S_04'),
+      ),
+      ...(tokens.join('|') === 'C_02|S_01' ? ['M_05'] : []),
+    ]);
+  if (WORDS[p.verb]?.kind !== 'V') return [];
+  if ((p.verb === 'V_13' && p.subject !== 'S_08') || (p.verb === 'V_14' && p.subject !== 'S_04'))
+    return [];
+  if (new Set(p.args).size !== p.args.length) return [];
+  if (
+    compiled.valid &&
+    (['building', 'cooking', 'planting', 'reforming', 'emancipating'].includes(
+      compiled.action ?? '',
+    ) ||
+      (p.verb === 'V_06' && p.args.includes('O_03')) ||
+      (p.verb === 'V_05' && ['guarding', 'saving'].includes(compiled.action ?? '')))
+  )
+    return [];
+  if (p.verb === 'V_08') return knownConstructionNext(state, tokens);
+  if (p.verb === 'V_05' && compiled.valid && compiled.action === 'copying')
+    return hasWord(state, 'M_02') && !p.args.includes('M_02') ? ['M_02'] : [];
+  if (p.verb === 'V_09' && p.args.includes('O_03')) return [];
+  return known(state, [
+    ...new Set([
+      ...(ARGUMENTS[p.verb] ?? []).filter((id) => !p.args.includes(id)),
+      ...knownConstructionNext(state, tokens),
+    ]),
+  ]);
+}
+
+function legalNext(state: GameState, tokens: string[]) {
+  if (
+    state.tier < 4 ||
+    cognitiveSlots(state) < 6 ||
+    !hasWord(state, 'C_03') ||
+    !SANCTIONS.some((id) => hasWord(state, id)) ||
+    tokens.length >= 6
+  )
+    return [];
+  if (tokens.some((id) => !hasWord(state, id))) return [];
+  if (tokens.length >= 1 && WORDS[tokens[0]]?.kind !== 'S') return [];
+  if (tokens.length >= 2 && WORDS[tokens[1]]?.kind !== 'V') return [];
+  if (tokens.slice(0, 4).includes('C_03')) return [];
+  if (tokens.length >= 5 && tokens[4] !== 'C_03') return [];
+  switch (tokens.length) {
+    case 0:
+      return known(
+        state,
+        WORD_ORDER.filter((id) => WORDS[id].kind === 'S'),
+      );
+    case 1:
+      return known(
+        state,
+        WORD_ORDER.filter((id) => WORDS[id].kind === 'V'),
+      );
+    // The law compiler permits every known concept in these two positions,
+    // including action tokens (for example Colpire when regulating forged arms).
+    // Ordinary orders retain their narrower verb-specific argument families.
+    case 2:
+    case 3:
+      return known(
+        state,
+        WORD_ORDER.filter((id) => id !== 'C_03'),
+      );
+    case 4:
+      return ['C_03'];
+    case 5:
+      return known(state, SANCTIONS);
+    default:
+      return [];
+  }
+}
+
+function buildSyntaxSuggestions(state: GameState, tokens: string[]): SyntaxSuggestions {
+  const capacity = cognitiveSlots(state);
+  const available = tokens.every((id) => !!WORDS[id] && hasWord(state, id));
+  const syntax = syntaxState(state);
+  const phrases = sacredPhrases(state);
+  const compile = (phrase: string[]) => compileSentence(syntax, phrase, syntaxTarget);
+  const current = available ? compile(tokens) : undefined;
+  const isSacred = phrases.some(
+    (phrase) => phrase.length === tokens.length && isPrefix(tokens, phrase),
+  );
+  // Sacred conflicts are real grammar choices. Direct taboo enforcement belongs
+  // to the order preview and must not erase the player's vocabulary here.
+  const isComplete =
+    available &&
+    tokens.length <= capacity &&
+    (isSacred || (!!current?.valid && current.kind !== 'dogma'));
+  const memo = new Map<string, boolean>();
+  const canFinishOrdinary = (prefix: string[]): boolean => {
+    const key = prefix.join('|');
+    const cached = memo.get(key);
+    if (cached !== undefined) return cached;
+    const p = getPredicate(prefix);
+    if (
+      prefix.length > capacity ||
+      prefix.includes('C_03') ||
+      new Set(p.args).size !== p.args.length
+    )
+      return false;
+    const compiled = compile(prefix);
+    if (compiled.valid && compiled.kind !== 'dogma') {
+      memo.set(key, true);
+      return true;
+    }
+    if (prefix.length >= capacity) {
+      memo.set(key, false);
+      return false;
+    }
+    // All branches strictly add one token; finite slot capacity bounds the search.
+    const valid = ordinaryNext(state, prefix, compiled).some((id) =>
+      canFinishOrdinary([...prefix, id]),
+    );
+    memo.set(key, valid);
+    return valid;
+  };
+  const ordinary =
+    available && tokens.length < capacity
+      ? ordinaryNext(state, tokens, current ?? compile(tokens)).filter((id) =>
+          canFinishOrdinary([...tokens, id]),
+        )
+      : [];
+  const sacred =
+    available && tokens.length < capacity
+      ? phrases
+          .filter((phrase) => phrase.length > tokens.length && isPrefix(tokens, phrase))
+          .map((phrase) => phrase[tokens.length])
+      : [];
+  const legal = available && tokens.length < capacity ? legalNext(state, tokens) : [];
+  const choices = new Set([...ordinary, ...sacred, ...legal]);
+  // Once a sacred rule is complete it remains a three-token institution. The
+  // historical Saggio/Sempre/Mio exception must not grow into a malformed order.
+  const tokenIds = isSacred ? [] : WORD_ORDER.filter((id) => choices.has(id) && hasWord(state, id));
+  const lawOnlyTokenIds = tokenIds.filter(
+    (id) => legal.includes(id) && !ordinary.includes(id) && !sacred.includes(id),
+  );
+  let nextLabel = 'Con cosa o come?';
+  let explanation =
+    'Scegli una continuazione della frase. Bersaglio, materiali e regole vengono verificati nell’anteprima.';
+  if (!available || tokens.length > capacity) {
+    nextLabel = 'Rivedi la frase';
+    explanation = 'Rimuovi una parola perduta o fuori dagli spazi disponibili.';
+  } else if (isSacred) {
+    nextLabel = 'Regola sacra pronta';
+    explanation = 'La frase sacra è completa. Verifica l’anteprima prima di pronunciarla.';
+  } else if (isComplete && !tokenIds.length) {
+    nextLabel = 'Frase pronta';
+    explanation = 'Non serve riempire tutti gli spazi: verifica bersaglio e costi, poi pronuncia.';
+  } else if (isComplete) {
+    nextLabel = 'Frase pronta · puoi aggiungere dettagli';
+    explanation =
+      'Puoi già pronunciare questa frase dopo aver verificato il bersaglio. Le altre parole permettono varianti o una legge.';
+  } else if (!tokenIds.length) {
+    nextLabel = 'Frase da correggere';
+    explanation =
+      'Non ci sono continuazioni conosciute che completino questa frase negli spazi disponibili. Rimuovi l’ultima parola o consulta Tutte.';
+  } else if (!tokens.length) {
+    nextLabel = sacred.length ? 'Chi, quando o che cosa è sacro?' : 'Chi?';
+    explanation =
+      'Scegli chi agisce. Le condizioni e le regole sacre compaiono quando sono conosciute.';
+  } else if (tokens.at(-1) === 'C_03') {
+    nextLabel = 'Quale sanzione?';
+    explanation = 'Completa la legge con una conseguenza conosciuta.';
+  } else {
+    const p = getPredicate(tokens);
+    if (tokens.length === (p.condition ? 1 : 0)) nextLabel = 'Chi?';
+    else if (WORDS[p.subject]?.kind === 'S' && !p.verb) nextLabel = 'Cosa fa?';
+    else if (ordinary.length === 0 && legal.length > 0) {
+      nextLabel = tokens.length === 3 ? 'Quale misura o condizione?' : 'Completa la legge';
+      explanation =
+        'Questa continuazione appartiene alla legge a sei parole: dovere, misura, Altrimenti e sanzione.';
+    } else if (p.verb === 'V_08') nextLabel = 'Con quali materiali?';
+    else if (tokens.includes('M_03')) nextLabel = 'Completa la regola sacra';
+  }
+  return {
+    tokenIds,
     nextLabel,
     explanation,
-  });
-  if (tokens.length >= cognitiveSlots(state))
-    return result(
-      [],
-      'Frase completa',
-      'Puoi rivedere la frase e scegliere il bersaglio prima di pronunciarla.',
-    );
-  if (tokens.some((id) => !WORDS[id] || !hasWord(state, id)))
-    return result([], 'Rivedi la frase', 'Una parola della frase non è più disponibile.');
-  const complete = tokens.length >= 3 ? compileSentence(state, tokens) : undefined;
-  if (complete?.valid && complete.kind === 'dogma')
-    return result([], 'Regola sacra completa', 'Puoi rivedere il dogma prima di pronunciarlo.');
-  if (!tokens.length)
-    return result(
-      WORD_ORDER.filter(
-        (id) =>
-          WORDS[id].kind === 'S' ||
-          (id === 'C_01' && state.tier >= 1) ||
-          (id === 'C_02' && state.tier >= 3),
-      ),
-      sacredNext.length ? 'Chi, quando o che cosa è sacro?' : 'Chi o quando?',
-      sacredNext.length
-        ? 'Inizia da un soggetto, una condizione oppure un concetto da legare a una regola sacra.'
-        : 'Inizia da un soggetto oppure da una condizione. Le altre parole restano disponibili.',
-    );
-  const predicate = getPredicate(tokens);
-  const conditionLength = predicate.condition ? 1 : 0;
-  if (tokens.length === conditionLength)
-    return result(
-      WORD_ORDER.filter((id) => WORDS[id].kind === 'S'),
-      'Chi?',
-      'La condizione precede il soggetto della frase.',
-    );
-  if (tokens.length === 5 && tokens[4] === 'C_03' && state.tier >= 4 && cognitiveSlots(state) >= 6)
-    return result(SANCTIONS, 'Quale sanzione?', 'Completa la legge con una sanzione conosciuta.');
-  if (tokens.includes('C_03'))
-    return result(
-      [],
-      'Rivedi la legge',
-      'Altrimenti occupa il quinto spazio; la sanzione lo segue.',
-    );
+    isComplete,
+    hasContinuations: tokenIds.length > 0,
+    lawOnlyTokenIds,
+  };
+}
 
-  // Sacred sentences use their existing target/vector grammar, including when
-  // the chosen target is an object rather than an ordinary subject.
-  if (tokens.includes('M_03') && WORDS[predicate.verb]?.kind !== 'V') {
-    const target = tokens.find((id) => id !== 'M_03');
-    return result(
-      [],
-      target ? 'Quale regola sacra?' : 'Che cosa è sacro?',
-      'La Pietra Sacra lega un concetto a un vettore dogmatico conosciuto.',
-    );
+// Grammar depends on known concepts, capacity and sacred conflicts, not on each
+// walking frame. Bound the cache and return fresh arrays so callers cannot alter it.
+const guidanceCache = new Map<string, SyntaxSuggestions>();
+export function getSyntaxSuggestions(state: GameState, tokens: string[]): SyntaxSuggestions {
+  const key = [
+    state.tier,
+    Number(!!state.lockedSlot),
+    Number(!!state.gameOver),
+    WORD_ORDER.filter((id) => hasWord(state, id)).join(','),
+    state.dogmas.map((dogma) => `${dogma.targetId}:${dogma.vectorId}`).join(','),
+    tokens.join('|'),
+  ].join('/');
+  let result = guidanceCache.get(key);
+  if (!result) {
+    result = buildSyntaxSuggestions(state, tokens);
+    guidanceCache.set(key, result);
+    if (guidanceCache.size > 128) guidanceCache.delete(guidanceCache.keys().next().value!);
   }
-  if (WORDS[predicate.subject]?.kind !== 'S')
-    return result(
-      [],
-      sacredNext.length ? 'Completa la regola sacra' : 'Rivedi il soggetto',
-      'Gli ordini iniziano con un soggetto; i dogmi seguono la grammatica della Pietra Sacra.',
-    );
-  if (!predicate.verb)
-    return result(
-      [
-        ...WORD_ORDER.filter(
-          (id) =>
-            WORDS[id].kind === 'V' &&
-            (id !== 'V_13' || predicate.subject === 'S_08') &&
-            (id !== 'V_14' || predicate.subject === 'S_04'),
-        ),
-        ...(tokens.join('|') === 'C_02|S_01' && state.tier >= 3 ? ['M_05'] : []),
-      ],
-      sacredNext.length ? 'Azione o regola sacra?' : 'Cosa fa?',
-      sacredNext.length
-        ? 'Scegli un’azione oppure lega questo soggetto a una regola sacra.'
-        : 'Scegli un’azione per il soggetto.',
-    );
-  if (tokens.join('|') === 'S_04|C_02' && state.tier >= 2 && hasWord(state, 'M_03'))
-    return result(
-      ['M_04'],
-      'Quale regola sacra?',
-      'La gerontocrazia storica lega gli anziani alla proprietà del sapere.',
-    );
-  if (WORDS[predicate.verb]?.kind !== 'V')
-    return result(
-      [],
-      sacredNext.length ? 'Completa la regola sacra' : 'Rivedi l’azione',
-      sacredNext.length
-        ? 'Aggiungi Sacro per completare il dogma.'
-        : 'Dopo il soggetto serve un verbo.',
-    );
-
-  // At four unconditioned slots the law grammar permits Altrimenti. The usual
-  // direct-order arguments remain suggestions as well; this never forces a law.
-  const lawNext =
-    state.tier >= 4 && cognitiveSlots(state) >= 6 && tokens.length === 4 && conditionLength === 0
-      ? ['C_03']
-      : [];
-  const construction = knownConstructionNext(
-    state,
-    predicate.verb,
-    predicate.args,
-    conditionLength + 1,
-  );
-  if (predicate.verb === 'V_08')
-    return result(
-      [...construction, ...lawNext],
-      'Con quali materiali?',
-      'Sono evidenziate le continuazioni delle ricette edilizie interamente conosciute.',
-    );
-
-  let args = (ARGUMENTS[predicate.verb] ?? []).filter((id) => !predicate.args.includes(id));
-  if (predicate.verb === 'V_14') {
-    args = args.filter(
-      (id) =>
-        id === 'S_07' ||
-        id === 'M_05' ||
-        id === 'M_03' ||
-        state.dogmas.some((dogma) => dogma.targetId === id),
-    );
-  }
-  if (predicate.verb === 'V_09')
-    args = args.filter(
-      (id) => !predicate.args.includes('O_03') && (id !== 'O_03' || !predicate.args.length),
-    );
-  const remaining = cognitiveSlots(state) - tokens.length - 1;
-  args = args.filter((candidate) => {
-    const after = [...predicate.args, candidate];
-    const canSupply = (required: string[]) =>
-      required.every((id) => hasWord(state, id)) &&
-      required.filter((id) => !after.includes(id)).length <= remaining;
-    if (predicate.verb === 'V_07')
-      return canSupply(['O_05', 'O_04']) || canSupply(['O_05', 'O_02']);
-    if (predicate.verb === 'V_05' && after.includes('O_04')) return canSupply(['M_02']);
-    return true;
-  });
-  // Put the required ingredient first in the visual recommendations without
-  // removing alternative known arguments or introducing an unknown word.
-  if (['V_06', 'V_07', 'V_09', 'V_10', 'V_12'].includes(predicate.verb)) {
-    const required = { V_06: 'O_02', V_07: 'O_05', V_09: 'O_04', V_10: 'O_04', V_12: 'O_07' }[
-      predicate.verb
-    ];
-    if (
-      required &&
-      !predicate.args.includes(required) &&
-      tokens.length + 1 >= cognitiveSlots(state)
-    )
-      args = args.filter((id) => id === required);
-  }
-  const lawMeasure =
-    state.tier >= 4 &&
-    cognitiveSlots(state) >= 6 &&
-    conditionLength === 0 &&
-    tokens.length === 3 &&
-    hasWord(state, 'C_03')
-      ? WORD_ORDER.filter((id) => ['O', 'M'].includes(WORDS[id].kind))
-      : [];
-  return result(
-    [...args, ...construction, ...lawMeasure, ...lawNext],
-    lawNext.length ? 'Come, oppure una legge?' : 'Con cosa o come?',
-    lawNext.length
-      ? 'Puoi completare l’ordine oppure aggiungere Altrimenti e una sanzione. La frase verrà ricontrollata alla pronuncia.'
-      : 'Le parole segnate proseguono la sintassi dell’azione. Bersaglio, scorte e vincoli restano da verificare.',
-  );
+  return {
+    ...result,
+    tokenIds: [...result.tokenIds],
+    lawOnlyTokenIds: [...result.lawOnlyTokenIds],
+  };
 }
 
 /** Recall never truncates a sentence or silently discards a forgotten concept. */

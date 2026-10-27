@@ -1,7 +1,6 @@
 import {
   ACTION_NAMES,
   ADULT_AGE,
-  LEARNING_AGE_LIMIT,
   BUILDING_SPECS,
   RESOURCE_ORDER,
   RESOURCE_SPECS,
@@ -13,10 +12,13 @@ import type { MapMode } from './types';
 import { canFitCraftOutput, canPayLocally, payLocally } from './craftMaterials';
 import { validSave } from './saveValidation';
 import { canRehearseWord, GUIDED_PROGRESSION } from './guidedProgression';
+import { recalledSparkTokens } from './knowledgeRecovery';
 import { updateForeignPolicy } from './foreignPolicy';
 import { cognitiveSlots, compileSentence, getPredicate, resolveConstruction } from './grammar';
 import { getDogmaEffects, inscribeDogma } from './dogmas';
 import { recordLawWork } from './imperialLawPolicy';
+import { isAllAdultsAnchor, selectableTribeAdults } from './tribeSelection';
+import { canPrepareBriefLesson, getLessonPreview } from './teaching';
 import {
   activeUnits,
   adult,
@@ -112,6 +114,7 @@ function chooseSubjects(
         distance(u, s.home) <= (hasBuilding(s, 'palace') ? 100 : 35),
     );
   const anchor = selectionCenter ?? { ...s.home, type: 'point' as const };
+  if (subject === 'S_01' && isAllAdultsAnchor(anchor)) return selectableTribeAdults(s);
   if (
     anchor.type === 'building' &&
     s.buildings.some(
@@ -564,11 +567,18 @@ export function solveSpark(state: GameState, id: string, chosen: string[]): Game
     );
     return s;
   }
-  s.words[spark.wordId] = { retention: 50, custodians: [u.id], uses: 0, investment: 0, support: 0 };
+  s.words[spark.wordId] = {
+    retention: 50,
+    custodians: [u.id],
+    uses: 0,
+    investment: 0,
+    support: 0,
+    learnedRecipe: [...spark.recipe],
+  };
   if (!u.knows.includes(spark.wordId)) u.knows.push(spark.wordId);
   s.stats.discoveries++;
   s.bornWords ??= {};
-  s.bornWords[spark.wordId] = s.time;
+  s.bornWords[spark.wordId] ??= s.time;
   if (spark.wordId === 'S_07') {
     s.government = 'monarchy';
     s.kingId = u.id;
@@ -594,28 +604,17 @@ export function solveSpark(state: GameState, id: string, chosen: string[]): Game
   advanceTier(s);
   return s;
 }
+/** Guided players remember a solved concept; the community still needs a new real spark. */
+export function recallSpark(state: GameState, id: string): GameState {
+  const tokens = recalledSparkTokens(state, id);
+  return tokens ? solveSpark(state, id, tokens) : state;
+}
 export function teachWord(state: GameState, id: string): GameState {
+  const preview = getLessonPreview(state, id);
+  if (!preview.allowed || !preview.pupil) return state;
   const s = copy(state),
-    m = s.words[id];
-  if (
-    !m ||
-    WORDS[id].tier === 0 ||
-    m.retention <= 0 ||
-    !hasBuilding(s, 'campfire') ||
-    s.attention < 10
-  )
-    return s;
-  const eligible = activeUnits(s).filter(
-    (u) => u.age < LEARNING_AGE_LIMIT && u.caste !== 'slave' && !m.custodians.includes(u.id),
-  );
-  const children = eligible.filter((u) => u.age < ADULT_AGE);
-  const pupils = children.length ? children : eligible;
-  if (!pupils.length) {
-    log(s, 'Nessun giovane può ancora apprendere questa parola.', 'warning');
-    return s;
-  }
-  const index = Math.floor((s.seed / 4294967296) * pupils.length),
-    pupil = pupils[Math.min(index, pupils.length - 1)];
+    m = s.words[id],
+    pupil = s.units.find((unit) => unit.id === preview.pupil!.id)!;
   s.seed = (Math.imul(s.seed, 1664525) + 1013904223) >>> 0;
   s.attention -= 10;
   const efficacy =
@@ -641,6 +640,25 @@ export function teachWord(state: GameState, id: string): GameState {
     'good',
   );
   advanceTier(s);
+  return s;
+}
+
+/** An optional early Guided story spends real fuel without ending a season. */
+export function prepareBriefLesson(state: GameState): GameState {
+  if (!canPrepareBriefLesson(state)) return state;
+  const s = copy(state);
+  s.resources.wood -= GUIDED_PROGRESSION.councilWoodCost;
+  s.attention = Math.min(
+    getDogmaEffects(s).attentionCap,
+    s.attention + GUIDED_PROGRESSION.councilAttention,
+  );
+  // This fuel has already produced Attention. Counting it in burntWood would
+  // award the same payment again at the next seasonal council.
+  log(
+    s,
+    'La tribù prepara un breve racconto al Falò con legna consegnata. Ora può tramandare senza aspettare il cambio di stagione.',
+    'good',
+  );
   return s;
 }
 

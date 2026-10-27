@@ -1,5 +1,7 @@
 import type { GameState, Resource, WorldTarget } from '../game/types';
-import { hasBuilding } from '../game/runtime';
+import { hasBuilding, isPlayerBuilding } from '../game/runtime';
+import { FIRE_HEAT } from '../game/thermal';
+import { isAllAdultsAnchor, selectableTribeAdults } from '../game/tribeSelection';
 import { getCustodianStatuses, type CustodianStatus } from '../game/custodianStatus';
 import { getLifeStage } from '../game/demography';
 import { visibleUnitEquipment, type VisibleUnitEquipment } from '../game/unitEquipment';
@@ -1107,18 +1109,50 @@ export function drawWorld(
     focused?.type === 'building'
       ? state.buildings.find((b) => b.id === focused.id && b.kind === 'campfire')
       : undefined;
-  if (fire?.active && fire.hp > 0 && isVisibleAt(state, fire.x, fire.y)) {
+  if (
+    fire?.active &&
+    fire.hp > 0 &&
+    fire.completed !== false &&
+    isPlayerBuilding(state, fire) &&
+    isVisibleAt(state, fire.x, fire.y)
+  ) {
     const center = worldPoint(fire.x, fire.y);
     ctx.save();
     ctx.beginPath();
     // This range uses world metres; the flame sprite itself is deliberately small.
-    ctx.ellipse(center.x, center.y, 15 * 2.4, 15 * 1.6, 0, 0, Math.PI * 2);
+    ctx.ellipse(
+      center.x,
+      center.y,
+      FIRE_HEAT.radius * 2.4,
+      FIRE_HEAT.radius * 1.6,
+      0,
+      0,
+      Math.PI * 2,
+    );
     ctx.fillStyle = '#d49b3912';
     ctx.fill();
     ctx.strokeStyle = '#aa792872';
     ctx.lineWidth = 1.2 / lineScale;
     ctx.setLineDash([5 / lineScale, 5 / lineScale]);
     ctx.stroke();
+    if (state.playMode === 'guided') {
+      ctx.beginPath();
+      ctx.ellipse(
+        center.x,
+        center.y,
+        FIRE_HEAT.guidedCoreRadius * 2.4,
+        FIRE_HEAT.guidedCoreRadius * 1.6,
+        0,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fillStyle = '#e9b54732';
+      ctx.fill();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = '#b77d22bb';
+      ctx.lineWidth = 1.5 / lineScale;
+      ctx.stroke();
+    }
     ctx.restore();
   }
   const liveAnchor =
@@ -1128,7 +1162,19 @@ export function drawWorld(
         : groupAnchor
       : null;
 
-  if (liveAnchor && isGroupActive) {
+  if (isGroupActive && isAllAdultsAnchor(groupAnchor)) {
+    ctx.save();
+    ctx.strokeStyle = '#b98839cc';
+    ctx.lineWidth = 1.25 / lineScale;
+    for (const person of selectableTribeAdults(state)) {
+      if (!isVisibleAt(state, person.x, person.y)) continue;
+      const p = worldPoint(person.x, person.y);
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, 2.3 * 2.4, 2.3 * 1.6, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  } else if (liveAnchor && isGroupActive) {
     const p = worldPoint(liveAnchor.x, liveAnchor.y);
     ctx.save();
     const pulse = 0.5 + Math.sin(time * 3) * 0.15;

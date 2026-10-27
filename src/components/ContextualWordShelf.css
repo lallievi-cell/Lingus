@@ -1,0 +1,72 @@
+.contextual-word-shelf {
+  min-width: 0;
+}
+.contextual-word-shelf .syntax-assistant {
+  flex-wrap: wrap;
+}
+.contextual-word-shelf .syntax-next {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.contextual-word-shelf .contextual-complete .syntax-cue {
+  background: #6f8c5e;
+}
+.contextual-word-shelf .contextual-ready-hint {
+  color: #53634c;
+  font-size: 10px;
+}
+.contextual-word-shelf .word-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.contextual-word-shelf .word-search input {
+  min-width: 0;
+}
+.contextual-word-shelf .word-filters button {
+  min-height: 28px;
+}
+.contextual-word-shelf .word-bank-reset {
+  flex-shrink: 0;
+}
+.contextual-empty {
+  margin: 8px 0;
+  padding: 6px 2px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #58634e;
+  max-width: 38em;
+}
+.contextual-law-hint {
+  margin: 4px 0 0;
+  font-size: 10px;
+  color: #6f705c;
+  line-height: 1.4;
+}
+@media (max-width: 760px) {
+  .contextual-word-shelf .contextual-word-options {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .contextual-word-shelf .word-filters {
+    flex-wrap: wrap;
+  }
+  .contextual-word-shelf .word-filters button {
+    min-height: 36px;
+  }
+  .contextual-word-shelf .syntax-toggle {
+    min-height: 36px;
+  }
+  .contextual-word-shelf .word-search {
+    flex: 1 1 130px;
+    max-width: 100%;
+  }
+  .contextual-word-shelf .word-search input {
+    width: 100%;
+    min-height: 34px;
+  }
+  .contextual-word-shelf .contextual-empty,
+  .contextual-word-shelf .word-bank-reset {
+    grid-column: 1 / -1;
+  }
+}

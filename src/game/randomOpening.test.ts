@@ -26,7 +26,12 @@ describe('ordinary opening on generated maps', () => {
       );
       expect(hasWord(state, 'O_01')).toBe(true);
       expect(hasWord(state, 'O_05')).toBe(true);
-      expect(hasWord(state, 'S_02')).toBe(false);
+      // Personal initiative teaches Io in Guided through an actual intuition;
+      // the pilot still uses only Gruppo and never isolates a person.
+      expect(hasWord(state, 'S_02')).toBe(true);
+      expect(discoveries.find((discovery) => discovery.wordId === 'S_02')?.recipe).toEqual([
+        'S_01',
+      ]);
       // A real storm can teach Fire first; the route still completes paid
       // stone work and delivers fuel instead of stopping at that lucky spark.
       expect(discoveries.find((discovery) => discovery.wordId === 'O_05')?.recipe).toContain(

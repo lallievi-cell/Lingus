@@ -256,13 +256,17 @@ test('a real physical order discovers Legno and the version-two save survives re
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await begin(page);
-  await expect(page.locator('.word-shelf .word-tile')).toHaveCount(4);
+  // The contextual bank starts with subjects, then reveals the known verbs.
+  await expect(page.locator('.word-shelf .word-tile')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: /^Gruppo:/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Colpire:/ })).toHaveCount(0);
   await expect(page.locator('.sentence-slot')).toHaveCount(2);
   await expect(page.locator('.day-cycle')).toHaveCount(0);
   await expect(page.locator('.world-resources')).not.toContainText('Cibo');
   await page.screenshot({ path: '/tmp/lingus-fidelity-initial.png', fullPage: true });
   await page.getByRole('button', { name: 'Velocità 4x' }).click();
   await page.getByRole('button', { name: /^Gruppo:/ }).click();
+  await expect(page.locator('.word-shelf .word-tile')).toHaveCount(3);
   await page.getByRole('button', { name: /^Colpire:/ }).click();
   // Initial map is the central 100m sector of a 500m world, zoomed 4.5×.
   await worldClick(page, 223, 229, 4.5, 3);
@@ -275,6 +279,10 @@ test('a real physical order discovers Legno and the version-two save survives re
   const puzzle = page.getByRole('dialog', { name: 'La Scintilla Cognitiva' });
   await puzzle.getByRole('button', { name: /^Colpire:/ }).click();
   await puzzle.getByRole('button', { name: 'Dai un nome all’intuizione' }).click();
+  await page
+    .getByRole('group', { name: 'Filtra le parole' })
+    .getByRole('button', { name: 'Tutte', exact: true })
+    .click();
   await expect(page.getByRole('button', { name: /^Legno:/ })).toBeVisible();
   await expect(page.locator('.word-shelf .word-tile')).toHaveCount(5);
   const saved = await saveAndRead(page);
@@ -284,6 +292,14 @@ test('a real physical order discovers Legno and the version-two save survives re
   expect(saved.stats.commands).toBe(1);
   expect(saved.resources.wood).toBe(0); // No invented stored materials before carrying is known.
   await page.reload();
+  await expect(page.getByRole('button', { name: 'Solo compatibili', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page
+    .getByRole('group', { name: 'Filtra le parole' })
+    .getByRole('button', { name: 'Tutte', exact: true })
+    .click();
   await expect(page.getByRole('button', { name: /^Legno:/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Riprendi il tempo' })).toBeVisible();
   expect(errors).toEqual([]);
@@ -419,6 +435,14 @@ test('the six-slot Iron Age exposes all45 words,20 recipes, city cohorts, tradit
   await expect(page.locator('.era-heading')).toContainText('Età del Ferro');
   await expect(page.locator('.sentence-slot')).toHaveCount(6);
   await expect(page.locator('.voice-pip')).toHaveCount(5);
+  await expect(page.getByRole('button', { name: 'Solo compatibili', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page
+    .getByRole('group', { name: 'Filtra le parole' })
+    .getByRole('button', { name: 'Tutte', exact: true })
+    .click();
   await expect(page.locator('.word-shelf .word-tile')).toHaveCount(45);
   await page.screenshot({ path: '/tmp/lingus-fidelity-iron.png', fullPage: true });
   await page.getByRole('button', { name: /Le frasi della materia/ }).click();

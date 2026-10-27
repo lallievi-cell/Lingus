@@ -7,14 +7,12 @@ import {
   INNATE_WORDS,
   RESOURCE_ORDER,
   RESOURCE_SPECS,
-  SEASON_TEMPERATURES,
   WORDS,
   WORD_ORDER,
 } from './content';
 import {
   attentionPoints,
   birthProbability,
-  bodyTemperatureDelta,
   cognitiveTension,
   custodianLoss,
   effectiveDamage,
@@ -74,6 +72,12 @@ import {
 } from './delegateIdentity';
 import { resolveInteractionPosition, type InteractionKind } from './interactionPositions';
 import { warmShelterDestination } from './shelterSeeking';
+import {
+  PERSONAL_DISCOVERY,
+  personalExperienceEligible,
+  type PersonalExperience,
+} from './personalDiscovery';
+import { COLD_RESCUE, thermalConditionsAt } from './thermal';
 import type {
   Building,
   BuildingKind,
@@ -159,6 +163,22 @@ export function recordCraft(s: GameState, u: Unit, wordId: string) {
   recordEvent(s, u, 'ENV_CRAFT', 0, [wordId]);
   s.lastCraftWord = wordId;
   s.lastCraftUnit = u.id;
+  if (wordId === 'O_05') recordPersonalExperience(s, u, 'craft');
+}
+function recordPersonalExperience(s: GameState, u: Unit, experience: PersonalExperience) {
+  if (!personalExperienceEligible(s, u, experience)) return;
+  initializeUnit(u);
+  const tag = experience === 'meal' ? 'ENV_PERSONAL_MEAL' : 'ENV_PERSONAL_WORK';
+  // One actual meal/craft may be described by several cognitive producers.
+  if ((u.lastEventAt![tag] ?? -Infinity) >= s.time) return;
+  u.tension!.S_02 = Math.min(
+    140,
+    (u.tension!.S_02 ?? 0) +
+      (experience === 'meal'
+        ? PERSONAL_DISCOVERY.mealContribution
+        : PERSONAL_DISCOVERY.craftContribution),
+  );
+  recordEvent(s, u, tag, 0, ['S_02']);
 }
 export function evaluateDiscoveries(s: GameState, u: Unit) {
   if (u.hp <= 0 || u.caste === 'slave') return;
@@ -197,24 +217,32 @@ export function evaluateDiscoveries(s: GameState, u: Unit) {
         ? ['O_03']
         : recipes[0];
     const craftedFire = wordId === 'O_05' && event.tag === 'ENV_CRAFT';
+    const personalSelf =
+      wordId === 'S_02' && ['ENV_PERSONAL_MEAL', 'ENV_PERSONAL_WORK'].includes(event.tag);
     s.sparks.push({
       id: nextId(s, 'spark'),
       wordId,
       unitId: u.id,
-      eventLabel: craftedFire
-        ? 'Sfregando e lavorando il legno, una brace nasce tra le mani.'
-        : event.tag === 'ENV_FUNERAL' && wordId === 'M_03'
-          ? 'Il commiato di un compagno diventa un rito condiviso.'
-          : event.tag === 'ENV_SHARED_CAPTIVE_MEAL' && wordId === 'M_05'
-            ? 'Condividere il pasto rivela che anche il prigioniero è un individuo.'
-            : word.event,
+      eventLabel: personalSelf
+        ? event.tag === 'ENV_PERSONAL_MEAL'
+          ? 'Mentre gli altri non hanno fame, una persona sceglie di nutrirsi: il suo bisogno è diverso da quello del gruppo.'
+          : 'Un compagno completa con le proprie mani un manufatto: è parte del gruppo, ma riconosce il proprio lavoro.'
+        : craftedFire
+          ? 'Sfregando e lavorando il legno, una brace nasce tra le mani.'
+          : event.tag === 'ENV_FUNERAL' && wordId === 'M_03'
+            ? 'Il commiato di un compagno diventa un rito condiviso.'
+            : event.tag === 'ENV_SHARED_CAPTIVE_MEAL' && wordId === 'M_05'
+              ? 'Condividere il pasto rivela che anche il prigioniero è un individuo.'
+              : word.event,
       expiresAt: s.time + 45,
       recipe: [...recipe],
-      hint: craftedFire
-        ? 'La lavorazione della pietra incontra il legno.'
-        : funeralRecipe && recipe === funeralRecipe
-          ? 'Il luogo del commiato unisce Morte e Qui.'
-          : word.hint,
+      hint: personalSelf
+        ? 'Una sola persona può appartenere al Gruppo e avere un’esperienza propria.'
+        : craftedFire
+          ? 'La lavorazione della pietra incontra il legno.'
+          : funeralRecipe && recipe === funeralRecipe
+            ? 'Il luogo del commiato unisce Morte e Qui.'
+            : word.hint,
     });
     log(s, `${u.name} cerca un nome per un’esperienza nuova.`, 'discovery');
   }
@@ -688,6 +716,7 @@ export function consume(s: GameState, u: Unit, e?: MapEntity) {
     recordEvent(s, u, 'ENV_HUNT_MEAL', 100, ['O_04']);
   if (u.hunger <= 0 && e && hasWord(s, 'O_01')) recordEvent(s, u, 'ENV_SURPLUS', 60, ['V_04']);
   if (hasWord(s, 'O_05')) recordCraft(s, u, 'V_07');
+  recordPersonalExperience(s, u, 'meal');
   return true;
 }
 export function matchingEntities(s: GameState, tokens: string[], u?: Unit) {
@@ -1908,22 +1937,10 @@ export function updateUnits(s: GameState, dt: number) {
     const phase = seasonOf(s),
       fx = getDogmaEffects(s, { unit: u, tokens: u.command });
     u.hunger = clamp(u.hunger + 0.8 * dt);
-    const fire = s.buildings.some(
-        (b) => b.kind === 'campfire' && b.active && b.hp > 0 && distance(b, u) <= 15,
-      ),
-      shelter = closest(
-        s.buildings.filter(
-          (b) => b.active && b.hp > 0 && ['hut', 'house'].includes(b.kind) && distance(b, u) <= 10,
-        ),
-        u,
-      );
-    const clothing =
-        (!fx.vegetarian && s.resources.pelt >= activeUnits(s).indexOf(u) + 1 ? 1 : 0) +
-        (shelter?.kind === 'house' ? 2.5 : shelter?.kind === 'hut' ? 1 : 0),
-      ambient = s.disasters.blizzard
-        ? -10
-        : SEASON_TEMPERATURES[phase.index][phase.isNight ? 'night' : 'day'];
-    u.temp = clamp(u.temp + bodyTemperatureDelta(ambient, fire ? 3 : 0, clothing) * dt);
+    const thermal = thermalConditionsAt(s, u),
+      fire = thermal.fireHeat > 0,
+      ambient = thermal.ambient;
+    u.temp = clamp(u.temp + thermal.delta * dt);
     const mortality = u.caste === 'slave' ? imperialLawEffects(s).slaveMortalityMultiplier : 1;
     if (u.temp <= 20) u.hp -= 1.5 * dt * mortality;
     if (u.hunger >= 100 && !protectedFromFamine) u.hp -= 2 * dt * mortality;
@@ -2035,9 +2052,22 @@ export function updateUnits(s: GameState, dt: number) {
       continue;
     }
     const martial = s.laws.some((l) => l.sanctionId === 'O_06' && l.objectId === 'S_08');
+    // Only a real caretaker is saving the fire. Cooking, foundry work and
+    // carrying wood also mention Fuoco, but do not waive their survival needs.
     const savingFire =
-      u.command?.includes('O_05') ||
-      (u.jobBuildingId && s.buildings.find((b) => b.id === u.jobBuildingId)?.kind === 'campfire');
+      u.action === 'guarding' && u.command?.includes('V_05') === true && u.command.includes('O_05');
+    const retreatDestination =
+      u.action === 'moving' &&
+      u.command?.includes('V_01') &&
+      u.tx !== undefined &&
+      u.ty !== undefined
+        ? thermalConditionsAt(s, u, { x: u.tx, y: u.ty }, ambient)
+        : undefined;
+    const safeRetreat =
+      !!retreatDestination &&
+      (retreatDestination.delta > thermal.delta + 0.01 ||
+        (retreatDestination.delta >= thermal.delta - 0.01 &&
+          (retreatDestination.fireHeat > 0 || retreatDestination.shelterWarmth > 0)));
     const recoveringInShelter =
       !u.command &&
       u.action === 'resting' &&
@@ -2046,20 +2076,21 @@ export function updateUnits(s: GameState, dt: number) {
           building.id === u.targetId && ['house', 'hut', 'campfire'].includes(building.kind),
       );
     if (
-      s.playMode === 'guided' &&
       !martial &&
-      !savingFire &&
-      u.action !== 'guarding' &&
-      (u.hunger < 60 || nearInventory(s, u)) &&
-      (u.temp <= 15 || (recoveringInShelter && u.temp <= 30)) &&
+      !safeRetreat &&
+      (!savingFire || thermal.delta < 0) &&
+      ((u.temp <=
+        (s.playMode === 'guided' ? COLD_RESCUE.guidedWarning : COLD_RESCUE.classicWarning) &&
+        thermal.delta < 0) ||
+        u.temp <= 20 ||
+        (recoveringInShelter &&
+          u.temp <
+            (s.playMode === 'guided'
+              ? COLD_RESCUE.guidedRecovery
+              : COLD_RESCUE.classicRecovery))) &&
       (u.cooldowns!.coldShelter ?? 0) <= s.time
     ) {
-      const destination = warmShelterDestination(
-        s,
-        u,
-        ambient,
-        clothing - (shelter?.kind === 'house' ? 2.5 : shelter?.kind === 'hut' ? 1 : 0),
-      );
+      const destination = warmShelterDestination(s, u, ambient, thermal.pelts);
       if (destination) {
         const target = {
           type: 'building' as const,
@@ -2091,7 +2122,7 @@ export function updateUnits(s: GameState, dt: number) {
         u.cooldowns!.coldShelter = s.time + 30;
       }
     }
-    if (!martial && (u.hunger >= 95 || (u.temp <= 15 && !savingFire))) {
+    if (!martial && !safeRetreat && (u.hunger >= 95 || (u.temp <= 15 && !savingFire))) {
       if (u.command) recordEvent(s, u, 'ENV_DISOBEDIENCE', 100, ['C_03'], 30);
       if (u.carry) {
         drop(s, u, u.carry.resource, u.carry.amount);

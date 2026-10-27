@@ -335,3 +335,91 @@
     min-height: 34px;
   }
 }
+
+.secondary-selection-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.mobile-selection-controls {
+  display: none;
+}
+.executor-selection .all-adults-button.active {
+  color: #304a31;
+  background: #e0e8d5;
+  box-shadow: inset 0 0 0 1px #829471;
+  border-radius: 6px;
+}
+.recall-discovery {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 20px 0;
+  padding: 18px;
+  background: var(--ui-panel, #f2f3e6);
+  border: 1px solid var(--ui-frame, #a8b495);
+  border-radius: 12px;
+  color: #435b3e;
+}
+.recall-discovery > svg {
+  flex-shrink: 0;
+}
+.recall-discovery p {
+  margin: 8px 0 14px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.first-puzzle > summary {
+  display: none;
+}
+.optional-puzzle > summary {
+  padding: 12px 0;
+  font-size: 12px;
+  color: #66775c;
+  cursor: pointer;
+}
+.optional-puzzle[open] > summary {
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+@media (max-width: 860px) {
+  .app .mobile-ergonomic .secondary-selection-controls {
+    display: none;
+  }
+  .app .mobile-ergonomic .executor-selection {
+    flex: 0 0 auto !important;
+    gap: 6px !important;
+  }
+  .app .language-workbench.mobile-ergonomic .executor-selection .all-adults-button,
+  .app .language-workbench.mobile-ergonomic .executor-selection .recall-tribe-button {
+    min-height: 44px !important;
+    height: 44px !important;
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+  }
+  .mobile-selection-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 0 0 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+    color: #627359;
+    font-size: 11px;
+  }
+  .mobile-selection-controls button {
+    min-height: 44px;
+    padding: 6px 8px;
+    background: #e8eddf;
+    border-radius: 8px;
+    font-size: 11px;
+  }
+  .mobile-selection-controls button span {
+    font-size: 9px;
+  }
+  .recall-discovery {
+    padding: 12px;
+  }
+}

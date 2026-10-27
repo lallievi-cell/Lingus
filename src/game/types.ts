@@ -19,6 +19,8 @@ export interface WordMemory {
   uses: number;
   investment?: number;
   support?: number;
+  /** The actual recipe successfully solved by this player; survives oral loss. */
+  learnedRecipe?: string[];
 }
 /** food is RES_BERRY, never a generic aggregate. */
 export type Resource =

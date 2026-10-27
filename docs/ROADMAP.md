@@ -36,6 +36,8 @@ Un replay deve dichiarare seed, ordini, pause, scoperte, usi di Attenzione e ris
 
 [FOUR-IMPROVEMENTS.md](FOUR-IMPROVEMENTS.md) raccoglie gli interventi su crescita, iniziativa straniera, composizione delle frasi e suono. Parametri Guidati e soglie della politica sono espliciti; la Classica conserva le formule demografiche e orali precedenti. La continuità delle scoperte urbane e le rotte diplomatiche sono ora esercitate separatamente dai replay ordinari.
 
+[PLAYTEST-QUALITY-OF-LIFE.md](PLAYTEST-QUALITY-OF-LIFE.md) raccoglie gli interventi autorizzati dopo il playtest: accesso a Io senza isolamento in Guidata, recupero di puzzle già risolti dopo una nuova Scintilla, palette contestuale dal primo capitolo, selezione globale degli adulti e richiamo fisico pagato, insegnamento anticipato, soccorso termico, esiti del lavoro e compositore mobile. I nuovi parametri Guidati restano separati dalle formule Classiche; le prove dedicate non chiudono le campagne elencate sopra.
+
 Dopo la verifica delle regole, servono playtest più lunghi per valutare leggibilità, difficoltà, tempi morti e conseguenze dei dogmi. Il bilanciamento richiesto dal prodotto è una scelta successiva e distinta dalla trasposizione letterale del documento.
 
 Miglioramenti di interfaccia, navigazione degli ostacoli, accessibilità e spiegazioni possono essere sviluppati senza alterare tacitamente formule e costi. Ogni nuova meccanica non prevista richiede di essere riconosciuta come estensione del progetto, nel rispetto della regola del mondo chiuso.

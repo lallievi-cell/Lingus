@@ -1,9 +1,21 @@
-import { Flame, MapPin, Moon } from 'lucide-react';
+import { Flame, MapPin, Moon, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { hasBuilding, hasWord } from '../game/runtime';
+import { getPersonalDiscoveryProgress } from '../game/personalDiscovery';
+import { thermalConditionsAt } from '../game/thermal';
 import type { GameState } from '../game/types';
 
-export function OpeningGuide({ state, onHome }: { state: GameState; onHome: () => void }) {
+export function OpeningGuide({
+  state,
+  onHome,
+  onSpark,
+  onTeach,
+}: {
+  state: GameState;
+  onHome: () => void;
+  onSpark?: (id: string) => void;
+  onTeach?: () => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   if (state.time >= 360 || state.urbanized) return null;
   const guided = state.playMode === 'guided';
@@ -14,8 +26,10 @@ export function OpeningGuide({ state, onHome }: { state: GameState; onHome: () =
   const living = state.units.filter(
     (unit) => unit.hp > 0 && (!unit.factionId || unit.factionId === 'player'),
   );
-  const cold = living.some((unit) => unit.temp <= 20);
+  const cold = living.some((unit) => unit.temp <= 20 && thermalConditionsAt(state, unit).delta < 0);
   const starving = living.some((unit) => unit.hunger >= 95);
+  const personal = getPersonalDiscoveryProgress(state);
+  let action: 'spark' | 'teach' | undefined;
   let title: string, text: string;
   if (cold) {
     title = 'La tribù sta gelando';
@@ -28,6 +42,10 @@ export function OpeningGuide({ state, onHome }: { state: GameState; onHome: () =
     title = 'Prima viene il cibo';
     text =
       'Interrompi il lavoro di chi ha fame. Gruppo + Mangiare su bacche disponibili o una carcassa sazia sul posto; vicino al campo si possono consumare le scorte consegnate.';
+  } else if (personal?.ready && onSpark) {
+    title = 'Un’esperienza personale';
+    text = personal.hint + ' Non serve allontanare un compagno dal gruppo.';
+    action = 'spark';
   } else if (!hasWord(state, 'O_03') || !hasWord(state, 'O_02')) {
     title = hasWord(state, 'O_03') ? 'Prova anche una roccia' : 'Comincia da un albero';
     text = hasWord(state, 'O_03')
@@ -35,7 +53,7 @@ export function OpeningGuide({ state, onHome }: { state: GameState; onHome: () =
       : 'Componi Gruppo + Colpire, scegli un albero vicino e pronuncia. Poi fai lo stesso su una roccia: il lavoro genera le prime intuizioni.';
   } else if (!hasWord(state, 'O_01') && !hasWord(state, 'S_02')) {
     title = 'Rientrare al calare del buio';
-    text = `Quando arriva il buio usa Gruppo + Andare verso il giaciglio: camminare al buio fa comprendere Notte. Dormire vicini per ${guided ? 'una notte' : 'due notti'} fa nascere Qui. Una fame notturna, ancora prima di soffrire danni, può far nascere Domani: fai poi mangiare il gruppo, senza aspettare la carestia.`;
+    text = `Quando arriva il buio usa Raduna al campo: è un ordine di Andare che costa una Voce. Camminare al buio fa comprendere Notte. Dormire vicini per ${guided ? 'una notte' : 'due notti'} fa nascere Qui.${personal ? ' Per Io conta anche un’esperienza personale: un compagno che mangia di propria iniziativa mentre gli altri non hanno fame può avere l’intuizione, senza essere isolato.' : ''}`;
   } else if (!hasWord(state, 'V_04')) {
     title = 'Mangiare prima di trasportare';
     text =
@@ -50,8 +68,10 @@ export function OpeningGuide({ state, onHome }: { state: GameState; onHome: () =
       : 'Porta cinque legna al campo per accendere il primo Falò. Le risorse lasciate accanto agli alberi sono ancora da trasportare.';
   } else if (state.time < 180) {
     title = 'Prepara il primo insegnamento';
-    text =
-      'Il Falò si apre a fine stagione. Fai mangiare il gruppo prima di quel momento: la fame riduce l’Attenzione per insegnare; consegnare legna al Fuoco la aumenta. Conservare + Fuoco assegna una guardia contro le tempeste.';
+    text = guided
+      ? 'Puoi tramandare già ora: apri il Falò, prepara una breve lezione con legna consegnata e usa l’Attenzione per formare un nuovo custode. Il pannello indica insegnante e allievo. Non aspettare che l’anziano sia in pericolo.'
+      : 'Apri il Falò per scegliere una parola e un nuovo custode. Fai mangiare il gruppo prima del consiglio stagionale: la fame riduce l’Attenzione. Conservare + Fuoco assegna una guardia contro le tempeste.';
+    action = 'teach';
   } else if (state.time >= 270) {
     title = 'Attraversare l’inverno';
     text =
@@ -94,6 +114,16 @@ export function OpeningGuide({ state, onHome }: { state: GameState; onHome: () =
         <MapPin size={14} />
         Giaciglio
       </button>
+      {action === 'spark' && personal?.sparkId && onSpark && (
+        <button className="text-button" onClick={() => onSpark(personal.sparkId!)}>
+          <Sparkles size={14} /> Scopri Io
+        </button>
+      )}
+      {action === 'teach' && onTeach && (
+        <button className="text-button" onClick={onTeach}>
+          <Flame size={14} /> Tramanda
+        </button>
+      )}
     </aside>
   );
 }

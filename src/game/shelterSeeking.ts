@@ -1,8 +1,12 @@
 import { bodyTemperatureDelta } from './math';
 import { distance, isPlayerBuilding } from './runtime';
+import { resolveInteractionPosition } from './interactionPositions';
+import { campfireHeatAt, FIRE_HEAT, shelterWarmthAt } from './thermal';
 import type { GameState, Unit } from './types';
 
-/** Existing heat radii and temperature equation, sampled at real destinations. */
+/** Best real protection available, including partial protection in a blizzard.
+ * No source is conjured and no actor is teleported. Stable per-person core slots
+ * keep a rescue from sending the entire tribe onto the same fire coordinate. */
 export function warmShelterDestination(
   state: GameState,
   unit: Unit,
@@ -19,10 +23,20 @@ export function warmShelterDestination(
   const fires = buildings.filter((building) => building.kind === 'campfire');
   const homes = buildings.filter((building) => ['house', 'hut'].includes(building.kind));
   const candidates: { id: string; x: number; y: number }[] = [];
+  const currentDelta = bodyTemperatureDelta(
+    ambient,
+    campfireHeatAt(state, unit),
+    pelts + shelterWarmthAt(state, unit),
+  );
   for (const building of [...homes, ...fires]) {
     const radius = building.kind === 'campfire' ? 14 : 9;
     const d = distance(unit, building);
-    candidates.push({ id: building.id, x: building.x, y: building.y });
+    const slot = resolveInteractionPosition(state, unit, building, {
+      kind: building.kind === 'campfire' ? 'fire' : 'rest',
+      key: `cold-shelter:${building.id}`,
+      maxRadius: building.kind === 'campfire' ? 3.2 : 2.5,
+    });
+    candidates.push({ id: building.id, x: slot.x, y: slot.y });
     const scale = d > radius ? radius / d : 1;
     candidates.push({
       id: building.id,
@@ -39,25 +53,39 @@ export function warmShelterDestination(
         high = Math.min(9.95, d);
       if (low > high) continue;
       const along = (low + high) / 2 / d;
-      candidates.push({
-        id: home.id,
-        x: home.x + (fire.x - home.x) * along,
-        y: home.y + (fire.y - home.y) * along,
-      });
+      const sample = (fraction: number) =>
+        candidates.push({
+          id: home.id,
+          x: home.x + (fire.x - home.x) * fraction,
+          y: home.y + (fire.y - home.y) * fraction,
+        });
+      sample(along);
+      sample(low / d);
+      sample(high / d);
+      if (state.playMode === 'guided') {
+        const coreLow = Math.max(0, d - FIRE_HEAT.guidedCoreRadius + 0.05),
+          coreHigh = Math.min(9.95, d);
+        if (coreLow <= coreHigh) sample((coreLow + coreHigh) / 2 / d);
+      }
     }
   return candidates
-    .filter((point) => {
-      const home = homes
-        .filter((building) => distance(building, point) <= 10)
-        .sort((left, right) => distance(left, point) - distance(right, point))[0];
-      const fire = fires.some((building) => distance(building, point) <= 15);
-      return (
-        bodyTemperatureDelta(
-          ambient,
-          fire ? 3 : 0,
-          pelts + (home?.kind === 'house' ? 2.5 : home ? 1 : 0),
-        ) >= 0
-      );
-    })
-    .sort((left, right) => distance(unit, left) - distance(unit, right))[0];
+    .map((point) => ({
+      ...point,
+      delta: bodyTemperatureDelta(
+        ambient,
+        campfireHeatAt(state, point),
+        pelts + shelterWarmthAt(state, point),
+      ),
+    }))
+    .filter(
+      (point) =>
+        point.delta > currentDelta + 0.01 ||
+        // A sheltered actor may stay at a stable rescue place even when the
+        // weather is too harsh for any available place to fully stop cooling.
+        (point.delta >= currentDelta - 0.01 &&
+          (campfireHeatAt(state, point) > 0 || shelterWarmthAt(state, point) > 0)),
+    )
+    .sort(
+      (left, right) => right.delta - left.delta || distance(unit, left) - distance(unit, right),
+    )[0];
 }

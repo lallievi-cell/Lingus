@@ -56,6 +56,22 @@ import {
 } from './components/MapPicker';
 import { GrowthReadiness, IndividualGrowthReadiness } from './components/GrowthReadiness';
 import { GuidedCouncil } from './components/GuidedCouncil';
+import { TeachingPanel } from './components/TeachingPanel';
+import { MobileActionDock } from './components/MobileActionDock';
+import { ContextualWordShelf } from './components/ContextualWordShelf';
+import { SurvivalAdvisor } from './components/SurvivalAdvisor';
+import { TaskOutcomes } from './components/TaskOutcomes';
+import { getSurvivalAdvice } from './game/survivalAdvice';
+import { appendTaskOutcomes, observeTaskOutcomes, type TaskOutcome } from './game/taskOutcomes';
+import {
+  allAdultsAnchor,
+  isAllAdultsAnchor,
+  recallTribe,
+  selectableTribeAdults,
+  tribeRecallDestination,
+} from './game/tribeControl';
+import { canRecallSpark } from './game/knowledgeRecovery';
+import { canPrepareBriefLesson } from './game/teaching';
 import { ForeignPressure } from './components/ForeignPressure';
 import { resolveForeignUltimatum } from './game/foreignPolicy';
 import { OpeningGuide } from './components/OpeningGuide';
@@ -74,6 +90,7 @@ import {
   TribeEvents,
 } from './components/TribeEvents';
 import './components/Onboarding.css';
+import './components/QualityOfLife.css';
 import './components/SyntaxAssistant.css';
 import {
   CivilizationPanel,
@@ -82,7 +99,6 @@ import {
 } from './components/CivilizationPanel';
 import { playerPopulation } from './game/imperial';
 import { orderAcknowledged } from './game/commandAcknowledgement';
-import { canRehearseWord } from './game/guidedProgression';
 import { hasBuilding, isPlayerBuilding } from './game/runtime';
 import {
   canTransmitWord,
@@ -105,10 +121,10 @@ import {
   parseGame,
   previewDogma,
   prepareCampfireCouncil,
-  rehearseWord,
+  prepareBriefLesson,
+  recallSpark,
   removeDogma,
   solveSpark,
-  teachWord,
   tick,
 } from './game/engine';
 import type { GameState, Spark, Target, WordKind } from './game/types';
@@ -188,7 +204,7 @@ function App() {
   const [tribeTask, setTribeTask] = useState<TribeTask>('any');
   const [helpWordId, setHelpWordId] = useState<string | null>(null);
   const [councilInspection, setCouncilInspection] = useState(false);
-  const [filter, setFilter] = useState<WordKind | 'all' | 'compatible'>('all');
+  const [filter, setFilter] = useState<WordKind | 'all' | 'compatible'>('compatible');
   const [wordSearch, setWordSearch] = useState('');
   const [mobileSection, setMobileSection] = useState<'map' | 'tribe' | 'discovery'>('map');
   const [sparkId, setSparkId] = useState<string | null>(null);
@@ -217,6 +233,8 @@ function App() {
   const [lexiconSearch, setLexiconSearch] = useState('');
   const [hasSeenMilestone, setHasSeenMilestone] = useState(!!game.victory);
   const [recentPhrases, setRecentPhrases] = useState<string[][]>([]);
+  const [taskOutcomes, setTaskOutcomes] = useState<TaskOutcome[]>([]);
+  const outcomeSnapshot = useRef(game);
   const [orderFeedback, setOrderFeedback] = useState<{
     from: { x: number; y: number }[];
     to: { x: number; y: number };
@@ -238,9 +256,9 @@ function App() {
   const quantity = (value: number) => describeQuantity(value, numbered);
   const voiceMax = hasWord(game, 'S_07') ? 5 : 3;
   const known = WORD_ORDER.filter((id) => hasWord(game, id));
-  const discovered = WORD_ORDER.filter((id) => !!game.words[id]);
   const unreadEvents = (game.tribeEvents ?? []).filter((event) => !dismissedEvents.has(event.id));
   const objective = getObjective(game);
+  const survivalAdvice = getSurvivalAdvice(game);
   const compilation = compileSentence(game, sentence, target ?? undefined);
   const syntax = getSyntaxSuggestions(game, sentence);
   const compatibleWords = new Set(syntax.tokenIds);
@@ -318,9 +336,6 @@ function App() {
   );
   const custodianStatuses = getCustodianStatuses(game);
   const custodianByUnit = new Map(custodianStatuses.map((status) => [status.unitId, status]));
-  const custodianByWord = new Map(
-    custodianStatuses.flatMap((status) => status.wordIds.map((id) => [id, status] as const)),
-  );
   const endangeredCustodian = !game.urbanized
     ? custodianStatuses.find((status) => status.risk !== 'safe')
     : undefined;
@@ -345,7 +360,10 @@ function App() {
   const transmissionHint = (status: CustodianStatus) => {
     if (!hasWord(game, 'O_05')) return 'Proteggi questa memoria finché potrai tramandarla.';
     if (!hasBuilding(game, 'campfire')) return 'Serve un falò acceso e attivo per tramandare.';
-    if (game.attention < 10) return 'La tribù deve ritrovare attenzione attorno al falò.';
+    if (game.attention < 10)
+      return canPrepareBriefLesson(game)
+        ? 'Puoi preparare una breve lezione usando legna consegnata.'
+        : 'Apri il Falò per vedere come preparare una lezione e ciò che manca.';
     if (!status.wordIds.some((id) => canTransmitWord(game, id)))
       return 'Nessun compagno è pronto ad apprendere queste parole.';
     return 'Un nuovo custode può tenere viva questa memoria.';
@@ -383,6 +401,13 @@ function App() {
     setPanel(null);
     setPuzzle([]);
   }, []);
+
+  useEffect(() => {
+    const previous = outcomeSnapshot.current;
+    outcomeSnapshot.current = game;
+    const incoming = observeTaskOutcomes(previous, game);
+    if (incoming.length) setTaskOutcomes((current) => appendTaskOutcomes(current, incoming));
+  }, [game]);
 
   useEffect(() => {
     const strip = sentenceSlotsRef.current;
@@ -542,6 +567,34 @@ function App() {
     notify('Gruppo centrato: raggio 15 m.');
   }
 
+  function chooseAllAdults() {
+    setGroupAnchor(allAdultsAnchor(game));
+    setSelectingGroup(false);
+    notify(
+      'Selezione: tutti gli adulti della tribù. Bambini, visitatori e missioni esterne sono esclusi.',
+    );
+  }
+
+  function gatherAtCamp() {
+    const destination = tribeRecallDestination(game);
+    const next = recallTribe(game);
+    const success = orderAcknowledged(game, next);
+    setGame(next);
+    if (success) {
+      setRecentPhrases((phrases) => rememberRecentPhrase(phrases, ['S_01', 'V_01']));
+      setGroupAnchor(allAdultsAnchor(game));
+      setFocusRequest({ ...destination, nonce: Date.now() });
+      setMobileSection('map');
+    }
+    notify(
+      success
+        ? 'Richiamo pronunciato: gli adulti raggiungono fisicamente il miglior riparo vicino al campo.'
+        : next.logs[0]?.id !== game.logs[0]?.id
+          ? (next.logs[0]?.text ?? 'Il richiamo non può essere eseguito.')
+          : 'Non ci sono adulti disponibili per il richiamo.',
+    );
+  }
+
   function applyRecentPhrase(words: string[]) {
     const issue = phraseRecallIssue(game, words);
     if (issue) {
@@ -588,7 +641,7 @@ function App() {
     }
     setSentence([...words]);
     setWordSearch('');
-    setFilter('all');
+    setFilter('compatible');
     setPanel(null);
     setMobileSection('map');
     if (destination) focusTarget(destination);
@@ -631,7 +684,13 @@ function App() {
         let sources: { x: number; y: number }[] = [];
         if (sentence.includes('S_01')) {
           sources = game.units
-            .filter((u) => u.hp > 0 && Math.hypot(u.x - groupAnchor.x, u.y - groupAnchor.y) <= 15)
+            .filter(
+              (u) =>
+                u.hp > 0 &&
+                (isAllAdultsAnchor(groupAnchor)
+                  ? selectableTribeAdults(game).some((person) => person.id === u.id)
+                  : Math.hypot(u.x - groupAnchor.x, u.y - groupAnchor.y) <= 15),
+            )
             .map((u) => ({ x: u.x, y: u.y }));
         } else if (executorId) {
           const u = game.units.find((unit) => unit.id === executorId);
@@ -680,6 +739,18 @@ function App() {
     else notify('L’intuizione si è affievolita. Osserva ancora e riprova dopo 15 secondi.');
   }
 
+  function rememberDiscovery() {
+    if (!currentSpark || !canRecallSpark(game, currentSpark.id)) return;
+    const next = recallSpark(game, currentSpark.id);
+    setGame(next);
+    if (hasWord(next, currentSpark.wordId)) {
+      closePanel();
+      notify(
+        `La tribù ritrova «${WORDS[currentSpark.wordId].label}» nell’esperienza appena vissuta.`,
+      );
+    }
+  }
+
   function saveGame() {
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(game));
@@ -714,8 +785,10 @@ function App() {
       setOrderFeedback(null);
       setSentence([]);
       setRecentPhrases([]);
+      setTaskOutcomes([]);
+      outcomeSnapshot.current = parsed;
       setWordSearch('');
-      setFilter('all');
+      setFilter('compatible');
       setTarget(null);
       setPanel(null);
       setHasSeenMilestone(!!parsed.victory);
@@ -791,8 +864,10 @@ function App() {
     setNewSeed(String(seed));
     setSentence([]);
     setRecentPhrases([]);
+    setTaskOutcomes([]);
+    outcomeSnapshot.current = fresh;
     setWordSearch('');
-    setFilter('all');
+    setFilter('compatible');
     setTarget(null);
     setHasSeenMilestone(false);
     setGroupAnchor({ type: 'point', ...fresh.home });
@@ -857,6 +932,37 @@ function App() {
       </button>
     );
   };
+
+  const nearbySelectionControls = () => (
+    <>
+      <button
+        className="text-button"
+        data-map-selection
+        onClick={() => setSelectingGroup((value) => !value)}
+      >
+        <Users size={13} />
+        {selectingGroup ? 'Indica il centro sulla mappa' : 'Scegli il gruppo'}
+        <span>raggio 15 m</span>
+      </button>
+      <button
+        className="text-button camp-button"
+        onClick={() => handleSetGroupAnchor({ type: 'point', ...game.home })}
+        title="Seleziona gli adulti entro quindici metri dal giaciglio"
+      >
+        <Home size={12} /> Vicini al campo
+      </button>
+      {sentence.includes('S_02') && (
+        <span>
+          Io: {game.units.find((unit) => unit.id === executorId)?.name ?? 'scegli un individuo'}
+        </span>
+      )}
+      {selectingGroup && (
+        <button className="text-button" onClick={() => setSelectingGroup(false)}>
+          Annulla
+        </button>
+      )}
+    </>
+  );
 
   return (
     <div className={`app tier-${game.tier} ${season.isNight && game.started ? 'night-mode' : ''}`}>
@@ -1093,9 +1199,7 @@ function App() {
                   {hasWord(game, 'O_05') && (
                     <button
                       className="custodian-transmit"
-                      disabled={
-                        !endangeredCustodian.wordIds.some((id) => canTransmitWord(game, id))
-                      }
+                      disabled={!hasBuilding(game, 'campfire')}
                       onClick={() => setPanel('campfire')}
                     >
                       <Flame size={13} /> Tramanda al falò <ChevronRight size={12} />
@@ -1363,13 +1467,44 @@ function App() {
           className={`map-section ${mobileSection === 'map' ? 'mobile-visible' : ''}`}
           aria-label="Mappa e ordini"
         >
-          <OpeningGuide
-            state={game}
-            onHome={() => {
-              setFocusRequest({ ...game.home, nonce: Date.now() });
-              setTarget({ type: 'point', ...game.home });
-            }}
-          />
+          {survivalAdvice ? (
+            <SurvivalAdvisor
+              state={game}
+              advice={survivalAdvice}
+              onRecall={gatherAtCamp}
+              onTeach={() => setPanel('campfire')}
+              onFocus={focusTarget}
+              onCompose={(words, destination) => {
+                if (!destination) setTarget(null);
+                preparePhrase(words, destination);
+              }}
+            />
+          ) : (
+            <OpeningGuide
+              state={game}
+              onSpark={(id) => {
+                const spark = game.sparks.find((entry) => entry.id === id);
+                if (spark) openSpark(spark);
+              }}
+              onTeach={() => setPanel('campfire')}
+              onHome={() => {
+                setFocusRequest({ ...game.home, nonce: Date.now() });
+                setTarget({ type: 'point', ...game.home });
+              }}
+            />
+          )}
+          {!survivalAdvice && (
+            <TaskOutcomes
+              state={game}
+              outcomes={taskOutcomes}
+              onCompose={(words, destination) => {
+                if (!destination) setTarget(null);
+                preparePhrase(words, destination);
+              }}
+              onFocus={focusTarget}
+              onDismiss={(id) => setTaskOutcomes((items) => items.filter((item) => item.id !== id))}
+            />
+          )}
           <ForeignPressure
             state={game}
             onResolve={(id, choice) =>
@@ -1721,7 +1856,7 @@ function App() {
       </main>
 
       <section
-        className={`language-workbench ${mobileSection !== 'map' ? 'mobile-hidden' : ''}`}
+        className={`language-workbench mobile-ergonomic ${mobileSection !== 'map' ? 'mobile-hidden' : ''}`}
         aria-label="Costruttore di frasi"
       >
         <div className="composer-topline">
@@ -1746,32 +1881,40 @@ function App() {
         </div>
         <div className="workbench-tools-row">
           <div className="executor-selection">
-            <button className="text-button" onClick={() => setSelectingGroup((v) => !v)}>
-              <Users size={13} />
-              {selectingGroup ? 'Indica sulla mappa il centro del gruppo' : 'Scegli il gruppo'}{' '}
-              <span>raggio 15 m</span>
-            </button>
-            <button
-              className="text-button camp-button"
-              onClick={() => handleSetGroupAnchor({ type: 'point', ...game.home })}
-              title="Ripristina il gruppo attorno al giaciglio primordiale"
-            >
-              <Home size={12} />
-              <span>Al campo</span>
-            </button>
-            <span className="group-hint desktop-only-hints">
-              (oppure doppio click o tasto destro sulla mappa)
-            </span>
-            {sentence.includes('S_02') && (
-              <span>
-                Io: {game.units.find((u) => u.id === executorId)?.name ?? 'scegli un individuo'}
-              </span>
-            )}
-            {selectingGroup && (
-              <button className="text-button" onClick={() => setSelectingGroup(false)}>
-                Annulla
+            {!game.urbanized && (
+              <button
+                className={`text-button all-adults-button ${isAllAdultsAnchor(groupAnchor) ? 'active' : ''}`}
+                aria-pressed={isAllAdultsAnchor(groupAnchor)}
+                onClick={chooseAllAdults}
+                title="Seleziona tutti gli adulti della tribù, anche sparpagliati; non impartisce un ordine"
+              >
+                <Users size={13} /> Tutti gli adulti
               </button>
             )}
+            {!game.urbanized && (
+              <button
+                className="text-button recall-tribe-button"
+                onClick={gatherAtCamp}
+                disabled={
+                  !game.started ||
+                  !!game.gameOver ||
+                  !!game.victory ||
+                  game.campfirePending ||
+                  game.voice < 1 ||
+                  !selectableTribeAdults(game).length
+                }
+                title="Pronuncia Gruppo · Andare verso il riparo vicino al campo. Consuma un punto Voce e sostituisce gli incarichi; i carichi sono lasciati a terra."
+              >
+                <Home size={13} /> Raduna al campo
+                <span aria-hidden="true">· 1 Voce</span>
+              </button>
+            )}
+            <div className="secondary-selection-controls">
+              {nearbySelectionControls()}
+              <span className="group-hint desktop-only-hints">
+                (oppure doppio click o tasto destro sulla mappa)
+              </span>
+            </div>
           </div>
           {shownPhrases.length > 0 && (
             <div
@@ -1914,89 +2057,25 @@ function App() {
           executorId={executorId}
           groupAnchor={groupAnchor}
         />
-        {game.tier >= 3 && (
-          <div className="syntax-assistant" aria-label="Assistente sintattico">
-            <span className="syntax-next" title={syntax.explanation} aria-live="polite">
-              <span className="syntax-cue" aria-hidden="true" />
-              <strong>{syntax.nextLabel}</strong>
-              <span className="syntax-disclaimer">Suggerimenti, non vincoli.</span>
-            </span>
-            <button
-              className="syntax-toggle"
-              aria-pressed={filter === 'compatible'}
-              onClick={() =>
-                setFilter((current) => (current === 'compatible' ? 'all' : 'compatible'))
-              }
-            >
-              Solo compatibili
-            </button>
-            <label className="word-search">
-              <input
-                type="search"
-                aria-label="Cerca parole nella barra"
-                placeholder="Trova una parola…"
-                value={wordSearch}
-                onChange={(event) => setWordSearch(event.target.value)}
-              />
-            </label>
+        <MobileActionDock
+          targetLabel={targetName}
+          onClearTarget={() => setTarget(null)}
+          sessionKey={mapSession}
+        >
+          <div className="mobile-selection-controls" aria-label="Selezione vicina sulla mappa">
+            {nearbySelectionControls()}
           </div>
-        )}
-        <div className="lexicon-bar">
-          <div className="lexicon-label">
-            <BookOpen size={16} />
-            <span>LE PAROLE DELLA TRIBÙ</span>
-            <b title="Parole vive. I tasselli spenti sono da riscoprire.">{known.length}</b>
-          </div>
-          <div className="word-filters" role="group" aria-label="Filtra le parole">
-            {(['all', 'S', 'V', 'O', 'M', 'C'] as const)
-              .filter((f) => f === 'all' || known.some((id) => WORDS[id].kind === f))
-              .map((f) => (
-                <button
-                  key={f}
-                  className={filter === f ? 'active' : ''}
-                  onClick={() => setFilter(f)}
-                >
-                  {f === 'all' ? 'Tutte' : KIND_NAMES[f]}
-                </button>
-              ))}
-          </div>
-          <button className="text-button" onClick={() => setPanel('lexicon')}>
-            Esplora il lessico <ArrowUpRight size={13} />
-          </button>
-        </div>
-        <div className="word-shelf">
-          {discovered
-            .filter(
-              (id) =>
-                filter === 'all' ||
-                (filter === 'compatible' ? compatibleWords.has(id) : WORDS[id].kind === filter),
-            )
-            .filter((id) =>
-              WORDS[id].label
-                .toLocaleLowerCase('it')
-                .includes(wordSearch.trim().toLocaleLowerCase('it')),
-            )
-            .map((id) => renderWord(id))}
-          {(wordSearch || filter === 'compatible') && (
-            <button
-              className="word-bank-reset"
-              onClick={() => {
-                setWordSearch('');
-                setFilter('all');
-              }}
-            >
-              Mostra tutte le parole
-            </button>
-          )}
-          <div className="unknown-words">
-            <span>· · ·</span>
-            <p>
-              Le altre parole sono là fuori.
-              <br />
-              Aspettano di essere vissute.
-            </p>
-          </div>
-        </div>
+          <ContextualWordShelf
+            state={game}
+            sentence={sentence}
+            filter={filter}
+            onFilterChange={setFilter}
+            search={wordSearch}
+            onSearchChange={setWordSearch}
+            renderWord={renderWord}
+            onOpenLexicon={() => setPanel('lexicon')}
+          />
+        </MobileActionDock>
       </section>
       <footer className="page-footer">
         <span>
@@ -2281,43 +2360,65 @@ function App() {
             <>
               <p className="spark-context">{currentSpark.eventLabel}</p>
               <blockquote>{currentSpark.hint}</blockquote>
-              <p className="puzzle-label">Quali parole note spiegano questa esperienza?</p>
-              <div className="puzzle-slots">
-                {Array.from({ length: currentSpark.recipe.length }, (_, i) => (
-                  <button
-                    key={i}
-                    className={`puzzle-slot ${puzzle[i] ? 'filled' : ''}`}
-                    onClick={() => setPuzzle((p) => p.filter((_, index) => index !== i))}
-                    aria-label={
-                      puzzle[i]
-                        ? `Rimuovi ${WORDS[puzzle[i]].label} dall’intuizione`
-                        : `Concetto ${i + 1}`
-                    }
-                  >
-                    {puzzle[i] ? (
-                      <>
-                        <Glyph id={puzzle[i]} />
-                        <span>{WORDS[puzzle[i]].label}</span>
-                        <X size={11} />
-                      </>
-                    ) : (
-                      <Plus size={20} />
-                    )}
-                  </button>
-                ))}
-              </div>
-              <div className="puzzle-words">{known.map((id) => renderWord(id, true))}</div>
-              <div className="puzzle-warning">
-                <Zap size={14} />
-                Un errore consuma l’intuizione. Ascolta l’indizio.
-              </div>
-              <button
-                className="primary-button"
-                onClick={attemptDiscovery}
-                disabled={puzzle.length !== currentSpark.recipe.length}
+              {canRecallSpark(game, currentSpark.id) && (
+                <div className="recall-discovery">
+                  <BookOpen size={20} />
+                  <div>
+                    <strong>Questa parola l’hai già compresa</strong>
+                    <p>
+                      La tribù ha rivissuto l’esperienza. Puoi ritrovare il concetto senza ripetere
+                      il puzzle.
+                    </p>
+                    <button className="primary-button" onClick={rememberDiscovery}>
+                      Ricorda la parola <Sparkles size={16} />
+                    </button>
+                  </div>
+                </div>
+              )}
+              <details
+                className={`discovery-puzzle ${canRecallSpark(game, currentSpark.id) ? 'optional-puzzle' : 'first-puzzle'}`}
+                open={!canRecallSpark(game, currentSpark.id) || undefined}
+                key={currentSpark.id}
               >
-                Dai un nome all’intuizione <Sparkles size={17} />
-              </button>
+                <summary>Rifai il puzzle, se preferisci</summary>
+                <p className="puzzle-label">Quali parole note spiegano questa esperienza?</p>
+                <div className="puzzle-slots">
+                  {Array.from({ length: currentSpark.recipe.length }, (_, i) => (
+                    <button
+                      key={i}
+                      className={`puzzle-slot ${puzzle[i] ? 'filled' : ''}`}
+                      onClick={() => setPuzzle((p) => p.filter((_, index) => index !== i))}
+                      aria-label={
+                        puzzle[i]
+                          ? `Rimuovi ${WORDS[puzzle[i]].label} dall’intuizione`
+                          : `Concetto ${i + 1}`
+                      }
+                    >
+                      {puzzle[i] ? (
+                        <>
+                          <Glyph id={puzzle[i]} />
+                          <span>{WORDS[puzzle[i]].label}</span>
+                          <X size={11} />
+                        </>
+                      ) : (
+                        <Plus size={20} />
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <div className="puzzle-words">{known.map((id) => renderWord(id, true))}</div>
+                <div className="puzzle-warning">
+                  <Zap size={14} />
+                  Un errore consuma l’intuizione. Ascolta l’indizio.
+                </div>
+                <button
+                  className="primary-button"
+                  onClick={attemptDiscovery}
+                  disabled={puzzle.length !== currentSpark.recipe.length}
+                >
+                  Dai un nome all’intuizione <Sparkles size={17} />
+                </button>
+              </details>
             </>
           ) : (
             <>
@@ -2475,6 +2576,7 @@ function App() {
           <GuidedCouncil
             state={game}
             onPrepare={() => setGame((current) => prepareCampfireCouncil(current))}
+            onPrepareBrief={() => setGame((current) => prepareBriefLesson(current))}
           />
           <TribeEvents
             state={game}
@@ -2500,69 +2602,15 @@ function App() {
             }}
             onWord={showWordHelp}
           />
-          <div className="teaching-list">
-            {known
-              .filter((id) => !INNATE_WORDS.includes(id))
-              .sort(
-                (a, b) =>
-                  Number(custodianByWord.has(b)) - Number(custodianByWord.has(a)) ||
-                  game.words[a].retention - game.words[b].retention,
-              )
-              .map((id) => (
-                <div
-                  className={`teaching-row ${custodianByWord.has(id) ? 'last-custodian-word' : ''}`}
-                  key={id}
-                  aria-label={`Parola da tramandare: ${WORDS[id].label}`}
-                >
-                  <Glyph id={id} size={23} />
-                  <div>
-                    <strong>{WORDS[id].label}</strong>
-                    {custodianByWord.has(id) && (
-                      <span className={`teaching-custodian ${custodianByWord.get(id)!.risk}`}>
-                        <MessageCircle size={10} /> Ultimo custode:{' '}
-                        {custodianByWord.get(id)!.displayName}
-                      </span>
-                    )}
-                    <span>
-                      {numbered
-                        ? game.words[id].custodians.length
-                        : game.words[id].custodians.length > 3
-                          ? 'Molti'
-                          : 'Pochi'}{' '}
-                      custodi · Memoria{' '}
-                      {numbered
-                        ? `${Math.round(game.words[id].retention)}%`
-                        : game.words[id].retention > 70
-                          ? 'Salda'
-                          : game.words[id].retention >= 30
-                            ? 'Fragile'
-                            : 'In pericolo'}
-                    </span>
-                    <span className="meter">
-                      <span style={{ width: `${game.words[id].retention}%` }} />
-                    </span>
-                  </div>
-                  <button
-                    className="teach-button"
-                    onClick={() =>
-                      setGame((g) =>
-                        canTransmitWord(g, id) ? teachWord(g, id) : rehearseWord(g, id),
-                      )
-                    }
-                    disabled={!canTransmitWord(game, id) && !canRehearseWord(game, id)}
-                  >
-                    {canTransmitWord(game, id)
-                      ? 'Tramanda'
-                      : canRehearseWord(game, id)
-                        ? 'Ripassa'
-                        : 'Tramanda'}{' '}
-                    <small>
-                      10 <Flame size={11} />
-                    </small>
-                  </button>
-                </div>
-              ))}
-          </div>
+          <TeachingPanel
+            state={game}
+            onChange={setGame}
+            onFocus={(destination) => {
+              setCouncilInspection(game.campfirePending);
+              closePanel();
+              focusTarget(destination);
+            }}
+          />
           <p className="campfire-explanation">
             Ogni insegnamento spende 10 attenzione e forma un custode. Il recupero base è di{' '}
             {game.playMode === 'guided' ? 20 : 10} memoria e può aumentare con i dogmi. La legna nel

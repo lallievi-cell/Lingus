@@ -7,7 +7,8 @@ import {
 } from './content';
 import { getDogmaEffects } from './dogmas';
 import { imperialLawEffects } from './imperialLawPolicy';
-import { bodyTemperatureDelta, resourceSpoilage } from './math';
+import { resourceSpoilage } from './math';
+import { thermalConditionsAt } from './thermal';
 import { activeUnits, copy, distance, isPlayerBuilding, pay } from './runtime';
 import type { Building, GameState, Inventory, Resource, Target } from './types';
 
@@ -175,17 +176,16 @@ export function getSeasonReadiness(state: GameState) {
     .sort((a, b) => distance(a, state.home) - distance(b, state.home))[0];
   const ambient = SEASON_TEMPERATURES[nextSeason].night;
   const people = activeUnits(state).filter((u) => !state.urbanized || !u.cityId);
-  const coldExposed = people.filter((unit, index) => {
-    const pelts =
-      !getDogmaEffects(state, { unit }).vegetarian && state.resources.pelt >= index + 1 ? 1 : 0;
-    return (
-      bodyTemperatureDelta(
-        ambient,
-        fireAtHome ? 3 : 0,
-        pelts + (shelter?.kind === 'house' ? 2.5 : shelter ? 1 : 0),
-      ) < 0
-    );
-  });
+  const projectedState = {
+    ...state,
+    buildings: state.buildings.map((building) => ({
+      ...building,
+      active: paid.get(building.id) ?? building.active,
+    })),
+  };
+  const coldExposed = people.filter(
+    (unit) => thermalConditionsAt(projectedState, unit, state.home, ambient).delta < 0,
+  );
   const rawMeat =
     state.resources.meat +
     ownCities.filter((c) => !c.capital).reduce((n, c) => n + c.resources.meat, 0);

@@ -86,6 +86,9 @@ test('all six materials preserve composing, lost-word cues and accessible civili
     await workbench.getByRole('button', { name: /^Andare:/ }).click();
     await expect(workbench.locator('.sentence-slot.filled')).toHaveCount(2);
     await expect(page.getByRole('button', { name: 'Pronuncia', exact: true })).toBeEnabled();
+    // The complete bank preserves forgotten/fragile visual cues; contextual
+    // suggestions intentionally omit forgotten words and completed slots.
+    await workbench.getByRole('button', { name: 'Tutte', exact: true }).click();
     const lost = workbench.getByRole('button', { name: /^Scheggiare: parola perduta/ });
     await expect(lost).toBeDisabled();
     await expect(lost).toHaveAttribute('title', /riscopr|esperienz|custod/i);

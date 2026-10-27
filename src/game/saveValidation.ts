@@ -1,6 +1,7 @@
 import { BUILDING_SPECS, INNATE_WORDS, RESOURCE_ORDER, WORDS } from './content';
 import type { GameState } from './types';
 import { TRIBE_EVENT_LIMIT } from './demography';
+import { validLearnedRecipe } from './knowledgeRecovery';
 import {
   REGIONAL_ROUTE_GRID,
   REGIONAL_ROUTE_LIMIT,
@@ -358,7 +359,17 @@ export function validSave(value: unknown): value is GameState {
         !record(m) ||
         !number(m.retention, 0, 100) ||
         !number(m.uses) ||
-        !ids(m.custodians),
+        !ids(m.custodians) ||
+        !optional(m.learnedRecipe, (recipe) => validLearnedRecipe(w, recipe)),
+    )
+  )
+    return false;
+  if (
+    !optional(
+      s.bornWords,
+      (value) =>
+        record(value) &&
+        Object.entries(value).every(([id, time]) => word(id) && number(time, 0, s.time as number)),
     )
   )
     return false;

@@ -27,16 +27,22 @@ L'output è in `dist/`. I processi devono essere riavviati quando una sessione c
 
 Le nuove storie propongono una **mappa casuale**; puoi inserire un seed per ritrovare la stessa valle oppure scegliere **Seed Zero** per lo scenario originario. La scelta è indipendente da Guidata/Classica. I vecchi salvataggi mantengono il proprio mondo. [MAP-GENERATION.md](docs/MAP-GENERATION.md) descrive generazione, risorse iniziali e prove.
 
-1. Componi **Gruppo + Colpire** e scegli un albero o una roccia. Il gruppo viene chiamato entro un raggio di quindici metri dal punto di selezione; puoi cambiarlo con **Scegli il gruppo**.
+1. Componi **Gruppo + Colpire** e scegli un albero o una roccia. Il selettore vicino usa un raggio di quindici metri; **Tutti gli adulti** include anche i compagni sparpagliati. Scegliere gli esecutori non impartisce ancora un ordine.
 2. Le persone si muovono verso il bersaglio e interagiscono fisicamente. Le prime risorse non hanno ancora un nome: il loro aspetto e i tooltip cambiano con le scoperte.
 3. Apri una Scintilla dalla mappa o dal pannello della tribù. Durante il puzzle il tempo si ferma. Collega l'esperienza alle parole note; un errore riduce la tensione cognitiva e impone un'attesa.
 4. Le nuove parole rendono possibili trasporto, conservazione, strumenti, fuoco e costruzioni. La barra cresce da due a sei spazi secondo vocabolario stabile, catalizzatori e popolazione.
 5. Tramanda il sapere ai giovani al Falò. Le parole non innate possono essere dimenticate o andare perdute con l'ultimo custode. Le stele e gli archivi offrono un supporto fisico alla memoria.
 6. Con **Sempre** fissa i mestieri. Nelle ere successive governa città, vocazioni, leggi, tributi e rapporti con altre lingue attraverso frasi. L'interfaccia mostra ricette e informazioni; non sostituisce gli ordini con un menu edilizio autonomo.
 
-La barra evidenzia le parole compatibili con il prossimo spazio. Dal Neolitico puoi cercarle e attivare **Solo compatibili**. La cronologia ricompone le ultime otto frasi accettate senza eseguirle: controlla il bersaglio e poi pronuncia.
+La barra propone **Solo compatibili** fin dal primo capitolo: dopo ogni parola mostra le continuazioni ammesse dalla grammatica conosciuta. **Tutte**, i tipi e la ricerca restano disponibili. Una frase completa può essere pronunciata anche lasciando vuoti altri spazi. La cronologia ricompone le ultime otto frasi accettate senza eseguirle: controlla il bersaglio e poi pronuncia.
 
 Apri **Anteprima dell’ordine** per verificare esecutori, destinazioni, costi e attività interrotte prima di pronunciare. **Filtri e priorità** organizza la tribù per bisogni e attività; le schede spiegano incarichi e pause. Il pulsante con la foglia accanto al tempo apre la **preparazione stagionale**: manutenzione, cibo, carne cruda e riparo. Gli avvisi sulle parole perdute indicano come rivivere l’esperienza. Se sulla mappa più elementi si sovrappongono, puoi scegliere esplicitamente quale selezionare. Dettagli e limiti delle stime in [UI-QUALITY-OF-LIFE.md](docs/UI-QUALITY-OF-LIFE.md).
+
+In Guidata, **Io** può nascere da un pasto autonomo o da manufatti personali: non occorre isolare un compagno. La prima scoperta richiede il puzzle; per una parola già compresa e poi perduta, una nuova esperienza e una nuova Scintilla permettono **Ricorda la parola**. Prima del consiglio puoi preparare una breve lezione al Falò con due legna consegnate: ottieni fino a dieci Attenzione, poi paghi la lezione ordinaria. Il pannello mostra maestro, allievo, costo ed eventuali impedimenti. La Classica mantiene la risoluzione dei puzzle e la preparazione stagionale precedenti.
+
+**Raduna al campo** pronuncia un vero ordine di movimento: costa una Voce, raggiunge gli adulti disponibili e lascia a terra gli eventuali carichi interrotti. Il richiamo sceglie il miglior riparo reale vicino al campo. Il freddo viene affrontato prima e non annulla un ordine diretto verso un posto più protetto. In Guidata, il Falò ha un nucleo più caldo, visibile nel cerchio interno; in Classica il calore resta uniforme.
+
+Su cellulare, **Parole** apre il banco sopra il compositore senza ridurre ogni volta la mappa. Bersaglio e comandi principali restano accessibili; selezioni vicine e filtri stanno nel banco. Un riepilogo degli incarichi distingue lavoro concluso, fonte esaurita e interruzioni: **Prepara di nuovo** ricompone la frase, che richiede ancora Pronuncia. [PLAYTEST-QUALITY-OF-LIFE.md](docs/PLAYTEST-QUALITY-OF-LIFE.md) riporta parametri, differenze tra modalità e prove.
 
 Una stagione dura 90 secondi, di cui 60 di luce e 30 di notte; il primo inverno inizia al secondo 270. La voce ha capienza tre, poi cinque con il Re: gli ordini diretti costano un punto e ne viene recuperato uno ogni dieci secondi. Le istituzioni permanenti eseguono i propri cicli senza quel costo ripetuto.
 
@@ -46,6 +52,8 @@ Una stagione dura 90 secondi, di cui 60 di luce e 30 di notte; il primo inverno 
 | Clic su uno spazio pieno           | Rimuove quella parola.                                      |
 | Clic sulla mappa                   | Seleziona un bersaglio o un punto.                          |
 | Scegli il gruppo                   | Imposta il centro del selettore spaziale.                   |
+| Tutti gli adulti                   | Seleziona gli adulti disponibili, anche distanti fra loro.  |
+| Raduna al campo                    | Ordine di movimento verso il riparo, al costo di una Voce.  |
 | Io e selezione di una persona      | Imposta l'individuo che eseguirà l'ordine.                  |
 | Trascina la mappa                  | Sposta la visuale.                                          |
 | Rotella o `+` / `−`                | Modifica lo zoom.                                           |
@@ -54,7 +62,7 @@ Una stagione dura 90 secondi, di cui 60 di luce e 30 di notte; il primo inverno 
 | `1`, `2`, `3`                      | Velocità 1×, 2×, 4×.                                        |
 | Esc                                | Chiude un pannello; nella valle cancella frase e bersaglio. |
 
-Sulla mappa, tronchi e frammenti di pietra a terra sono distinti dagli alberi e dai giacimenti: indicano materiale estratto che deve ancora essere consegnato. Le carcasse sono riconoscibili e chi trasporta mostra il proprio carico. Selezionando un elemento, la scheda distingue «Da estrarre», «A terra», nutrimento sul posto e scorte consegnate; il clic seleziona il bersaglio, poi si impartisce l’ordine. I materiali ancora senza nome restano neutri. Selezionando il Falò acceso, un cerchio dorato mostra l’area effettivamente riscaldata; la scheda segnala se parte del giaciglio rimane fuori dal calore.
+Sulla mappa, tronchi e frammenti di pietra a terra sono distinti dagli alberi e dai giacimenti: indicano materiale estratto che deve ancora essere consegnato. Le carcasse sono riconoscibili e chi trasporta mostra il proprio carico. Selezionando un elemento, la scheda distingue «Da estrarre», «A terra», nutrimento sul posto e scorte consegnate; il clic seleziona il bersaglio, poi si impartisce l’ordine. I materiali ancora senza nome restano neutri. Selezionando il Falò acceso, un cerchio dorato mostra l’area riscaldata; in Guidata un secondo cerchio distingue il nucleo più caldo. Essere nel cerchio esterno non garantisce il recupero della temperatura: la scheda spiega la protezione disponibile e le stime stagionali includono il calore effettivo.
 
 Un fumetto segnala l'ultima voce che custodisce una parola: verde, ambra per l'età avanzata, rosso per un pericolo immediato. Il pannello permette di tramandarla al Falò con l'insegnamento e il costo ordinari. Gli addetti liberano temporaneamente il posto per dormire o mangiare, poi riprendono il lavoro; le rese stagionali conservano il lavoro già svolto. Prove e limiti della crescita sono descritti in [GROWTH-AUDIT.md](docs/GROWTH-AUDIT.md).
 

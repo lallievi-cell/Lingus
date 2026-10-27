@@ -131,8 +131,9 @@ describe('next-season readiness reserves real costs without inventing production
     expect(after.cities[0].resources.coin).toBe(100);
     expect(report.food.find((entry) => entry.id === provincial.id)?.population).toBe(4);
   });
-  it('does not promise winter warmth from a fire alone or from an unpaid house', () => {
+  it('keeps Classic winter heat literal and does not credit an unpaid house', () => {
     const s = fixture(260);
+    s.playMode = 'classic';
     build(s, 'campfire');
     s.resources.wood = 2;
     expect(getSeasonReadiness(s).coldExposed).toBe(1);
@@ -140,6 +141,17 @@ describe('next-season readiness reserves real costs without inventing production
     expect(getSeasonReadiness(s).coldExposed).toBe(1);
     s.resources.stone = 1;
     expect(getSeasonReadiness(s).coldExposed).toBe(0);
+  });
+  it('credits the actual paid Guided warm core, but not its cold outer band', () => {
+    const s = fixture(260);
+    const fire = build(s, 'campfire');
+    s.resources.wood = 2;
+    expect(getSeasonReadiness(s).coldExposed).toBe(0);
+    fire.x = HOME.x + 14;
+    expect(getSeasonReadiness(s).coldExposed).toBe(1);
+    fire.x = HOME.x;
+    s.resources.wood = 0;
+    expect(getSeasonReadiness(s).coldExposed).toBe(1);
   });
   it('does not credit future pen output or autumn harvest to the pantry', () => {
     const s = fixture(260);

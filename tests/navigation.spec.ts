@@ -21,9 +21,11 @@ test.describe('mobile touch navigation', () => {
     page,
   }) => {
     await beginPaused(page);
+    await page.getByRole('button', { name: 'Nascondi parole', exact: true }).tap();
     const nav = page.getByRole('navigation', { name: 'Sezioni di gioco' });
     const map = page.getByRole('img', { name: /Mappa della valle/ });
     await expect(map).toBeVisible();
+    await page.getByRole('button', { name: 'Mostra parole', exact: true }).tap();
     await page.getByRole('button', { name: /^Gruppo:/ }).tap();
     await page.getByRole('button', { name: /^Andare:/ }).tap();
     await expect(page.locator('.sentence-slot.filled')).toHaveCount(2);
@@ -39,6 +41,7 @@ test.describe('mobile touch navigation', () => {
     await expect(page.locator('.unit-card.selected')).toHaveCount(1);
     await nav.getByRole('button', { name: 'Mappa', exact: true }).tap();
     await expect(page.locator('.sentence-slot.filled')).toHaveCount(2);
+    await page.getByRole('button', { name: 'Nascondi parole', exact: true }).tap();
     const bounds = (await map.boundingBox())!;
     await map.tap({ position: { x: bounds.width * 0.8, y: bounds.height * 0.35 } });
     await page.getByRole('button', { name: 'Pronuncia', exact: true }).tap();
@@ -65,6 +68,7 @@ test.describe('mobile touch navigation', () => {
     page,
   }) => {
     await beginPaused(page);
+    await page.getByRole('button', { name: 'Nascondi parole', exact: true }).tap();
     const map = page.getByRole('img', { name: /Mappa della valle/ });
     const bounds = (await map.boundingBox())!;
     const x = bounds.x + bounds.width / 2,
