@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpen, MapPin, MessageCircle } from 'lucide-react';
+import { BookOpen, MapPin, MessageCircle, Search } from 'lucide-react';
 import { INNATE_WORDS, WORD_ORDER, WORDS } from '../game/content';
 import { canRehearseWord } from '../game/guidedProgression';
 import { getCustodianStatuses } from '../game/custodianStatus';
@@ -21,6 +21,8 @@ export function TeachingPanel({
   onChange: (next: GameState) => void;
   onFocus?: (target: Target) => void;
 }) {
+  const [filter, setFilter] = useState<'all' | 'risk' | 'pupils'>('all');
+  const [search, setSearch] = useState('');
   const [outcome, setOutcome] = useState<{
     wordId: string;
     pupilId?: string;
@@ -58,21 +60,35 @@ export function TeachingPanel({
   const completedPupil = outcome?.pupilId
     ? state.units.find((u) => u.id === outcome.pupilId)
     : undefined;
+  const shown = known.filter((id) => {
+    if (!WORDS[id].label.toLocaleLowerCase('it').includes(search.trim().toLocaleLowerCase('it')))
+      return false;
+    if (filter === 'risk') return custodians.has(id) || state.words[id].retention < 30;
+    if (filter === 'pupils') {
+      const preview = getLessonPreview(state, id);
+      return !!preview.teacher && !!preview.pupil;
+    }
+    return true;
+  });
   return (
     <section className="teaching-panel" aria-label="Trasmettere le parole">
       <div className="first-lesson-help">
         <BookOpen size={17} />
         <div>
-          <strong>
-            {state.stats.taught === 0
-              ? 'La prima parola da affidare'
-              : 'Ogni lezione aggiunge un custode'}
-          </strong>
-          <p>
-            {state.stats.taught === 0
-              ? 'Scegli una parola custodita da una sola persona. Controlla chi la racconta e chi la imparerà, poi premi Tramanda. La nuova voce continuerà a custodirla anche dopo il maestro.'
-              : 'Proteggi prima gli ultimi custodi. La memoria piena non sostituisce un secondo custode: puoi insegnare anche una parola già salda.'}
-          </p>
+          <details className="lesson-explanation">
+            <summary>
+              <strong>
+                {state.stats.taught === 0
+                  ? 'La prima parola da affidare'
+                  : 'Ogni lezione aggiunge un custode'}
+              </strong>
+            </summary>
+            <p>
+              {state.stats.taught === 0
+                ? 'Scegli una parola custodita da una sola persona. Controlla chi la racconta e chi la imparerà, poi premi Tramanda. La nuova voce continuerà a custodirla anche dopo il maestro.'
+                : 'Proteggi prima gli ultimi custodi. La memoria piena non sostituisce un secondo custode: puoi insegnare anche una parola già salda.'}
+            </p>
+          </details>
           <small>
             {numbered
               ? 'Ogni lezione costa 10 Attenzione. I bambini apprendono per primi.'
@@ -93,8 +109,40 @@ export function TeachingPanel({
           altre voci.
         </p>
       )}
+      {known.length > 0 && (
+        <div className="lesson-tools">
+          <div role="group" aria-label="Filtra le lezioni">
+            {(
+              [
+                ['all', 'Tutte'],
+                ['risk', 'A rischio'],
+                ['pupils', 'Da insegnare'],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                className="text-button"
+                aria-pressed={filter === value}
+                onClick={() => setFilter(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <label className="lesson-search">
+            <Search size={16} />
+            <input
+              type="search"
+              aria-label="Cerca una parola da tramandare"
+              placeholder="Quale parola vuoi proteggere?"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+        </div>
+      )}
       <div className="teaching-list">
-        {known.map((id) => {
+        {shown.map((id) => {
           const memory = state.words[id],
             preview = getLessonPreview(state, id),
             custodian = custodians.get(id),
@@ -189,6 +237,20 @@ export function TeachingPanel({
           );
         })}
       </div>
+      {known.length > 0 && !shown.length && (
+        <p className="teaching-empty" role="status">
+          Nessuna parola corrisponde a questa scelta.{' '}
+          <button
+            className="text-button"
+            onClick={() => {
+              setSearch('');
+              setFilter('all');
+            }}
+          >
+            Mostra tutte le lezioni
+          </button>
+        </p>
+      )}
     </section>
   );
 }

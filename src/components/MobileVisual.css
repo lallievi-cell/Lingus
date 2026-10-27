@@ -1,0 +1,662 @@
+/* Screen review: common visual rhythm for phone panels and dialogs. */
+@media (max-width: 860px) {
+  .app .tribe-panel.mobile-visible,
+  .app .discovery-panel.mobile-visible {
+    gap: 10px !important;
+    background: var(--ui-panel, #f8f6ed);
+  }
+  .app .tribe-panel.mobile-visible > * {
+    flex-shrink: 0 !important;
+    min-width: 0;
+  }
+  .app .tribe-panel.mobile-visible .custodian-notice {
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+    width: 100%;
+    padding: 12px;
+    margin: 0;
+    border-radius: 10px;
+  }
+  .app .custodian-notice-heading strong {
+    font-size: 13px;
+  }
+  .app .custodian-notice p {
+    font-size: 12px;
+    line-height: 1.5;
+    margin: 6px 0;
+  }
+  .app .custodian-reasons {
+    font-size: 11px;
+    line-height: 1.4;
+  }
+  .app .custodian-explanation summary {
+    min-height: 36px;
+    padding-block: 8px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .app .custodian-transmit {
+    min-height: 44px;
+    margin-top: 4px;
+    font-size: 12px;
+    font-weight: 650;
+  }
+  .app .side-tabs {
+    gap: 16px !important;
+    margin: 0 !important;
+  }
+  .app .tribe-summary {
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 0;
+    padding: 4px 0 !important;
+  }
+  .app .tribe-summary > span {
+    font-size: 12px;
+  }
+  .app .tribe-urgent-shortcut {
+    min-height: 44px;
+    margin-left: auto;
+    padding: 6px 10px;
+    color: #803d27;
+    border: 1px solid #bb896b;
+    border-radius: 8px;
+    background: #fff2df;
+  }
+  .app .tribe-tools {
+    margin: 0;
+    border: 1px solid var(--ui-frame, #bbc7ac);
+    border-radius: 9px;
+    padding: 0 10px;
+  }
+  .app .tribe-tools summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+  }
+  .app .tribe-tools button,
+  .app .tribe-tools select {
+    min-height: 44px;
+    font-size: 12px;
+  }
+  .app .tribe-tools select {
+    font-size: 16px;
+  }
+  .app .tribe-panel.mobile-visible .unit-list {
+    gap: 8px !important;
+    padding: 0 !important;
+    max-height: none !important;
+  }
+  .app .unit-list .readable-person {
+    min-height: 76px !important;
+    height: auto !important;
+    padding: 10px !important;
+    gap: 10px !important;
+    border: 1px solid #b8c6aa !important;
+    border-left: 3px solid #9eb28e !important;
+    border-radius: 10px !important;
+    background: var(--ui-panel, #fcfaf1);
+  }
+  .app .unit-list .readable-person.person-at-risk {
+    border-left-color: #a95a36 !important;
+    background: #fff1e0;
+  }
+  .app .unit-list .readable-person.selected {
+    border-color: #4f7151 !important;
+    box-shadow: 0 0 0 1px #4f7151;
+  }
+  .app .unit-list .readable-person .unit-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .app .unit-list .readable-person .unit-info > strong {
+    font-size: 14px;
+    color: #273e2d;
+  }
+  .app .unit-list .readable-person .person-metadata,
+  .app .unit-list .readable-person .person-work-status,
+  .app .unit-list .readable-person .person-warning {
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .app .unit-list .readable-person .person-warning {
+    color: #883c24;
+  }
+  .app .individual-card.person-details {
+    margin: 0;
+    padding: 12px;
+    border-radius: 10px;
+  }
+  .app .person-details > div:first-child {
+    align-items: center;
+  }
+  .app .person-details .icon-button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .app .person-details p {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .app .person-details .work-status {
+    display: block;
+    padding: 10px;
+  }
+  .app .person-details .work-status > strong {
+    display: block;
+    font-size: 13px;
+    margin-bottom: 5px;
+  }
+  .app .person-details .text-button {
+    min-height: 44px;
+    font-size: 12px;
+  }
+  .app .community-outlook {
+    display: grid;
+    gap: 12px;
+    padding-top: 8px;
+  }
+  .app .tribe-panel.mobile-visible .urban-summary-card {
+    max-width: none;
+    margin: 0;
+    padding: 16px;
+    border-radius: 10px;
+    color: #425f3d;
+  }
+  .app .urban-summary-card > span {
+    font-size: 12px;
+    color: #4d6549;
+  }
+  .app .community-outlook .cohesion-block {
+    width: 100%;
+    padding: 10px;
+    margin: 0;
+  }
+  .app .community-outlook .growth-readiness {
+    margin: 0;
+    padding: 12px;
+  }
+  .app .discovery-panel.mobile-visible .quiet-card {
+    flex: 0 0 auto !important;
+    padding: 12px !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+  }
+  .app .discovery-panel.mobile-visible .quiet-illustration {
+    display: none !important;
+  }
+  .app .discovery-panel.mobile-visible .quiet-card h2 {
+    font-size: 23px !important;
+    line-height: 1.2 !important;
+    margin: 0 0 6px !important;
+  }
+  .app .discovery-panel.mobile-visible .quiet-card p {
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+    margin: 0 !important;
+  }
+  .app .discovery-panel.mobile-visible .tiny-divider {
+    display: none !important;
+  }
+  .app .discovery-panel.mobile-visible .objective-card {
+    margin: 0 !important;
+    padding: 12px !important;
+  }
+  .app .discovery-panel.mobile-visible .objective-heading h3 {
+    font-size: 20px !important;
+  }
+  .app .discovery-panel.mobile-visible .objective-card p {
+    font-size: 12px !important;
+    line-height: 1.5 !important;
+  }
+  .app .discovery-panel.mobile-visible .objective-count > span {
+    display: none;
+  }
+  .app .discovery-panel.mobile-visible .objective-count {
+    justify-content: flex-end;
+    margin-top: 6px;
+  }
+  .app .discovery-panel.mobile-visible .lexicon-overview,
+  .app .discovery-panel.mobile-visible .side-action {
+    min-height: 56px !important;
+    margin: 0 !important;
+    padding: 10px 12px !important;
+  }
+  .app .discovery-panel.mobile-visible .side-action strong,
+  .app .discovery-panel.mobile-visible .lexicon-overview strong {
+    font-size: 14px !important;
+  }
+  .app .discovery-panel.mobile-visible .side-action small,
+  .app .discovery-panel.mobile-visible .lexicon-overview small {
+    font-size: 12px !important;
+    margin-top: 3px;
+  }
+  .app .discovery-panel.mobile-visible .civilization-nav {
+    gap: 8px !important;
+  }
+  .app .modal-scrim {
+    padding: 8px !important;
+  }
+  .app .modal {
+    max-width: 100%;
+    max-height: calc(var(--lingus-viewport-height, 100dvh) - 16px) !important;
+    padding: 0 16px 20px !important;
+    border-radius: 14px !important;
+    text-align: left;
+    scroll-padding-top: 68px;
+    overscroll-behavior: contain;
+  }
+  .app .modal::before {
+    display: none;
+  }
+  .app .modal-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: space-between;
+    margin: 0 -16px 14px;
+    padding: 4px 8px 4px 16px;
+    min-height: 52px;
+    border-bottom: 1px solid #b6c2ab;
+    background: var(--ui-panel, #f6f4e9);
+  }
+  .app .modal-toolbar > span {
+    display: block;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 650;
+    color: #2b4533;
+  }
+  .app .modal-toolbar-actions {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    gap: 4px;
+  }
+  .app .modal-toolbar .modal-close {
+    position: static !important;
+    min-height: 44px;
+    min-width: 44px;
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    background: #dce5d3;
+    color: #294331;
+  }
+  .app .council-finish {
+    position: static;
+    min-height: 44px;
+    padding: 6px 10px;
+    background: #365a43;
+    color: #fff;
+    border-radius: 8px;
+    font-size: 12px;
+  }
+  .app .modal > .modal-symbol {
+    display: none;
+  }
+  .app .modal > h2,
+  .app .civilization-panel > h2 {
+    font-size: 30px !important;
+    line-height: 1.12;
+    margin: 6px 0 12px;
+    letter-spacing: 0;
+  }
+  .app .modal > .eyebrow,
+  .app .civilization-panel > .eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.8px;
+  }
+  .app .modal .modal-intro {
+    margin: 0 0 16px;
+    font-size: 13px;
+    line-height: 1.5;
+    max-width: none;
+  }
+  .app .modal .text-button {
+    min-height: 44px;
+    font-size: 12px;
+  }
+  .app .modal input[type='search'],
+  .app .modal input[type='text'],
+  .app .modal input[type='number'],
+  .app .modal select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  .app .modal .primary-button {
+    min-height: 48px;
+    font-size: 13px;
+    padding: 10px 14px;
+  }
+  .app .campfire-modal .attention-counter {
+    margin: 12px 0;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .app .attention-counter > span {
+    font-size: 10px;
+    letter-spacing: 0.5px;
+  }
+  .app .attention-counter > strong {
+    font-size: 27px;
+  }
+  .app .guided-council {
+    margin: 12px 0;
+    padding: 10px;
+    gap: 8px;
+    text-align: left;
+  }
+  .app .guided-council > div {
+    min-width: 0;
+    flex: 1;
+  }
+  .app .guided-council strong {
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 650;
+  }
+  .app .guided-council .text-button {
+    justify-content: flex-start;
+    white-space: normal;
+    text-align: left;
+    font-weight: 650;
+  }
+  .app .guided-council small {
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .app .story-explanation {
+    margin-top: 4px;
+  }
+  .app .story-explanation p {
+    font-size: 12px;
+    line-height: 1.5;
+    text-align: left;
+  }
+  .app .first-lesson-help {
+    margin: 12px 0;
+    padding: 10px;
+  }
+  .app .first-lesson-help strong {
+    font-size: 13px;
+  }
+  .app .first-lesson-help small {
+    font-size: 11px;
+  }
+  .app .lesson-explanation summary,
+  .app .story-explanation summary {
+    min-height: 36px;
+    padding-block: 8px;
+  }
+  .app .lesson-tools > div {
+    gap: 6px;
+  }
+  .app .lesson-tools button {
+    min-height: 44px;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  .app .lesson-search input {
+    font-size: 16px;
+  }
+  .app .teaching-panel .teaching-row {
+    display: grid;
+    grid-template-columns: 25px minmax(0, 1fr);
+    padding: 12px;
+    border: 1px solid #bcc7b0;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    text-align: left;
+  }
+  .app .teaching-panel .teaching-row > svg {
+    color: #6b804f;
+  }
+  .app .teaching-panel .teaching-word-details > strong {
+    font-size: 16px;
+  }
+  .app .teaching-panel .teach-button {
+    grid-column: 2;
+    justify-self: stretch;
+    justify-content: center;
+    min-height: 44px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+  }
+  .app .teaching-panel .teach-button:not(:disabled) {
+    background: #355a43;
+    border-color: #355a43;
+    color: #fff;
+  }
+  .app .teaching-panel .teach-button > small {
+    color: inherit;
+    font-size: 11px;
+  }
+  .app .teaching-panel .teaching-word-details > span:not(.meter),
+  .app .teaching-panel .lesson-people > span {
+    font-size: 12px;
+    line-height: 1.45;
+    color: #4a6047;
+  }
+  .app .teaching-panel .teaching-list {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .app .teaching-outcome {
+    position: sticky;
+    top: 58px;
+    z-index: 2;
+    box-shadow: 0 2px 5px #243b2418;
+  }
+  .app .teaching-panel .lesson-person-focus {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px;
+  }
+  .app .lesson-people {
+    font-size: 12px;
+  }
+  .app .teaching-note,
+  .app .teaching-blocker {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .app .teaching-blocker {
+    color: #874320;
+  }
+  .app .modal .dictionary-list,
+  .app .modal .building-codex {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .app .dictionary-entry {
+    padding: 14px 0;
+    gap: 10px;
+  }
+  .app .dictionary-entry h3 {
+    font-size: 16px;
+  }
+  .app .dictionary-entry p {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .app .dictionary-memory {
+    font-size: 11px;
+    flex-wrap: wrap;
+  }
+  .app .building-codex article {
+    margin: 0 0 10px;
+    padding: 12px;
+    border-radius: 10px;
+  }
+  .app .building-codex-name h3 {
+    font-size: 22px;
+  }
+  .app .token-sentence {
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .app .token-sentence > span {
+    font-size: 12px;
+    padding: 4px 6px;
+    min-height: 28px;
+  }
+  .app .recipe-prompts > button {
+    border-radius: 10px;
+    padding: 12px;
+    min-height: 56px;
+  }
+  .app .building-codex p,
+  .app .institution-list p,
+  .app .faction-list p {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .app .building-codex small {
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .app .modal .guide-note {
+    padding: 10px;
+    margin: 12px 0;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .app .modal .guide-note p {
+    text-align: left;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .app .inventory-grid > div {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    gap: 5px;
+    padding: 10px;
+    font-size: 12px;
+    color: #42593d;
+  }
+  .app .inventory-grid > div > b {
+    grid-column: 2;
+    margin-left: 0;
+    font-size: 13px;
+    font-weight: 650;
+    color: #2c472f;
+  }
+  .app .city-cohorts {
+    gap: 8px;
+    padding: 12px 8px;
+  }
+  .app .city-cohorts span {
+    font-size: 11px;
+  }
+  .app .faction-list article {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 10px;
+    padding: 14px 0;
+  }
+  .app .faction-list h3 {
+    font-size: 22px;
+    margin: 0;
+  }
+  .app .faction-list article > div > span {
+    font-size: 12px;
+    line-height: 1.5;
+    color: #4d6549;
+  }
+  .app .faction-list article > .text-button {
+    grid-column: 2;
+    justify-self: start;
+    margin: 0;
+    font-size: 12px;
+  }
+  .app .dogma-builder {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin: 14px 0;
+  }
+  .app .dogma-builder > span {
+    display: none;
+  }
+  .app .dogma-builder label {
+    display: grid;
+    gap: 5px;
+    font-size: 12px;
+  }
+  .app .dogma-builder select {
+    width: 100%;
+    padding: 8px;
+  }
+  .app .dogma-preview {
+    margin: 12px 0;
+    padding: 12px;
+    border-radius: 10px;
+  }
+  .app .dogma-preview h3 {
+    font-size: 22px;
+  }
+  .app .settings-modal .settings-actions {
+    margin-top: 16px;
+  }
+  .app .settings-actions button {
+    padding: 12px 4px;
+  }
+  .app .settings-actions strong {
+    font-size: 14px;
+  }
+  .app .settings-actions small {
+    font-size: 12px;
+  }
+  .app .modal .work-status {
+    display: block;
+  }
+  .app .modal .work-status > strong {
+    display: block;
+  }
+  .app .readiness-body {
+    max-height: none;
+    overflow: visible;
+    padding: 12px;
+  }
+  .app .readiness-body h3 {
+    font-size: 14px;
+    margin-top: 14px;
+  }
+  .app .readiness-body p {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .app .readiness-row {
+    padding-block: 10px;
+  }
+  .app .readiness-row button {
+    margin-top: 5px;
+  }
+  .app .mobile-ergonomic .sentence-feedback.has-issue {
+    display: flex !important;
+    padding: 3px 8px;
+    margin-bottom: 4px;
+    max-height: 38px;
+    overflow-y: auto;
+    border-left: 3px solid #ab6337;
+    border-radius: 5px;
+    background: #fff1dd;
+    color: #793a24;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .app.is-mobile-keyboard .mobile-ergonomic .sentence-feedback {
+    display: none !important;
+  }
+}

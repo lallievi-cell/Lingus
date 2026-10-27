@@ -46,6 +46,8 @@ Su cellulare, **Parole** apre il banco sopra il compositore senza ridurre ogni v
 
 Il successivo [audit mobile](docs/MOBILE-PLAYTEST-AUDIT.md) riorganizza la schermata per lasciare la mappa visibile all’avvio, corregge i gesti touch e verifica comandi realmente raggiungibili, rotazione e spazio sottratto dalle barre del browser. Sul telefono una parola già inserita si può sostituire senza cancellare quelle successive.
 
+La [revisione visiva delle schermate](docs/MOBILE-SCREEN-REVIEW.md) estende il controllo a diciannove viste: persone e urgenze prima dei riepiloghi, lezioni ricercabili al Falò, finestre con chiusura sempre raggiungibile e scorte delle città più leggibili.
+
 Una stagione dura 90 secondi, di cui 60 di luce e 30 di notte; il primo inverno inizia al secondo 270. La voce ha capienza tre, poi cinque con il Re: gli ordini diretti costano un punto e ne viene recuperato uno ogni dieci secondi. Le istituzioni permanenti eseguono i propri cicli senza quel costo ripetuto.
 
 | Controllo                          | Effetto                                                     |

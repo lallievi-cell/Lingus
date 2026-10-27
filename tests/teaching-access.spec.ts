@@ -117,6 +117,7 @@ test('a fully shared full word explains why another lesson cannot be bought', as
     'Tutti gli allievi idonei conoscono la parola e la memoria è già piena',
   );
   await expect(word.getByRole('button', { name: /Tramanda/ })).toBeDisabled();
+  await dialog.getByText('Prepara Attenzione per altre lezioni', { exact: true }).click();
   await expect(
     dialog.getByRole('button', { name: 'Alimenta il Falò · consuma legna', exact: true }),
   ).toBeDisabled();

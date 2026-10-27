@@ -476,7 +476,9 @@ export function CivilizationPanel({
                     <div className="token-sentence">{sentence(tokens)}</div>
                     <p>
                       {numbered
-                        ? b.description
+                        ? kind === 'campfire' && s.playMode === 'guided'
+                          ? 'Nucleo caldo entro sei metri, protezione esterna fino a quindici. Permette di tramandare le parole.'
+                          : b.description
                         : 'Questa costruzione prende forma dalle parole che conosci.'}
                     </p>
                     <small>

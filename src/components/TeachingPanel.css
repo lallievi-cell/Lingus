@@ -89,6 +89,73 @@
   line-height: 1.6;
   color: #68715d;
 }
+.lesson-tools {
+  margin: 14px 0;
+  text-align: left;
+}
+.lesson-tools > div {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.lesson-tools button {
+  min-height: 40px;
+  padding: 6px 12px;
+  border: 1px solid #abb99d;
+  border-radius: 8px;
+}
+.lesson-tools button[aria-pressed='true'] {
+  color: #fff;
+  background: #355a43;
+  border-color: #355a43;
+}
+.lesson-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid #a9b69d;
+  border-radius: 8px;
+  background: #fffdf5;
+  color: #435a42;
+}
+.lesson-search input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: 14px var(--sans);
+  color: #253d2c;
+}
+.lesson-search:focus-within {
+  outline: 2px solid #5e7c4c;
+  outline-offset: 1px;
+}
+.lesson-explanation summary,
+.story-explanation summary {
+  cursor: pointer;
+  padding-block: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.modal-toolbar {
+  display: contents;
+}
+.modal-toolbar > span {
+  display: none;
+}
+.modal-toolbar-actions {
+  display: contents;
+}
+.council-finish {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  min-height: 44px;
+}
 @media (max-width: 600px) {
   .teaching-panel .teaching-row {
     grid-template-columns: 25px minmax(0, 1fr);
@@ -107,4 +174,15 @@
     min-height: 34px;
     min-width: 34px;
   }
+}
+.fuel-preparation > summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding-block: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.lesson-explanation > summary strong {
+  font: inherit;
+  font-weight: 650;
 }

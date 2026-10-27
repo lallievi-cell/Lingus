@@ -1176,27 +1176,19 @@ function App() {
                   />
                   {tribeCondition}
                 </span>
+                {tribeInDanger && (
+                  <button
+                    className="text-button tribe-urgent-shortcut"
+                    aria-pressed={tribeFilter === 'urgent'}
+                    onClick={() => {
+                      setTribeFilter(tribeFilter === 'urgent' ? 'all' : 'urgent');
+                      setTribeSort('urgent');
+                    }}
+                  >
+                    {tribeFilter === 'urgent' ? 'Tutta la tribù' : 'Mostra urgenze'}
+                  </button>
+                )}
               </div>
-              <GrowthReadiness state={game} />
-              {hasWord(game, 'O_06') && (
-                <div className="cohesion-block">
-                  <div>
-                    <span>Coesione</span>
-                    <strong>
-                      {numbered
-                        ? `${Math.round(game.cohesion)}%`
-                        : game.cohesion > 70
-                          ? 'Salda'
-                          : game.cohesion > 30
-                            ? 'Fragile'
-                            : 'In crisi'}
-                    </strong>
-                  </div>
-                  <div className="meter">
-                    <span style={{ width: `${game.cohesion}%` }} />
-                  </div>
-                </div>
-              )}
               {game.urbanized && (
                 <button className="urban-summary-card" onClick={() => setPanel('settlement')}>
                   <Glyph id="S_09" size={30} />
@@ -1231,12 +1223,15 @@ function App() {
                       .map((reason) => CUSTODIAN_RISK_LABELS[reason])
                       .join(' · ')}
                   </span>
-                  <p className="custodian-help">
-                    {hasWord(game, 'O_06')
-                      ? 'Se il custode muore, queste parole scompaiono. '
-                      : 'Queste parole vivono in una sola memoria. '}
-                    {transmissionHint(endangeredCustodian)}
-                  </p>
+                  <details className="custodian-explanation">
+                    <summary>Come proteggere questa memoria</summary>
+                    <p className="custodian-help">
+                      {hasWord(game, 'O_06')
+                        ? 'Se il custode muore, queste parole scompaiono. '
+                        : 'Queste parole vivono in una sola memoria. '}
+                      {transmissionHint(endangeredCustodian)}
+                    </p>
+                  </details>
                   {hasWord(game, 'O_05') && (
                     <button
                       className="custodian-transmit"
@@ -1425,6 +1420,28 @@ function App() {
                       Mostra tutti
                     </button>
                   </p>
+                )}
+              </div>
+              <div className="community-outlook">
+                <GrowthReadiness state={game} />
+                {hasWord(game, 'O_06') && (
+                  <div className="cohesion-block">
+                    <div>
+                      <span>Coesione</span>
+                      <strong>
+                        {numbered
+                          ? `${Math.round(game.cohesion)}%`
+                          : game.cohesion > 70
+                            ? 'Salda'
+                            : game.cohesion > 30
+                              ? 'Fragile'
+                              : 'In crisi'}
+                      </strong>
+                    </div>
+                    <div className="meter">
+                      <span style={{ width: `${game.cohesion}%` }} />
+                    </div>
+                  </div>
                 )}
               </div>
               {selectedBuilding && (
@@ -2084,7 +2101,7 @@ function App() {
           </div>
         </div>
         <div
-          className={`sentence-feedback ${sentence.length && !compilation.valid ? 'has-issue' : ''}`}
+          className={`sentence-feedback ${sentence.length >= 2 && !compilation.valid ? 'has-issue' : ''}`}
           aria-live="polite"
         >
           <span className={`feedback-dot ${compilation.valid ? 'valid' : ''}`} />
@@ -2670,17 +2687,26 @@ function App() {
           title="Attorno al falò"
           onClose={game.campfirePending ? undefined : closePanel}
           className="campfire-modal"
+          headerAction={
+            game.campfirePending ? (
+              <button
+                className="text-button council-finish"
+                onClick={() => {
+                  setGame((current) => dismissCampfire(current));
+                  closePanel();
+                }}
+              >
+                Concludi consiglio
+              </button>
+            ) : undefined
+          }
         >
           <div className="modal-symbol">
             <Flame size={37} />
           </div>
           <span className="eyebrow">CIÒ CHE NON TRAMANDI PUÒ SCOMPARIRE</span>
           <h2>Attorno al falò.</h2>
-          <p className="modal-intro">
-            Gli anziani raccontano. I giovani ascoltano.
-            <br />
-            Scegli le parole che la tribù porterà nel domani.
-          </p>
+          <p className="modal-intro">Scegli una parola e affidala a una nuova voce.</p>
           <div className="attention-counter">
             <span>ATTENZIONE DISPONIBILE</span>
             <strong>

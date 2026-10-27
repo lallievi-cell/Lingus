@@ -6,11 +6,13 @@ export function Modal({
   children,
   onClose,
   className = '',
+  headerAction,
 }: {
   title: string;
   children: ReactNode;
   onClose?: () => void;
   className?: string;
+  headerAction?: ReactNode;
 }) {
   const dialog = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -19,12 +21,15 @@ export function Modal({
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && onClose) {
         event.preventDefault();
+        event.stopPropagation();
         onClose();
       }
       if (event.key !== 'Tab') return;
-      const focusables = dialog.current?.querySelectorAll<HTMLElement>(
-        'button:not(:disabled),a[href],input,select,[tabindex="0"]',
-      );
+      const focusables = Array.from(
+        dialog.current?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),textarea,summary,[tabindex="0"]',
+        ) ?? [],
+      ).filter((element) => element.getClientRects().length > 0);
       if (!focusables?.length) {
         event.preventDefault();
         return;
@@ -63,15 +68,21 @@ export function Modal({
         tabIndex={-1}
         ref={dialog}
       >
-        {onClose && (
-          <button
-            className="icon-button modal-close"
-            aria-label="Chiudi finestra"
-            onClick={onClose}
-          >
-            <X size={19} />
-          </button>
-        )}
+        <div className="modal-toolbar">
+          <span>{title}</span>
+          <div className="modal-toolbar-actions">
+            {headerAction}
+            {onClose && (
+              <button
+                className="icon-button modal-close"
+                aria-label="Chiudi finestra"
+                onClick={onClose}
+              >
+                <X size={19} />
+              </button>
+            )}
+          </div>
+        </div>
         {children}
       </div>
     </div>

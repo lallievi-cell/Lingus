@@ -17,7 +17,7 @@ I 48 punti di interpretazione, rappresentazione, calibrazione e generazione cens
 
 ## Prove eseguite e loro portata
 
-Verifica complessiva della revisione: **1.098 test unitari e di integrazione superati in 79 file**, oltre alle **114 prove del browser**. Stati preparati, replay ordinari e loro limiti rimangono distinti.
+Verifica del motore nella revisione precedente: **1.098 test unitari e di integrazione superati in 79 file**. La revisione delle schermate P20 verifica nuovamente i **56 test dei componenti** ed estende il browser a **121 casi**, con esecuzione completa e ripetizione mirata dopo le correzioni. Stati preparati, replay ordinari e loro limiti rimangono distinti.
 
 - **P1 — `npx vitest run src/game/conformance.test.ts --reporter=dot`: 156 test superati.** Valori attesi trascritti dalla fonte, Seed Zero, cataloghi, tutti i costi e le manutenzioni dei20edifici, formule, soglie e alcune transizioni reali. La suite prepara stati per isolare le regole: non è un replay completo dal primo istante.
 - **P2 — `npx vitest run src/game/grammar.test.ts --reporter=dot`: 123 test superati.** Frasi della fonte, ruoli semantici, ricette e archetipi dogmatici. Una frase accettata dal parser non prova che ogni effetto sia stato esercitato nella simulazione.
@@ -42,6 +42,8 @@ Verifica complessiva della revisione: **1.098 test unitari e di integrazione sup
 - **P18 — correzioni dopo il playtest:** [PLAYTEST-QUALITY-OF-LIFE.md](PLAYTEST-QUALITY-OF-LIFE.md) documenta A-43–A-48: ricordo di parole già risolte dopo una nuova Scintilla reale, accesso personale a Io, continuazioni grammaticali da ogni Tier, selezione globale degli adulti e richiamo fisico pagato, lezioni anticipate con insegnante/allievo e legna reale, calore Guidato distinto dalla Classica, soccorso anticipato e ordini di rientro eseguibili, priorità vitali, esiti degli incarichi e compositore mobile. Le suite verificano anche assenza di risorse o parole gratuite, visibilità e compatibilità dei salvataggi. I replay ordinari restano distinti dai casi preparati di interfaccia.
 
 - **P19 — audit mobile dopo screenshot reale:** [MOBILE-PLAYTEST-AUDIT.md](MOBILE-PLAYTEST-AUDIT.md) documenta il banco chiuso all’avvio, la mappa misurata e raggiungibile al tocco, i comandi senza scorrimento laterale, la sostituzione di un singolo token, ricerca e tastiera, avvisi limitati, safe area, ridimensionamento e rotazione. Quattro prove geometriche e quattro browser esercitano pinch ancorato, rilascio, annullamento, scelta esplicita degli oggetti sovrapposti e schede informative. I criteri superano la sola assenza di overflow e le prove critiche bloccano la pubblicazione in caso di errore. Le verifiche emulano il touch in Chromium; la portata sui telefoni fisici è dichiarata separatamente.
+
+- **P20 — revisione visiva delle schermate mobile:** [MOBILE-SCREEN-REVIEW.md](MOBILE-SCREEN-REVIEW.md) documenta diciannove viste osservate, la correzione dell’altezza del riquadro dei custodi, la precedenza delle persone sui riepiloghi, filtri per le urgenze e le lezioni, testo e azioni leggibili, chiusura persistente, scorrimento unico nei pannelli interessati e descrizione termica coerente con la modalità. Sette nuove prove browser verificano controlli raggiungibili, lezioni pagate, conclusione reale del consiglio ed errori sintattici senza spesa di Voce. Gli stati avanzati preparati non sono prove di campagna.
 
 Le voci “verificato” sotto indicano soltanto la parte nominata nella colonna. I restanti requisiti della stessa riga conservano la propria verifica aperta.
 
