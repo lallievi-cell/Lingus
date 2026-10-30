@@ -30,7 +30,7 @@ export function UnitWorkStatus({
       <p>{status.detail}</p>
       {status.assignment && (
         <span>
-          Incarico {status.assignment.state === 'suspended' ? 'salvato in pausa' : 'assegnato'}:{' '}
+          Incarico {status.assignment.state === 'suspended' ? 'sospeso' : 'assegnato'}:{' '}
           {status.assignment.label}.
         </span>
       )}
@@ -71,7 +71,7 @@ export function BuildingWorkStatus({
       <strong>{spec.label}</strong>
       {status.urban ? (
         <p>
-          Gli addetti provengono dalle coorti della città.{' '}
+          Il lavoro è affidato ai gruppi sociali della città.{' '}
           {status.observedEfficiency !== undefined
             ? `Rendimento dell’ultima stagione: ${numbered ? `${Math.round(status.observedEfficiency * 100)}%` : status.observedEfficiency >= 1 ? 'pieno' : status.observedEfficiency > 0 ? 'parziale' : 'nessuno'}.`
             : 'Il rendimento sarà visibile dopo il primo lavoro stagionale.'}
@@ -85,7 +85,7 @@ export function BuildingWorkStatus({
                 ? 'Postazione coperta.'
                 : status.contributing > 0
                   ? 'Postazione coperta solo in parte.'
-                  : 'Nessun addetto sta contribuendo adesso.'}
+                  : 'Nessun addetto sta lavorando in questo momento.'}
           </p>
         )
       )}
@@ -95,7 +95,7 @@ export function BuildingWorkStatus({
       {!status.reasons.length && status.required === 0 && (
         <p>
           {status.healthy
-            ? 'Fornisce i propri benefici senza addetti.'
+            ? 'Non richiede addetti per funzionare.'
             : 'Controlla manutenzione e integrità.'}
         </p>
       )}

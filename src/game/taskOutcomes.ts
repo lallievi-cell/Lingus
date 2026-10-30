@@ -33,7 +33,8 @@ export interface TaskOutcome {
 const messages: Record<TaskOutcomeReason, { title: string; detail: string }> = {
   completed: {
     title: 'Compito completato',
-    detail: 'L’ordine diretto è terminato. Un nuovo compito richiede una nuova frase.',
+    detail:
+      'Il compito è concluso. Puoi preparare di nuovo la stessa frase o impartire un altro ordine.',
   },
   exhausted: {
     title: 'Fonte esaurita',
@@ -48,7 +49,7 @@ const messages: Record<TaskOutcomeReason, { title: string; detail: string }> = {
   hunger: {
     title: 'Lavoro sospeso per fame',
     detail:
-      'Il compagno deve mangiare. Gli incarichi agli edifici salvati possono riprendere nel proprio turno; i compiti diretti vanno ordinati di nuovo.',
+      'Il compagno deve mangiare. Gli incarichi agli edifici possono riprendere nel turno previsto; gli ordini diretti vanno impartiti di nuovo.',
   },
   cold: {
     title: 'Lavoro sospeso per freddo',
@@ -67,11 +68,11 @@ const messages: Record<TaskOutcomeReason, { title: string; detail: string }> = {
   rule: {
     title: 'Il compito incontra un divieto',
     detail:
-      'Le regole attuali della comunità vietano questa azione. Rivedi il dogma prima di ripeterla.',
+      'Un dogma vieta questa azione. Per ripeterla, devi prima cambiare le regole della comunità.',
   },
   materials: {
     title: 'Mancano materiali utilizzabili',
-    detail: 'Il prossimo ciclo richiede altri materiali disponibili nel luogo di lavoro.',
+    detail: 'Per continuare servono altri materiali nel luogo di lavoro.',
   },
   ended: {
     title: 'Ordine non più attivo',

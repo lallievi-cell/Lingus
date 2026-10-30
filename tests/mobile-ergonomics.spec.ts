@@ -304,7 +304,7 @@ for (const viewport of [
     await expect(
       page
         .getByRole('status')
-        .filter({ hasText: /raggiung/ })
+        .filter({ hasText: /Richiamo inviato/ })
         .first(),
     ).toBeVisible();
     await expect(composer.locator('.sentence-slot.filled')).toHaveCount(2);

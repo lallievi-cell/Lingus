@@ -39,6 +39,7 @@ import {
 import { WorldMap } from './components/WorldMap';
 import { TribeMemberCard } from './components/TribeMemberCard';
 import {
+  lastCustodianLabel,
   lifeStageLabel,
   physicalWarnings,
   sexLabel,
@@ -374,13 +375,13 @@ function App() {
   }
   const transmissionHint = (status: CustodianStatus) => {
     if (!hasWord(game, 'O_05')) return 'Proteggi questa memoria finché potrai tramandarla.';
-    if (!hasBuilding(game, 'campfire')) return 'Serve un falò acceso e attivo per tramandare.';
+    if (!hasBuilding(game, 'campfire')) return 'Per tramandare serve un falò acceso.';
     if (game.attention < 10)
       return canPrepareBriefLesson(game)
-        ? 'Puoi preparare una breve lezione usando legna consegnata.'
-        : 'Apri il Falò per vedere come preparare una lezione e ciò che manca.';
+        ? 'Puoi preparare una lezione con il legno già nelle scorte.'
+        : 'Apri il Falò per scegliere una parola e scoprire cosa serve per insegnarla.';
     if (!status.wordIds.some((id) => canTransmitWord(game, id)))
-      return 'Nessun compagno è pronto ad apprendere queste parole.';
+      return 'Non ci sono allievi disponibili per queste parole.';
     return 'Un nuovo custode può tenere viva questa memoria.';
   };
   const peopleCount = playerPopulation(game);
@@ -580,7 +581,9 @@ function App() {
       return;
     }
     if (sentence.length >= slots) {
-      notify('Il pensiero ha bisogno di spazio. Rimuovi una parola o scoprine di nuove.');
+      notify(
+        'Non ci sono altri spazi nella frase. Modifica una parola o amplia il linguaggio della tribù.',
+      );
       return;
     }
     const next = [...sentence, id];
@@ -622,14 +625,14 @@ function App() {
   function handleSetGroupAnchor(anchor: Target) {
     setGroupAnchor(anchor);
     setSelectingGroup(false);
-    notify('Gruppo centrato: raggio 15 m.');
+    notify('Il gruppo comprende gli adulti entro 15 m dal punto scelto.');
   }
 
   function chooseAllAdults() {
     setGroupAnchor(allAdultsAnchor(game));
     setSelectingGroup(false);
     notify(
-      'Selezione: tutti gli adulti della tribù. Bambini, visitatori e missioni esterne sono esclusi.',
+      'Selezionati tutti gli adulti disponibili, anche lontani dal campo. Bambini, visitatori e persone in missione sono esclusi.',
     );
   }
 
@@ -646,7 +649,7 @@ function App() {
     }
     notify(
       success
-        ? 'Richiamo pronunciato: gli adulti raggiungono fisicamente il miglior riparo vicino al campo.'
+        ? 'Richiamo inviato: gli adulti si dirigono al riparo più protetto vicino al campo.'
         : next.logs[0]?.id !== game.logs[0]?.id
           ? (next.logs[0]?.text ?? 'Il richiamo non può essere eseguito.')
           : 'Non ci sono adulti disponibili per il richiamo.',
@@ -703,7 +706,9 @@ function App() {
     setPanel(null);
     setMobileSection('map');
     if (destination) focusTarget(destination);
-    notify('Frase preparata. Verifica esecutori e bersaglio nell’anteprima, poi premi Pronuncia.');
+    notify(
+      'Frase pronta da controllare. Apri l’anteprima per vedere chi agirà e dove, poi premi Pronuncia.',
+    );
   }
 
   function showWordHelp(id: string) {
@@ -726,7 +731,7 @@ function App() {
       return;
     }
     if (game.voice < 1 && !['law', 'dogma', 'tradition'].includes(result.kind ?? 'direct')) {
-      notify('La voce ha bisogno di riposo. Si rigenera ogni 10 secondi.');
+      notify('Non hai abbastanza Voce. Recuperi un punto ogni 10 secondi.');
       return;
     }
     const next = issueCommand(game, sentence, target ?? undefined, executorId, groupAnchor);
@@ -764,7 +769,7 @@ function App() {
     notify(
       success
         ? 'La tribù ha ascoltato.'
-        : (next.logs[0]?.text ?? 'La frase non può essere eseguita.'),
+        : (next.logs[0]?.text ?? 'La tribù non può eseguire questo ordine.'),
     );
   }
 
@@ -813,7 +818,7 @@ function App() {
   function saveGame() {
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(game));
-      notify('Partita salvata su questo browser.');
+      notify('Partita salvata in questo browser.');
     } catch {
       notify('Il browser non consente il salvataggio. Usa Esporta partita.');
     }
@@ -866,7 +871,7 @@ function App() {
       sparkSnapshot.current = new Set(parsed.sparks.map((spark) => spark.id));
       notify('Partita importata in pausa.');
     } catch {
-      notify('File non valido: scegli un salvataggio JSON di Lingus.');
+      notify('Impossibile aprire il file. Scegli un salvataggio di Lingus in formato JSON.');
     }
     if (fileInput.current) fileInput.current.value = '';
   }
@@ -1006,7 +1011,7 @@ function App() {
       <button
         className="text-button camp-button"
         onClick={() => handleSetGroupAnchor({ type: 'point', ...game.home })}
-        title="Seleziona gli adulti entro quindici metri dal giaciglio"
+        title="Seleziona gli adulti entro quindici metri dal giaciglio, senza impartire ordini"
       >
         <Home size={12} /> Vicini al campo
       </button>
@@ -1177,14 +1182,18 @@ function App() {
                   Le prime voci<span>.</span>
                 </h2>
                 <p>
-                  {livingUnits.length === 7 ? 'Sette vite.' : `${peopleCount} vite.`} Un destino
-                  comune.
+                  {livingUnits.length === 7
+                    ? 'Sette vite.'
+                    : peopleCount === 1
+                      ? 'Una vita.'
+                      : `${peopleCount} vite.`}{' '}
+                  Un destino comune.
                 </p>
               </div>
               <div className="tribe-summary">
                 <span>
                   <Users size={17} />
-                  <b>{peopleCount}</b> anime
+                  <b>{peopleCount}</b> {peopleCount === 1 ? 'anima' : 'anime'}
                 </span>
                 <span
                   className={tribeInDanger || avgHunger > 70 ? 'text-danger' : ''}
@@ -1215,7 +1224,7 @@ function App() {
                   <strong>
                     {game.cities.filter((c) => c.factionId === 'player').length} città
                   </strong>
-                  <span>{quantity(peopleCount)} abitanti in quattro coorti</span>
+                  <span>{quantity(peopleCount)} abitanti divisi tra quattro gruppi sociali</span>
                   <span>
                     Osserva la capitale <ChevronRight size={13} />
                   </span>
@@ -1390,7 +1399,7 @@ function App() {
                   {selectedCustodian && (
                     <div className={`individual-custody ${selectedCustodian.risk}`}>
                       <strong>
-                        <MessageCircle size={13} /> Ultimo custode
+                        <MessageCircle size={13} /> {lastCustodianLabel(selectedUnit)}
                       </strong>
                       <p>
                         {selectedCustodian.wordIds.map((id) => `«${WORDS[id].label}»`).join(' · ')}
@@ -1487,8 +1496,8 @@ function App() {
                             : b.hp <= 0
                               ? 'Distrutto'
                               : b.active
-                                ? 'Seleziona per vedere addetti e attività'
-                                : 'Seleziona per capire perché è fermo'
+                                ? 'Seleziona per vedere chi ci lavora e cosa produce'
+                                : 'Seleziona per scoprire cosa impedisce il lavoro'
                         }
                         onClick={() =>
                           focusTarget({ type: 'building', id: b.id, x: b.x, y: b.y }, true)
@@ -1811,9 +1820,9 @@ function App() {
                 Poi la parola.
               </h2>
               <p>
-                Le idee non si ricercano.
+                Le idee nascono dall’esperienza.
                 <br />
-                Nascono da ciò che accade.
+                Lavora, esplora e segui le Scintille.
               </p>
               <span className="tiny-divider" />
             </div>
@@ -1833,7 +1842,7 @@ function App() {
               />
             </div>
             <div className="objective-count">
-              <span>Il sapere cresce con l’esperienza</span>
+              <span>Le nuove parole nascono dall’esperienza</span>
               <b>
                 {objective.current}/{objective.total}
               </b>
@@ -1949,7 +1958,7 @@ function App() {
           </div>
           <div
             className="voice-meter"
-            title="Un ordine costa una voce. Una voce si rigenera ogni 10 secondi."
+            title="Ogni ordine diretto costa un punto Voce. Ne recuperi uno ogni 10 secondi."
           >
             <span>VOCE</span>
             {Array.from({ length: voiceMax }, (_, v) => v).map((v) => (
@@ -1969,7 +1978,7 @@ function App() {
                 className={`text-button all-adults-button ${isAllAdultsAnchor(groupAnchor) ? 'active' : ''}`}
                 aria-pressed={isAllAdultsAnchor(groupAnchor)}
                 onClick={chooseAllAdults}
-                title="Seleziona tutti gli adulti della tribù, anche sparpagliati; non impartisce un ordine"
+                title="Seleziona tutti gli adulti disponibili, anche lontani dal campo. La selezione è gratuita e non impartisce ordini."
               >
                 <Users size={13} /> Tutti gli adulti
               </button>
@@ -1986,7 +1995,7 @@ function App() {
                   game.voice < 1 ||
                   !selectableTribeAdults(game).length
                 }
-                title="Pronuncia Gruppo · Andare verso il riparo vicino al campo. Consuma un punto Voce e sostituisce gli incarichi; i carichi sono lasciati a terra."
+                title="Richiama gli adulti al riparo vicino al campo. Costa un punto Voce e sostituisce gli incarichi in corso. I carichi trasportati restano a terra."
               >
                 <Home size={16} />
                 <span className="recall-label">
@@ -2023,7 +2032,7 @@ function App() {
                     disabled={!!unavailable}
                     title={
                       unavailable ??
-                      'Richiama la frase negli spazi. Il bersaglio resta quello selezionato; Pronuncia invia l’ordine.'
+                      'Ricompone la frase senza eseguirla. Controlla il bersaglio selezionato, poi premi Pronuncia.'
                     }
                   >
                     <span className="echo-chip-dot" />
@@ -2132,7 +2141,7 @@ function App() {
           <span className={`feedback-dot ${compilation.valid ? 'valid' : ''}`} />
           <span>
             {sentence.length === 0
-              ? 'Scegli o trascina le parole. Componi una frase, indica un bersaglio e pronunciala.'
+              ? 'Scegli le parole, indica un bersaglio sulla mappa e premi Pronuncia.'
               : compilation.message}
           </span>
           <div className="keyboard-hints desktop-only-hints">
@@ -2246,7 +2255,7 @@ function App() {
                       disabled={!!unavailable}
                       title={
                         unavailable ??
-                        'Richiama la frase negli spazi. Il bersaglio resta quello selezionato; Pronuncia invia l’ordine.'
+                        'Ricompone la frase senza eseguirla. Controlla il bersaglio selezionato, poi premi Pronuncia.'
                       }
                     >
                       <span className="echo-chip-dot" />
@@ -2338,8 +2347,8 @@ function App() {
             ))}
           </div>
           <p>
-            Una frase di scoperta si ricompone nella Scintilla; gli ordini nella barra fanno vivere
-            l’esperienza.
+            Usa gli ordini per rivivere questa esperienza. Quando appare una Scintilla, aprila per
+            ritrovare la parola.
           </p>
           <div className="qol-actions">
             <button
@@ -2444,7 +2453,7 @@ function App() {
             Dai inizio alla storia <ArrowRight size={18} />
           </button>
           <button className="text-button welcome-help" onClick={() => setPanel('guide')}>
-            Prima, insegnami a giocare <CircleHelp size={15} />
+            Come si gioca <CircleHelp size={15} />
           </button>
           <small className="welcome-note">
             Sei ere · 45 parole · 20 edifici · Partita salvata nel browser
@@ -2458,10 +2467,11 @@ function App() {
           onClose={game.started ? closePanel : () => setPanel('welcome')}
           className="guide-modal"
         >
-          <span className="eyebrow">NON GUIDI LE MANI. GUIDI IL PENSIERO.</span>
+          <span className="eyebrow">OGNI ORDINE COMINCIA CON UNA FRASE.</span>
           <h2>Impara a dire il mondo.</h2>
           <p className="modal-intro">
-            Un gioco di sopravvivenza in cui il linguaggio è la tua unica interfaccia con la tribù.
+            Guida la tribù attraverso le parole che conosce. Nuove esperienze daranno voce a nuove
+            possibilità.
           </p>
           <div className="guide-steps">
             <article>
@@ -2469,9 +2479,9 @@ function App() {
               <div>
                 <h3>Componi una frase</h3>
                 <p>
-                  Clicca le parole in basso, oppure trascinale negli spazi. Inizia con{' '}
-                  <strong>Gruppo + Colpire</strong>, seleziona un albero sulla mappa e premi{' '}
-                  <strong>Pronuncia</strong>. Le mani scopriranno il legno.
+                  Scegli le parole in basso o trascinale negli spazi. Inizia con{' '}
+                  <strong>Gruppo · Colpire</strong>, seleziona un albero sulla mappa e premi{' '}
+                  <strong>Pronuncia</strong>. Il lavoro può far nascere la prima intuizione.
                 </p>
               </div>
             </article>
@@ -2480,20 +2490,20 @@ function App() {
               <div>
                 <h3>Vivi, osserva, comprendi</h3>
                 <p>
-                  Un’esperienza può accendere una <strong>Scintilla</strong>. Cliccala e combina
-                  parole già note per dare un nome all’intuizione. Leggi l’indizio: non esistono
-                  punti ricerca.
+                  Un’esperienza può accendere una <strong>Scintilla</strong>. Aprila, leggi
+                  l’indizio e combina le parole già note per dare un nome a ciò che è accaduto.
                 </p>
               </div>
             </article>
             <article>
               <b>03</b>
               <div>
-                <h3>Sopravvivi al domani</h3>
+                <h3>Preparati alla notte</h3>
                 <p>
                   Le persone si nutrono per istinto. Puoi aiutarle con{' '}
-                  <strong>Gruppo + Mangiare</strong> e un cespuglio. Muoviti, caccia e osserva la
-                  notte. Le nuove parole svelano parti dell’interfaccia.
+                  <strong>Gruppo · Mangiare</strong> e un cespuglio. Esplora, prepara le scorte e
+                  cerca riparo al calare del buio. Le nuove parole renderanno visibili altri aspetti
+                  del mondo.
                 </p>
               </div>
             </article>
@@ -2514,7 +2524,8 @@ function App() {
             <p>
               Una stagione dura 90 secondi: 60 di luce e 30 di notte. Usa <kbd>SPAZIO</kbd> per
               fermare il tempo e i tasti <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> per la velocità.
-              Ogni ordine consuma una delle tre voci, che si rigenerano ogni 10 secondi.
+              All’inizio hai tre punti Voce. Ogni ordine diretto ne consuma uno; ne recuperi uno
+              ogni 10 secondi.
             </p>
           </div>
           <button
@@ -2591,7 +2602,8 @@ function App() {
                 <div className="puzzle-words">{known.map((id) => renderWord(id, true))}</div>
                 <div className="puzzle-warning">
                   <Zap size={14} />
-                  Un errore consuma l’intuizione. Ascolta l’indizio.
+                  Un errore indebolisce l’intuizione e richiede un’attesa prima di riprovare. Segui
+                  l’indizio.
                 </div>
                 <button
                   className="primary-button"
@@ -2604,13 +2616,10 @@ function App() {
             </>
           ) : (
             <>
-              <p>
-                L’intuizione è svanita. La tensione diminuisce di 35; occorrono quindici secondi
-                prima di riprovare.
-              </p>
+              <p>L’intuizione si è indebolita. Puoi riprovare tra quindici secondi.</p>
               {puzzleFeedback && (
                 <>
-                  <p>I concetti giusti conservano una luce dorata.</p>
+                  <p>I concetti corretti restano evidenziati in oro.</p>
                   <div className="puzzle-slots" aria-label="Esito dei concetti scelti">
                     {puzzleFeedback.chosen.map((id, i) => (
                       <span
@@ -2697,7 +2706,7 @@ function App() {
                             : memory.custodians.length > 3
                               ? 'Molti'
                               : 'Pochi'}{' '}
-                          custodi
+                          {numbered && memory.custodians.length === 1 ? 'custode' : 'custodi'}
                         </span>
                       </div>
                     )}
@@ -2725,8 +2734,8 @@ function App() {
           <div className="guide-note">
             <Leaf size={17} />
             <p>
-              Il lessico comprende quarantacinque parole, dall’Istinto all’Età del Ferro. Le regole
-              definitive e le decisioni sui parametri mancanti sono nel registro di conformità.
+              Ogni parola nasce da un’esperienza. Condividila con nuovi custodi o affidala alla
+              scrittura per conservarla nel tempo.
             </p>
           </div>
         </Modal>
@@ -2803,11 +2812,11 @@ function App() {
             }}
           />
           <p className="campfire-explanation">
-            Ogni insegnamento spende 10 attenzione e forma un custode. Il recupero base è di{' '}
-            {game.playMode === 'guided' ? 20 : 10} memoria e può aumentare con i dogmi. La legna nel
-            fuoco e gli anziani generano attenzione al cambio di stagione.{' '}
+            Ogni lezione costa 10 punti Attenzione e forma un nuovo custode. Il recupero base è di{' '}
+            {game.playMode === 'guided' ? 20 : 10} punti di memoria e può aumentare con i dogmi. Al
+            cambio di stagione, il legno bruciato e gli anziani generano Attenzione.{' '}
             {game.playMode === 'guided' &&
-              'Quando tutti gli allievi conoscono una parola, puoi ripassarla durante il consiglio: costa 10 Attenzione e rafforza la memoria senza creare un nuovo custode.'}
+              'Durante il consiglio puoi ripassare una parola già nota a tutti gli allievi: costa 10 punti Attenzione e rafforza la memoria dei custodi.'}
           </p>
           <button
             className="primary-button"
@@ -2826,18 +2835,18 @@ function App() {
           <div className="modal-symbol">
             <Shield size={33} />
           </div>
-          <span className="eyebrow">UNA PAURA PUÒ DIVENTARE UNA LEGGE</span>
+          <span className="eyebrow">DALLA PAURA NASCE UNA REGOLA</span>
           <h2>La Pietra Sacra.</h2>
           <p className="modal-intro">
-            Un dogma legato a un trauma recente restituisce 40 coesione. Ma la tribù obbedirà alla
-            sua regola, anche quando tu vorrai fare altrimenti.
+            Un dogma nato da un trauma recente restituisce 40 punti Coesione. La sua regola
+            vincolerà la tribù finché non verrà abolita.
           </p>
           {!ownedBuildings.some((b) => b.kind === 'menhir' && b.hp > 0) && (
             <div className="guide-note">
               <Glyph id="O_02" />
               <p>
-                Serve una Pietra Sacra: <strong>Gruppo + Scheggiare + Pietra + Sacro</strong>.
-                Costo: 20 pietra.
+                Serve una Pietra Sacra: <strong>Gruppo · Scheggiare · Pietra · Sacro</strong>.
+                Costo: 20 unità di pietra.
               </p>
             </div>
           )}
@@ -2869,9 +2878,9 @@ function App() {
                             : id === 'M_04'
                               ? 'È proprietà privata'
                               : id === 'S_01'
-                                ? 'È collettivo'
+                                ? 'Appartiene a tutti'
                                 : id === 'O_01'
-                                  ? 'È protetto nella tana'
+                                  ? 'È protetto al giaciglio'
                                   : id === 'O_06'
                                     ? 'Trasforma la morte in martirio'
                                     : id.startsWith('S_')
@@ -2914,7 +2923,7 @@ function App() {
                   <h3>{d.name}</h3>
                   <span>
                     {numbered
-                      ? `${d.age} stagioni · Peso culturale ${d.weight.toFixed(1)}`
+                      ? `${d.age} ${d.age === 1 ? 'stagione' : 'stagioni'} · Peso culturale ${d.weight.toFixed(1)}`
                       : `Radicamento ${d.weight >= 30 ? 'profondo' : d.weight >= 15 ? 'forte' : 'recente'}`}
                   </span>
                   <p>{d.description}</p>
@@ -2944,8 +2953,8 @@ function App() {
           <span className="eyebrow">IL TEMPO È NELLE TUE MANI</span>
           <h2>Custodisci la storia.</h2>
           <p className="modal-intro">
-            La partita viene salvata ogni cinque secondi su questo browser. Esporta una copia per
-            portarla con te.
+            La partita si salva automaticamente in questo browser ogni cinque secondi. Esportala per
+            conservarne una copia o continuare su un altro dispositivo.
           </p>
           <p className="mode-label">
             Partita {game.playMode === 'guided' ? 'Guidata' : 'Classica'}. La modalità si sceglie
@@ -2959,7 +2968,7 @@ function App() {
                 <code>{game.mapGeneration.seed}</code>
               </>
             ) : (
-              'Scenario esistente · seed originale non registrato'
+              'Mappa di una versione precedente · seed originale non disponibile'
             )}
           </p>
           <label className="event-pause-setting">
@@ -2971,8 +2980,8 @@ function App() {
             <span>
               Pausa automatica sugli eventi importanti
               <small>
-                Ferma il tempo quando nasce una Scintilla, nasce o muore un compagno, oppure si
-                perde una parola. Puoi riprendere quando sei pronto.
+                Ferma il tempo quando appare una Scintilla, nasce o muore un compagno, oppure si
+                perde una parola. Riprendi quando sei pronto.
               </small>
             </span>
           </label>
@@ -2981,7 +2990,7 @@ function App() {
               <Save size={19} />
               <span>
                 <strong>Salva adesso</strong>
-                <small>Memoria locale del browser</small>
+                <small>Conserva la partita su questo dispositivo</small>
               </span>
               <ChevronRight size={17} />
             </button>
@@ -2989,7 +2998,7 @@ function App() {
               <Download size={19} />
               <span>
                 <strong>Esporta partita</strong>
-                <small>Scarica un salvataggio JSON</small>
+                <small>Scarica una copia della partita in formato JSON</small>
               </span>
               <ChevronRight size={17} />
             </button>
@@ -3156,15 +3165,17 @@ function ModePicker({
       <button type="button" aria-pressed={value === 'guided'} onClick={() => onChange('guided')}>
         <strong>Guidata</strong>
         <small>
-          Primo inverno senza tormente, Qui dopo la prima notte, anziana iniziale più giovane,
-          trasporto e utensili ripetuti durante il giorno.
+          Più tempo per imparare: primo inverno senza tormente, scoperta di Qui dopo una notte e
+          anziana iniziale più giovane. Trasporto e fabbricazione di utensili possono proseguire
+          durante il giorno.
         </small>
       </button>
       <button type="button" aria-pressed={value === 'classic'} onClick={() => onChange('classic')}>
         <strong>Classica</strong>
         <small>
-          Il ritmo attuale: Qui dopo due notti, anziana a quattordici stagioni, trasporti e
-          manufatti singoli.
+          Un inizio più impegnativo: scoperta di Qui dopo due notti, anziana iniziale di quattordici
+          stagioni e rischio di tormenta già dal primo inverno. Gli ordini diretti coprono un solo
+          trasporto o manufatto.
         </small>
       </button>
     </div>

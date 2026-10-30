@@ -112,11 +112,11 @@ export interface DogmaPolicyCell {
 export function getDogmaPolicyCell(target: string, family: DogmaVector): DogmaPolicyCell {
   let reason = '';
   if (!(DOGMA_TARGETS as readonly string[]).includes(target))
-    reason = 'Il concetto non è sacralizzabile.';
+    reason = 'Questo concetto non può diventare sacro.';
   else if (family === 'sacrifice' && !consumableTargets.has(target))
-    reason = 'Questo concetto non è una quantità materiale o una persona da offrire.';
+    reason = 'L’offerta richiede un bene materiale o una persona da sacrificare.';
   else if (family === 'protection' && !renewableTargets.has(target))
-    reason = 'La tutela richiede una casta, un nodo naturale o il Confine.';
+    reason = 'Puoi proteggere una casta, una risorsa naturale o il Confine.';
   else if (family === 'sanctuary' && !physicalTargets.has(target))
     reason = 'Un santuario protegge persone o beni fisici, non concetti astratti.';
   else if (family === 'property' && !physicalTargets.has(target))
@@ -177,20 +177,20 @@ export const DOGMA_OPPOSITES: Record<string, { tokens: string[]; description: st
   S_08: { tokens: ['V_11'], description: 'commercio pacifico' },
   O_02: { tokens: ['O_03'], description: 'lavorazione del legno' },
   O_03: { tokens: ['O_02'], description: 'lavorazione della pietra' },
-  O_04: { tokens: ['V_09'], description: 'agricoltura vegetariana; archetipo +40%' },
+  O_04: { tokens: ['V_09'], description: 'coltivazioni di cibo vegetale (+40%)' },
   O_05: { tokens: ['V_06'], description: 'lavorazione litica senza fuoco' },
   O_07: { tokens: ['V_06', 'O_02'], description: 'lavorazione litica senza metallo' },
   O_12: { tokens: ['V_11'], description: 'baratto senza moneta' },
   O_01: { tokens: ['V_01'], description: 'movimento fuori dalla tana' },
   O_06: { tokens: [], description: 'nascite anziché culto funerario' },
-  O_09: { tokens: [], description: 'trasmissione orale; archetipo Attenzione250' },
+  O_09: { tokens: [], description: 'trasmissione orale (fino a 250 punti Attenzione)' },
   O_10: { tokens: ['V_01'], description: 'movimento oltre il perimetro' },
-  O_13: { tokens: [], description: 'lavoro manuale; archetipo +25%' },
+  O_13: { tokens: [], description: 'lavoro manuale (+25%)' },
   O_14: { tokens: [], description: 'lavoro autonomo senza codice scritto' },
   C_01: { tokens: [], description: 'lavoro diurno' },
   M_05: { tokens: ['S_06'], description: 'lavoro servile' },
-  V_03: { tokens: [], description: 'nascite pacifiche; archetipo +40%' },
-  V_09: { tokens: ['V_10'], description: 'allevamento; archetipo +50%' },
+  V_03: { tokens: [], description: 'nascite in una comunità pacifica (+40%)' },
+  V_09: { tokens: ['V_10'], description: 'allevamento (+50%)' },
   V_11: { tokens: ['V_09'], description: 'produzione agricola locale' },
   V_13: { tokens: ['V_05'], description: 'difesa del proprio territorio' },
 };

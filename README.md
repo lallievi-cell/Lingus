@@ -38,7 +38,7 @@ La barra propone **Solo compatibili** fin dal primo capitolo: dopo ogni parola m
 
 Apri **Anteprima dell’ordine** per verificare esecutori, destinazioni, costi e attività interrotte prima di pronunciare. **Filtri e priorità** organizza la tribù per bisogni e attività; le schede spiegano incarichi e pause. Il pulsante con la foglia accanto al tempo apre la **preparazione stagionale**: manutenzione, cibo, carne cruda e riparo. Gli avvisi sulle parole perdute indicano come rivivere l’esperienza. Se sulla mappa più elementi si sovrappongono, puoi scegliere esplicitamente quale selezionare. Dettagli e limiti delle stime in [UI-QUALITY-OF-LIFE.md](docs/UI-QUALITY-OF-LIFE.md).
 
-In Guidata, **Io** può nascere da un pasto autonomo o da manufatti personali: non occorre isolare un compagno. La prima scoperta richiede il puzzle; per una parola già compresa e poi perduta, una nuova esperienza e una nuova Scintilla permettono **Ricorda la parola**. Prima del consiglio puoi preparare una breve lezione al Falò con due legna consegnate: ottieni fino a dieci Attenzione, poi paghi la lezione ordinaria. Il pannello mostra maestro, allievo, costo ed eventuali impedimenti. La Classica mantiene la risoluzione dei puzzle e la preparazione stagionale precedenti.
+In Guidata, **Io** può nascere da un pasto autonomo o da manufatti personali: non occorre isolare un compagno. La prima scoperta richiede il puzzle; per una parola già compresa e poi perduta, una nuova esperienza e una nuova Scintilla permettono **Ricorda la parola**. Prima del consiglio puoi preparare una breve lezione al Falò con due unità di legno consegnate: ottieni fino a dieci punti Attenzione, poi paghi la lezione ordinaria. Il pannello mostra maestro, allievo, costo ed eventuali impedimenti. La Classica mantiene la risoluzione dei puzzle e la preparazione stagionale precedenti.
 
 **Raduna al campo** pronuncia un vero ordine di movimento: costa una Voce, raggiunge gli adulti disponibili e lascia a terra gli eventuali carichi interrotti. Il richiamo sceglie il miglior riparo reale vicino al campo. Il freddo viene affrontato prima e non annulla un ordine diretto verso un posto più protetto. In Guidata, il Falò ha un nucleo più caldo, visibile nel cerchio interno; in Classica il calore resta uniforme.
 
@@ -49,6 +49,8 @@ Un riepilogo degli incarichi distingue lavoro concluso, fonte esaurita e interru
 Il successivo [audit mobile](docs/MOBILE-PLAYTEST-AUDIT.md) riorganizza la schermata per lasciare la mappa visibile all’avvio, corregge i gesti touch e verifica comandi realmente raggiungibili, rotazione e spazio sottratto dalle barre del browser. Sul telefono una parola già inserita si può sostituire senza cancellare quelle successive.
 
 La [revisione visiva delle schermate](docs/MOBILE-SCREEN-REVIEW.md) estende il controllo a diciannove viste: persone e urgenze prima dei riepiloghi, lezioni ricercabili al Falò, finestre con chiusura sempre raggiungibile e scorte delle città più leggibili.
+
+La [revisione editoriale italiana](docs/EDITORIAL-REVIEW.md) rende più chiari istruzioni, indizi, avvisi e descrizioni delle regole: termini coerenti, quantità leggibili e consigli legati alle azioni disponibili, dalla prima Scintilla alle città.
 
 Una stagione dura 90 secondi, di cui 60 di luce e 30 di notte; il primo inverno inizia al secondo 270. La voce ha capienza tre, poi cinque con il Re: gli ordini diretti costano un punto e ne viene recuperato uno ogni dieci secondi. Le istituzioni permanenti eseguono i propri cicli senza quel costo ripetuto.
 

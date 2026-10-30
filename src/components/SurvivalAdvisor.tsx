@@ -49,7 +49,7 @@ export function SurvivalAdvisor({
           <small>
             {state.campfirePending
               ? 'Concludi prima il consiglio al falò.'
-              : 'La Voce deve rigenerarsi; la ricerca automatica del riparo continua.'}
+              : 'Attendi che la Voce si ricarichi. I compagni infreddoliti continuano a cercare riparo.'}
           </small>
         )}
       </div>

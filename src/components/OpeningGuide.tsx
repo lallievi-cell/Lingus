@@ -34,14 +34,14 @@ export function OpeningGuide({
   if (cold) {
     title = 'La tribù sta gelando';
     text = fire
-      ? 'Riporta il gruppo al giaciglio, dentro il calore del Falò. Ripari e pelli aiutano a recuperare temperatura; durante una tormenta il solo fuoco non basta.'
+      ? 'Raduna il gruppo vicino al Falò. Ripari e pelli aiutano a mantenere il calore; durante una tormenta il solo fuoco può non bastare.'
       : hearth
-        ? 'Riporta il gruppo al campo e porta legna al Falò per riaccenderlo. Il materiale lasciato lontano dal campo deve ancora essere trasportato.'
+        ? 'Riporta il gruppo al campo e consegna legno per riaccendere il Falò. I materiali lasciati lontano devono ancora essere trasportati.'
         : 'Serve una fonte di calore: prepara il primo Falò con legna consegnata e l’intuizione del Fuoco. Ripari e pelli proteggono dal freddo; il giaciglio da solo non scalda.';
   } else if (starving) {
     title = 'Prima viene il cibo';
     text =
-      'Interrompi il lavoro di chi ha fame. Gruppo + Mangiare su bacche disponibili o una carcassa sazia sul posto; vicino al campo si possono consumare le scorte consegnate.';
+      'Interrompi il lavoro di chi ha fame. Componi Gruppo · Mangiare e indica bacche o una carcassa per mangiare sul posto. Al campo si possono consumare le scorte già consegnate.';
   } else if (personal?.ready && onSpark) {
     title = 'Un’esperienza personale';
     text = personal.hint + ' Non serve allontanare un compagno dal gruppo.';
@@ -49,28 +49,28 @@ export function OpeningGuide({
   } else if (!hasWord(state, 'O_03') || !hasWord(state, 'O_02')) {
     title = hasWord(state, 'O_03') ? 'Prova anche una roccia' : 'Comincia da un albero';
     text = hasWord(state, 'O_03')
-      ? 'Componi Gruppo + Colpire su una roccia vicina. Il lavoro farà conoscere la pietra e come lavorarla. Al calare del buio torna al giaciglio.'
-      : 'Componi Gruppo + Colpire, scegli un albero vicino e pronuncia. Poi fai lo stesso su una roccia: il lavoro genera le prime intuizioni.';
+      ? 'Componi Gruppo · Colpire e indica una roccia vicina. Le schegge resteranno a terra e il lavoro potrà far nascere una Scintilla. Al calare del buio torna al giaciglio.'
+      : 'Componi Gruppo · Colpire, scegli un albero vicino e premi Pronuncia. Il legno tagliato resterà a terra. Prova anche su una roccia e segui le prime Scintille.';
   } else if (!hasWord(state, 'O_01') && !hasWord(state, 'S_02')) {
     title = 'Rientrare al calare del buio';
-    text = `Quando arriva il buio usa Raduna al campo: è un ordine di Andare che costa una Voce. Camminare al buio fa comprendere Notte. Dormire vicini per ${guided ? 'una notte' : 'due notti'} fa nascere Qui.${personal ? ' Per Io conta anche un’esperienza personale: un compagno che mangia di propria iniziativa mentre gli altri non hanno fame può avere l’intuizione, senza essere isolato.' : ''}`;
+    text = `Quando arriva il buio usa Raduna al campo: è un ordine di Andare che costa una Voce. Camminare al buio fa comprendere Notte. Dormire vicini per ${guided ? 'una notte' : 'due notti'} può far nascere la Scintilla di Qui.${personal ? ' Per Io conta anche un’esperienza personale: un compagno che mangia di propria iniziativa mentre gli altri non hanno fame può avere l’intuizione, senza essere isolato.' : ''}`;
   } else if (!hasWord(state, 'V_04')) {
     title = 'Mangiare prima di trasportare';
     text =
-      'Gruppo + Mangiare su un cespuglio sazia sul posto. Risolvi le intuizioni: quando impari Portare puoi consegnare materiali al campo.';
+      'Gruppo · Mangiare su un cespuglio fa mangiare sul posto. Apri le Scintille: scoprendo Portare imparerai a riportare cibo e materiali al campo.';
   } else if (!fire && !hasWord(state, 'O_05')) {
     title = 'Prepara il primo fuoco';
-    text = `Porta legna e pietra al campo. Poi Gruppo + Scheggiare + Pietra crea utensili e fa nascere l’intuizione del Fuoco.${guided ? ' In Guidata trasporto e utensili continuano durante il giorno, finché ci sono spazio e materiali.' : ' In Classica ogni trasporto e manufatto richiede un nuovo ordine.'} Il Falò richiede cinque legna reali.`;
+    text = `Porta legno e pietra al campo. Poi componi Gruppo · Scheggiare · Pietra: fabbricare utensili può far nascere la Scintilla del Fuoco.${guided ? ' In Guidata gli addetti ripetono trasporti e fabbricazione di utensili durante il giorno, finché ci sono risorse e spazio.' : ' In Classica ogni viaggio o manufatto richiede un nuovo ordine.'} Per accendere il primo Falò servono cinque unità di legno.`;
   } else if (!fire) {
     title = hearth ? 'Riaccendi il Falò' : 'Manca il combustibile';
     text = hearth
-      ? 'Serve una legna al campo per riaccendere il focolare con Conservare + Fuoco. Una guardia presente lo protegge dalle tempeste; controlla le scorte anche prima del cambio di stagione.'
-      : 'Porta cinque legna al campo per accendere il primo Falò. Le risorse lasciate accanto agli alberi sono ancora da trasportare.';
+      ? 'Riaccendi il focolare con Conservare · Fuoco: serve un’unità di legno al campo. Una guardia presente lo protegge dalle tempeste. Tieni altre scorte per il cambio di stagione.'
+      : 'Porta cinque unità di legno al campo per accendere il primo Falò. Il legno lasciato accanto agli alberi deve ancora essere trasportato.';
   } else if (state.time < 180) {
     title = 'Prepara il primo insegnamento';
     text = guided
       ? 'Puoi tramandare già ora: apri il Falò, prepara una breve lezione con legna consegnata e usa l’Attenzione per formare un nuovo custode. Il pannello indica insegnante e allievo. Non aspettare che l’anziano sia in pericolo.'
-      : 'Apri il Falò per scegliere una parola e un nuovo custode. Fai mangiare il gruppo prima del consiglio stagionale: la fame riduce l’Attenzione. Conservare + Fuoco assegna una guardia contro le tempeste.';
+      : 'Apri il Falò per scegliere una parola e un nuovo custode. Fai mangiare il gruppo prima del consiglio stagionale: la fame riduce l’Attenzione. Conservare · Fuoco assegna una guardia contro le tempeste.';
     action = 'teach';
   } else if (state.time >= 270) {
     title = 'Attraversare l’inverno';
@@ -79,9 +79,9 @@ export function OpeningGuide({
   } else {
     title = 'Scorte prima del gelo';
     text =
-      'Porta cibo prima che il gelo blocchi le bacche; esplora altre pianure se quelle vicine finiscono. Tieni legna per alimentare il Falò e assegna una guardia con Conservare + Fuoco contro le tempeste. Ripari e pelli proteggono dal freddo.' +
+      'Porta cibo prima che il gelo blocchi le bacche; esplora altre pianure se quelle vicine finiscono. Tieni legna per alimentare il Falò e assegna una guardia con Conservare · Fuoco contro le tempeste. Ripari e pelli proteggono dal freddo.' +
       (guided && hasWord(state, 'V_05')
-        ? ' In Guidata, Portare Preda ripete i viaggi sullo stesso nodo durante il giorno.'
+        ? ' In Guidata, dopo aver scoperto Conservare, Portare · Preda ripete i viaggi dalla stessa fonte di cibo durante il giorno.'
         : '');
   }
   const autumn = state.time >= 180 && !fire;

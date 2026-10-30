@@ -86,9 +86,9 @@ export function getSurvivalAdvice(state: GameState): SurvivalAdvice | null {
       priority: hungry.hunger >= 95 ? 'danger' : 'care',
       title: hungry.hunger >= 95 ? 'Prima viene il cibo' : 'Un compagno deve mangiare',
       text: stores
-        ? 'Ci sono scorte consegnate: mangiare richiede di raggiungerle. La carne cruda può causare malattia; quando possibile prepara cibo cotto.'
+        ? 'C’è cibo nelle scorte: chi ha fame deve raggiungere il campo per mangiare. Cuoci la carne quando puoi: mangiarla cruda può causare malattia.'
         : source
-          ? 'Interrompi il lavoro per nutrire chi ha fame. La fonte indicata è visibile e raggiungibile sulla mappa; gli animali vivi vanno prima abbattuti.'
+          ? 'Interrompi il lavoro e guida chi ha fame alla fonte di cibo indicata sulla mappa. Gli animali vivi devono essere abbattuti prima di poterli mangiare.'
           : 'Non ci sono scorte consegnate o fonti commestibili visibili. Esplora con prudenza e porta cibo al campo.',
       action: 'eat',
       actionLabel: (canNameFood && stores) || source ? 'Prepara pasto' : 'Mostra chi ha fame',
@@ -110,7 +110,7 @@ export function getSurvivalAdvice(state: GameState): SurvivalAdvice | null {
       id: `memory:${custodian.unitId}`,
       priority: 'care',
       title: 'Metti al sicuro una parola',
-      text: 'Una memoria dipende da un solo custode. Apri il Falò: puoi vedere l’allievo, il costo e ciò che manca prima della lezione.',
+      text: 'Una parola vive nella memoria di un solo custode. Apri il Falò e affidala a un allievo prima che sia troppo tardi.',
       action: 'teach',
       actionLabel: 'Prepara insegnamento',
       focus: unitTarget(people.find((u) => u.id === custodian.unitId)!),
@@ -140,7 +140,7 @@ export function getSurvivalAdvice(state: GameState): SurvivalAdvice | null {
       id: 'mourning',
       priority: 'care',
       title: 'La tribù ha bisogno di un commiato',
-      text: 'I resti insepolti e i lutti indeboliscono la coesione. Il tumulo richiede pietra e un addetto per celebrare funerali reali.',
+      text: 'I lutti e i corpi insepolti indeboliscono la coesione. Prepara un tumulo con pietra e assegna un addetto per celebrare i funerali.',
       action: 'funeral',
       actionLabel: grave ? 'Prepara sepoltura' : 'Prepara tumulo',
       phrase: funeral,

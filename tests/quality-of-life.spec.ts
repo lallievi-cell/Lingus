@@ -243,9 +243,9 @@ test('season readiness warns about actual stone upkeep and raw meat, and safely 
 }) => {
   await loadScene(page, 'season');
   const readiness = page.getByLabel('Preparazione alla prossima stagione', { exact: true });
-  await readiness.locator('summary').click();
-  await expect(readiness).toContainText('Verso Inverno');
-  await expect(readiness).toContainText('mancano 1 pietra');
+  await readiness.locator(':scope > summary').click();
+  await expect(readiness).toContainText('Verso l’inverno');
+  await expect(readiness).toContainText('da procurare: 1 pietra');
   await expect(readiness).toContainText('La carne cruda è un rischio');
   const before = await readSaved(page);
   await readiness.getByRole('button', { name: 'Prepara cottura' }).click();
@@ -275,7 +275,7 @@ test('observable work remains readable before names and numbers', async ({ page 
   await page.locator('.tribe-tools summary').click();
   await expect(tribe.getByRole('button', { name: 'Tutti', exact: true })).toBeVisible();
   const readiness = page.getByLabel('Preparazione alla prossima stagione', { exact: true });
-  await readiness.locator('summary').click();
+  await readiness.locator(':scope > summary').click();
   await expect(readiness).not.toContainText(/\d+s/);
 });
 
@@ -316,8 +316,8 @@ test('readiness explicitly separates real army upkeep from building and civilian
   await loadScene(page, 'army');
   await page.getByRole('button', { name: 'Controlla la prossima stagione' }).click();
   const dialog = page.getByRole('dialog', { name: 'Preparazione alla prossima stagione' });
-  await expect(dialog).toContainText('Manutenzione degli edifici');
-  await expect(dialog).toContainText('Il mantenimento delle truppe è separato');
+  await expect(dialog).toContainText('Scorte per gli edifici');
+  await expect(dialog).toContainText('Le truppe hanno bisogno di scorte a parte');
   await dialog.getByRole('button', { name: 'Mostra un battaglione' }).click();
   await expect(dialog).not.toBeVisible();
   await expect(page.locator('.map-toolbar')).toContainText('Guardia');
@@ -348,7 +348,7 @@ test('mobile preparation opens from the map and composes without spending, with 
   await loadScene(page, 'season');
   await page.getByRole('button', { name: 'Controlla la prossima stagione' }).click();
   const dialog = page.getByRole('dialog', { name: 'Preparazione alla prossima stagione' });
-  await expect(dialog).toContainText('mancano 1 pietra');
+  await expect(dialog).toContainText('da procurare: 1 pietra');
   await dialog.getByRole('button', { name: 'Prepara cottura' }).click();
   await expect(dialog).not.toBeVisible();
   const preview = page.locator('.order-preview');

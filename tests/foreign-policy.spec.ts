@@ -107,7 +107,7 @@ test('on a narrow screen an unaffordable request can be refused and an incoming 
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const pressure = await showPressure(page, 3, true);
-  await expect(pressure).toContainText('Una razzia si avvicina');
+  await expect(pressure).toContainText('Gli incursori si avvicinano');
   const pay = pressure.getByRole('button', { name: 'Invia il dono', exact: true });
   await expect(pay).toBeDisabled();
   const refuse = pressure.getByRole('button', { name: 'Rifiuta', exact: true });

@@ -423,3 +423,15 @@
     padding: 12px;
   }
 }
+.readiness-explanation > summary {
+  min-height: 44px;
+  padding: 12px 0;
+  cursor: pointer;
+  font-size: 12px;
+}
+.season-readiness .readiness-explanation > summary::after {
+  content: '+';
+}
+.season-readiness .readiness-explanation[open] > summary::after {
+  content: '−';
+}

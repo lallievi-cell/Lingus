@@ -82,7 +82,7 @@ test('the warning respects Io, Morte, Fuoco and Numero before they are known', a
   await expect(page.locator('.individual-card')).toHaveCount(0);
   await page.getByRole('button', { name: 'Seleziona un compagno', exact: true }).nth(1).click();
   const mapNotice = page.getByRole('status', { name: 'Dettagli del bersaglio' });
-  await expect(mapNotice).toContainText('Ultimo custode');
+  await expect(mapNotice).toContainText('Ultima custode');
   await expect(mapNotice).toContainText('Scheggiare');
   await expect(mapNotice).not.toContainText(/Uma|muore|morte|\d|%/i);
 });
@@ -97,16 +97,16 @@ test('the existing lesson creates a real new custodian and pays attention withou
   await expect(notice).not.toContainText(/\d|%/);
   await page.getByRole('button', { name: 'Seleziona Uma', exact: true }).click();
   await expect(page.getByRole('status', { name: 'Dettagli del bersaglio' })).toContainText(
-    'Custodisce da solo: Scheggiare',
+    'È l’unica memoria di queste parole: Scheggiare',
   );
   await expect(page.locator('.individual-custody')).toContainText('«Scheggiare»');
   await expect(page.locator('.individual-card')).toContainText('ANZIANA');
   await expect(page.locator('.individual-card')).not.toContainText('14 STAGIONI');
   await notice.getByRole('button', { name: /Tramanda al falò/ }).click();
   const word = page.getByLabel('Parola da tramandare: Scheggiare', { exact: true });
-  await expect(word).toContainText('Ultimo custode: Uma');
+  await expect(word).toContainText('Ultima custode: Uma');
   await word.getByRole('button', { name: /Tramanda/ }).click();
-  await expect(word).not.toContainText('Ultimo custode');
+  await expect(word).not.toContainText('Ultima custode');
   await page.getByRole('button', { name: /Custodiamo queste parole/ }).click();
   await expect(notice).toHaveCount(0);
   const saved = await savedState(page);
@@ -124,7 +124,7 @@ test('an unfinished fire cannot turn the warning into a free or impossible lesso
 }) => {
   await seedCustodian(page, 'unfinished-fire');
   const notice = page.getByLabel('Ultimi custodi a rischio');
-  await expect(notice).toContainText('Serve un falò acceso e attivo');
+  await expect(notice).toContainText('Per tramandare serve un falò acceso');
   await expect(notice.getByRole('button', { name: /Tramanda al falò/ })).toBeDisabled();
   await page.getByRole('button', { name: /Attorno al falò.*Tramanda ciò che sai/ }).click();
   const word = page.getByLabel('Parola da tramandare: Scheggiare', { exact: true });

@@ -77,7 +77,7 @@ export function ContextualWordShelf({
       className="syntax-toggle"
       aria-pressed={filter === 'compatible'}
       onClick={() => onFilterChange(filter === 'compatible' ? 'all' : 'compatible')}
-      title="Mostra soltanto parole che possono completare la frase. Costi e bersaglio restano nell’anteprima."
+      title="Mostra le parole che possono completare la frase. L’anteprima verifica bersaglio, costi e requisiti."
     >
       Solo compatibili
     </button>
@@ -232,8 +232,8 @@ export function ContextualWordShelf({
       </div>
       {filter === 'compatible' && syntax.lawOnlyTokenIds.length > 0 && (
         <p className="contextual-law-hint">
-          Alcune continuazioni preparano una legge a sei parole. L’anteprima distingue l’ordine
-          diretto dalla legge.
+          Alcune parole continuano la frase come legge a sei spazi. Controlla nell’anteprima se stai
+          preparando un ordine o una legge.
         </p>
       )}
     </div>

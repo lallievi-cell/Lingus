@@ -5,6 +5,7 @@ import { getLifeStage, resolveUnitSex } from '../game/demography';
 import { hasWord } from '../game/runtime';
 import type { GameState, Unit } from '../game/types';
 import {
+  lastCustodianLabel,
   lifeStageLabel,
   physicalWarnings,
   sexLabel,
@@ -92,9 +93,11 @@ export function TribeMemberCard({ state, unit, index, selected, custodian, onAct
         <MessageCircle
           size={14}
           className={`custodian-indicator ${custodian.risk}`}
-          aria-label="Ultimo custode"
+          aria-label={lastCustodianLabel(unit)}
         >
-          <title>Ultimo custode: {custodian.wordIds.map((id) => WORDS[id].label).join(', ')}</title>
+          <title>
+            {lastCustodianLabel(unit)}: {custodian.wordIds.map((id) => WORDS[id].label).join(', ')}
+          </title>
         </MessageCircle>
       )}
       {spark ? (

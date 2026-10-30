@@ -230,12 +230,12 @@ export function issueCommand(
     return registered;
   }
   if (s.voice < 1) {
-    log(s, 'La voce è esaurita: un punto si rigenera ogni dieci secondi.', 'warning');
+    log(s, 'Non hai abbastanza Voce: recuperi un punto ogni dieci secondi.', 'warning');
     return s;
   }
   const { subject, verb, args, condition } = getPredicate(tokens);
   if (condition === 'C_01' && !getSeason(s).isNight) {
-    log(s, 'Questo ordine attende la notte.', 'warning');
+    log(s, 'Questo ordine richiede la notte. Pronuncialo dopo il tramonto.', 'warning');
     return s;
   }
   const workers = chooseSubjects(s, subject, target, executorId, selectionCenter);
@@ -257,7 +257,7 @@ export function issueCommand(
       s,
       subject === 'S_02'
         ? 'Seleziona prima l’individuo che deve agire.'
-        : 'Non ci sono adulti del gruppo nel raggio di quindici metri: scegli il punto da cui chiamarli.',
+        : 'Nessun adulto disponibile è vicino al punto scelto. Sposta la selezione del gruppo o usa Tutti gli adulti.',
       'warning',
     );
     return s;
@@ -355,7 +355,7 @@ export function issueCommand(
   if (!canPay(s.resources, cost) && !(localCraft && canPayLocally(s, cost, workers[0]))) {
     log(
       s,
-      `Materiali insufficienti: ${Object.entries(cost)
+      `Materiali insufficienti. Per questo lavoro servono: ${Object.entries(cost)
         .map(([r, n]) => `${n} ${RESOURCE_SPECS[r as Resource].label}`)
         .join(', ')}.`,
       'warning',
@@ -364,7 +364,11 @@ export function issueCommand(
   }
   if (verb === 'V_05' && args.includes('O_05')) {
     if (!canIgnite(s, target?.x ?? s.home.x, target?.y ?? s.home.y)) {
-      log(s, 'Accendere il primo falò richiede cinque legna effettivamente raccolte.', 'warning');
+      log(
+        s,
+        'Per accendere il primo falò servono cinque unità di legno nelle scorte o disponibili nelle vicinanze.',
+        'warning',
+      );
       return s;
     }
   }
@@ -382,7 +386,7 @@ export function issueCommand(
       subjectId: subject,
       unitId: subject === 'S_02' ? workers[0]?.id : undefined,
     };
-    log(s, 'La priorità delle scorte viene assegnata al soggetto della frase.', 'info');
+    log(s, 'Le persone indicate nella frase avranno la precedenza sulle scorte di cibo.', 'info');
   }
   let droppedCargo = false,
     assigned = 0;
@@ -562,7 +566,7 @@ export function solveSpark(state: GameState, id: string, chosen: string[]): Game
           .filter((w) => expected.includes(w))
           .map((w) => WORDS[w].label)
           .join(', ') || 'Nessun concetto'
-      } era nella direzione giusta. Tensione −35; attesa quindici secondi.`,
+      } può aiutare a spiegare l’esperienza. L’intuizione si indebolisce di 35 punti; puoi riprovare tra quindici secondi.`,
       'warning',
     );
     return s;
@@ -798,7 +802,7 @@ export function getObjective(s: GameState): Objective {
   if (s.victory)
     return {
       title: 'La storia è compiuta',
-      description: 'Una delle tre condizioni finali del mondo è stata raggiunta.',
+      description: 'La tua civiltà ha raggiunto una delle tre vittorie.',
       progress: 1,
       current: 1,
       total: 1,
@@ -827,7 +831,7 @@ export function getObjective(s: GameState): Objective {
     return {
       title: 'Dare forma a un pensiero',
       description:
-        'Componi Gruppo + Colpire, scegli un ostacolo e pronuncia. Il gruppo selezionato parte dal campo.',
+        'Componi Gruppo · Colpire, scegli un albero vicino e premi Pronuncia. Gli adulti selezionati si metteranno al lavoro.',
       progress: 0,
       current: 0,
       total: 1,
@@ -836,7 +840,7 @@ export function getObjective(s: GameState): Objective {
     return {
       title: 'Le mani conoscono la materia',
       description:
-        'Colpisci alberi e rocce. Le esperienze vicine nel tempo si sommano nella mente di ciascuno.',
+        'Lavora su alberi e rocce, poi apri le Scintille. Ripetere un’esperienza aiuta le persone a comprenderla.',
       progress: known.length / 6,
       current: known.length,
       total: 6,
@@ -846,7 +850,7 @@ export function getObjective(s: GameState): Objective {
       return {
         title: 'Il luogo a cui torniamo (Qui)',
         description:
-          'Prima del buio, usa Gruppo + Andare sul giaciglio. Dormire vicini per una notte fa nascere Qui e apre il terzo spazio.',
+          'Prima del buio, raduna la tribù al giaciglio. Una notte di riposo insieme può far nascere la Scintilla di Qui e aprire il terzo spazio della frase.',
         progress: Math.min(1, s.nightSleeping),
         current: Math.min(1, s.nightSleeping),
         total: 1,
@@ -855,7 +859,7 @@ export function getObjective(s: GameState): Objective {
     return {
       title: 'La voce dell’individuo (Io)',
       description:
-        'Allontana un compagno dal gruppo a oltre cinquanta metri per trenta secondi. Chi resta solo scopre «Io» e sblocca il terzo spazio prima dell’inverno.',
+        'Allontana un compagno dal gruppo a oltre cinquanta metri per trenta secondi. L’esperienza della solitudine può far nascere la Scintilla di Io e aprire il terzo spazio della frase.',
       progress: Math.min(1, maxIso / 30),
       current: Math.min(30, Math.floor(maxIso)),
       total: 30,
@@ -867,7 +871,7 @@ export function getObjective(s: GameState): Objective {
       description:
         s.playMode === 'guided'
           ? 'Almeno tre quarti della tribù devono dormire vicino al giaciglio per una notte.'
-          : 'Almeno tre quarti della tribù devono dormire entro dieci metri dalla tana per due notti consecutive.',
+          : 'Almeno tre quarti della tribù devono dormire entro dieci metri dal giaciglio per due notti consecutive.',
       progress: s.nightSleeping / (s.playMode === 'guided' ? 1 : 2),
       current: s.nightSleeping,
       total: s.playMode === 'guided' ? 1 : 2,
@@ -877,8 +881,8 @@ export function getObjective(s: GameState): Objective {
       title: 'La luce nella materia (Fuoco)',
       description:
         s.playMode === 'guided'
-          ? 'Porta legna e pietra al campo. Gruppo + Scheggiare + Pietra crea utensili ripetuti: ogni lavorazione reale avvicina il Fuoco. Servono cinque legna al campo per accenderlo.'
-          : 'Lavora la selce con Io + Scheggiare + Pietra. Unire Scheggiare e Legno farà intuire il Fuoco prima del gelo.',
+          ? 'Porta legno e pietra al campo. Con Gruppo · Scheggiare · Pietra, un artigiano fabbrica utensili durante il giorno: ogni lavorazione avvicina la Scintilla del Fuoco. Tieni cinque unità di legno per accendere il Falò.'
+          : 'Lavora la selce con Io · Scheggiare · Pietra. Ripetere la lavorazione può far nascere la Scintilla del Fuoco, da comprendere attraverso Scheggiare e Legno.',
       progress: (s.tension.O_05 ?? 0) / 100,
       current: Math.floor(s.tension.O_05 ?? 0),
       total: 100,
@@ -897,7 +901,7 @@ export function getObjective(s: GameState): Objective {
     return {
       title: 'Accendere il primo Falò',
       description:
-        'Servono cinque legna vicino alla tana per accendere il Falò e proteggere la tribù dal freddo dell’inverno.',
+        'Raccogli cinque unità di legno nelle scorte o vicino al giaciglio, poi usa Fuoco per accendere il primo Falò.',
       progress: Math.min(1, nearbyWood / 5),
       current: Math.min(5, Math.floor(nearbyWood)),
       total: 5,
@@ -906,7 +910,7 @@ export function getObjective(s: GameState): Objective {
   if (!hasWord(s, 'M_02'))
     return {
       title: 'La fame che deve ancora arrivare',
-      description: 'La fame vissuta durante notte o inverno permette di pensare a Domani.',
+      description: 'La fame di notte o d’inverno può far nascere il pensiero di Domani.',
       progress: (s.tension.M_02 ?? 0) / 100,
       current: Math.floor(s.tension.M_02 ?? 0),
       total: 100,
@@ -914,7 +918,7 @@ export function getObjective(s: GameState): Objective {
   return {
     title: 'Il sapere attraversa le generazioni',
     description:
-      'Tramanda il lessico al Falò. Per il Neolitico occorrono sedici parole stabili, Sempre e trentacinque persone.',
+      'Tramanda le parole al Falò. Per entrare nel Neolitico servono sedici parole stabili, la parola Sempre e trentacinque abitanti.',
     progress: stable / 16,
     current: stable,
     total: 16,

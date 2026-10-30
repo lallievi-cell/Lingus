@@ -23,6 +23,10 @@ export function sexLabel(unit: Unit): string {
   return resolveUnitSex(unit) === 'F' ? (grown ? 'Donna' : 'Femmina') : grown ? 'Uomo' : 'Maschio';
 }
 
+export function lastCustodianLabel(unit?: Unit): string {
+  return unit && resolveUnitSex(unit) === 'F' ? 'Ultima custode' : 'Ultimo custode';
+}
+
 export function visibleUnitName(state: GameState, unit: Unit): string {
   if (unit.factionId && unit.factionId !== 'player')
     return hasWord(state, 'S_02')
@@ -43,7 +47,7 @@ export function foreignUnitDisposition(state: GameState, unit: Unit) {
 }
 
 export function unitLifeHint(unit: Unit): string {
-  if (unit.hp <= 0) return 'Questa vita si è spenta. La tribù ricorda ciò che custodiva.';
+  if (unit.hp <= 0) return 'Questa vita si è spenta. La tribù ne conserva il ricordo.';
   const stage = getLifeStage(unit);
   if (stage === 'newborn' || stage === 'child')
     return 'Troppo giovane per lavorare. Può imparare al Falò.';

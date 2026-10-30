@@ -108,7 +108,7 @@ function targetLabel(state: GameState, target: WorldTarget | null) {
     if (building.kind === 'campfire') {
       return building.active
         ? `${name} · Acceso (riscalda e protegge la tribù)`
-        : `${name} · Spento (richiede ${numbered ? '1 legna' : 'legna'} per riaccenderlo)`;
+        : `${name} · Spento (richiede ${numbered ? 'un’unità di legno' : 'legno'} per riaccenderlo)`;
     }
     return building.active ? name : `${name} · Inattivo`;
   }
@@ -1085,7 +1085,7 @@ export function WorldMap({
             {label ??
               (commandReady
                 ? 'Scegli il bersaglio del tuo ordine'
-                : 'Trascina per esplorare · rotella per avvicinarti')}
+                : 'Trascina per esplorare · usa la rotella per ingrandire')}
           </span>
         </div>
         <div className="lingus-world__scale" aria-hidden="true">

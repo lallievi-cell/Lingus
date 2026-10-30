@@ -471,12 +471,12 @@ export function previewDogma(target: string, vector: string): Pick<Dogma, 'name'
   if (!policy?.allowed)
     return {
       name: 'Combinazione non applicabile',
-      description: policy?.reason ?? 'Vettore dogmatico sconosciuto.',
+      description: policy?.reason ?? 'Scegli una regola per il dogma.',
     };
   const specials: Record<string, [string, string]> = {
     'C_01|M_01': [
       'Tabù delle Tenebre',
-      'Di notte tutti tornano alla tana; sono vietati ordini, lavori e assedi notturni.',
+      'Di notte tutti tornano al giaciglio. Ordini, lavoro e assedi sono vietati fino all’alba.',
     ],
     'O_04|M_01': [
       'Vegetarianesimo Sacro',
@@ -488,7 +488,7 @@ export function previewDogma(target: string, vector: string): Pick<Dogma, 'name'
     ],
     'O_09|M_01': [
       'Tradizione Orale Sacra',
-      'Vietati stele e archivi. L’Attenzione orale può arrivare a 250.',
+      'La scrittura su stele e archivi è vietata. L’Attenzione al Falò può arrivare a 250 punti.',
     ],
     'O_12|M_01': [
       'Maledizione dell’Oro',
@@ -504,7 +504,7 @@ export function previewDogma(target: string, vector: string): Pick<Dogma, 'name'
     ],
     'O_06|O_05': [
       'Cremazione Obbligatoria',
-      'Ogni corpo richiede cinque legna, evita epidemie e genera cinque Attenzione. Sepoltura vietata.',
+      'La cremazione di ogni corpo consuma cinque unità di legno, previene le epidemie e genera 5 punti Attenzione. La sepoltura è vietata.',
     ],
     'O_05|S_04': [
       'Monopolio del Fuoco',
@@ -512,7 +512,7 @@ export function previewDogma(target: string, vector: string): Pick<Dogma, 'name'
     ],
     'S_05|M_01': [
       'Xenofobia Rituale',
-      'Commercio estero e osmosi culturale vietati; +20% forza entro i confini.',
+      'Commercio e scambio di conoscenze con gli stranieri sono vietati. Forza +20% entro i confini.',
     ],
     'S_05|O_01': [
       'Ospitalità Sacra',
@@ -520,7 +520,7 @@ export function previewDogma(target: string, vector: string): Pick<Dogma, 'name'
     ],
     'S_07|C_02': [
       'Teocrazia del Re-Dio',
-      'Il sovrano non può essere deposto. La sua morte causa il collasso; l’istituzione aggiunge trenta coesione.',
+      'Il sovrano non può essere deposto e la sua morte può spezzare la comunità. Il dogma restituisce 30 punti Coesione.',
     ],
     'V_09|M_01': ['Terra Madre', 'Agricoltura vietata; allevamento +50% e movimento +40%.'],
     'O_13|M_01': ['Tabù delle Macchine', 'Vietate officine e catapulte; lavoro manuale +25%.'],
@@ -534,33 +534,33 @@ export function previewDogma(target: string, vector: string): Pick<Dogma, 'name'
     ],
     'S_04|M_04': [
       'Gerontocrazia / Oligarchia Sacerdotale',
-      'Gli anziani mangiano per primi e non perdono salute per fame. Insegnamento +25%; dal Bronzo, oblio γ=0,5 e soglia di ribellione dei Forti ridotta del 30%.',
+      'Gli anziani mangiano per primi e non perdono salute per fame. Insegnamento +25%. Dal Bronzo, la perdita naturale di memoria scende a un sesto e i Forti si ribellano a una soglia di tensione più bassa del 30%.',
     ],
     'S_06|C_02': ['Schiavitù Naturale', 'Tensione servile dimezzata; emancipazione vietata.'],
     'M_05|C_02': [
       'Fratellanza Universale',
-      'Schiavitù vietata, bonus nascite +0,20 e produttività dei cittadini +25%.',
+      'Schiavitù vietata. La probabilità di nascita aumenta di 20 punti percentuali e la produttività dei cittadini del 25%.',
     ],
   };
   const special = specials[`${target}|${vector}`];
   if (special) return { name: special[0], description: special[1] };
   const descriptions: Record<DogmaVector, string> = {
-    prohibition: `L’interazione con ${a} è vietata. La rinuncia favorisce ${DOGMA_OPPOSITES[target]?.description ?? 'l’attività opposta'}.`,
-    veneration: `${a} riceve +30% efficienza. La sua assenza costa cinque coesione al minuto.`,
-    monopoly: `Solo «${WORDS[vector]?.label}» può usare ${a}: efficienza +30% e +0,5 coesione per uso.`,
+    prohibition: `Le azioni legate a «${a}» sono vietate. La rinuncia favorisce ${DOGMA_OPPOSITES[target]?.description ?? 'l’attività opposta'}.`,
+    veneration: `Le azioni legate a «${a}» hanno efficienza +30%. La sua assenza costa 5 punti Coesione al minuto.`,
+    monopoly: `Le azioni legate a «${a}» sono riservate a «${WORDS[vector]?.label}»: efficienza +30% e +0,5 punti Coesione per uso.`,
     sacrifice: target.startsWith('S_')
       ? 'Una persona della casta viene immolata ogni stagione: +25 coesione e +30 Attenzione, relazioni −60.'
-      : `Ogni stagione si offrono dieci unità di ${a}: +15 coesione e +20% morale.`,
-    protection: `Non si può esaurire o uccidere ${a}. Le risorse restano almeno al 20% e si rigenerano al doppio.`,
-    sanctuary: `${a} è protetto nel perimetro della tana; per gli stranieri il beneficio diplomatico raddoppia.`,
+      : `Ogni stagione vengono offerte dieci unità di «${a}»: Coesione +15 punti e morale +20%.`,
+    protection: `È vietato uccidere esseri viventi o esaurire risorse legati a «${a}». Le risorse rimangono almeno al 20% e si rigenerano al doppio della velocità.`,
+    sanctuary: `Il giaciglio è un santuario per «${a}». Se il dogma protegge gli stranieri, il beneficio diplomatico raddoppia.`,
     property:
       vector === 'M_04'
-        ? `${a} diventa privato: output +35%, disuguaglianza +1 al minuto.`
-        : `${a} appartiene al gruppo: niente furti, vietata la vendita in moneta.`,
-    martyr: `Le morti legate a ${a} danno dieci coesione e quindici Attenzione al posto del trauma.`,
+        ? `«${a}» diventa proprietà privata: produzione +35%, disuguaglianza +1 al minuto.`
+        : `«${a}» appartiene al gruppo: i furti sono impediti e la vendita in moneta è vietata.`,
+    martyr: `Le morti legate a «${a}» restituiscono 10 punti Coesione e 15 punti Attenzione, anziché provocare un trauma.`,
   };
   return {
-    name: `${{ prohibition: 'Tabù', veneration: 'Culto', monopoly: 'Custodia', sacrifice: 'Offerta', protection: 'Tutela', sanctuary: 'Santuario', property: vector === 'M_04' ? 'Proprietà' : 'Comunione', martyr: 'Martirio' }[family]} di ${a}`,
+    name: `${{ prohibition: 'Tabù', veneration: 'Culto', monopoly: 'Custodia', sacrifice: 'Offerta', protection: 'Tutela', sanctuary: 'Santuario', property: vector === 'M_04' ? 'Proprietà' : 'Comunione', martyr: 'Martirio' }[family]} · ${a}`,
     description: descriptions[family],
   };
 }
@@ -568,7 +568,7 @@ export function inscribeDogma(state: GameState, targetId: string, vectorId: stri
   const s = copy(state);
   const policy = getDogmaPolicy(targetId, vectorId);
   if (!policy?.allowed) {
-    log(s, policy?.reason ?? 'Vettore dogmatico sconosciuto.', 'warning');
+    log(s, policy?.reason ?? 'Scegli una regola per il dogma.', 'warning');
     return s;
   }
   const conflict = getDogmaConflict(s.dogmas, targetId, vectorId);
@@ -583,7 +583,11 @@ export function inscribeDogma(state: GameState, targetId: string, vectorId: stri
     !hasWord(s, vectorId) ||
     !getDogmaVectors(targetId).includes(vectorId)
   ) {
-    log(s, 'Servono il Sacro, una Pietra Sacra attiva e una coppia di concetti valida.', 'warning');
+    log(
+      s,
+      'Per incidere un dogma, scopri Sacro e prepara una Pietra Sacra attiva. Poi scegli una coppia di concetti compatibili.',
+      'warning',
+    );
     return s;
   }
   if (s.dogmas.some((d) => d.targetId === targetId && d.vectorId === vectorId)) {

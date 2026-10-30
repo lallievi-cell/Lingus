@@ -113,8 +113,8 @@ export function CivilizationPanel({
       {mode === 'traditions' && (
         <>
           <p className="modal-intro">
-            Una frase preceduta da Sempre diventa un lavoro permanente. La Notte limita un mestiere
-            alle ore buie. Ogni città può conservare due vocazioni.
+            Con Sempre, una frase diventa un incarico che si ripete. Con Notte, viene eseguito solo
+            nelle ore buie. Ogni città può avere due vocazioni.
           </p>
           <div className="institution-count">
             <BookOpen size={17} />
@@ -136,8 +136,8 @@ export function CivilizationPanel({
             ))}
             {s.traditions.length === 0 && (
               <p>
-                Non ci sono frasi permanenti. Componi una condizione, un soggetto e un lavoro nella
-                barra del linguaggio.
+                Non hai ancora stabilito tradizioni. Componi Sempre o Notte, un soggetto e il lavoro
+                da ripetere.
               </p>
             )}
           </div>
@@ -178,8 +178,9 @@ export function CivilizationPanel({
       {mode === 'laws' && (
         <>
           <p className="modal-intro">
-            Sei parole legano un dovere o un reato alla sua conseguenza. Pericolo nel quarto spazio
-            crea un divieto; gli altri casi prescrivono un dovere stagionale.
+            Una legge occupa sei spazi: soggetto, azione, oggetto, misura o condizione, Altrimenti e
+            conseguenza. Con Pericolo nel quarto spazio vieti un’azione; negli altri casi stabilisci
+            un dovere da rispettare ogni stagione.
           </p>
           <div className="institution-count">
             <ScrollText size={17} />
@@ -236,8 +237,9 @@ export function CivilizationPanel({
       {mode === 'world' && (
         <>
           <p className="modal-intro">
-            La comprensione reciproca dipende dalle parole condivise. Il commercio e il contatto
-            fanno incontrare le lingue; le conquiste conservano la cultura dei popoli annessi.
+            Le parole condivise aiutano i popoli a comprendersi. Commercio e incontri avvicinano le
+            lingue. Una conquista, invece, non cancella la lingua né i dogmi di chi vive nella città
+            annessa.
           </p>
           <div className="faction-list">
             {s.factions
@@ -259,7 +261,7 @@ export function CivilizationPanel({
                         {understanding < 30
                           ? '◇ ϟ ⋔ ⊙ ⋈ ⌁'
                           : understanding < 80
-                            ? '« Il nostro luogo · i vostri beni · insieme »'
+                            ? '« Il nostro luogo, i vostri doni. Insieme. »'
                             : '« Comprendiamo la vostra lingua. »'}
                       </p>
                       <span>
@@ -311,8 +313,8 @@ export function CivilizationPanel({
           {selected ? (
             <>
               <p className="modal-intro">
-                Il governo della città passa per le frasi. Le informazioni qui descrivono gli
-                effetti delle tue parole.
+                Anche una città si governa con le parole. Controlla abitanti, scorte e vocazioni
+                prima di impartire un ordine.
               </p>
               <div className="city-cohorts">
                 {(['workers', 'warriors', 'sages', 'slaves'] as const).map((cohort, index) => (
@@ -336,7 +338,7 @@ export function CivilizationPanel({
                           ? numbered
                             ? `${Math.round((b.lastEfficiency ?? 1) * 100)}% efficienza`
                             : 'Attivo'
-                          : 'Manutenzione mancante'}
+                          : 'Scorte insufficienti per la manutenzione'}
                       </small>
                     </div>
                   ))}
@@ -372,8 +374,8 @@ export function CivilizationPanel({
           ) : (
             <>
               <p className="modal-intro">
-                La comunità vive ancora di individui. A centocinquanta abitanti e con la parola
-                Città, gli insediamenti diventano nodi urbani.
+                La comunità non è ancora una città. Servono centocinquanta abitanti e la parola
+                Città: da allora governerai gli insediamenti e i loro gruppi sociali.
               </p>
               {inventory(s.resources)}
             </>
@@ -383,8 +385,8 @@ export function CivilizationPanel({
       {mode === 'victory' && (
         <>
           <p className="modal-intro">
-            Le condizioni finali richiedono l’Età del Ferro. Il tipo di civiltà che hai costruito
-            determina il percorso possibile.
+            Nell’Età del Ferro puoi lasciare il tuo segno attraverso il dominio, una lingua
+            condivisa o la filosofia. Ogni percorso richiede una civiltà diversa.
           </p>
           <div className="victory-paths">
             <article>
@@ -392,8 +394,8 @@ export function CivilizationPanel({
               <div>
                 <h3>Pax Universalis</h3>
                 <p>
-                  Controlla tutte le città, mantieni almeno cinque leggi e una tensione inferiore a
-                  trenta per sedici stagioni consecutive.
+                  Controlla tutte le città e mantieni almeno cinque leggi attive. La tensione di
+                  rivolta deve restare sotto trenta per sedici stagioni consecutive.
                 </p>
                 <div className="meter">
                   <span style={{ width: `${(s.victoryProgress.imperialSeasons / 16) * 100}%` }} />
@@ -411,8 +413,8 @@ export function CivilizationPanel({
               <div>
                 <h3>Biblioteca Universale</h3>
                 <p>
-                  Tutte le quarantacinque parole a memoria piena in un archivio attivo; comprensione
-                  reciproca almeno all’ottanta per cento con ogni popolo.
+                  Conserva tutte le quarantacinque parole a memoria piena in un Archivio attivo e
+                  raggiungi almeno l’ottanta per cento di comprensione reciproca con ogni popolo.
                 </p>
                 <div className="meter">
                   <span
@@ -433,8 +435,8 @@ export function CivilizationPanel({
               <div>
                 <h3>Il Grande Risveglio</h3>
                 <p>
-                  Erodi con il dubbio tutti i dogmi, abolisci la schiavitù e conserva almeno novanta
-                  coesione senza regole sacre attive.
+                  Supera tutti i dogmi attraverso la filosofia, abolisci la schiavitù e mantieni
+                  almeno novanta punti Coesione, senza regole sacre attive.
                 </p>
                 <small>
                   {s.philosophy ? 'Filosofia praticata' : 'La filosofia attende'} ·{' '}
@@ -454,8 +456,8 @@ export function CivilizationPanel({
       {mode === 'recipes' && (
         <>
           <p className="modal-intro">
-            Gli edifici nascono da combinazioni di parole. Questo registro spiega le ricette; ogni
-            costruzione viene ordinata attraverso la barra del linguaggio.
+            Ogni edificio nasce da una frase. Scegli una ricetta per prepararla nella barra del
+            linguaggio, poi controlla il bersaglio e premi Pronuncia.
           </p>
           {!BUILDING_ORDER.some((kind) => known(['S_01', ...BUILDING_SPECS[kind].recipe])) && (
             <p className="guide-note">

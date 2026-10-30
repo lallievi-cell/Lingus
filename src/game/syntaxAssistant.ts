@@ -302,7 +302,7 @@ function buildSyntaxSuggestions(state: GameState, tokens: string[]): SyntaxSugge
   );
   let nextLabel = 'Con cosa o come?';
   let explanation =
-    'Scegli una continuazione della frase. Bersaglio, materiali e regole vengono verificati nell’anteprima.';
+    'Scegli come continuare la frase. L’anteprima verifica bersaglio, materiali e regole della comunità.';
   if (!available || tokens.length > capacity) {
     nextLabel = 'Rivedi la frase';
     explanation = 'Rimuovi una parola perduta o fuori dagli spazi disponibili.';
@@ -319,7 +319,7 @@ function buildSyntaxSuggestions(state: GameState, tokens: string[]): SyntaxSugge
   } else if (!tokenIds.length) {
     nextLabel = 'Frase da correggere';
     explanation =
-      'Non ci sono continuazioni conosciute che completino questa frase negli spazi disponibili. Rimuovi l’ultima parola o consulta Tutte.';
+      'Le parole conosciute non completano questa frase negli spazi disponibili. Modifica una parola o cerca nel catalogo.';
   } else if (!tokens.length) {
     nextLabel = sacred.length ? 'Chi, quando o che cosa è sacro?' : 'Chi?';
     explanation =
@@ -334,7 +334,7 @@ function buildSyntaxSuggestions(state: GameState, tokens: string[]): SyntaxSugge
     else if (ordinary.length === 0 && legal.length > 0) {
       nextLabel = tokens.length === 3 ? 'Quale misura o condizione?' : 'Completa la legge';
       explanation =
-        'Questa continuazione appartiene alla legge a sei parole: dovere, misura, Altrimenti e sanzione.';
+        'Stai continuando una legge a sei spazi. Specifica il dovere e la condizione, poi aggiungi Altrimenti e la conseguenza.';
     } else if (p.verb === 'V_08') nextLabel = 'Con quali materiali?';
     else if (tokens.includes('M_03')) nextLabel = 'Completa la regola sacra';
   }

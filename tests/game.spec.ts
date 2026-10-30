@@ -337,7 +337,7 @@ test('controls, cognitive HUD, and rejection of malformed imports preserve the s
     mimeType: 'application/json',
     buffer: Buffer.from('{"version":2,"time":0,"units":[]}'),
   });
-  await expect(page.locator('.toast')).toContainText('File non valido');
+  await expect(page.locator('.toast')).toContainText('Impossibile aprire il file');
   await closePanel(page);
   await expect(page.locator('.unit-card')).toHaveCount(7);
   await seed(page, 'qualitative');

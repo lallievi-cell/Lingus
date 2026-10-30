@@ -93,13 +93,13 @@ export function OrderPreview({
         {preview.accepted && <p>{preview.behaviour}</p>}
         {preview.accepted && destinations.length > 0 && (
           <p>
-            <b>Destinazione effettiva:</b> {destinations.join(' · ')}.
+            <b>Destinazione:</b> {destinations.join(' · ')}.
           </p>
         )}
         {preview.interruptions.length > 0 && (
           <p className="qol-warning">
-            Sostituisce {numbered ? preview.interruptions.length : 'le'} attività già in corso e i
-            relativi incarichi salvati.
+            Sostituisce {numbered ? preview.interruptions.length : 'le'} attività in corso e i
+            relativi incarichi.
           </p>
         )}
         {preview.cargoDrops.length > 0 && (
@@ -131,8 +131,8 @@ export function OrderPreview({
           </p>
         )}
         <small>
-          Situazione attuale: l’ordine viene verificato di nuovo quando premi Pronuncia. I viaggi e
-          i cicli successivi dipendono da bisogni, spazio, leggi e dogmi.
+          L’anteprima descrive la situazione attuale. Prima di eseguire l’ordine, Pronuncia
+          controlla di nuovo bisogni, spazio, leggi e dogmi.
         </small>
       </div>
     </details>

@@ -108,7 +108,7 @@ export function getOrderPreview(
   if (['S_08', 'S_09'].includes(predicate.subject)) behaviour = compilation.message;
   else if (compilation.kind === 'tradition')
     behaviour =
-      'Registra una frase permanente: l’assegnazione concreta dipende da turno, posti, bisogni e regole. Un turno di Notte agisce nelle ore buie.';
+      'Stabilisce un incarico da ripetere. Gli addetti lo svolgono quando turno, bisogni e regole lo permettono e ci sono posti liberi. Con Notte, il lavoro si svolge nelle ore buie.';
   else if (compilation.kind === 'law')
     behaviour =
       'Incide una legge: controlla anche sanzione, costi e condizioni nel pannello delle leggi.';
@@ -116,22 +116,22 @@ export function getOrderPreview(
     behaviour = 'Incide un dogma: influenza il comportamento della comunità e la sua libertà.';
   else if (unitIds.some((id) => next.units.find((u) => u.id === id)?.action === 'building'))
     behaviour =
-      'Un costruttore usa i materiali pagati ora; l’edificio dà benefici solo dopo il completamento.';
+      'Un costruttore usa i materiali prelevati subito dalle scorte. L’edificio funzionerà quando la costruzione sarà completata.';
   else if (predicate.verb === 'V_04') {
     const food = tokens.includes('O_04') || tokens.includes('O_06');
     const repeated = guidedRepeatTransport(state, tokens);
-    behaviour = `${food ? 'Raccoglie cibo da fonti compatibili e carcasse; non abbatte animali vivi.' : 'Raccoglie dalle pile o estrae direttamente da alberi, rocce e giacimenti compatibili.'} Trasporta poi il carico al campo. ${repeated ? 'In Guidata ripete i viaggi sulla stessa fonte durante il giorno, finché ci sono risorse e spazio.' : 'Completa un viaggio; per ripetere servono altri ordini o una tradizione disponibile.'}`;
+    behaviour = `${food ? 'Raccoglie cibo da fonti compatibili e carcasse; non abbatte animali vivi.' : 'Raccoglie dai cumuli a terra o estrae direttamente da alberi, rocce e giacimenti adatti.'} Trasporta poi il carico al campo. ${repeated ? 'In Guidata ripete i viaggi sulla stessa fonte durante il giorno, finché ci sono risorse e spazio.' : 'Completa un viaggio; per ripetere servono altri ordini o una tradizione disponibile.'}`;
   } else if (predicate.verb === 'V_03')
     behaviour =
       'Su alberi e rocce lascia i materiali sul posto: non li consegna al campo. Contro animali vivi caccia e può subire ferite.';
   else if (plainToolCraft(tokens))
     behaviour =
       state.playMode === 'guided'
-        ? 'Un artigiano ripete i manufatti durante il giorno finché trova pietra utilizzabile e spazio. Ogni ciclo paga la propria pietra.'
-        : 'Un artigiano completa un manufatto; il compito diretto poi termina.';
+        ? 'Un artigiano ripete i manufatti durante il giorno finché trova pietra utilizzabile e spazio. Ogni utensile consuma la pietra necessaria.'
+        : 'Un artigiano completa un manufatto, poi attende un nuovo ordine.';
   else if (unitIds.some((id) => next.units.find((u) => u.id === id)?.jobBuildingId))
     behaviour =
-      'Assegna un incarico all’edificio. Può andare in pausa per turno o bisogni; un nuovo ordine sostituisce l’incarico.';
+      'Assegna un incarico all’edificio. Riposo, fame e freddo possono sospenderlo; un nuovo ordine lo sostituisce.';
   else if (predicate.verb === 'V_07')
     behaviour = 'Un artigiano completa una cottura. Il compito diretto termina dopo questo ciclo.';
   else if (predicate.verb === 'V_02')

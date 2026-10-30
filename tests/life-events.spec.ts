@@ -154,7 +154,7 @@ test('a real death explains the lost word, pauses optionally and lets the player
     .getByRole('button', { name: /^Scheggiare: parola perduta/ });
   await expect(lost).toBeVisible();
   await expect(lost).toBeDisabled();
-  await expect(lost).toHaveAttribute('title', /ultimo custode era Uma/);
+  await expect(lost).toHaveAttribute('title', /custodita soltanto da Uma/);
   const state = await saveAndRead(page);
   expect(state.units.find((unit: { name: string }) => unit.name === 'Uma').hp).toBe(0);
   expect(state.words.V_06.retention).toBe(0);
@@ -190,7 +190,7 @@ test('acknowledging an event keeps it dismissed until the next real event', asyn
 test('death and forgotten tiles remain qualitative before Io and Numero', async ({ page }) => {
   await seedLife(page, 'anonymous');
   await page.getByRole('button', { name: 'Riprendi il tempo' }).click();
-  await expect(notices(page)).toContainText('un’anziana è morta per la fame');
+  await expect(notices(page)).toContainText('Un’anziana è morta per la fame');
   await expect(notices(page)).toContainText('Scheggiare');
   await expect(notices(page)).not.toContainText(/Uma|Ayla|Ilo|\d|%/);
   await page
@@ -201,7 +201,7 @@ test('death and forgotten tiles remain qualitative before Io and Numero', async 
     .locator('.word-shelf')
     .getByRole('button', { name: /^Scheggiare: parola perduta/ });
   await expect(lost).toBeDisabled();
-  await expect(lost).toHaveAttribute('title', /ultimo custode era un’anziana/);
+  await expect(lost).toHaveAttribute('title', /custodita soltanto da un’anziana/);
   await expect(lost).not.toHaveAttribute('title', /Uma|\d|%/);
 });
 

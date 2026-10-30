@@ -8,7 +8,7 @@ import { getLessonPreview, lessonIssueText } from '../game/teaching';
 import { hasWord } from '../game/runtime';
 import type { GameState, Target, Unit } from '../game/types';
 import { Glyph } from './Glyph';
-import { lifeStageLabel, visibleUnitName } from './unitReadability';
+import { lastCustodianLabel, lifeStageLabel, visibleUnitName } from './unitReadability';
 import './TeachingPanel.css';
 
 /** Explains the exact ordinary lesson; no lesson is auto-selected or prepaid. */
@@ -91,8 +91,8 @@ export function TeachingPanel({
           </details>
           <small>
             {numbered
-              ? 'Ogni lezione costa 10 Attenzione. I bambini apprendono per primi.'
-              : 'Ogni lezione consuma Attenzione. I bambini apprendono per primi.'}
+              ? 'Ogni lezione costa 10 punti Attenzione. I bambini hanno la precedenza.'
+              : 'Ogni lezione consuma Attenzione. I bambini hanno la precedenza.'}
           </small>
         </div>
       </div>
@@ -151,15 +151,15 @@ export function TeachingPanel({
           const reason = preview.allowed
             ? preview.retentionGain > 0
               ? numbered
-                ? `Nuovo custode e fino a +${Math.round(preview.retentionGain * 10) / 10} memoria.`
+                ? `Forma un nuovo custode e recupera fino a ${Math.round(preview.retentionGain * 10) / 10} punti di memoria.`
                 : 'Forma un nuovo custode e rafforza la memoria.'
-              : 'La memoria è già piena: la lezione forma comunque un nuovo custode.'
+              : 'La memoria è già salda, ma la lezione la affida a un nuovo custode.'
             : rehearse
-              ? 'Tutti gli allievi conoscono la parola: puoi pagare un ripasso per rafforzare i custodi.'
+              ? 'Non ci sono nuovi allievi disponibili. Puoi spendere Attenzione per ripassare la parola e rafforzarne la memoria.'
               : preview.issue === 'no-pupil' && memory.retention >= 100
-                ? 'Tutti gli allievi idonei conoscono la parola e la memoria è già piena.'
+                ? 'Non ci sono nuovi allievi disponibili e la memoria è già piena: non serve un’altra lezione.'
                 : preview.issue === 'no-attention' && state.playMode !== 'guided'
-                  ? 'Manca Attenzione per una lezione. Si rinnova al consiglio stagionale con legna bruciata e anziani; la fame la riduce.'
+                  ? 'Manca Attenzione per una lezione. Si rinnova al consiglio grazie al legno bruciato e agli anziani presenti. La fame la riduce.'
                   : lessonIssueText(preview.issue);
           return (
             <div
@@ -172,7 +172,10 @@ export function TeachingPanel({
                 <strong>{WORDS[id].label}</strong>
                 {custodian && (
                   <span className={`teaching-custodian ${custodian.risk}`}>
-                    <MessageCircle size={10} /> Ultimo custode: {custodian.displayName}
+                    <MessageCircle size={10} />
+                    {lastCustodianLabel(
+                      state.units.find((unit) => unit.id === custodian.unitId),
+                    )}: {custodian.displayName}
                   </span>
                 )}
                 <span>
@@ -181,7 +184,7 @@ export function TeachingPanel({
                     : preview.livingCustodians > 3
                       ? 'Molti'
                       : 'Pochi'}{' '}
-                  custodi · Memoria{' '}
+                  {numbered && preview.livingCustodians === 1 ? 'custode' : 'custodi'} · Memoria{' '}
                   {numbered
                     ? `${Math.round(memory.retention)}%`
                     : memory.retention > 70

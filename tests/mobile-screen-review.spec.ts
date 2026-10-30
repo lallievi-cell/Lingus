@@ -76,7 +76,7 @@ for (const viewport of [
     await expect(page.locator('.unit-list .unit-card')).toHaveCount(7);
     await page.getByRole('button', { name: 'Seleziona Uma', exact: true }).tap();
     await expect(page.locator('.person-details')).toContainText('Anziana');
-    await expect(page.locator('.person-details')).toContainText('Ultimo custode');
+    await expect(page.locator('.person-details')).toContainText('Ultima custode');
     await page.screenshot({ path: test.info().outputPath('person.png') });
   });
 for (const viewport of [
@@ -91,7 +91,7 @@ for (const viewport of [
     await nav(page).getByRole('button', { name: 'Pensiero', exact: true }).tap();
     await page.getByRole('button', { name: /Attorno al falò/ }).tap();
     const dialog = page.getByRole('dialog', { name: 'Attorno al falò' });
-    await dialog.getByRole('button', { name: /Brucia 2 legna/ }).tap();
+    await dialog.getByRole('button', { name: /Brucia 2 unità di legno/ }).tap();
     await dialog.getByRole('button', { name: 'A rischio', exact: true }).tap();
     await expect(dialog.locator('.teaching-row')).toHaveCount(2);
     await dialog.getByRole('searchbox', { name: 'Cerca una parola da tramandare' }).fill('fuoco');

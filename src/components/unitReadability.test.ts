@@ -118,8 +118,8 @@ describe('observable people before names and arithmetic', () => {
       y: person.y,
     })!;
     expect(details.stage).toContain('Donna · Anziana');
-    expect(details.stage).toContain('Ultimo custode');
-    expect(details.description).toContain('Custodisce da solo: Scheggiare');
+    expect(details.stage).toContain('Ultima custode');
+    expect(details.description).toContain('È l’unica memoria di queste parole: Scheggiare');
     expect(`${details.label} ${details.stage} ${details.description} ${details.hint}`).not.toMatch(
       /Uma|muore|morte|\d|%/i,
     );

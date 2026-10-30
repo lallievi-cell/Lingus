@@ -106,13 +106,17 @@ test('quick group selection, echoes and keyboard controls affect real orders', a
   };
   await map.dblclick({ position: farPoint });
   await expect(
-    page.getByRole('status').filter({ hasText: 'Gruppo centrato: raggio 15 m.' }),
+    page
+      .getByRole('status')
+      .filter({ hasText: 'Il gruppo comprende gli adulti entro 15 m dal punto scelto.' }),
   ).toBeVisible();
   await page.getByRole('button', { name: /^Gruppo:/ }).click();
   await page.getByRole('button', { name: /^Andare:/ }).click();
   await page.getByRole('button', { name: 'Pronuncia', exact: true }).click();
   await expect(
-    page.getByRole('status').filter({ hasText: 'Non ci sono adulti del gruppo' }),
+    page
+      .getByRole('status')
+      .filter({ hasText: 'Nessun adulto disponibile è vicino al punto scelto' }),
   ).toBeVisible();
   expect((await readSave(page)).stats.commands).toBe(0);
   await map.click({ button: 'right', position: { x: bounds.width / 2, y: bounds.height / 2 } });

@@ -54,7 +54,7 @@ import { imperialLawEffects, recordLawWork } from './imperialLawPolicy';
 import { enforceActionLaws } from './imperial';
 import { canFitCraftOutput, canPayLocally, payLocally } from './craftMaterials';
 import { applyCivilAssault, CIVIL_LAW_ASSUMPTIONS, updateCivilConflicts } from './civilLaw';
-import { newbornName, pairFertileUnits, recordTribeEvent } from './demography';
+import { newbornName, pairFertileUnits, recordTribeEvent, resolveUnitSex } from './demography';
 import { combatEquipmentFor, gatheringEquipmentFor } from './unitEquipment';
 import { eligibleParents, villageHousing } from './growthReadiness';
 import { lethalCombatSource, rememberCombatWound } from './damageAttribution';
@@ -351,7 +351,7 @@ function recordSurvivalTrauma(s: GameState, tag: string, penalty: number) {
     s,
     tag === 'ENV_STARVATION'
       ? 'La fame diffusa incrina la fiducia della comunità.'
-      : 'Un attacco ferisce la sicurezza della comunità.',
+      : 'Un attacco scuote la fiducia della comunità.',
     'warning',
   );
   return true;
@@ -462,7 +462,7 @@ export function killUnit(s: GameState, u: Unit, cause = 'trauma') {
         });
       log(
         s,
-        `L’ultimo custode di «${WORDS[word].label}» è morto. La parola va riscoperta.`,
+        `Nessun custode tiene più viva «${WORDS[word].label}». Rivivi l’esperienza per riscoprirla.`,
         'danger',
       );
     }
@@ -478,7 +478,11 @@ export function killUnit(s: GameState, u: Unit, cause = 'trauma') {
     });
   s.sparks = s.sparks.filter((p) => p.unitId !== u.id);
   s.recentTrauma = { tag: 'ENV_CORPSE', time: s.time };
-  log(s, `${u.name} è morto. La sua memoria appartiene ora alla tribù.`, 'danger');
+  log(
+    s,
+    `${u.name} ${resolveUnitSex(u) === 'F' ? 'è morta' : 'è morto'}. La tribù perde una delle sue voci.`,
+    'danger',
+  );
 }
 export function resetUnit(u: Unit) {
   u.action = 'idle';
@@ -1219,7 +1223,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       }
       log(
         s,
-        `${foreign.name} viene catturato vivo. Una nuova divisione sociale può essere compresa.`,
+        `${foreign.name} viene catturato. La tribù si confronta con una nuova forma di potere.`,
         'warning',
       );
       resetUnit(u);
@@ -2244,7 +2248,7 @@ export function seasonalCore(s: GameState) {
   ) {
     log(
       s,
-      'L’aria si fa rigida: l’inverno gelerà la valle al secondo 270. Accendete il Falò con cinque legna prima che sia troppo tardi!',
+      'L’inverno si avvicina. Prima del gelo, raccogli cinque unità di legno e accendi il primo Falò.',
       'warning',
     );
   }
@@ -2296,7 +2300,7 @@ export function seasonalCore(s: GameState) {
         b.hp = Math.max(0, b.hp - spec.maxHp * 0.2);
         log(
           s,
-          `${spec.label}: manutenzione insufficiente, perdita del venti per cento della salute massima.`,
+          `${spec.label}: mancano scorte per la manutenzione. L’edificio perde il venti per cento della salute massima.`,
           'warning',
         );
       }

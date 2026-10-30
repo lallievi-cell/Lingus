@@ -117,7 +117,7 @@ test('late-game guidance follows the next slot and keeps forgotten building conc
   await expect(workbench.getByRole('button', { name: /^Moneta:/ })).toHaveClass(/word-compatible/);
   await workbench.getByRole('button', { name: /^Moneta:/ }).click();
   await expect(workbench.locator('.sentence-slot.filled')).toHaveCount(6);
-  await expect(workbench.locator('.sentence-feedback')).toContainText('Legge prescrittiva');
+  await expect(workbench.locator('.sentence-feedback')).toContainText('Dovere stagionale');
   await expect(workbench.getByRole('button', { name: 'Pronuncia', exact: true })).toBeEnabled();
   await expect(workbench.locator('.word-shelf .word-tile')).toHaveCount(0);
   await expect(workbench.locator('.syntax-next')).toContainText('Frase pronta');

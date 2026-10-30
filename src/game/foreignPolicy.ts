@@ -810,7 +810,7 @@ export function completeForeignExpansion(state: GameState, caravan: Caravan) {
   caravan.resources = emptyInventory();
   caravan.population = 0;
   caravan.arrived = true;
-  log(state, `${city.name} nasce da una spedizione straniera realmente arrivata.`, 'info');
+  log(state, `I coloni stranieri raggiungono la destinazione e fondano ${city.name}.`, 'info');
   return true;
 }
 

@@ -366,13 +366,13 @@ test('a fire explains its actual heat coverage and distinguishes a cold hearth w
   await showFire(250, false);
   await expect(details(page)).toContainText('Spento');
   await expect(details(page)).not.toContainText(/\d/);
-  await expect(page.locator('.lingus-world__footer')).not.toContainText('1 legna');
+  await expect(page.locator('.lingus-world__footer')).not.toContainText('un’unità di legno');
   await showFire(250, true, true);
   await expect(details(page)).toContainText('15 metri');
   await showFire(250, false, true);
   await expect(details(page)).toContainText('Spento');
   await expect(details(page)).toContainText('non riscalda');
-  await expect(details(page)).toContainText('Serve 1 legna');
+  await expect(details(page)).toContainText('Per riaccenderlo serve un’unità di legno');
   await page.setViewportSize({ width: 375, height: 812 });
   await showFire(260, true, true);
   const map = (await page.getByRole('img', { name: /Mappa della valle/ }).boundingBox())!;

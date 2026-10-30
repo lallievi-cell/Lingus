@@ -97,7 +97,7 @@ describe('command preview uses the real handler without advancing the world', ()
     expect(result.message).toContain('Materiali insufficienti');
     expect(result.unitIds).toEqual([]);
     s.voice = 0;
-    expect(preview(s, ['S_01', 'V_01']).message).toContain('voce');
+    expect(preview(s, ['S_01', 'V_01']).message).toContain('Voce');
   });
   it('does not confuse a registered tradition with immediate individual work', () => {
     const s = fixture();
@@ -134,6 +134,6 @@ describe('command preview uses the real handler without advancing the world', ()
     expect(preview(s, ['S_01', 'V_04', 'O_03']).behaviour).toContain('ripete i viaggi');
     s.playMode = 'classic';
     expect(preview(s, ['S_01', 'V_04', 'O_03']).behaviour).toContain('un viaggio');
-    expect(preview(s, ['S_01', 'V_06', 'O_02']).behaviour).toContain('poi termina');
+    expect(preview(s, ['S_01', 'V_06', 'O_02']).behaviour).toContain('attende un nuovo ordine');
   });
 });

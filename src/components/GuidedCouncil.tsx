@@ -32,18 +32,19 @@ export function GuidedCouncil({
             <summary>Come funziona l’Attenzione</summary>
             <p>
               {state.campfirePending
-                ? 'In Guidata puoi alimentare il Falò con legna consegnata per ottenere più Attenzione.'
+                ? 'In Guidata puoi bruciare il legno delle scorte per ottenere più Attenzione al consiglio.'
                 : state.attention >= 10
                   ? 'Hai già Attenzione per una lezione: puoi scegliere una parola e premere Tramanda. Preparare altra legna è facoltativo.'
-                  : 'Non serve attendere la fine della stagione: prepara un breve racconto con legna già consegnata, poi scegli una parola da tramandare.'}{' '}
-              Ogni lezione costa Attenzione e forma un nuovo custode. Durante il consiglio, quando
-              tutti gli allievi idonei conoscono una parola, il ripasso pagato ne rafforza la
-              memoria.
+                  : 'Non serve aspettare la fine della stagione. Usa il legno delle scorte per preparare un racconto, poi scegli una parola da tramandare.'}{' '}
+              Ogni lezione spende Attenzione e forma un nuovo custode. Durante il consiglio puoi
+              anche ripassare una parola già nota a tutti gli allievi: spendi Attenzione per
+              rafforzarne la memoria.
             </p>
             {hasWord(state, 'S_06') && hasWord(state, 'S_02') && !hasWord(state, 'M_05') && (
               <p>
-                Condividere il Falò con un prigioniero o un compagno liberato che ha appena mangiato
-                può far riflettere sulla libertà. Devono essere presenti insieme al campo.
+                Condividere il Falò con un prigioniero o un compagno liberato può far nascere il
+                pensiero della libertà. Devono trovarsi insieme al campo, dopo che il prigioniero o
+                il compagno liberato ha mangiato.
               </p>
             )}
             {['V_08', 'O_02', 'O_06'].every((id) => hasWord(state, id)) &&
@@ -67,14 +68,14 @@ export function GuidedCouncil({
             aria-describedby="prepare-story-reason"
           >
             {numbered
-              ? 'Brucia 2 legna · fino a +10 Attenzione'
-              : 'Alimenta il Falò · consuma legna'}
+              ? 'Brucia 2 unità di legno · fino a +10 Attenzione'
+              : 'Alimenta il Falò · consuma legno'}
           </button>
           <small id="prepare-story-reason" className={issue ? 'teaching-blocker' : 'teaching-note'}>
             {issue ??
               (state.campfirePending
-                ? 'Il costo prepara Attenzione per questo consiglio.'
-                : 'Questo prepara una lezione ordinaria: il tempo e la stagione non avanzano.')}
+                ? 'Il legno viene consumato subito. L’Attenzione sarà disponibile in questo consiglio.'
+                : 'Il legno viene consumato subito. Puoi usare l’Attenzione per insegnare senza aspettare il consiglio.')}
           </small>
         </details>
       </div>

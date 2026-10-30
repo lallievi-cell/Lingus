@@ -9,6 +9,7 @@ import { groundPileFor, resourceKnown, resourcePileLabel } from './mapResourceLa
 import { getCityPresentation } from './cityPresentation';
 import { deriveSiegePresentation, type SiegePresentation } from './mapSiegeArt';
 import {
+  lastCustodianLabel,
   lifeStageLabel,
   physicalWarnings,
   sexLabel,
@@ -78,7 +79,7 @@ export function entityTargetPresentation(
       hint: pile
         ? carries
           ? 'Usa Portare per raccoglierlo e riportarlo all’accampamento.'
-          : 'La tribù non sa ancora riportare queste risorse all’accampamento. Continua a risolvere le Scintille.'
+          : 'Il gruppo non sa ancora riportare queste risorse al campo. Segui le Scintille per scoprire come fare.'
         : undefined,
     };
   }
@@ -258,7 +259,7 @@ export function targetPresentation(
     if (foreign)
       return {
         label: visibleUnitName(state, unit),
-        stage: `${physicalStage} · ${foreign === 'hostile' ? 'Straniero ostile' : 'Visitatore straniero'}`,
+        stage: `${physicalStage} · ${foreign === 'hostile' ? (resolveUnitSex(unit) === 'F' ? 'Straniera ostile' : 'Straniero ostile') : resolveUnitSex(unit) === 'F' ? 'Visitatrice straniera' : 'Visitatore straniero'}`,
         kind: 'person',
         description: `${foreign === 'hostile' ? 'Appartiene a una comunità in conflitto con la tribù.' : 'Appartiene a un’altra comunità.'}${warnings.length ? ` ${warnings.join(' · ')}.` : ''}${equipmentDescription}`,
         hint:
@@ -270,9 +271,9 @@ export function targetPresentation(
     if (custodian)
       return {
         label: custodian.displayName,
-        stage: `${physicalStage} · Ultimo custode`,
+        stage: `${physicalStage} · ${lastCustodianLabel(unit)}`,
         kind: 'custodian',
-        description: `Custodisce da solo: ${custodian.wordIds.map((id) => WORDS[id].label).join(', ')}.${
+        description: `È l’unica memoria di queste parole: ${custodian.wordIds.map((id) => WORDS[id].label).join(', ')}.${
           custodian.reasons.length
             ? ` ${custodian.reasons.map((reason) => CUSTODIAN_RISK_LABELS[reason]).join(' · ')}.`
             : ''
@@ -322,8 +323,8 @@ export function targetPresentation(
           : 'Il focolare spento non riscalda le persone.',
         hint: !lit
           ? hasWord(state, 'O_08')
-            ? 'Serve 1 legna per riaccenderlo.'
-            : 'Serve legna per riaccenderlo.'
+            ? 'Per riaccenderlo serve un’unità di legno.'
+            : 'Per riaccenderlo serve legno.'
           : coversRest
             ? 'Il calore raggiunge tutta la zona in cui la tribù si addormenta. Controlla se la temperatura sta risalendo: una tormenta può richiedere anche ripari e pelli.'
             : 'Una parte del giaciglio della tribù è fuori dal calore. Durante il gelo servono anche ripari o vestiti.',
@@ -351,8 +352,8 @@ export function targetPresentation(
         kind: 'stores',
         description: 'Il recinto ha interrotto la produzione perché mancava il mangime.',
         hint: hasWord(state, 'O_08')
-          ? 'Consegna 5 vegetali, poi assegna di nuovo Addomesticare · Preda · Qui su questo recinto per riavviarlo.'
-          : 'Consegna vegetali, poi assegna di nuovo Addomesticare · Preda · Qui su questo recinto per riavviarlo.',
+          ? 'Consegna 5 unità di cibo vegetale, poi ripeti Addomesticare · Preda · Qui su questo recinto per riprendere l’allevamento.'
+          : 'Consegna cibo vegetale, poi ripeti Addomesticare · Preda · Qui su questo recinto per riprendere l’allevamento.',
       };
   }
   return null;

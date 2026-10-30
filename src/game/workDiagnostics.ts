@@ -65,7 +65,7 @@ export function getUnitWorkStatus(state: GameState, unit: Unit): WorkStatus {
     return result(
       'recovering',
       'Incarico in pausa',
-      `${assignment!.label}: ${reasons.length ? reasons.join('; ') : 'attende di riprendere'}. Tenterà di tornare quando è in forze, nel proprio turno e con un posto libero; leggi e dogmi possono impedirlo.`,
+      `${assignment!.label}: ${reasons.length ? reasons.join('; ') : 'attende di riprendere'}. Riprenderà se è in forze, il turno lo permette e c’è un posto libero. Leggi e dogmi possono impedirlo.`,
       reasons.some((r) => r === 'deve mangiare' || r === 'deve scaldarsi') ? 'warning' : 'neutral',
       atBuilding(building),
     );
@@ -81,12 +81,12 @@ export function getUnitWorkStatus(state: GameState, unit: Unit): WorkStatus {
     return result(
       'recovering',
       'Riposa',
-      'Il riposo interrompe i compiti diretti; gli incarichi salvati possono riprendere nel proprio turno.',
+      'Dopo il riposo, gli incarichi agli edifici possono riprendere nel turno previsto. Gli ordini diretti vanno impartiti di nuovo.',
     );
   if (unit.action === 'resting')
     return result(
       'recovering',
-      unit.temp <= 30 ? 'Cerca calore' : 'Raggiunge il riposo',
+      unit.temp <= 30 ? 'Cerca calore' : 'Torna a riposare',
       'Si sta spostando verso un luogo di riposo o un riparo.',
       unit.temp <= 20 ? 'danger' : 'neutral',
       building ? atBuilding(building) : undefined,
@@ -95,14 +95,14 @@ export function getUnitWorkStatus(state: GameState, unit: Unit): WorkStatus {
     return result(
       'idle',
       'Senza incarico',
-      'Nessun ordine in esecuzione. Può cercare autonomamente cibo e riposo; un compito diretto concluso va ordinato di nuovo.',
+      'Non sta eseguendo ordini. Cerca cibo o riposo secondo i propri bisogni. Per ripetere un compito concluso serve un nuovo ordine.',
     );
   if (unit.action === 'returning')
     return result(
       'working',
       'Consegna al campo',
       unit.carry
-        ? `${RESOURCE_SPECS[unit.carry.resource].label} in viaggio: non sono ancora nelle scorte.`
+        ? `Carico in viaggio: ${RESOURCE_SPECS[unit.carry.resource].label.toLocaleLowerCase('it')}. Entrerà nelle scorte alla consegna.`
         : 'Sta completando il ritorno al campo.',
       'neutral',
       { type: 'point', ...state.home },
@@ -215,7 +215,7 @@ export function getBuildingWorkStatus(state: GameState, building: Building) {
       );
     else if (!contributing)
       reasons.push(
-        'Gli addetti sono in viaggio, fuori attività o devono recuperare fame e calore.',
+        'Gli addetti sono in viaggio, fuori turno o hanno bisogno di mangiare e scaldarsi.',
       );
   }
   if (building.kind === 'pen' && !(building.livestock! > 0))

@@ -71,7 +71,7 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
   if (tokens.some((t) => !WORDS[t] || !hasWord(s, t)))
     return no('La tribù non conosce tutte le parole della frase.');
   if (tokens.length > cognitiveSlots(s))
-    return no(`La capacità attuale è di ${cognitiveSlots(s)} parole per frase.`);
+    return no(`La frase può contenere al massimo ${cognitiveSlots(s)} parole.`);
   if (tokens.length < 2) return no('Un pensiero richiede almeno un soggetto e un’azione.');
   const p = getPredicate(tokens);
   // Emancipation is the explicitly defined exception to the verbal grammar.
@@ -94,7 +94,7 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
   const grammaticalOrder = WORDS[p.subject]?.kind === 'S' && WORDS[p.verb]?.kind === 'V';
   const historicalGerontocracy = tokens.join('|') === 'S_04|C_02|M_04';
   if (historicalGerontocracy && !hasWord(s, 'M_03'))
-    return no('Il dogma storico richiede comunque la conoscenza di Sacro.');
+    return no('Per incidere questo dogma devi conoscere Sacro.');
   if ((tokens.includes('M_03') && !grammaticalOrder) || historicalGerontocracy) {
     const remaining = historicalGerontocracy
       ? ['S_04', 'M_04']
@@ -105,7 +105,9 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
       !SACRED_TARGETS.includes(remaining[0]) ||
       !getDogmaVectors(remaining[0]).includes(remaining[1])
     )
-      return no('Concetto non sacralizzabile: scegli un bersaglio e un vettore dogmatico validi.');
+      return no(
+        'Questi concetti non possono formare un dogma. Scegli cosa rendere sacro e quale regola imporgli.',
+      );
     const conflict = getDogmaConflict(s.dogmas, remaining[0], remaining[1]);
     if (conflict) return no(conflict);
     return {
@@ -127,7 +129,7 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
       !SANCTIONS.includes(tokens[5])
     )
       return no(
-        'La legge richiede sei parole: Soggetto · Verbo · Oggetto · Misura · Altrimenti · Sanzione.',
+        'La legge richiede sei parole: Soggetto · Azione · Oggetto · Misura o condizione · Altrimenti · Conseguenza.',
       );
     if (tokens.slice(0, 4).some((t) => t === 'C_03'))
       return no('I primi quattro spazi devono descrivere il dovere o il reato.');
@@ -137,7 +139,7 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
       valid: true,
       message: prohibited
         ? 'Codice penale: questa azione sarà un reato.'
-        : 'Legge prescrittiva: il dovere sarà valutato ogni stagione.',
+        : 'Dovere stagionale: la comunità dovrà rispettarlo a ogni cambio di stagione.',
       requiresTarget: false,
       kind: 'law',
       subject: p.subject,
@@ -151,7 +153,7 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
     return no('Solo il Neolitico consente di fissare tradizioni permanenti.');
   if (p.condition === 'C_01' && s.tier < 1) return no('La tribù deve comprendere la Notte.');
   if (p.args.some((a) => a === 'C_03' || a === 'C_01'))
-    return no('Questa condizione non può occupare uno spazio del predicato.');
+    return no('Metti la condizione prima del soggetto, non dopo l’azione.');
   const restriction = forbiddenByDogma(s, tokens, target);
   if (restriction) return no(restriction);
   const out = (
@@ -179,14 +181,14 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
     if (!allArgs(a, ['O_01', 'M_01', 'O_10', 'S_05', 'S_08']))
       return no('Per andare, scegli un luogo, un confine, un pericolo o uno straniero.');
     return out(
-      a.includes('O_01') ? 'Ritorna alla tana.' : 'Scegli un luogo da raggiungere.',
+      a.includes('O_01') ? 'Ritorna al giaciglio.' : 'Scegli un luogo da raggiungere.',
       'moving',
       !target && !a.length,
     );
   }
   if (p.verb === 'V_02') {
     if (!allArgs(a, ['O_04', 'O_06', 'M_04']))
-      return no('Mangiare richiede una risorsa alimentare o un corpo.');
+      return no('Per mangiare, indica una fonte di cibo o una carcassa.');
     if (!a.length && target && target.type !== 'entity')
       return no('Indica un cespuglio o una carcassa da mangiare.');
     if (
@@ -199,7 +201,7 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
       return no('La preda deve essere abbattuta prima di essere mangiata.');
     return out(
       a.includes('M_04') && a.includes('O_04')
-        ? 'Assegnare al soggetto la priorità persistente sulle scorte alimentari.'
+        ? 'Le persone indicate avranno la precedenza sulle scorte di cibo, anche dopo questo pasto.'
         : 'Nutrirsi sul posto fino alla sazietà.',
       'eating',
       !target && !a.length,
@@ -256,12 +258,12 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
         'M_02',
       ])
     )
-      return no('La frase non descrive una risorsa o una destinazione trasportabile.');
+      return no('Per trasportare qualcosa, scegli una risorsa e una destinazione adatte.');
     if (!a.length && !target) return no('Scegli ciò che va portato.');
     return out(
       a.includes('O_09')
         ? 'Invia i saggi a insegnare la scrittura.'
-        : 'Porta la risorsa alla tana, destinazione implicita.',
+        : 'Raccoglie la risorsa e la riporta al giaciglio.',
       'gathering',
       false,
     );
@@ -279,9 +281,9 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
     if (a.includes('O_05')) return out('Custodire e alimentare il fuoco.', 'guarding');
     if (a.includes('O_09')) return out('Gli scribi mantengono attivo l’Archivio.', 'copying');
     if (a.includes('O_12'))
-      return out('Tesaurizzare moneta: interesse del 5% a stagione.', 'saving');
-    if (a.includes('O_01')) return out('Presidiare la tana.', 'guarding');
-    return no('Questa conservazione richiede una ricetta valida.');
+      return out('Conservare moneta: le scorte aumentano del 5% a stagione.', 'saving');
+    if (a.includes('O_01')) return out('Sorvegliare il giaciglio.', 'guarding');
+    return no('Queste parole non indicano cosa conservare. Controlla le ricette conosciute.');
   }
   if (p.verb === 'V_06') {
     if (!a.includes('O_02') || !allArgs(a, ['O_02', 'O_03', 'M_03', 'O_09']))
@@ -293,8 +295,8 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
       });
     return out(
       a.includes('O_03')
-        ? 'Fabbricare una lancia: 1 pietra e 1 legno.'
-        : 'Fabbricare un utensile: 1 pietra.',
+        ? 'Fabbricare una lancia: un’unità di pietra e una di legno.'
+        : 'Fabbricare un utensile: un’unità di pietra.',
       'crafting',
       false,
       { cost: a.includes('O_03') ? { stone: 1, wood: 1 } : { stone: 1 } },
@@ -311,22 +313,25 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
     return out(
       a.includes('O_02')
         ? 'Cuocere ceramica: il cibo marcisce più lentamente.'
-        : 'Cuocere carne: 40 diventa 60 nutrimento.',
+        : 'Cuocere la carne: il nutrimento passa da 40 a 60 per porzione.',
       'cooking',
     );
   }
   if (p.verb === 'V_08') {
     if (a.includes('O_01') && a.includes('O_10'))
       return out(
-        'Fondare una colonia: 30 cittadini, 50 legno, 50 pietra, 50 cibo.',
+        'Fondare una colonia: 30 cittadini e 50 unità di ciascuna risorsa, legno, pietra e cibo.',
         'colonizing',
         !target,
       );
     if (a.includes('O_13') && a.includes('S_08'))
-      return out('Aggregare una catapulta: 40 legno e 20 metallo.', 'building', !target, {
+      return out('Aggregare una catapulta: 40 unità di legno e 20 lingotti.', 'building', !target, {
         cost: { wood: 40, ingot: 20 },
       });
-    if (!construction) return no('Questa combinazione non corrisponde a uno dei venti edifici.');
+    if (!construction)
+      return no(
+        'Queste parole non formano una ricetta edilizia. Consulta le costruzioni conosciute.',
+      );
     return out(
       `Costruire ${BUILDING_SPECS[construction.kind].label}${construction.quantity === 4 ? ' ×4' : ''}.`,
       'building',
@@ -340,7 +345,7 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
     if (!a.includes('O_04') || !allArgs(a, ['O_04', 'O_01']))
       return no('Seminare richiede Preda (cibo vegetale) e, per il campo, Qui.');
     return out(
-      'Seminare un campo: 5 semi, raccolto autunnale di 50 cibo a pieno lavoro.',
+      'Seminare un campo: servono 5 semi. A pieno rendimento, il raccolto fornisce 50 unità di cibo alla fine dell’autunno.',
       'farming',
       false,
       construction ? { buildingKind: construction.kind, cost: construction.cost } : {},
@@ -371,10 +376,10 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
       return no('Fondere richiede Metallo con Fuoco, Colpire/Esercito oppure Numero.');
     return out(
       a.includes('O_08')
-        ? 'Coniare: 1 lingotto diventa 100 monete.'
+        ? 'Coniare moneta: un lingotto produce 100 monete.'
         : a.includes('V_03') || a.includes('S_08')
           ? 'Forgiare armi e armature.'
-          : 'Raffinare: 1 minerale e 2 legno diventano 1 lingotto.',
+          : 'Raffinare: un’unità di minerale e due di legno producono un lingotto.',
       'smelting',
       false,
       construction ? { buildingKind: construction.kind, cost: construction.cost } : {},
@@ -401,7 +406,7 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
       return out('Erodere il peso del dogma di 15 punti a stagione.', 'reforming');
     return no('Dubitare richiede Sacro e il concetto del dogma, oppure Re e Libero.');
   }
-  return no('Il predicato non ha un significato definito.');
+  return no('La tribù non comprende questo ordine. Controlla l’azione e le parole che la seguono.');
 }
 
 export const getSyntaxSlots = cognitiveSlots;

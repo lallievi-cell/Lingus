@@ -48,6 +48,7 @@ function combatCircumstance(state: GameState, event: TribeEvent) {
 export function tribeEventText(state: GameState, event: TribeEvent) {
   const unit = state.units.find((u) => u.id === event.unitId);
   const who = visiblePerson(state, unit);
+  const openingName = who.charAt(0).toLocaleUpperCase('it') + who.slice(1);
   if (event.kind === 'birth') {
     const parents = (event.parentIds ?? unit?.parentIds ?? [])
       .map((id) =>
@@ -59,7 +60,7 @@ export function tribeEventText(state: GameState, event: TribeEvent) {
       .join(' e ');
     return {
       title: 'Una nuova vita',
-      text: `${unit ? `${who} ${resolveUnitSex(unit) === 'F' ? 'è nata' : 'è nato'}` : 'Una nuova voce è nata'} nella tribù.${parents ? ` Genitori: ${parents}.` : ''}`,
+      text: `${unit ? `${openingName} ${resolveUnitSex(unit) === 'F' ? 'è nata' : 'è nato'}` : 'Una nuova voce è nata'} nella tribù.${parents ? ` Genitori: ${parents}.` : ''}`,
     };
   }
   if (event.kind === 'death') {
@@ -75,12 +76,12 @@ export function tribeEventText(state: GameState, event: TribeEvent) {
       (event.cause && Object.hasOwn(causes, event.cause) ? causes[event.cause] : undefined);
     return {
       title: 'Un lutto nella tribù',
-      text: `${who} ${unit && resolveUnitSex(unit) === 'F' ? 'è morta' : 'è morto'}${cause ? ` ${cause}` : ''}.${carried ? ` Custodiva: ${carried}.` : ''}${lost ? ` Parole perdute: ${lost}.` : ''}${retained ? ` Affidate anche ad altri custodi: ${retained}.` : ''}`,
+      text: `${openingName} ${unit && resolveUnitSex(unit) === 'F' ? 'è morta' : 'è morto'}${cause ? ` ${cause}` : ''}.${carried ? ` Custodiva: ${carried}.` : ''}${lost ? ` Parole perdute: ${lost}.` : ''}${retained ? ` Affidate anche ad altri custodi: ${retained}.` : ''}`,
     };
   }
   return {
     title: 'Una parola perduta',
-    text: `«${WORDS[event.wordId!]?.label ?? 'Una parola'}» è stata dimenticata. ${event.cause === 'custodian-death' ? `L’ultimo custode era ${who}.` : 'La memoria si è indebolita al cambio di stagione.'} Ricrea l’esperienza per riscoprirla.`,
+    text: `«${WORDS[event.wordId!]?.label ?? 'Una parola'}» è stata dimenticata. ${event.cause === 'custodian-death' ? `Era custodita soltanto da ${who}.` : 'La memoria si è indebolita al cambio di stagione.'} Rivivi l’esperienza per riscoprirla.`,
   };
 }
 

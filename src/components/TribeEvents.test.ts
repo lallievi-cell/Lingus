@@ -46,7 +46,7 @@ describe('notices explain real life events without losing unread information', (
       lostWordIds: ['O_03'],
     };
     const message = tribeEventText(s, death);
-    expect(message.text).toContain('un’anziana è morta per il freddo');
+    expect(message.text).toContain('Un’anziana è morta per il freddo');
     expect(message.text).toContain('«Legno»');
     expect(message.text).toContain('Custodiva: «Legno», «Pietra»');
     expect(message.text).toContain('Parole perdute: «Legno»');

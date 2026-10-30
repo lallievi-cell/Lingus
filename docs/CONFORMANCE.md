@@ -47,6 +47,8 @@ Verifica del motore nella revisione precedente: **1.098 test unitari e di integr
 
 - **P21 — composizione insieme alla mappa:** [MOBILE-COMPOSITION.md](MOBILE-COMPOSITION.md) documenta la palette nel layout verticale e laterale in orizzontale, il catalogo esplicito, la selezione del bersaglio durante la composizione, la chiusura delle sole frasi terminali e la modifica degli spazi. Dieci nuove prove verificano mappa realmente raggiungibile, ripetizione con costo effettivo, continuazioni della caccia e delle leggi, coda conservata, annullamento durante la modifica e ricerca con tastiera e rotazione simulate. Nessuna modifica alle formule del motore.
 
+- **P22 — revisione editoriale italiana:** [EDITORIAL-REVIEW.md](EDITORIAL-REVIEW.md) documenta istruzioni, descrizioni, indizi, eventi e terminologia rivisti. Le prove mantengono verifiche su costi, inventari, lezioni e informazioni ancora sconosciute. La preparazione stagionale distingue risultato e ipotesi del calcolo; gli avvisi concordano con la persona e non promettono trasmissione automatica della memoria. Formule, valori, identificativi e ricette non cambiano.
+
 Le voci “verificato” sotto indicano soltanto la parte nominata nella colonna. I restanti requisiti della stessa riga conservano la propria verifica aperta.
 
 Le quattro segnalazioni successive su stagioni, Caccia Grossa, Gerontocrazia e privilegio alimentare sono analizzate in [BUG-AUDIT.md](BUG-AUDIT.md), con riferimenti alla fonte e prove di regressione.

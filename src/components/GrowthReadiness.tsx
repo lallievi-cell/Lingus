@@ -17,15 +17,15 @@ export function GrowthReadiness({ state }: { state: GameState }) {
   const guidedMilestones = guidedGrowthMilestones(state);
   const partnerText =
     growth.missingSex === 'M'
-      ? 'Manca un uomo che sia in età fertile al prossimo cambio.'
+      ? 'Al prossimo cambio di stagione mancherà un uomo in età fertile.'
       : growth.missingSex === 'F'
-        ? 'Manca una donna che sia in età fertile al prossimo cambio.'
-        : 'Mancano adulti che possano formare una coppia fertile al prossimo cambio.';
+        ? 'Al prossimo cambio di stagione mancherà una donna in età fertile.'
+        : 'Al prossimo cambio di stagione non ci sarà una coppia in età fertile.';
   const explanation = growth.blockers.length
     ? growth.blockers
         .map((blocker) => (blocker === 'partner' ? partnerText : GROWTH_BLOCKER_TEXT[blocker]))
         .join(' ')
-    : 'Le condizioni presenti permettono una nascita al prossimo cambio di stagione.';
+    : 'Le condizioni attuali sono favorevoli a una nascita al prossimo cambio di stagione.';
   return (
     <section
       className={`growth-readiness ${possible ? 'growth-possible' : ''}`}
@@ -45,7 +45,7 @@ export function GrowthReadiness({ state }: { state: GameState }) {
           <div className="growth-counts">
             <Users size={13} />
             <span>
-              Per il prossimo cambio, nelle condizioni presenti: {growth.readyMales}{' '}
+              Pronti per il prossimo cambio di stagione: {growth.readyMales}{' '}
               {growth.readyMales === 1 ? 'uomo' : 'uomini'} e {growth.readyFemales}{' '}
               {growth.readyFemales === 1 ? 'donna' : 'donne'} · {growth.readyPairs}{' '}
               {growth.readyPairs === 1 ? 'coppia' : 'coppie'} · {growth.freePlaces}{' '}
@@ -60,9 +60,9 @@ export function GrowthReadiness({ state }: { state: GameState }) {
         </ul>
         {state.playMode === 'guided' && (
           <p>
-            La Guidata sostiene la crescita attraverso cibo preparato, coltivazioni o allevamenti e
-            case in pietra. Dopo Conservare, Portare Preda ripete i viaggi alimentari durante la
-            giornata.
+            In Guidata, cibo cotto, campi o allevamenti e case in pietra favoriscono le nascite.
+            Dopo aver scoperto Conservare, Portare · Preda permette di ripetere i viaggi per
+            raccogliere cibo durante il giorno.
             {Object.values(guidedMilestones).some(Boolean) &&
               (numbered
                 ? ` Bonus attuale alle probabilità: ×${guidedBirthMultiplier(state).toLocaleString('it-IT')}.`
@@ -73,14 +73,14 @@ export function GrowthReadiness({ state }: { state: GameState }) {
           !hasBuilding(state, 'storage') &&
           ['V_05', 'O_04', 'M_02'].every((id) => hasWord(state, id)) && (
             <p>
-              La comunità ha bisogno di scorte più grandi: Conservare · Preda · Domani costruisce un
-              Pozzo scorte con legna o pietra consegnata. Senza spazio, parte del raccolto non può
-              essere conservata per la notte e la stagione successiva.
+              La comunità cresce e ha bisogno di più spazio per il cibo. Conservare · Preda · Domani
+              prepara un Pozzo scorte: occorrono legno o pietra già consegnati al campo. Senza
+              spazio, il raccolto in eccesso non entra nelle scorte.
             </p>
           )}
         <small>
-          È una previsione condizionata: età, fame, riposo e posizione si verificano a fine
-          stagione. Anche con tutto pronto, la nascita non è garantita.
+          Le condizioni vengono valutate alla fine della stagione e possono ancora cambiare. Anche
+          con tutto pronto, una nascita non è garantita.
         </small>
       </details>
     </section>

@@ -74,7 +74,7 @@ export function ForeignPressure({
                   onClick={() => onResolve(ultimatum.id, 'pay')}
                   title={
                     canPay
-                      ? 'Invia un convoglio con scorte reali. La tregua comincia con la partenza.'
+                      ? 'Il convoglio preleva il dono dalle tue scorte. La tregua inizia quando parte.'
                       : 'Le scorte non bastano per il dono richiesto.'
                   }
                 >
@@ -101,8 +101,8 @@ export function ForeignPressure({
                 <strong>{factionName(raid.factionId)}</strong>
                 <p>
                   {raid.phase === 'returning'
-                    ? 'Gli incursori si ritirano: il loro eventuale bottino viaggia con loro.'
-                    : 'Una razzia si avvicina alle scorte. Presidia la tana o proteggila con la palizzata.'}
+                    ? 'Gli incursori si ritirano. Portano con sé le scorte che sono riusciti a sottrarre.'
+                    : 'Gli incursori si avvicinano alle scorte. Presidia il giaciglio o proteggi il campo con una palizzata.'}
                 </p>
               </div>
               {member && onFocus && (

@@ -71,12 +71,12 @@ test('a first Guided lesson explains teacher, pupil and missing Attention then p
   await expect(word).toContainText('Manca Attenzione');
   await expect(word.getByRole('button', { name: /Tramanda/ })).toBeDisabled();
   await dialog
-    .getByRole('button', { name: 'Alimenta il Falò · consuma legna', exact: true })
+    .getByRole('button', { name: 'Alimenta il Falò · consuma legno', exact: true })
     .click();
   await expect(word.getByRole('button', { name: /Tramanda/ })).toBeEnabled();
   await word.getByRole('button', { name: /Tramanda/ }).click();
   await expect(dialog.locator('.teaching-outcome')).toContainText('Ilo');
-  await expect(word).not.toContainText('Ultimo custode');
+  await expect(word).not.toContainText('Ultima custode');
   await dialog.getByRole('button', { name: 'Chiudi finestra' }).click();
   const after = await save(page);
   expect(after.resources.wood).toBe(0);
@@ -114,11 +114,11 @@ test('a fully shared full word explains why another lesson cannot be bought', as
   const dialog = page.getByRole('dialog', { name: 'Attorno al falò' }),
     word = dialog.getByLabel('Parola da tramandare: Fuoco', { exact: true });
   await expect(word).toContainText(
-    'Tutti gli allievi idonei conoscono la parola e la memoria è già piena',
+    'Non ci sono nuovi allievi disponibili e la memoria è già piena',
   );
   await expect(word.getByRole('button', { name: /Tramanda/ })).toBeDisabled();
   await dialog.getByText('Prepara Attenzione per altre lezioni', { exact: true }).click();
   await expect(
-    dialog.getByRole('button', { name: 'Alimenta il Falò · consuma legna', exact: true }),
+    dialog.getByRole('button', { name: 'Alimenta il Falò · consuma legno', exact: true }),
   ).toBeDisabled();
 });

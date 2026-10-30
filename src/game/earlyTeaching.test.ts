@@ -127,7 +127,7 @@ describe('a paid Guided lesson can precede the seasonal death roll', () => {
       { id: 'wood', kind: 'ground', resource: 'wood', ...state.home, amount: 20, hp: 1, maxHp: 1 },
     ];
     expect(prepareBriefLesson(state)).toBe(state);
-    expect(briefLessonIssue(state)).toContain('legna consegnata');
+    expect(briefLessonIssue(state)).toContain('legno nelle scorte');
     state.resources.wood = 2;
     state.buildings[0].completed = false;
     expect(prepareBriefLesson(state)).toBe(state);

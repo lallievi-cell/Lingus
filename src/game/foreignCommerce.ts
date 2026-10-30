@@ -205,7 +205,7 @@ export function completeForeignMerchant(
       result = 'exchange';
       log(
         s,
-        'Una carovana straniera scambia merci reali e riparte verso la propria città.',
+        'Una carovana straniera scambia le proprie merci e riparte verso la sua città.',
         'good',
       );
     }

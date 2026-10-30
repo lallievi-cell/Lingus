@@ -344,7 +344,7 @@ export function condenseCities(s: GameState) {
   s.urbanized = true;
   addLog(
     s,
-    'La comunità supera centocinquanta persone. Le vite diventano coorti; la valle diventa una città.',
+    'La comunità raggiunge centocinquanta abitanti. Ora puoi governare intere città e i loro gruppi sociali.',
     'discovery',
   );
   allocateCityWorkers(s, c);
@@ -565,7 +565,7 @@ function cityConstruction(
     valid: true,
     message:
       quantity === 4
-        ? 'Quattro case in muratura: 80 pietra, 40 legno, 48 nuovi alloggi.'
+        ? 'Quattro case in muratura: 80 unità di pietra e 40 di legno, per ospitare altre 48 persone.'
         : `${spec.label} sorge a ${c.name}.`,
   };
 }
@@ -618,7 +618,7 @@ export function registerTradition(state: GameState, tokens: string[], target?: T
     return s;
   }
   if (s.traditions.length >= traditionCap(s)) {
-    log(s, 'La capacità di tradizioni di questa epoca è esaurita.', 'warning');
+    log(s, 'Hai già stabilito tutte le tradizioni consentite in questa epoca.', 'warning');
     return s;
   }
   if (
@@ -686,7 +686,7 @@ export function inscribeLaw(state: GameState, tokens: string[]): GameState {
     age: 0,
     description:
       tokens[3] === 'M_01'
-        ? 'Il gesto è un reato: il Tribunale applica la sanzione.'
+        ? 'L’azione è un reato: il Tribunale applicherà la sanzione.'
         : 'Un dovere stagionale; Altrimenti stabilisce la sanzione o il premio.',
   };
   s.laws.push(law);
@@ -1058,7 +1058,8 @@ function startGift(
   if (inventory[resource] < IMPERIAL_ASSUMPTIONS.firstGiftUnits)
     return {
       valid: false,
-      message: 'Il dono richiede una unità reale della risorsa scelta, cibo se non è specificata.',
+      message:
+        'Il dono richiede un’unità della risorsa scelta. Se non specifichi una risorsa, viene offerto cibo.',
     };
   inventory[resource] -= IMPERIAL_ASSUMPTIONS.firstGiftUnits;
   const load = emptyInventory();
@@ -1294,7 +1295,7 @@ export function handleImperialCommand(
     if (source.cohorts.workers < 30 || inv.wood < 50 || inv.stone < 50 || !foodCost(inv, 50))
       return output(
         false,
-        'Servono trenta lavoratori, cinquanta legno, cinquanta pietra e cinquanta cibo.',
+        'Servono trenta lavoratori e cinquanta unità di ciascuna risorsa: legno, pietra e cibo.',
       );
     source.cohorts.workers -= 30;
     inv.wood -= 50;
@@ -1366,7 +1367,7 @@ export function handleImperialCommand(
       const source = s.cities.find((c) => c.id === army.cityId),
         inv = inventoryFor(s, source);
       if (!canPay(inv, { wood: 40, ingot: 20 }))
-        return output(false, 'Una catapulta richiede quaranta legno e venti metallo.');
+        return output(false, 'Una catapulta richiede quaranta unità di legno e venti lingotti.');
       pay(inv, { wood: 40, ingot: 20 });
       army.catapult = true;
       return output(true, 'La catapulta si aggrega al battaglione.');
@@ -1397,7 +1398,7 @@ export function handleImperialCommand(
             ? Math.min(c.cohorts.workers, c.cohorts.warriors)
             : 0;
       if (c.cohorts.warriors + auxiliary < 20 || inventoryFor(s, c).metalArms < 20)
-        return output(false, 'Servono venti reclute reali e venti armi metalliche.');
+        return output(false, 'Servono venti reclute disponibili e venti armi metalliche.');
       const ready = s.eventTimes[`recruitmentReady:${c.id}`] ?? 0;
       if (s.time < ready)
         return output(false, 'Il centro di reclutamento sta ancora riorganizzando le leve.');
@@ -1442,7 +1443,10 @@ export function handleImperialCommand(
       const send = emptyInventory();
       send[r] = 100;
       makeCaravan(s, 'tax', c, { type: 'city', id: cap.id, x: cap.x, y: cap.y }, send);
-      return output(true, 'Cento unità partono fisicamente verso la città indicata.');
+      return output(
+        true,
+        'Un convoglio parte verso la città indicata con cento unità della risorsa scelta.',
+      );
     }
     if (['V_09', 'V_10', 'V_12'].includes(verb)) {
       if (verb === 'V_12') {
@@ -1596,7 +1600,7 @@ function completeCaravan(s: GameState, c: Caravan) {
       c.target = { type: 'city', id: refuge.id, x: refuge.x, y: refuge.y };
       log(
         s,
-        'La delegazione non è più accolta: i Saggi tornano fisicamente a una città amica.',
+        'La delegazione non è più accolta: i Saggi si mettono in viaggio verso una città amica.',
         'warning',
       );
     } else {
@@ -2598,7 +2602,7 @@ function payArmyUpkeep(s: GameState) {
       if (b.factionId === PLAYER)
         log(
           s,
-          'Un battaglione non riceve il mantenimento: perde morale e duecentocinquanta salute.',
+          'Un battaglione non riceve cibo e paga: perde morale e 250 punti salute.',
           'warning',
         );
     }

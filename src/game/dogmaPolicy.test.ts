@@ -55,12 +55,12 @@ describe('resolved closed-world dogma policy', () => {
     expect(n.resources).toEqual(s.resources);
     expect(n.cohesion).toBe(40);
     expect(n.recentTrauma).toEqual(s.recentTrauma);
-    expect(n.logs[0].text).toContain('quantità materiale');
+    expect(n.logs[0].text).toContain('bene materiale');
   });
   it('does not pretend an abstract activity is a physical invulnerable node', () => {
     const n = inscribeDogma(world(), 'V_11', 'V_05');
     expect(n.dogmas).toHaveLength(0);
-    expect(n.logs[0].text).toContain('nodo naturale');
+    expect(n.logs[0].text).toContain('risorsa naturale');
   });
   it('requires abolition before reversing an existing prohibition', () => {
     const s = world();

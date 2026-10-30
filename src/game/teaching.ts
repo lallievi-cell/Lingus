@@ -88,13 +88,13 @@ export function lessonIssueText(issue?: LessonIssue) {
     case 'ended':
       return 'Questa storia è conclusa.';
     case 'no-fire':
-      return 'Serve un falò della tribù acceso, integro e completato.';
+      return 'Serve un falò della tribù completato e acceso.';
     case 'no-teacher':
       return 'Nessun custode vivo e libero può insegnare questa parola.';
     case 'no-pupil':
-      return 'Tutti gli allievi idonei conoscono già questa parola. Non c’è un nuovo custode da formare.';
+      return 'Nessun nuovo allievo è disponibile per questa parola. Serve un compagno abbastanza giovane che non la conosca già.';
     case 'no-attention':
-      return 'Manca Attenzione per una lezione. La legna consegnata può preparare un racconto in Guidata.';
+      return 'Manca Attenzione per una lezione. In Guidata puoi ottenerla bruciando il legno delle scorte.';
     default:
       return '';
   }
@@ -103,7 +103,7 @@ export function lessonIssueText(issue?: LessonIssue) {
 /** A brief Guided lesson funds ordinary Attention, never seasonal burntWood. */
 export function briefLessonIssue(state: GameState) {
   if (state.playMode !== 'guided')
-    return 'In Classica l’Attenzione si prepara con i normali cicli del Falò.';
+    return 'In Classica l’Attenzione si prepara durante il consiglio stagionale al Falò.';
   if (state.campfirePending) return 'Il consiglio stagionale è già aperto: alimenta il suo Falò.';
   if (state.gameOver || state.victory) return 'Questa storia è conclusa.';
   if (!hasBuilding(state, 'campfire')) return 'Serve un falò della tribù acceso e completato.';
@@ -111,11 +111,11 @@ export function briefLessonIssue(state: GameState) {
     const preview = getLessonPreview(state, id);
     return preview.allowed || preview.issue === 'no-attention';
   });
-  if (!teachable) return 'Non ci sono ancora parole vive con un custode e un nuovo allievo idoneo.';
+  if (!teachable) return 'Non c’è una parola che possa essere insegnata a un nuovo allievo.';
   if (state.attention >= getDogmaEffects(state).attentionCap)
     return 'L’Attenzione è già al massimo.';
   if (state.resources.wood < GUIDED_PROGRESSION.councilWoodCost)
-    return 'Manca legna consegnata nelle scorte. I rami ancora sul terreno non finanziano il racconto.';
+    return 'Manca legno nelle scorte. Porta al campo quello rimasto a terra prima di preparare il racconto.';
   return undefined;
 }
 
@@ -123,7 +123,7 @@ export const canPrepareBriefLesson = (state: GameState) => briefLessonIssue(stat
 
 export function councilPreparationIssue(state: GameState) {
   if (state.playMode !== 'guided')
-    return 'Questa preparazione aggiuntiva appartiene alla modalità Guidata.';
+    return 'Puoi alimentare il Falò in questo modo solo in modalità Guidata.';
   if (!state.campfirePending)
     return 'Attendi il consiglio stagionale oppure prepara una breve lezione.';
   if (state.gameOver || state.victory) return 'Questa storia è conclusa.';
@@ -131,6 +131,6 @@ export function councilPreparationIssue(state: GameState) {
   if (state.attention >= getDogmaEffects(state).attentionCap)
     return 'L’Attenzione è già al massimo.';
   if (state.resources.wood < GUIDED_PROGRESSION.councilWoodCost)
-    return 'Manca legna consegnata nelle scorte.';
+    return 'Manca legno nelle scorte: riportalo al campo con Portare.';
   return undefined;
 }

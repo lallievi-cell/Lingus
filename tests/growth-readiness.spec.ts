@@ -58,7 +58,7 @@ test('growth explains present food, rest and home blockers without leaking names
   await expect(growth(page)).toContainText('Riposo:');
   await expect(growth(page)).toContainText('Giaciglio:');
   await growth(page).getByText('Cosa serve alla crescita').click();
-  await expect(growth(page)).toContainText('a fine stagione');
+  await expect(growth(page)).toContainText('alla fine della stagione');
   await expect(growth(page)).not.toContainText(/Korg|Ayla|\d|%/);
   await page.getByLabel('Membri della tribù').locator('.unit-card').nth(1).click();
   const individual = page.getByLabel('Condizioni per la crescita');
@@ -75,7 +75,7 @@ test('a potential pair is conditional and a missing opposite-sex partner is expl
   await expect(growth(page)).toContainText('non è garantita');
   await expect(growth(page)).not.toContainText(/\d|%/);
   await seedFamily(page, 'one-sex');
-  await expect(growth(page)).toContainText('Manca una donna');
+  await expect(growth(page)).toContainText('mancherà una donna');
   await expect(growth(page)).not.toContainText('Possibile');
 });
 
