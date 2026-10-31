@@ -1,5 +1,6 @@
 import type { MapEntity } from '../game/types';
 import { observeAnimalAnimation, type AnimalAnimationContext } from './animalAnimation';
+import { drawNaturalAtlas } from './mapNaturalAtlas';
 
 /** Illustrated natural objects. Coordinates are local to the real ground anchor. */
 type Point = [number, number];
@@ -636,8 +637,8 @@ function animalBody(
   const random = randomFrom(variant * 381 + 4829);
   const mammoth = kind === 'mammoth',
     wolf = kind === 'wolf' || kind === 'alpha';
-  const dark = mammoth ? '#4f4032' : wolf ? '#4b5751' : '#6c4d32';
-  const coat = mammoth ? '#826648' : wolf ? '#8b9688' : '#b28b58';
+  const dark = mammoth ? '#493a2b' : wolf ? '#35463f' : '#67452d';
+  const coat = mammoth ? '#8e6945' : wolf ? '#879486' : '#b48550';
   if (dead) {
     shade(ctx, 3, 2, mammoth ? 43 : 28, 9, 0.23);
     const size = mammoth ? 1.5 : kind === 'alpha' ? 1.2 : 1;
@@ -650,6 +651,8 @@ function animalBody(
     ctx.closePath();
     ctx.fillStyle = coat;
     ctx.fill();
+    ellipse(ctx, -5, -4, 13, 4, mammoth ? '#b49464' : wolf ? '#abb2a0' : '#cba267', -0.1);
+    ellipse(ctx, 10, 0.8, 7, 3, '#493e315c', 0.1);
     stroke(
       ctx,
       [
@@ -710,9 +713,10 @@ function animalBody(
   }
   if (mammoth) {
     const gradient = ctx.createLinearGradient(-30, -53, 30, -4);
-    gradient.addColorStop(0, '#aa8b5c');
-    gradient.addColorStop(0.5, '#806247');
-    gradient.addColorStop(1, '#564432');
+    gradient.addColorStop(0, '#d0a365');
+    gradient.addColorStop(0.3, '#aa7e4c');
+    gradient.addColorStop(0.68, '#79573c');
+    gradient.addColorStop(1, '#483b2e');
     ctx.beginPath();
     ctx.moveTo(-33, -14);
     ctx.bezierCurveTo(-40, -44, -20, -57, -7, -48);
@@ -722,6 +726,25 @@ function animalBody(
     ctx.closePath();
     ctx.fillStyle = gradient;
     ctx.fill();
+    ctx.strokeStyle = '#473c2c';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+    // Broad shoulder planes survive the normal play scale; fine hairs sit on top.
+    ellipse(ctx, -17, -36, 13, 14, '#d0a66b5c', -0.55);
+    ellipse(ctx, 10, -32, 11, 15, '#c7985e42', -0.25);
+    polygon(
+      ctx,
+      [
+        [-34, -22],
+        [-23, -16],
+        [-6, -14],
+        [6, -20],
+        [15, -11],
+        [2, -7],
+        [-20, -5],
+      ],
+      '#4f3c2f65',
+    );
     ellipse(ctx, 27, -34, 1.2, 1.1, '#292c23');
     for (let i = 0; i < 48; i++) {
       const x = -29 + random() * 47,
@@ -732,15 +755,15 @@ function animalBody(
           [x, y],
           [x - 0.3 + random(), y + 2 + random() * 5],
         ],
-        i % 3 ? '#4c3e3050' : '#c1a16c77',
-        0.65,
+        i % 3 ? '#4d392c70' : '#e1bd7c90',
+        i % 3 ? 0.7 : 1,
       );
     }
     return;
   }
   const gradient = ctx.createLinearGradient(-16, -29, 15, -7);
-  gradient.addColorStop(0, winter && wolf ? '#a4afa1' : wolf ? '#b1b49d' : '#d1ad77');
-  gradient.addColorStop(0.45, coat);
+  gradient.addColorStop(0, winter && wolf ? '#d3d4bb' : wolf ? '#c9cbb2' : '#e0b575');
+  gradient.addColorStop(0.36, coat);
   gradient.addColorStop(1, dark);
   ctx.beginPath();
   if (wolf) {
@@ -758,6 +781,75 @@ function animalBody(
   ctx.closePath();
   ctx.fillStyle = gradient;
   ctx.fill();
+  ctx.strokeStyle = dark + 'bb';
+  ctx.lineWidth = 0.65;
+  ctx.stroke();
+  if (wolf) {
+    polygon(
+      ctx,
+      [
+        [-20, -18],
+        [-15, -24],
+        [-9, -22],
+        [-4, -25],
+        [2, -22],
+        [9, -24],
+        [15, -20],
+        [8, -17],
+        [-3, -19],
+        [-10, -16],
+      ],
+      '#4c5b4e',
+    );
+    polygon(
+      ctx,
+      [
+        [-16, -11],
+        [-6, -12],
+        [1, -10],
+        [10, -11],
+        [5, -8],
+        [-7, -7],
+      ],
+      '#c5c4a5',
+    );
+    ellipse(ctx, 9, -16.3, 4.8, 6.5, '#c9c5aa70', -0.3);
+    stroke(
+      ctx,
+      [
+        [-17, -22],
+        [-8, -23],
+        [0, -20],
+      ],
+      '#dee0c39c',
+      1.2,
+    );
+  } else {
+    polygon(
+      ctx,
+      [
+        [-17, -14],
+        [-8, -14],
+        [0, -10],
+        [10, -11],
+        [9, -8],
+        [-7, -10],
+      ],
+      '#ecdbb1',
+    );
+    ellipse(ctx, -12, -18.5, 7, 4.3, '#e2bc7d66', -0.2);
+    ellipse(ctx, 8, -15, 5.5, 6, '#8c603a5c', -0.2);
+    stroke(
+      ctx,
+      [
+        [-17, -21],
+        [-9, -23],
+        [-1, -22],
+      ],
+      '#f0ce935c',
+      1.3,
+    );
+  }
   for (let i = 0; i < 25; i++) {
     const x = -17 + random() * 28,
       y = -12 - random() * 8;
@@ -767,7 +859,7 @@ function animalBody(
         [x, y],
         [x + 1 + random(), y + 1.4],
       ],
-      i % 3 ? '#4c4e3525' : wolf ? '#d4d5b977' : '#ead1a077',
+      i % 3 ? '#3e4d3640' : wolf ? '#e5e4c59c' : '#f2d49890',
       0.6,
     );
   }
@@ -778,9 +870,9 @@ function deerHead(ctx: CanvasRenderingContext2D, variant: number, angle: number,
   ctx.translate(9, -17);
   ctx.rotate(angle);
   const coat = ctx.createLinearGradient(-2, -16, 17, 9);
-  coat.addColorStop(0, '#d7b680');
-  coat.addColorStop(0.5, '#b28b58');
-  coat.addColorStop(1, '#785b39');
+  coat.addColorStop(0, '#e6bf85');
+  coat.addColorStop(0.46, '#b98a54');
+  coat.addColorStop(1, '#694d32');
   ctx.beginPath();
   ctx.moveTo(-4, 7);
   ctx.bezierCurveTo(3, 4, 3, -12, 8, -15);
@@ -823,8 +915,9 @@ function deerHead(ctx: CanvasRenderingContext2D, variant: number, angle: number,
     ],
     '#b69b6f',
   );
-  ellipse(ctx, 17, -11.4, 0.85, 0.8, '#322d23');
-  ellipse(ctx, 22, -8.5, 1, 0.7, '#4a3c2d');
+  ellipse(ctx, 17, -11.4, 1.05, 0.9, '#282d23');
+  ellipse(ctx, 16.75, -11.7, 0.3, 0.3, '#fff0cb');
+  ellipse(ctx, 22, -8.5, 1.2, 0.85, '#352f27');
   if (variant % 3 !== 1) {
     stroke(
       ctx,
@@ -884,9 +977,9 @@ function wolfHead(ctx: CanvasRenderingContext2D, winter: boolean, angle: number,
   ctx.translate(11, -18);
   ctx.rotate(angle);
   const coat = ctx.createLinearGradient(-6, -12, 19, 8);
-  coat.addColorStop(0, winter ? '#b7c0ad' : '#b1b49d');
-  coat.addColorStop(0.45, '#8b9688');
-  coat.addColorStop(1, '#4b5751');
+  coat.addColorStop(0, winter ? '#d9deca' : '#c7c9ad');
+  coat.addColorStop(0.45, '#8b9785');
+  coat.addColorStop(1, '#394b41');
   ctx.beginPath();
   ctx.moveTo(-6, -4);
   ctx.bezierCurveTo(-3, -12, 4, -10, 7, -4);
@@ -906,7 +999,7 @@ function wolfHead(ctx: CanvasRenderingContext2D, winter: boolean, angle: number,
       [9, -11],
       [11, -2],
     ],
-    '#667263',
+    '#43594a',
   );
   polygon(
     ctx,
@@ -956,8 +1049,9 @@ function wolfHead(ctx: CanvasRenderingContext2D, winter: boolean, angle: number,
       '#b9b69b',
       1.3,
     );
-  ellipse(ctx, 20, 3, 1.6, 1.2, '#30392f');
-  ellipse(ctx, 9.5, -2, 0.9, 0.7, '#302f25');
+  ellipse(ctx, 20, 3, 1.7, 1.3, '#26352b');
+  ellipse(ctx, 9.5, -2, 1, 0.8, '#242e26');
+  ellipse(ctx, 9.25, -2.2, 0.25, 0.25, '#f0df9e');
   ctx.restore();
 }
 
@@ -1161,6 +1255,8 @@ export function drawPainterlyNature(
     drawAnimal(ctx, entity, time, season, variant, context);
     return true;
   }
+  if (drawNaturalAtlas(ctx, entity, variant, season, unknown, context?.reducedMotion ? 0 : time))
+    return true;
   if (entity.kind === 'tree') {
     show(
       ctx,

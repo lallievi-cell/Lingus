@@ -90,14 +90,25 @@ async function pinchTo(page: Page, previous: number, desired: number) {
   await session.detach();
 }
 
-async function clickArt(page: Page, zoom: number, x: number, y: number, localHeight = 0) {
+async function clickArt(
+  page: Page,
+  zoom: number,
+  x: number,
+  y: number,
+  localHeight = 0,
+  kind: 'unit' | 'other' = 'other',
+) {
   const map = page.getByRole('img', { name: /Mappa della valle/ });
   const bounds = (await map.boundingBox())!;
   const scale = Math.max(bounds.width / 1200, bounds.height / 800) * zoom;
+  const spriteScale = await page.evaluate(async (kind) => {
+    const art = await import('/src/components/mapDrawing.ts');
+    return kind === 'unit' ? art.UNIT_ART_SCALE : art.SPRITE_SCALE;
+  }, kind);
   await map.click({
     position: {
       x: bounds.width / 2 + (x - 250) * 2.4 * scale,
-      y: bounds.height / 2 + ((y - 250) * 1.6 - localHeight * 0.2) * scale,
+      y: bounds.height / 2 + ((y - 250) * 1.6 - localHeight * spriteScale) * scale,
     },
   });
   return page.evaluate(() => JSON.parse(document.body.dataset.selection ?? '{}'));
@@ -113,7 +124,7 @@ for (const mobile of [false, true]) {
     let previous = 4.5;
     for (const zoom of [10, 16]) {
       await pinchTo(page, previous, zoom);
-      expect(await clickArt(page, zoom, 250, 252, 28)).toMatchObject({
+      expect(await clickArt(page, zoom, 250, 252, 28, 'unit')).toMatchObject({
         type: 'unit',
         x: 250,
         y: 252,

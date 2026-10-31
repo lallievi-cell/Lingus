@@ -94,10 +94,10 @@ function material(
   ctx: CanvasRenderingContext2D,
   points: Point[],
   colors: string[],
-  type: 'stone' | 'wood' | 'hide' | 'thatch',
+  type: 'stone' | 'rock' | 'wood' | 'hide' | 'thatch',
   seed = 31,
 ) {
-  shape(ctx, points, gradient(ctx, colors), '#5b594b55');
+  shape(ctx, points, gradient(ctx, colors), '#3e493e75');
   ctx.save();
   ctx.clip();
   const rng = random(seed);
@@ -115,20 +115,72 @@ function material(
           [left - 2, y],
           [right + 2, y + 1.4],
         ],
-        '#5f67534a',
-        0.6,
+        '#48544877',
+        0.75,
       );
-      for (let x = left - 5 + (row % 2) * 7; x < right; x += 11 + rng() * 5)
+      for (let x = left - 5 + (row % 2) * 7; x < right; x += 11 + rng() * 5) {
+        const blockWidth = 8 + rng() * 5;
+        shape(
+          ctx,
+          [
+            [x + 0.6, y - 5.2],
+            [x + blockWidth, y - 4.8],
+            [x + blockWidth - 0.5, y - 0.4],
+            [x + 0.2, y - 0.7],
+          ],
+          row % 2 ? '#f4e8cc22' : '#53614c16',
+        );
+        line(
+          ctx,
+          [
+            [x + 1, y - 4.8],
+            [x + blockWidth - 1, y - 4.7],
+          ],
+          '#fff1d645',
+          0.6,
+        );
         line(
           ctx,
           [
             [x, y - 5],
             [x + 0.4, y + 0.1],
           ],
-          '#646b5654',
-          0.55,
+          '#4b594e66',
+          0.65,
         );
+      }
     }
+  } else if (type === 'rock') {
+    shape(
+      ctx,
+      [
+        [left, bottom],
+        [left + (right - left) * 0.25, top],
+        [right * 0.55, top + 5],
+        [right * 0.1, bottom],
+      ],
+      '#f3e6c82d',
+    );
+    line(
+      ctx,
+      [
+        [left + 5, top + 8],
+        [left + 9, top + 20],
+        [left + 6, top + 27],
+      ],
+      '#3b574b75',
+      0.75,
+    );
+    line(
+      ctx,
+      [
+        [right - 7, top + 19],
+        [right - 9, top + 30],
+        [right - 6, bottom - 2],
+      ],
+      '#e0d3ad5e',
+      0.7,
+    );
   } else if (type === 'wood') {
     for (let x = left; x <= right; x += 5) {
       line(
@@ -137,8 +189,8 @@ function material(
           [x, top],
           [x + 0.8, bottom],
         ],
-        '#493e2f48',
-        0.75,
+        '#443c2d77',
+        0.9,
       );
       line(
         ctx,
@@ -146,8 +198,8 @@ function material(
           [x + 1.4, top + 1],
           [x + 2, bottom - 1],
         ],
-        '#e0c59850',
-        0.45,
+        '#f0d4a27a',
+        0.6,
       );
     }
   } else if (type === 'hide') {
@@ -171,10 +223,10 @@ function material(
         0.5,
       );
   }
-  for (let i = 0; i < (type === 'thatch' ? 95 : 38); i++) {
+  for (let i = 0; i < (type === 'thatch' ? 74 : 24); i++) {
     const x = left + rng() * (right - left),
       y = top + rng() * (bottom - top);
-    const color = i % 3 ? '#f1e2bb38' : '#403d3035';
+    const color = i % 3 ? '#fff0be50' : '#3d463b3a';
     if (type === 'thatch')
       line(
         ctx,
@@ -183,15 +235,41 @@ function material(
           [x + 2 + rng() * 2, y + 4 + rng() * 6],
         ],
         color,
-        0.5 + rng() * 0.45,
+        0.65 + rng() * 0.5,
       );
     else oval(ctx, x, y, 0.3 + rng() * 1.6, 0.25 + rng() * 0.7, color);
   }
   ctx.restore();
 }
 function shadow(ctx: CanvasRenderingContext2D, width = 32) {
-  wash(ctx, 8, 5, width + 6, '#36412d35');
-  oval(ctx, 2, 3.5, width, width * 0.23, '#3b422d20');
+  // A broad, irregular footprint ties the architecture to worn earth. The
+  // contact shadow remains strongest below the walls, with light from upper left.
+  shape(
+    ctx,
+    [
+      [-width - 3, 1],
+      [-width + 6, -9],
+      [-width * 0.2, -12],
+      [width * 0.7, -7],
+      [width + 5, 2],
+      [width - 1, 10],
+      [width * 0.15, 13],
+      [-width * 0.8, 9],
+    ],
+    '#b39b6b32',
+  );
+  wash(ctx, 8, 5, width + 6, '#293c2e45');
+  oval(ctx, 2, 3.5, width, width * 0.23, '#2c3d2d37');
+  line(
+    ctx,
+    [
+      [-width + 6, 8],
+      [-width * 0.1, 10],
+      [width * 0.6, 6],
+    ],
+    '#e9cf9b2c',
+    1.3,
+  );
 }
 function timber(
   ctx: CanvasRenderingContext2D,
@@ -208,7 +286,7 @@ function timber(
       [x + width / 2, bottom - height - 1],
       [x + width / 2, bottom],
     ],
-    gradient(ctx, ['#ae9365', '#68553b'], x, bottom - height, width, height),
+    gradient(ctx, ['#cfaa75', '#926c44', '#4c4634'], x, bottom - height, width, height),
   );
   line(
     ctx,
@@ -223,7 +301,7 @@ function timber(
     oval(ctx, x + 0.15, y, width * 0.24, 1.1, '#4f432d55');
 }
 function doorway(ctx: CanvasRenderingContext2D, x: number, y: number, width = 10, height = 18) {
-  ctx.fillStyle = gradient(ctx, ['#333f34', '#646047'], x, y - height, width, height);
+  ctx.fillStyle = gradient(ctx, ['#243b32', '#384b38', '#746546'], x, y - height, width, height);
   ctx.beginPath();
   ctx.moveTo(x - width / 2, y);
   ctx.lineTo(x - width / 2, y - height + 4);
@@ -252,7 +330,7 @@ function roof(ctx: CanvasRenderingContext2D, width = 31, ridge = -55, eave = -22
       [width + 1, eave - 4],
       [7, eave + 13],
     ],
-    stone ? ['#a89c78', '#827754', '#665b43'] : ['#d0b984', '#b19965', '#7d6c47'],
+    stone ? ['#d0b487', '#a48056', '#735e42'] : ['#e5ca8c', '#bd965e', '#806441'],
     'thatch',
   );
   material(
@@ -262,7 +340,7 @@ function roof(ctx: CanvasRenderingContext2D, width = 31, ridge = -55, eave = -22
       [width + 1, eave - 4],
       [7, eave + 13],
     ],
-    ['#b29b69', '#806e49', '#655b41'],
+    stone ? ['#b89468', '#8b6648', '#594e3a'] : ['#c8a36a', '#9c764d', '#60533b'],
     'thatch',
     71,
   );
@@ -273,8 +351,8 @@ function roof(ctx: CanvasRenderingContext2D, width = 31, ridge = -55, eave = -22
       [7, eave + 13],
       [width + 1, eave - 4],
     ],
-    '#514d3770',
-    1.2,
+    '#3e473a91',
+    1.8,
   );
   line(
     ctx,
@@ -283,9 +361,26 @@ function roof(ctx: CanvasRenderingContext2D, width = 31, ridge = -55, eave = -22
       [-5, ridge],
       [width - 1, eave - 4.5],
     ],
-    '#e2c997a8',
-    1.1,
+    '#f1dba4cf',
+    1.4,
   );
+  // Long, bundled courses carry the roof at play distance. Fine straw alone
+  // disappears on mobile, so the main folds follow the actual roof planes.
+  for (let course = 0; course < 4; course++) {
+    const t = (course + 1) / 5;
+    const start: Point = [-5 + (-width + 5) * t, ridge + (eave - ridge) * t];
+    const end: Point = [-5 + 12 * t, ridge + (eave + 13 - ridge) * t];
+    line(ctx, [start, end], '#594e3b55', 1.5);
+    line(
+      ctx,
+      [
+        [start[0], start[1] - 0.7],
+        [end[0], end[1] - 0.7],
+      ],
+      '#f3dba078',
+      0.8,
+    );
+  }
   for (let i = 0; i < 9; i++) {
     const t = i / 9;
     line(
@@ -310,7 +405,7 @@ function smallRock(ctx: CanvasRenderingContext2D, x: number, y: number, size = 4
       [x + size, y + size * 0.25],
       [x, y + size * 0.6],
     ],
-    gradient(ctx, ['#b9baa1', '#87947d', '#677562'], x - size, y - size, size * 2, size * 2),
+    gradient(ctx, ['#cfc7aa', '#929f86', '#4d6757'], x - size, y - size, size * 2, size * 2),
   );
   line(
     ctx,
@@ -356,6 +451,10 @@ function vessel(
   );
 }
 function cabin(ctx: CanvasRenderingContext2D, stone: boolean) {
+  if (!stone) {
+    hideShelter(ctx);
+    return;
+  }
   shadow(ctx, 29);
   material(
     ctx,
@@ -365,8 +464,8 @@ function cabin(ctx: CanvasRenderingContext2D, stone: boolean) {
       [15, -24],
       [15, 8],
     ],
-    stone ? ['#d0c8a4', '#a9ac8d', '#8f987d'] : ['#c0aa7b', '#a38b5c', '#7f724d'],
-    stone ? 'stone' : 'hide',
+    ['#e4d7b7', '#c7bc99', '#969a7b'],
+    'stone',
   );
   material(
     ctx,
@@ -376,56 +475,170 @@ function cabin(ctx: CanvasRenderingContext2D, stone: boolean) {
       [27, -30],
       [15, -24],
     ],
-    stone ? ['#a1aa8e', '#7f8c74', '#6d7964'] : ['#a38e62', '#84734f'],
-    stone ? 'stone' : 'wood',
+    ['#a5ad91', '#738672', '#435c4d'],
+    'stone',
     64,
   );
-  roof(ctx, 31, -57, -26, stone);
+  roof(ctx, 31, -57, -26, true);
   doorway(ctx, -5, 4, 10, 18);
-  if (!stone) {
-    timber(ctx, -20, -1, 23, 2.5);
-    timber(ctx, 13, 7, 26, 2.3);
+  for (let i = 0; i < 5; i++) smallRock(ctx, -22 + i * 9, 2 + i * 0.7, 3.6);
+  shape(
+    ctx,
+    [
+      [18, -10],
+      [18, -19],
+      [24, -22],
+      [24, -13],
+    ],
+    '#2d4b3d',
+  );
+  line(
+    ctx,
+    [
+      [21, -20],
+      [21, -11],
+    ],
+    '#d1c59f',
+    0.8,
+  );
+  vessel(ctx, 20, 5, 3.3);
+}
+
+/** The first shelter reads as stretched skins and saplings, not a tiny stone house. */
+function hideShelter(ctx: CanvasRenderingContext2D) {
+  shadow(ctx, 31);
+  oval(ctx, 0, 2, 27, 8, '#34473358');
+  ctx.beginPath();
+  ctx.moveTo(-31, 2);
+  ctx.bezierCurveTo(-29, -23, -17, -47, -4, -52);
+  ctx.bezierCurveTo(10, -45, 24, -22, 30, 2);
+  ctx.quadraticCurveTo(8, 13, -31, 2);
+  ctx.closePath();
+  ctx.fillStyle = gradient(ctx, ['#e4c38d', '#bd9360', '#7a6546'], -26, -44, 54, 46);
+  ctx.fill();
+  ctx.save();
+  ctx.clip();
+  shape(
+    ctx,
+    [
+      [-4, -53],
+      [11, -38],
+      [31, 3],
+      [8, 10],
+      [3, -22],
+    ],
+    '#655b3b40',
+  );
+  shape(
+    ctx,
+    [
+      [-28, -2],
+      [-19, -27],
+      [-5, -45],
+      [-11, -8],
+    ],
+    '#f1d7a12e',
+  );
+  for (let i = 0; i < 6; i++) {
+    const x = -25 + i * 9;
+    ctx.beginPath();
+    ctx.moveTo(-4, -50);
+    ctx.quadraticCurveTo(x * 0.85, -22, x, 6);
+    ctx.strokeStyle = i % 2 ? '#73553885' : '#f0d5a16b';
+    ctx.lineWidth = i % 2 ? 1.8 : 1.2;
+    ctx.stroke();
+  }
+  line(
+    ctx,
+    [
+      [-25, -10],
+      [-10, -12],
+      [5, -10],
+      [23, -8],
+    ],
+    '#73543766',
+    1.1,
+  );
+  for (let i = 0; i < 8; i++) {
+    const x = -23 + i * 6;
     line(
       ctx,
       [
-        [-5, -56],
-        [-6, -64],
+        [x, -12],
+        [x + 0.8, -8],
       ],
-      '#776044',
-      1.9,
-    );
-    line(
-      ctx,
-      [
-        [-9, -57],
-        [-2, -59],
-      ],
-      '#d8c394',
-      0.85,
-    );
-  } else {
-    for (let i = 0; i < 5; i++) smallRock(ctx, -22 + i * 9, 2 + i * 0.7, 3.6);
-    shape(
-      ctx,
-      [
-        [18, -10],
-        [18, -19],
-        [24, -22],
-        [24, -13],
-      ],
-      '#435341',
-    );
-    line(
-      ctx,
-      [
-        [21, -20],
-        [21, -11],
-      ],
-      '#b3b597',
+      '#f3d7a2b0',
       0.8,
     );
   }
-  vessel(ctx, 20, 5, 3.3);
+  ctx.restore();
+  doorway(ctx, -6, 5, 13, 26);
+  shape(
+    ctx,
+    [
+      [-1, -21],
+      [2, -16],
+      [3, 2],
+      [0, 5],
+      [-2, -7],
+    ],
+    '#d9b785',
+    '#745c3d88',
+  );
+  line(
+    ctx,
+    [
+      [-15, 5],
+      [-15, -6],
+      [-8, -26],
+      [-4, -52],
+    ],
+    '#e4c18bd9',
+    1.5,
+  );
+  for (const x of [-26, 22]) {
+    line(
+      ctx,
+      [
+        [x * 0.7, -11],
+        [x, 7],
+      ],
+      '#725a3f',
+      0.9,
+    );
+    smallRock(ctx, x, 6, 2.5);
+  }
+  line(
+    ctx,
+    [
+      [-5, -49],
+      [-7, -60],
+    ],
+    '#705137',
+    1.8,
+  );
+  line(
+    ctx,
+    [
+      [-6, -54],
+      [0, -57],
+    ],
+    '#c6a16b',
+    1.3,
+  );
+  oval(ctx, 0, -52, 3, 1.8, '#4e4b38');
+  // A folded hide at the threshold adds texture without implying a stored resource.
+  oval(ctx, 22, 5, 4.6, 2.4, '#9c784e');
+  line(
+    ctx,
+    [
+      [19, 4],
+      [23, 3],
+      [25, 5],
+    ],
+    '#d8ba80',
+    0.8,
+  );
 }
 function monument(ctx: CanvasRenderingContext2D, kind: BuildingKind) {
   shadow(ctx, 23);
@@ -444,8 +657,8 @@ function monument(ctx: CanvasRenderingContext2D, kind: BuildingKind) {
         [7, -31],
         [13, -5],
       ],
-      ['#c1c5aa', '#8b9c83', '#6e806e'],
-      'stone',
+      ['#d4cfb1', '#9dab8e', '#536e5c'],
+      'rock',
     );
     line(
       ctx,
@@ -469,8 +682,8 @@ function monument(ctx: CanvasRenderingContext2D, kind: BuildingKind) {
       [15, -31],
       [13, 3],
     ],
-    ['#c9c8ae', '#a5af92', '#84967e'],
-    'stone',
+    ['#ded6b6', '#b5bea0', '#6f8b74'],
+    'rock',
   );
   material(
     ctx,
@@ -482,7 +695,7 @@ function monument(ctx: CanvasRenderingContext2D, kind: BuildingKind) {
       [4, -42],
     ],
     ['#97a68d', '#71826e', '#5b715e'],
-    'stone',
+    'rock',
   );
   line(
     ctx,
@@ -558,7 +771,7 @@ function store(ctx: CanvasRenderingContext2D, kind: 'storage' | 'depot') {
         [25, -7],
         [6, 5],
       ],
-      ['#d0bc86', '#ac9860', '#857548'],
+      ['#e7c98e', '#be995d', '#806943'],
       'thatch',
       43,
     );
@@ -593,7 +806,7 @@ function store(ctx: CanvasRenderingContext2D, kind: 'storage' | 'depot') {
         [19, -21],
         [19, 5],
       ],
-      ['#b39b6d', '#89734d'],
+      ['#caa570', '#805e3e'],
       'wood',
     );
     for (let row = 0; row < 3; row++) {
@@ -635,7 +848,7 @@ function hall(ctx: CanvasRenderingContext2D, kind: BuildingKind) {
       [27, -29],
       [27, 5],
     ],
-    ['#d6d0b0', '#b3b69b', '#8f9d85'],
+    ['#e5d7b6', '#c6bd9c', '#899c80'],
     'stone',
   );
   material(
@@ -646,7 +859,7 @@ function hall(ctx: CanvasRenderingContext2D, kind: BuildingKind) {
       [36, -36],
       [27, -29],
     ],
-    ['#9caa91', '#758870'],
+    ['#a8b094', '#526f5b'],
     'stone',
     80,
   );
@@ -672,7 +885,7 @@ function hall(ctx: CanvasRenderingContext2D, kind: BuildingKind) {
         [41, -52],
         [24, -46],
       ],
-      gradient(ctx, ['#b39b6d', '#887853']),
+      gradient(ctx, ['#caa570', '#887853']),
     );
   }
   if (open) {
@@ -684,7 +897,7 @@ function hall(ctx: CanvasRenderingContext2D, kind: BuildingKind) {
         [24, -27],
         [24, 0],
       ],
-      '#56664f',
+      '#344e3e',
     );
     for (let i = 0; i < 4; i++) {
       const x = -26 + i * 15;
@@ -696,7 +909,7 @@ function hall(ctx: CanvasRenderingContext2D, kind: BuildingKind) {
           [x + 3, -27],
           [x + 3, 0],
         ],
-        ['#e1d9b8', '#b4b99d', '#83977f'],
+        ['#f0dfb9', '#c9c09c', '#789179'],
         'stone',
         100 + i,
       );
@@ -748,7 +961,7 @@ function hall(ctx: CanvasRenderingContext2D, kind: BuildingKind) {
           [x + 8, -22],
           [x + 8, -8],
         ],
-        '#4e6654',
+        '#2d4b3d',
       );
       line(
         ctx,
@@ -770,7 +983,7 @@ function hall(ctx: CanvasRenderingContext2D, kind: BuildingKind) {
       [39, -31],
       [3, -20],
     ],
-    palace ? ['#bb9c70', '#99815b', '#78694c'] : ['#cec4a0', '#adae91', '#8e9b80'],
+    palace ? ['#bb9c70', '#99815b', '#78694c'] : ['#ddc9a0', '#b6a984', '#7f8e73'],
     'thatch',
   );
   line(
@@ -997,7 +1210,7 @@ function foundry(ctx: CanvasRenderingContext2D) {
       [24, -28],
       [24, 1],
     ],
-    ['#c1b48e', '#9b9c7c', '#77866d'],
+    ['#cfb991', '#9b9877', '#4d6b57'],
     'stone',
   );
   material(
@@ -1039,7 +1252,7 @@ function workshop(ctx: CanvasRenderingContext2D) {
       [14, -28],
       [14, 3],
     ],
-    ['#a69b73', '#859374'],
+    ['#c1a679', '#7e8663'],
     'wood',
   );
   doorway(ctx, -8, 2, 19, 23);
@@ -1144,7 +1357,7 @@ function walls(ctx: CanvasRenderingContext2D) {
       [35, 8],
       [0, 15],
     ],
-    ['#c3c6a9', '#a4b094', '#83977e'],
+    ['#d5cfac', '#afba9a', '#66816b'],
     'stone',
   );
   for (let i = 0; i < 10; i++) {
@@ -1179,7 +1392,7 @@ function walls(ctx: CanvasRenderingContext2D) {
         [x + 7, -37],
         [x + 8, 4],
       ],
-      ['#cdd0b3', '#a1b093', '#879b80'],
+      ['#dfd9b7', '#b6b89a', '#6d8a70'],
       'stone',
     );
     for (let i = 0; i < 3; i++)
@@ -1259,11 +1472,24 @@ function fire(ctx: CanvasRenderingContext2D, time: number, active: boolean, smal
   const width = small ? 9 : 20;
   if (!small) {
     shadow(ctx, 25);
-    oval(ctx, 0, 1, 19, 8, '#675c4466');
-    oval(ctx, -1, 0, 14, 5.8, '#343d31c0');
+    oval(ctx, 0, 1, 22, 9, '#8e785259');
+    oval(ctx, -1, 0, 17, 6.8, '#303b31d9');
+    oval(ctx, -2, -1, 13, 4.8, '#514d3da8');
+    for (let i = 0; i < 18; i++) {
+      const angle = i * 2.39996;
+      const radius = 2 + (i % 5) * 2.8;
+      oval(
+        ctx,
+        Math.cos(angle) * radius,
+        Math.sin(angle) * radius * 0.36,
+        0.6 + (i % 3) * 0.3,
+        0.3,
+        active && i % 3 === 0 ? '#dd8640b0' : '#c3bc9770',
+      );
+    }
     for (let i = 0; i < 11; i++) {
       const angle = (i * Math.PI * 2) / 11;
-      smallRock(ctx, Math.cos(angle) * 19, Math.sin(angle) * 8, 3.6 + Math.sin(i) * 0.5);
+      smallRock(ctx, Math.cos(angle) * 19, Math.sin(angle) * 8, 3.9 + Math.sin(i) * 0.5);
     }
     line(
       ctx,
@@ -1271,8 +1497,8 @@ function fire(ctx: CanvasRenderingContext2D, time: number, active: boolean, smal
         [-10, 1],
         [10, -3],
       ],
-      '#4e402e',
-      4.5,
+      '#3f3428',
+      5.6,
     );
     line(
       ctx,
@@ -1280,8 +1506,8 @@ function fire(ctx: CanvasRenderingContext2D, time: number, active: boolean, smal
         [-9, -2],
         [9, 3],
       ],
-      '#766044',
-      4,
+      '#715338',
+      5.1,
     );
     line(
       ctx,
@@ -1289,8 +1515,19 @@ function fire(ctx: CanvasRenderingContext2D, time: number, active: boolean, smal
         [-9, -3],
         [8, 2],
       ],
-      '#b39460',
-      1,
+      '#cf9f65',
+      1.4,
+    );
+    oval(ctx, 9, 3, 2.2, 1.9, '#a68454');
+    oval(ctx, 9, 3, 0.9, 1.1, '#4b3d2c');
+    line(
+      ctx,
+      [
+        [-10, 0],
+        [-7, 0.5],
+      ],
+      active ? '#d98a4b' : '#a09d7e',
+      1.2,
     );
   }
   if (!active) {
@@ -1300,28 +1537,28 @@ function fire(ctx: CanvasRenderingContext2D, time: number, active: boolean, smal
     return;
   }
   const glow = ctx.createRadialGradient(0, -7, 1, 0, -7, small ? 17 : 42);
-  glow.addColorStop(0, '#f5be5b68');
-  glow.addColorStop(0.45, '#df943c28');
+  glow.addColorStop(0, '#ffd78788');
+  glow.addColorStop(0.45, '#e8a2493c');
   glow.addColorStop(1, '#da953d00');
   oval(ctx, 0, -3, small ? 17 : 42, small ? 13 : 30, glow);
   for (let i = 0; i < (small ? 3 : 5); i++) {
     const x = (i - (small ? 1 : 2)) * (small ? 3 : 3.3);
     const height =
-      (small ? 10 : 20) + Math.sin(time * 7 + i * 1.9) * 5 + Math.cos(time * 11 + i) * 2;
+      (small ? 10 : 25) + Math.sin(time * 7 + i * 1.9) * 4 + Math.cos(time * 11 + i) * 2;
     const drift = Math.sin(time * 4 + i) * 3;
     ctx.beginPath();
     ctx.moveTo(x - 4, 1);
     ctx.bezierCurveTo(x - 9, -height * 0.25, x + drift - 4, -height * 0.6, x + drift, -height);
     ctx.bezierCurveTo(x + drift + 2, -height * 0.6, x + 7, -height * 0.25, x + 4, 1);
     ctx.closePath();
-    ctx.fillStyle = gradient(ctx, ['#ffe5a3', '#efba5d', '#b96336'], x, -height, 1, height);
+    ctx.fillStyle = gradient(ctx, ['#e6a850', '#f5bf65', '#c36532'], x, -height, 1, height);
     ctx.fill();
     if (i % 2) {
       ctx.beginPath();
       ctx.moveTo(x - 2, 1);
       ctx.quadraticCurveTo(x - 3, -height * 0.3, x + 1, -height * 0.65);
       ctx.quadraticCurveTo(x + 5, -height * 0.2, x + 2, 1);
-      ctx.fillStyle = '#ffe8aa';
+      ctx.fillStyle = '#fff2bd';
       ctx.fill();
     }
   }
@@ -1341,6 +1578,8 @@ function fire(ctx: CanvasRenderingContext2D, time: number, active: boolean, smal
 }
 function farmland(ctx: CanvasRenderingContext2D, time: number, season: number) {
   shadow(ctx, 37);
+  const winter = season === 3,
+    ripe = season === 1 || season === 2;
   material(
     ctx,
     [
@@ -1349,11 +1588,10 @@ function farmland(ctx: CanvasRenderingContext2D, time: number, season: number) {
       [40, 2],
       [-7, 23],
     ],
-    ['#b29b6a', '#8c8053', '#6e714b'],
+    winter ? ['#c5bea0', '#a7aa91', '#76866f'] : ['#bd9b69', '#97754d', '#5b6546'],
     'hide',
     12,
   );
-  const winter = season === 3;
   for (let row = 0; row < 7; row++) {
     const x = -31 + row * 6,
       y = -7 - row * 2.7;
@@ -1363,8 +1601,8 @@ function farmland(ctx: CanvasRenderingContext2D, time: number, season: number) {
         [x, y + 1],
         [x + 27, y + 25],
       ],
-      '#625d3c66',
-      2.1,
+      '#40543c88',
+      2.5,
     );
     line(
       ctx,
@@ -1372,8 +1610,8 @@ function farmland(ctx: CanvasRenderingContext2D, time: number, season: number) {
         [x + 1, y - 1],
         [x + 28, y + 23],
       ],
-      '#cfb67d70',
-      0.9,
+      '#e2bd8688',
+      1.2,
     );
     for (let plant = 0; plant < 5; plant++) {
       const px = x + plant * 5 + 2,
@@ -1385,8 +1623,8 @@ function farmland(ctx: CanvasRenderingContext2D, time: number, season: number) {
           [px, py],
           [px - 0.5 + lean, py - (winter ? 2.5 : 6)],
         ],
-        winter ? '#b6b59a' : '#89944c',
-        0.8,
+        winter ? '#e0d7bb' : ripe ? '#ad8b44' : '#5a7b40',
+        1.05,
       );
       if (!winter) {
         line(
@@ -1395,8 +1633,8 @@ function farmland(ctx: CanvasRenderingContext2D, time: number, season: number) {
             [px + lean, py - 3],
             [px - 2 + lean, py - 5],
           ],
-          '#aeb66c',
-          0.8,
+          ripe ? '#ecd391' : '#9ab463',
+          1.1,
         );
         line(
           ctx,
@@ -1404,9 +1642,21 @@ function farmland(ctx: CanvasRenderingContext2D, time: number, season: number) {
             [px + lean, py - 2],
             [px + 2.5 + lean, py - 4],
           ],
-          '#b8bd73',
-          0.7,
+          ripe ? '#d5b469' : '#bacb83',
+          0.95,
         );
+        if (ripe) {
+          oval(ctx, px - 0.5 + lean, py - 6, 1.1, 2.2, '#dbbf79');
+          line(
+            ctx,
+            [
+              [px - 0.5 + lean, py - 7.7],
+              [px - 0.5 + lean, py - 3.9],
+            ],
+            '#f6dfa168',
+            0.5,
+          );
+        }
       }
     }
   }

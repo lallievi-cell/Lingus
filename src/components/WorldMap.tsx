@@ -12,6 +12,7 @@ import {
   MAP_WIDTH,
   WORLD_SIZE,
   SPRITE_SCALE,
+  UNIT_ART_SCALE,
 } from './mapDrawing';
 import { getGroundPiles } from './mapResourceLayout';
 import { getCustodianStatuses } from '../game/custodianStatus';
@@ -345,7 +346,7 @@ export function WorldMap({
         display?: { x: number; y: number },
       ) => {
         if (!isVisibleAt(current, x, y)) return;
-        const spritePixels = SPRITE_SCALE * t.scale;
+        const spritePixels = (type === 'unit' ? UNIT_ART_SCALE : SPRITE_SCALE) * t.scale;
         display ??=
           (type === 'unit' || type === 'entity') && !current.paused
             ? readUnitDisplay(motionSessionRef.current, id)
@@ -381,7 +382,7 @@ export function WorldMap({
           } else if (stage === 'newborn') {
             addArt('unit', u.id, u.x, u.y, 7 * scale, 11 * scale, 8 * scale, 11);
           } else {
-            addArt('unit', u.id, u.x, u.y, 9 * scale, 20 * scale, 14 * scale, 11);
+            addArt('unit', u.id, u.x, u.y, 11 * scale, 21 * scale, 15 * scale, 11);
           }
           if (u.hp < 45 || u.hunger >= 80 || u.temp <= 20)
             addArt('unit', u.id, u.x, u.y, 5, 5, 32, 9, 8);
@@ -409,7 +410,7 @@ export function WorldMap({
         if (e.amount <= 0 && !['tree', 'stone'].includes(e.kind)) return;
         if (e.kind === 'tree') {
           addArt('entity', e.id, e.x, e.y, 10, e.amount > 0 ? 19 : 10, e.amount > 0 ? 15 : 5);
-          if (e.amount > 0) addArt('entity', e.id, e.x, e.y, 33, 29, 48);
+          if (e.amount > 0) addArt('entity', e.id, e.x, e.y, 37, 30, 45);
         } else if (e.kind === 'mammoth') {
           addArt('entity', e.id, e.x, e.y, 50, 35, 27, 20);
         } else if (['deer', 'wolf', 'alpha'].includes(e.kind)) {
@@ -919,7 +920,7 @@ export function WorldMap({
               unit &&
               Math.hypot(
                 (p.x - unit.x) * WORLD_X * t.scale,
-                ((p.y - unit.y) * WORLD_Y + 36 * SPRITE_SCALE) * t.scale,
+                ((p.y - unit.y) * WORLD_Y + 36 * UNIT_ART_SCALE) * t.scale,
               ) < 15
             );
           });

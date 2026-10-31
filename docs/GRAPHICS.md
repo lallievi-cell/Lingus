@@ -1,6 +1,8 @@
 # Revisione grafica della valle
 
-La direzione scelta è **2D pittorico e naturale**. Il renderer Canvas usa disegni originali nel codice: terreno con velature e pigmento fine, vegetazione irregolare, materiali riconoscibili e una luce calda coerente. Non richiede immagini o servizi esterni.
+La direzione scelta è **2D pittorico e naturale**. La revisione corrente, documentata in [ART-DIRECTION.md](ART-DIRECTION.md), combina un atlante di oggetti naturali dipinti con terreno, persone, animali, costruzioni e città disegnati e animati sul Canvas. Gli asset sono inclusi nel gioco e non richiedono servizi esterni durante la partita.
+
+Le sezioni e l’immagine seguenti documentano la prima revisione del renderer; le schermate della direzione artistica attuale sono in [ART-DIRECTION.md](ART-DIRECTION.md).
 
 ![Scena del renderer con la nuova grafica](images/painterly-map.png)
 

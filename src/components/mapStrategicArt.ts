@@ -38,10 +38,10 @@ function oval(
 
 function shadow(ctx: CanvasRenderingContext2D, width: number) {
   ctx.save();
-  ctx.translate(1, 1);
+  ctx.translate(2, 1.5);
   ctx.scale(width, 3);
   const paint = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
-  paint.addColorStop(0, '#3c493641');
+  paint.addColorStop(0, '#29433464');
   paint.addColorStop(1, '#3c493600');
   oval(ctx, 0, 0, 1, 1, paint);
   ctx.restore();
@@ -49,9 +49,9 @@ function shadow(ctx: CanvasRenderingContext2D, width: number) {
 
 function cloth(ctx: CanvasRenderingContext2D, own: boolean) {
   const paint = ctx.createLinearGradient(-3, -12, 3, -4);
-  paint.addColorStop(0, own ? '#b9bf8b' : '#c59d78');
-  paint.addColorStop(0.5, own ? '#788460' : '#a57559');
-  paint.addColorStop(1, own ? '#495e4b' : '#72523f');
+  paint.addColorStop(0, own ? '#d6d5a2' : '#e0b38a');
+  paint.addColorStop(0.5, own ? '#82936c' : '#b77d5c');
+  paint.addColorStop(1, own ? '#385b48' : '#674c3d');
   return paint;
 }
 
@@ -435,8 +435,8 @@ export function drawPainterlyBattalion(
 function wheel(ctx: CanvasRenderingContext2D, x: number, time: number) {
   ctx.save();
   ctx.translate(x, 0);
-  oval(ctx, 0, 0, 1.7, 1.9, '#5a523d');
-  oval(ctx, -0.15, -0.1, 1.25, 1.5, '#a78d61');
+  oval(ctx, 0, 0, 1.7, 1.9, '#394b38');
+  oval(ctx, -0.15, -0.1, 1.25, 1.5, '#c09c65');
   for (let i = 0; i < 3; i++) {
     const angle = time * 1.5 + (i * Math.PI) / 3;
     line(
@@ -489,7 +489,7 @@ export function drawPainterlyCaravan(
         [5.5, -1.8],
         [-5.4, -1],
       ],
-      '#987b52',
+      '#ac8051',
     );
     shape(
       ctx,
@@ -499,7 +499,7 @@ export function drawPainterlyCaravan(
         [5.2, -2.1],
         [-5, -1.5],
       ],
-      '#b59a69',
+      '#cca36b',
     );
     line(
       ctx,
@@ -609,7 +609,7 @@ function cityRoof(ctx: CanvasRenderingContext2D, x: number, y: number, size = 1,
       [7, 0],
       [-6, 1],
     ],
-    '#b3a78b',
+    '#ddcba6',
   );
   shape(
     ctx,
@@ -619,7 +619,7 @@ function cityRoof(ctx: CanvasRenderingContext2D, x: number, y: number, size = 1,
       [7, 0],
       [2, -1],
     ],
-    '#8e917c',
+    '#758773',
   );
   shape(
     ctx,
@@ -629,7 +629,7 @@ function cityRoof(ctx: CanvasRenderingContext2D, x: number, y: number, size = 1,
       [8, -10],
       [2, -6],
     ],
-    formal ? '#a17857' : '#9b8d64',
+    formal ? '#985c43' : '#a17d4b',
   );
   shape(
     ctx,
@@ -639,7 +639,7 @@ function cityRoof(ctx: CanvasRenderingContext2D, x: number, y: number, size = 1,
       [-1, -10],
       [2, -6],
     ],
-    formal ? '#bd9570' : '#c6b685',
+    formal ? '#c89163' : '#dfbe7f',
   );
   line(
     ctx,
@@ -648,9 +648,32 @@ function cityRoof(ctx: CanvasRenderingContext2D, x: number, y: number, size = 1,
       [-2, -13.8],
       [6.5, -9.7],
     ],
-    formal ? '#d2af87' : '#d7c89c',
-    0.65,
+    formal ? '#edc18b' : '#f3d79c',
+    0.85,
   );
+  line(
+    ctx,
+    [
+      [-9, -7.7],
+      [2, -5.7],
+      [8, -9.7],
+    ],
+    '#43543c8f',
+    0.7,
+  );
+  // Broad roof courses remain visible at regional zoom; they follow the plane.
+  for (let row = 1; row < 3; row++) {
+    const t = row / 3;
+    line(
+      ctx,
+      [
+        [-2 + (-9 + 2) * t, -15 + 7 * t],
+        [-2 + 4 * t, -15 + 9 * t],
+      ],
+      formal ? '#804a363d' : '#69513352',
+      0.5,
+    );
+  }
   if (!formal) {
     for (let i = 0; i < 4; i++)
       line(
@@ -671,7 +694,7 @@ function cityRoof(ctx: CanvasRenderingContext2D, x: number, y: number, size = 1,
       [0.7, 0],
       [-2, 0.3],
     ],
-    '#4f5a4c',
+    '#304c3d',
   );
   line(
     ctx,
@@ -698,8 +721,8 @@ function cityFields(ctx: CanvasRenderingContext2D, profile: CityPresentation, se
   if (!profile.farms.length) return;
   const alive = profile.farms.some((farm) => farm.active);
   const golden = season === 1 || season === 2;
-  const color = !alive ? '#9b9477' : season === 3 ? '#aaa78c' : golden ? '#c2ad66' : '#a5b37b';
-  const highlight = !alive ? '#b3ac8d' : season === 3 ? '#cdc8ae' : golden ? '#dfce8c' : '#c4cf9a';
+  const color = !alive ? '#9b9477' : season === 3 ? '#aaa78c' : golden ? '#c9a95c' : '#8fab64';
+  const highlight = !alive ? '#b3ac8d' : season === 3 ? '#cdc8ae' : golden ? '#efdaa0' : '#c3d193';
   const fields = profile.vocations.includes('agriculture') ? 3 : 2;
   ctx.save();
   for (let i = 0; i < fields; i++) {
@@ -789,7 +812,7 @@ function cityGranary(ctx: CanvasRenderingContext2D, active: boolean) {
       [7, 0],
       [-6, 1],
     ],
-    active ? '#b8aa72' : '#a8a48b',
+    active ? '#d0b87d' : '#a8a48b',
   );
   shape(
     ctx,
@@ -799,7 +822,7 @@ function cityGranary(ctx: CanvasRenderingContext2D, active: boolean) {
       [9, -10],
       [2, -7],
     ],
-    active ? '#c5b274' : '#b8b39a',
+    active ? '#e1c487' : '#b8b39a',
   );
   shape(
     ctx,
@@ -808,7 +831,7 @@ function cityGranary(ctx: CanvasRenderingContext2D, active: boolean) {
       [9, -10],
       [2, -7],
     ],
-    '#a18f62',
+    '#957447',
   );
   for (let i = 0; i < 5; i++)
     line(
@@ -859,7 +882,7 @@ function cityFoundry(ctx: CanvasRenderingContext2D, productive: boolean, time: n
       [10, 3],
       [-10, 3],
     ],
-    '#92937f',
+    '#b6ac8b',
   );
   shape(
     ctx,
@@ -869,7 +892,7 @@ function cityFoundry(ctx: CanvasRenderingContext2D, productive: boolean, time: n
       [10, 3],
       [5, 0],
     ],
-    '#6d7b6a',
+    '#4b6756',
   );
   shape(
     ctx,
@@ -879,9 +902,9 @@ function cityFoundry(ctx: CanvasRenderingContext2D, productive: boolean, time: n
       [4, -31],
       [5, -19],
     ],
-    '#b1b09a',
+    '#d0c8a7',
   );
-  oval(ctx, 1.6, -30.6, 3, 1.1, '#5b6758');
+  oval(ctx, 1.6, -30.6, 3, 1.1, '#314b3d');
   line(
     ctx,
     [
@@ -916,7 +939,7 @@ function cityFoundry(ctx: CanvasRenderingContext2D, productive: boolean, time: n
   ctx.quadraticCurveTo(-1, -11.7, 3, -5);
   ctx.lineTo(3, 2.5);
   ctx.closePath();
-  ctx.fillStyle = '#3c4c40';
+  ctx.fillStyle = '#243f33';
   ctx.fill();
   if (productive) {
     const glow = ctx.createRadialGradient(-1, -2, 0.4, -1, -2, 9);
@@ -973,7 +996,7 @@ function cityFoundry(ctx: CanvasRenderingContext2D, productive: boolean, time: n
 function cityMarket(ctx: CanvasRenderingContext2D, active: boolean) {
   ctx.save();
   ctx.translate(-17, 4);
-  const colors = active ? ['#ad7f58', '#c8b78d'] : ['#959780', '#b6b49b'];
+  const colors = active ? ['#b16c4b', '#e1c58d'] : ['#959780', '#b6b49b'];
   shape(
     ctx,
     [
@@ -1039,7 +1062,7 @@ function cityLearningHall(ctx: CanvasRenderingContext2D, active: boolean) {
       [8, 2],
       [-9, 3],
     ],
-    active ? '#d4cfb2' : '#b5b49e',
+    active ? '#e4d6b3' : '#b4b49a',
   );
   shape(
     ctx,
@@ -1050,7 +1073,7 @@ function cityLearningHall(ctx: CanvasRenderingContext2D, active: boolean) {
       [8, -6],
       [-11, -6],
     ],
-    '#9d8c66',
+    '#ac8554',
   );
   line(
     ctx,
@@ -1058,7 +1081,7 @@ function cityLearningHall(ctx: CanvasRenderingContext2D, active: boolean) {
       [-10, -7],
       [8, -7.5],
     ],
-    '#ece4c7',
+    '#f5dfb0',
     1,
   );
   for (let i = 0; i < 4; i++) {
@@ -1179,7 +1202,7 @@ function cityRamparts(ctx: CanvasRenderingContext2D, integrity: number, front: b
         [28, y - 1],
         [33, y + 9],
       ],
-      '#74806b',
+      '#4c6855',
       3.1,
     );
     line(
@@ -1190,7 +1213,7 @@ function cityRamparts(ctx: CanvasRenderingContext2D, integrity: number, front: b
         [4, y - 12],
         [28, y - 2],
       ],
-      '#b6b9a0',
+      '#c6c4a0',
       1.2,
     );
     return;
@@ -1203,7 +1226,7 @@ function cityRamparts(ctx: CanvasRenderingContext2D, integrity: number, front: b
       [-25, y + 5],
       [leftEnd, y + 9],
     ],
-    '#858f78',
+    '#71896d',
     4,
   );
   line(
@@ -1213,7 +1236,7 @@ function cityRamparts(ctx: CanvasRenderingContext2D, integrity: number, front: b
       [-25, y + 3.7],
       [leftEnd, y + 7.7],
     ],
-    '#c8cab1',
+    '#ded5af',
     1.3,
   );
   line(
@@ -1223,7 +1246,7 @@ function cityRamparts(ctx: CanvasRenderingContext2D, integrity: number, front: b
       [26, y + 5],
       [33, y - 4],
     ],
-    '#7b8974',
+    '#506e59',
     4,
   );
   line(
@@ -1233,7 +1256,7 @@ function cityRamparts(ctx: CanvasRenderingContext2D, integrity: number, front: b
       [26, y + 3.7],
       [32, y - 5],
     ],
-    '#c3c6ab',
+    '#d8d0a7',
     1.3,
   );
   for (const x of [-30, -20, 19, 30]) {
@@ -1245,7 +1268,7 @@ function cityRamparts(ctx: CanvasRenderingContext2D, integrity: number, front: b
         [x + 2.5, y + 3],
         [x - 2.5, y + 3.7],
       ],
-      '#a0a68e',
+      '#b4b89a',
     );
     line(
       ctx,
@@ -1253,7 +1276,7 @@ function cityRamparts(ctx: CanvasRenderingContext2D, integrity: number, front: b
         [x - 2.5, y - 5.7],
         [x + 2, y - 6.4],
       ],
-      '#d1d2b9',
+      '#ede0b9',
       1.1,
     );
   }
@@ -1295,6 +1318,77 @@ function cityRamparts(ctx: CanvasRenderingContext2D, integrity: number, front: b
   }
 }
 
+/** Worn civic ground and connected lanes compose one inhabited place. These are
+ * illustration inside the city node, never new regional roads or trade routes. */
+function cityGround(ctx: CanvasRenderingContext2D, season: number) {
+  const winter = season === 3;
+  const ground = ctx.createRadialGradient(-5, -1, 3, 0, -2, 44);
+  ground.addColorStop(0, winter ? '#c9c7b5bd' : '#cbb589b8');
+  ground.addColorStop(0.62, winter ? '#c9c7b579' : '#baa47770');
+  ground.addColorStop(1, winter ? '#c9c7b500' : '#ac956700');
+  oval(ctx, 0, -2, 45, 16, ground);
+  shape(
+    ctx,
+    [
+      [-34, -6],
+      [-23, -15],
+      [-9, -17],
+      [7, -13],
+      [31, -9],
+      [38, 3],
+      [24, 10],
+      [2, 13],
+      [-26, 8],
+    ],
+    winter ? '#d2cdb34a' : '#cbb38943',
+  );
+  const lanes: Point[][] = [
+    [
+      [-31, 4],
+      [-17, 1],
+      [-2, 4],
+      [22, 6],
+      [34, 2],
+    ],
+    [
+      [-2, 10],
+      [-4, -2],
+      [-2, -9],
+      [7, -15],
+    ],
+    [
+      [-18, -9],
+      [-12, -3],
+      [-2, 4],
+    ],
+  ];
+  for (const lane of lanes) {
+    line(ctx, lane, '#6c74503d', 3.3);
+    line(
+      ctx,
+      lane.map(([x, y]): Point => [x - 0.35, y - 0.3]),
+      winter ? '#e5dcc19c' : '#e0c79bba',
+      2.3,
+    );
+  }
+  // Sparse flagstones describe a square, without suggesting a new building.
+  for (let row = 0; row < 3; row++)
+    for (let col = 0; col < 5; col++) {
+      const x = -7 + col * 2.9 + (row % 2) * 1.3,
+        y = 2 + row * 1.9;
+      shape(
+        ctx,
+        [
+          [x, y],
+          [x + 2.5, y - 0.3],
+          [x + 2.7, y + 1.1],
+          [x + 0.2, y + 1.4],
+        ],
+        (row + col) % 3 ? '#d4c7a69e' : '#a7ac8e6b',
+      );
+    }
+}
+
 /** A city is a cartographic cluster, while its landmark buildings must really exist. */
 export function drawPainterlyCity(
   ctx: CanvasRenderingContext2D,
@@ -1307,11 +1401,7 @@ export function drawPainterlyCity(
   const phase = options.reducedMotion || state.paused ? state.time : time;
   ctx.save();
   shadow(ctx, 32);
-  const ground = ctx.createRadialGradient(0, -2, 3, 0, -2, 42);
-  ground.addColorStop(0, '#c5ba9670');
-  ground.addColorStop(0.65, '#c5ba962b');
-  ground.addColorStop(1, '#c5ba9600');
-  oval(ctx, 0, -2, 44, 16, ground);
+  cityGround(ctx, state.seasonIndex % 4);
   cityFields(ctx, profile, state.seasonIndex % 4);
   if (profile.walls) cityRamparts(ctx, profile.wallIntegrity, false);
   if (profile.ruinedWalls && !profile.walls) {

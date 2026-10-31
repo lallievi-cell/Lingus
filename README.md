@@ -135,4 +135,6 @@ Le scelte di interpretazione, rappresentazione e calibrazione sono in [DECISIONS
 
 [CAMP-STOCKS.md](docs/CAMP-STOCKS.md) documenta le scorte visibili presso il giaciglio e l’inventario accessibile dall’inizio, comprese pelli e risorse possedute senza il relativo concetto.
 
+[ART-DIRECTION.md](docs/ART-DIRECTION.md) presenta la direzione naturalistica applicata alla mappa, ai personaggi, agli animali, ai venti edifici e alla vista regionale, con immagini desktop e mobile.
+
 Le regole definitive sono riassunte in [DESIGN.md](docs/DESIGN.md). [CONFORMANCE.md](docs/CONFORMANCE.md) collega i requisiti alla fonte e alle prove e collega gli indefiniti alle decisioni adottate. [ROADMAP.md](docs/ROADMAP.md) distingue verifiche ancora necessarie, decisioni di design e lavoro di prodotto.

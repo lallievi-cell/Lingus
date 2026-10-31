@@ -57,30 +57,37 @@ function groundColors(sectors: Sector[], season: number): Color[] {
   const palette: Record<Sector['biome'], Color> =
     season === 3
       ? {
-          forest: [156, 168, 151],
-          plain: [207, 207, 186],
-          mountain: [183, 185, 175],
-          river: [169, 184, 165],
+          forest: [151, 168, 155],
+          plain: [216, 221, 209],
+          mountain: [191, 201, 193],
+          river: [175, 195, 183],
         }
       : season === 2
         ? {
-            forest: [143, 145, 102],
-            plain: [173, 170, 119],
-            mountain: [162, 157, 128],
-            river: [139, 158, 114],
+            forest: [111, 119, 77],
+            plain: [165, 145, 98],
+            mountain: [158, 148, 125],
+            river: [128, 143, 105],
           }
-        : {
-            forest: [112, 136, 95],
-            plain: [160, 173, 120],
-            mountain: [151, 157, 127],
-            river: [127, 155, 111],
-          };
+        : season === 1
+          ? {
+              forest: [100, 121, 77],
+              plain: [172, 165, 108],
+              mountain: [163, 157, 126],
+              river: [119, 145, 108],
+            }
+          : {
+              forest: [87, 116, 86],
+              plain: [143, 161, 113],
+              mountain: [155, 154, 129],
+              river: [109, 141, 119],
+            };
   const cells: Color[] = Array.from({ length: 25 }, () => palette.plain);
   for (const sector of sectors) cells[sector.y * 5 + sector.x] = palette[sector.biome];
   return cells;
 }
 
-/** Painted soil is baked once. Texture frequencies span earth clumps, moss and fine grain. */
+/** Large colour masses establish the landscape before any small brushwork is added. */
 function paintGround(
   ctx: CanvasRenderingContext2D,
   seed: number,
@@ -96,7 +103,7 @@ function paintGround(
     data = image.data;
   const cells = groundColors(sectors, season);
   const snow = season === 3;
-  const earth: Color = snow ? [220, 215, 197] : [177, 157, 117];
+  const earth: Color = snow ? [194, 190, 170] : [181, 152, 104];
   for (let y = 0; y < HEIGHT; y++) {
     const gy = y / (SY * 100) - 0.5,
       iy = Math.floor(gy),
@@ -113,16 +120,26 @@ function paintGround(
         b = cells[y0 * 5 + x1],
         c = cells[y1 * 5 + x0],
         d = cells[y1 * 5 + x1];
-      const broad = noise(x / 145, y / 110, seed),
-        patches = noise(x / 24, y / 20, seed + 91);
-      const clumps = noise(x / 5.8, y / 4.3, seed + 711),
+      const broad = noise(x / 104, y / 83, seed),
+        patches = noise(x / 36, y / 25, seed + 91);
+      const clumps = noise(x / 7.8, y / 5.3, seed + 711),
         grain = hash(x, y, seed + 1709);
-      const soil = clamp((patches - 0.53) * 1.7) * 0.48;
+      const soil = clamp((patches - 0.54) * 2.6) * (snow ? 0.1 : 0.47);
       const dx = x / SX - home.x,
         dy = y / SY - home.y;
-      const trampled = clamp((18 - Math.hypot(dx, dy) + (patches - 0.5) * 7) / 10) * 0.75;
+      const homeDistance = Math.hypot(dx * 0.94, dy * 1.03);
+      let trampled = 0;
+      if (homeDistance < 27) {
+        const angle = Math.atan2(dy, dx);
+        const edge =
+          18.5 +
+          Math.sin(angle * 3 + (seed % 17)) * 2.3 +
+          Math.cos(angle * 5 + 1.8) * 1.1 +
+          (patches - 0.5) * 4;
+        trampled = clamp((edge - homeDistance) / 6.8) * 0.92;
+      }
       const warmth = Math.max(soil, trampled);
-      const shade = (broad - 0.5) * 19 + (clumps - 0.5) * 12 + (grain - 0.5) * 7;
+      const shade = (broad - 0.5) * 32 + (clumps - 0.5) * 6 + (grain - 0.5) * 2.5;
       const index = (y * WIDTH + x) * 4;
       for (let channel = 0; channel < 3; channel++) {
         const color = blend(
@@ -167,7 +184,7 @@ function paintPigment(ctx: CanvasRenderingContext2D, seed: number) {
     pigment.data[i] = value + 3;
     pigment.data[i + 1] = value + 1;
     pigment.data[i + 2] = value - 3;
-    pigment.data[i + 3] = 100;
+    pigment.data[i + 3] = 22;
   }
   brush.putImageData(pigment, 0, 0);
   ctx.save();
@@ -175,6 +192,171 @@ function paintPigment(ctx: CanvasRenderingContext2D, seed: number) {
   ctx.globalCompositeOperation = 'soft-light';
   ctx.fillStyle = ctx.createPattern(paper, 'repeat')!;
   ctx.fillRect(0, 0, WIDTH * 3, HEIGHT * 3);
+  ctx.restore();
+}
+
+function brushIsland(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  depth: number,
+  color: string,
+  phase: number,
+) {
+  const random = randomStream(Math.round(phase * 989381) ^ 0x71fe2a);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate((random() - 0.5) * 0.6);
+  ctx.fillStyle = color;
+  // Broken, overlapping strokes stain the ground. A closed oval with an offset
+  // light rim reads as a raised object, so the patch has no overall outline.
+  for (let stroke = 0; stroke < 9; stroke++) {
+    const px = (random() - 0.5) * width * 1.2,
+      py = (random() - 0.5) * depth * 1.5,
+      span = width * (0.12 + random() * 0.45),
+      thickness = 0.3 + depth * (0.04 + random() * 0.12);
+    ctx.beginPath();
+    ctx.moveTo(px - span, py);
+    ctx.lineTo(px - span * 0.55, py - thickness * 0.65);
+    ctx.lineTo(px - span * 0.2, py - thickness * 0.35);
+    ctx.lineTo(px + span * 0.7, py - thickness * 0.5);
+    ctx.quadraticCurveTo(px + span, py, px + span * 0.6, py + thickness * 0.3);
+    ctx.lineTo(px - span * 0.4, py + thickness * 0.65);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** Overlapping brush masses read as meadows, leaf litter and exposed strata at play zoom. */
+function paintLandscapeMasses(
+  ctx: CanvasRenderingContext2D,
+  seed: number,
+  season: number,
+  sectors: Sector[],
+  home: Point,
+) {
+  const random = randomStream(seed ^ 0x4b13da75);
+  const winter = season === 3,
+    autumn = season === 2,
+    summer = season === 1;
+  for (const sector of sectors) {
+    const forest = sector.biome === 'forest',
+      mountain = sector.biome === 'mountain';
+    const count = mountain ? 25 : forest ? 48 : 38;
+    for (let i = 0; i < count; i++) {
+      const wx = sector.x * 100 + random() * 100,
+        wy = sector.y * 100 + random() * 100;
+      const radius = 3 + random() * (forest ? 6 : 8);
+      if (Math.hypot(wx - home.x, wy - home.y) < 18 + radius * 0.4) continue;
+      const x = wx * SX,
+        y = wy * SY,
+        phase = random() * 7;
+      const width = radius * SX,
+        depth = radius * SY * (0.43 + random() * 0.32);
+      const shade = winter
+        ? '#6d8d830d'
+        : mountain
+          ? '#776f5d14'
+          : forest
+            ? '#253f3319'
+            : autumn
+              ? '#795d3514'
+              : summer
+                ? '#6d743914'
+                : '#375b3c16';
+      const light = winter
+        ? '#f8f8e72a'
+        : mountain
+          ? '#c7c0a826'
+          : autumn
+            ? '#d9b57122'
+            : summer
+              ? '#e7d18a28'
+              : '#b6c68125';
+      brushIsland(ctx, x, y, width, depth, i % 3 === 0 ? shade : light, phase);
+      // Broken edges keep the meadow as a group of brush strokes, never a neat oval stamp.
+      for (let edge = 0; edge < 5; edge++) {
+        const angle = random() * Math.PI * 2;
+        const ex = x + Math.cos(angle) * width * (0.6 + random() * 0.35),
+          ey = y + Math.sin(angle) * depth * 0.85;
+        dab(ctx, ex, ey, 0.8 + random() * 2.4, 0.3 + random() * 0.6, light, -0.2);
+      }
+      if (mountain) {
+        // Flat seams belong to the ground; collectible rock has a raised, shaded silhouette.
+        ctx.strokeStyle = winter ? '#8b9b9255' : '#776e5842';
+        ctx.lineWidth = 0.23;
+        ctx.beginPath();
+        ctx.moveTo(x - width * 0.55, y + depth * 0.12);
+        ctx.lineTo(x - width * 0.1, y - depth * 0.2);
+        ctx.lineTo(x + width * 0.55, y - depth * 0.16);
+        ctx.stroke();
+      } else if (forest || autumn) {
+        for (let leaf = 0; leaf < 8; leaf++) {
+          const lx = x + (random() - 0.5) * width * 1.4,
+            ly = y + (random() - 0.5) * depth * 1.2;
+          dab(
+            ctx,
+            lx,
+            ly,
+            0.55 + random() * 0.6,
+            0.16 + random() * 0.15,
+            winter ? '#c3cbb347' : autumn ? '#c39a5b65' : '#9f9f6350',
+            random() * 2 - 1,
+          );
+        }
+      }
+    }
+  }
+}
+
+/** Wear marks compose the camp without inventing buildings, goods or a gameplay road. */
+function paintCampWear(ctx: CanvasRenderingContext2D, seed: number, season: number, home: Point) {
+  const random = randomStream(seed ^ 0x574ea3d1),
+    winter = season === 3;
+  ctx.save();
+  ctx.scale(SX, SY);
+  ctx.lineCap = 'round';
+  for (let trail = 0; trail < 3; trail++) {
+    const angle = trail * 2.09 + 0.45 + (seed % 13) * 0.14;
+    const start = 4.5 + random() * 2,
+      end = 17 + random() * 4;
+    const bend = (random() - 0.5) * 3.5;
+    const trace = () => {
+      ctx.beginPath();
+      ctx.moveTo(home.x + Math.cos(angle) * start, home.y + Math.sin(angle) * start);
+      ctx.quadraticCurveTo(
+        home.x + Math.cos(angle) * (end * 0.56) - Math.sin(angle) * bend,
+        home.y + Math.sin(angle) * (end * 0.56) + Math.cos(angle) * bend,
+        home.x + Math.cos(angle) * end,
+        home.y + Math.sin(angle) * end,
+      );
+    };
+    for (const [width, color] of [
+      [2.4, winter ? '#777e6e0a' : '#816c4810'],
+      [1.5, winter ? '#b2b19c12' : '#b3986922'],
+      [0.7, winter ? '#9c9f8d18' : '#d4b77d25'],
+    ] as const) {
+      trace();
+      ctx.lineWidth = width;
+      ctx.strokeStyle = color;
+      ctx.stroke();
+    }
+  }
+  // Small paired strokes suggest repeatedly trodden earth rather than a drawn grid.
+  for (let i = 0; i < 55; i++) {
+    const angle = random() * Math.PI * 2,
+      radius = 2 + random() * 13;
+    const x = home.x + Math.cos(angle) * radius,
+      y = home.y + Math.sin(angle) * radius;
+    ctx.strokeStyle = winter ? '#787e6d28' : i % 3 ? '#806b4a20' : '#f1d5a32a';
+    ctx.lineWidth = 0.14;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(angle) * 0.35, y + Math.sin(angle) * 0.35);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -187,44 +369,61 @@ function paintSmallGrowth(
   const random = randomStream(seed ^ 0x38e2f6a1),
     winter = season === 3,
     autumn = season === 2;
-  // Small paint flecks remain far smaller than any selectable stone, tree or berry bush.
-  for (let i = 0; i < 19000; i++) {
+  // Pigment is subordinate to the landscape shapes, not an all-over noisy carpet.
+  for (let i = 0; i < 6200; i++) {
     const x = random() * WIDTH,
       y = random() * HEIGHT;
     const nearHome = Math.hypot(x / SX - home.x, y / SY - home.y) < 11;
     const color = winter
-      ? ['#f1eddb30', '#727e7033', '#b1b6a52c'][i % 3]
+      ? ['#fffdeb36', '#81968b1e', '#b1c2b629'][i % 3]
       : autumn
         ? ['#d1ba8050', '#8c785542', '#556e4936'][i % 3]
         : ['#ddd29c45', '#526e4535', '#81935b45'][i % 3];
     if (nearHome && i % 3) continue;
-    dab(ctx, x, y, 0.2 + random() * 0.7, 0.08 + random() * 0.27, color, random() * 1.6);
+    dab(ctx, x, y, 0.25 + random() * 0.85, 0.08 + random() * 0.22, color, random() * 1.6);
   }
   ctx.lineCap = 'round';
-  for (let i = 0; i < 11000; i++) {
+  for (let i = 0; i < 4500; i++) {
     const x = random() * WIDTH,
       y = random() * HEIGHT;
-    if (Math.hypot(x / SX - home.x, y / SY - home.y) < 10 + random() * 3) continue;
+    if (Math.hypot(x / SX - home.x, y / SY - home.y) < 16 + random() * 5) continue;
     const patch = noise(x / 31, y / 24, seed + 126);
-    if (patch < 0.28 || (winter && random() > 0.3)) continue;
-    const height = 0.3 + random() * 1.15,
-      lean = (random() - 0.7) * 0.7;
+    if (patch < 0.36 || (winter && random() > 0.22)) continue;
+    const height = 0.45 + random() * 1.7,
+      lean = (random() - 0.5) * 2.5;
     // A soft basal paint mark and individually tapered blades, never repeated V symbols.
-    dab(ctx, x + 0.3, y + 0.12, 0.65 + random() * 0.5, 0.17, '#586b3f19');
-    for (let blade = 0; blade < 2 + (i % 2); blade++) {
-      const bx = x + (blade - 1) * 0.35;
-      ctx.strokeStyle = winter ? '#78887955' : blade === 1 ? '#d1c88578' : '#5f75465d';
-      ctx.lineWidth = blade === 1 ? 0.21 : 0.28;
+    dab(ctx, x + 0.3, y + 0.18, 1.1 + random() * 0.9, 0.34, '#324b3022');
+    for (let blade = 0; blade < 2 + (i % 4); blade++) {
+      const bx = x + (blade - 1.5) * (0.25 + random() * 0.45),
+        bladeHeight = height * (0.55 + random() * 0.65),
+        tip = lean + (random() - 0.5) * 1.1;
+      ctx.strokeStyle = winter
+        ? '#6c887a65'
+        : season === 1
+          ? blade === 1
+            ? '#e1cf8b94'
+            : '#8b8d4f80'
+          : autumn
+            ? blade === 1
+              ? '#dbb9778c'
+              : '#8d784a80'
+            : blade === 1
+              ? '#cfce939c'
+              : '#4c713e80';
+      ctx.lineWidth = blade === 1 ? 0.22 : 0.35;
       ctx.beginPath();
       ctx.moveTo(bx, y);
-      ctx.quadraticCurveTo(bx + lean * 0.3, y - height * 0.6, bx + lean, y - height);
+      ctx.quadraticCurveTo(bx + tip * 0.3, y - bladeHeight * 0.6, bx + tip, y - bladeHeight);
       ctx.stroke();
     }
     if (autumn && i % 11 === 0) dab(ctx, x + 1, y - 0.5, 0.65, 0.22, '#9b7d4d66', -0.5);
-    if (!winter && i % 97 === 0) dab(ctx, x, y - height, 0.28, 0.19, '#e5d5a58c');
+    if (!winter && i % 31 === 0) {
+      dab(ctx, x - 0.25, y - height, 0.42, 0.28, '#f0dfaaad');
+      dab(ctx, x + 0.4, y - height + 0.15, 0.27, 0.2, '#e7c6879c');
+    }
   }
   // Soil inclusions are sub-pixel specks, not fake harvestable rock silhouettes.
-  for (let i = 0; i < 1900; i++) {
+  for (let i = 0; i < 950; i++) {
     const x = random() * WIDTH,
       y = random() * HEIGHT,
       size = 0.22 + random() * 0.48;
@@ -284,13 +483,10 @@ function paintRiver(ctx: CanvasRenderingContext2D, seed: number, season: number,
   water.addColorStop(0.5, winter ? '#a7bab1' : '#7d9e8b');
   water.addColorStop(1, winter ? '#94b4b2' : '#597f79');
   for (const [color, width] of [
-    ['#556e5540', 26],
-    ['#7f836352', 23],
-    ['#a59d77', 20],
-    ['#c0b18b', 16],
-    ['#6d806e', 13],
-    [water, 11],
-    [winter ? '#d2ded064' : '#a3b49a43', 7],
+    ['#65755520', 25],
+    [winter ? '#d9decb70' : '#b2a47e80', 19],
+    [water, 12],
+    [winter ? '#d2ded02a' : '#a3b49a18', 5],
   ] as const) {
     trace();
     ctx.strokeStyle = color;
@@ -357,6 +553,8 @@ export function createPainterlyTerrain(
   const sectors = world?.sectors ?? defaultSectors();
   const home = world?.home ?? { x: 250, y: 250 };
   paintGround(ctx, originalSeed, season, sectors, home);
+  paintLandscapeMasses(ctx, originalSeed, season, sectors, home);
+  paintCampWear(ctx, originalSeed, season, home);
   paintPigment(ctx, originalSeed);
   paintSmallGrowth(ctx, originalSeed, season, home);
   paintRiver(ctx, originalSeed, season, world);

@@ -5,6 +5,7 @@ export interface AnimalAnimationContext {
   simulationTime: number;
   /** One identity per mounted world prevents an old animal lending its pose to a new game. */
   sessionKey?: object | string;
+  reducedMotion?: boolean;
 }
 
 type Motion = {

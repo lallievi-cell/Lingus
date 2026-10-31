@@ -31,6 +31,8 @@ export const MAP_WIDTH = 1200;
 export const MAP_HEIGHT = 800;
 export const WORLD_SIZE = 500;
 export const SPRITE_SCALE = 0.2;
+/** People need a readable silhouette at the normal phone camera distance. */
+export const UNIT_ART_SCALE = 0.3;
 export const worldPoint = (x: number, y: number) => ({ x: x * 2.4, y: y * 1.6 });
 export const hasConcept = (state: GameState, id: string) => (state.words[id]?.retention ?? 0) > 0;
 export function isVisibleAt(state: GameState, x: number, y: number) {
@@ -648,8 +650,8 @@ function drawHandheld(
         [2.8, -23],
       ],
       '#a8afa8',
-      '#596965',
-      0.9,
+      '#667367b0',
+      0.65,
     );
     line(
       ctx,
@@ -699,8 +701,8 @@ function drawHandheld(
         [2.2, -2],
       ],
       '#b5ae87',
-      '#686e61',
-      0.9,
+      '#74765db0',
+      0.65,
     );
     line(
       ctx,
@@ -726,9 +728,9 @@ function drawHandheld(
         [4.6, -4],
         [2.3, 1],
       ],
-      workpiece ? '#88897a' : '#728581',
-      '#4f635e',
-      1,
+      workpiece ? '#8e9286' : '#7f887f',
+      '#566457b0',
+      0.7,
     );
     polygon(
       ctx,
@@ -738,7 +740,7 @@ function drawHandheld(
         [2, -6],
         [0, -2],
       ],
-      workpiece ? '#b8baa1' : '#b9c9bd',
+      workpiece ? '#b8baa1' : '#c4c9b3',
     );
     line(
       ctx,
@@ -1103,6 +1105,7 @@ export function drawWorld(
     }),
   );
   const animalContext: AnimalAnimationContext = {
+    reducedMotion: atmosphereOptions?.reducedMotion,
     units: state.units,
     simulationTime: state.time,
     sessionKey: motionSession,
@@ -1256,7 +1259,11 @@ export function drawWorld(
     sprite(
       p,
       () => drawSelection(ctx, p.x, p.y, time, commandReady),
-      ['city', 'battalion', 'caravan'].includes(selected.type) ? 1 : SPRITE_SCALE,
+      selected.type === 'unit'
+        ? UNIT_ART_SCALE
+        : ['city', 'battalion', 'caravan'].includes(selected.type)
+          ? 1
+          : SPRITE_SCALE,
     );
   }
   if (hovered && hovered.id !== selected?.id) {
@@ -1264,7 +1271,11 @@ export function drawWorld(
     sprite(
       p,
       () => drawSelection(ctx, p.x, p.y, time, commandReady, true),
-      ['city', 'battalion', 'caravan'].includes(hovered.type) ? 1 : SPRITE_SCALE,
+      hovered.type === 'unit'
+        ? UNIT_ART_SCALE
+        : ['city', 'battalion', 'caravan'].includes(hovered.type)
+          ? 1
+          : SPRITE_SCALE,
     );
   }
   const objects: { y: number; draw: () => void }[] = [];
@@ -1347,101 +1358,109 @@ export function drawWorld(
     objects.push({
       y: unit.y + 0.3,
       draw: () =>
-        sprite(unit, () => {
-          const isGroupMember = !!(
-            isGroupActive &&
-            liveAnchor &&
-            Math.hypot(unit.x - liveAnchor.x, unit.y - liveAnchor.y) <= 15
-          );
-          const actual = state.units.find((u) => u.id === unit.id)!;
-          const target =
-            state.entities.find((e) => e.id === actual.targetId) ??
-            state.buildings.find(
-              (b) => b.id === actual.jobBuildingId || b.id === actual.targetId,
-            ) ??
-            (actual.action === 'guarding'
-              ? state.buildings.find(
-                  (b) =>
-                    b.kind === 'campfire' &&
-                    b.hp > 0 &&
-                    Math.hypot(b.x - actual.x, b.y - actual.y) <= 15,
-                )
-              : undefined) ??
-            state.units.find((u) => u.id === actual.targetId) ??
-            (actual.tx !== undefined && actual.ty !== undefined
-              ? { x: actual.tx, y: actual.ty }
-              : undefined);
-          const motion = motions.get(unit.id);
-          const equipment = visibleUnitEquipment(state, actual);
-          const range = ['combat', 'hunting'].includes(actual.action)
-            ? target && 'kind' in target && equipment.held === 'spear'
-              ? 3
-              : 1.5
-            : actual.action === 'crafting' || actual.action === 'cooking'
-              ? 0.1
-              : actual.jobBuildingId
+        sprite(
+          unit,
+          () => {
+            const isGroupMember = !!(
+              isGroupActive &&
+              liveAnchor &&
+              Math.hypot(unit.x - liveAnchor.x, unit.y - liveAnchor.y) <= 15
+            );
+            const actual = state.units.find((u) => u.id === unit.id)!;
+            const target =
+              state.entities.find((e) => e.id === actual.targetId) ??
+              state.buildings.find(
+                (b) => b.id === actual.jobBuildingId || b.id === actual.targetId,
+              ) ??
+              (actual.action === 'guarding'
+                ? state.buildings.find(
+                    (b) =>
+                      b.kind === 'campfire' &&
+                      b.hp > 0 &&
+                      Math.hypot(b.x - actual.x, b.y - actual.y) <= 15,
+                  )
+                : undefined) ??
+              state.units.find((u) => u.id === actual.targetId) ??
+              (actual.tx !== undefined && actual.ty !== undefined
+                ? { x: actual.tx, y: actual.ty }
+                : undefined);
+            const motion = motions.get(unit.id);
+            const equipment = visibleUnitEquipment(state, actual);
+            const range = ['combat', 'hunting'].includes(actual.action)
+              ? target && 'kind' in target && equipment.held === 'spear'
                 ? 3
-                : 3.7;
-          const cyclicWork = [
-            'gathering',
-            'crafting',
-            'cooking',
-            'building',
-            'planting',
-            'eating',
-            'domesticating',
-            'hunting',
-            'combat',
-          ].includes(actual.action);
-          const workedRecently = Object.entries(actual.lastEventAt ?? {}).some(
-            ([key, at]) =>
-              key.startsWith('WORK:') && at >= (actual.lastOrderAt ?? 0) && state.time - at < 2,
-          );
-          const ready =
-            (!target || Math.hypot(target.x - actual.x, target.y - actual.y) <= range + 0.01) &&
-            (!cyclicWork || actual.progress > 0 || workedRecently) &&
-            (!['combat', 'hunting'].includes(actual.action) ||
-              !target ||
-              !('hp' in target) ||
-              target.hp > 0);
-          const targetFacing =
-            target && Math.abs(target.x - unit.x) > 0.1 ? (target.x > unit.x ? 1 : -1) : undefined;
-          const recentEvent =
-            state.time - (actual.lastEventAt?.DELIVERY ?? -Infinity) < 0.6
-              ? 'deposit'
-              : state.time - (actual.lastEventAt?.MEAL ?? -Infinity) < 0.8
-                ? 'meal'
+                : 1.5
+              : actual.action === 'crafting' || actual.action === 'cooking'
+                ? 0.1
+                : actual.jobBuildingId
+                  ? 3
+                  : 3.7;
+            const cyclicWork = [
+              'gathering',
+              'crafting',
+              'cooking',
+              'building',
+              'planting',
+              'eating',
+              'domesticating',
+              'hunting',
+              'combat',
+            ].includes(actual.action);
+            const workedRecently = Object.entries(actual.lastEventAt ?? {}).some(
+              ([key, at]) =>
+                key.startsWith('WORK:') && at >= (actual.lastOrderAt ?? 0) && state.time - at < 2,
+            );
+            const ready =
+              (!target || Math.hypot(target.x - actual.x, target.y - actual.y) <= range + 0.01) &&
+              (!cyclicWork || actual.progress > 0 || workedRecently) &&
+              (!['combat', 'hunting'].includes(actual.action) ||
+                !target ||
+                !('hp' in target) ||
+                target.hp > 0);
+            const targetFacing =
+              target && Math.abs(target.x - unit.x) > 0.1
+                ? target.x > unit.x
+                  ? 1
+                  : -1
                 : undefined;
-          const pose = getUnitAnimation(actual, time, {
-            moving: motion?.moving ?? false,
-            facing: motion?.moving ? motion.facing : (targetFacing ?? motion?.facing),
-            targetKind: target && 'kind' in target ? target.kind : undefined,
-            target,
-            ready,
-            equipment,
-            recentEvent,
-          });
-          drawUnit(
-            ctx,
-            unit,
-            time,
-            selected?.id === unit.id && hasConcept(state, 'S_02'),
-            !!unit.carry && resourceKnown(state, unit.carry.resource),
-            custodians.get(unit.id),
-            isGroupMember,
-            (state.tribeEvents ?? []).some(
-              (event) =>
-                event.kind === 'birth' &&
-                event.unitId === unit.id &&
-                state.time >= event.time &&
-                state.time - event.time < 5,
-            ),
-            equipment,
-            hasConcept(state, 'O_08'),
-            pose,
-            foreignUnitDisposition(state, actual),
-          );
-        }),
+            const recentEvent =
+              state.time - (actual.lastEventAt?.DELIVERY ?? -Infinity) < 0.6
+                ? 'deposit'
+                : state.time - (actual.lastEventAt?.MEAL ?? -Infinity) < 0.8
+                  ? 'meal'
+                  : undefined;
+            const pose = getUnitAnimation(actual, time, {
+              moving: motion?.moving ?? false,
+              facing: motion?.moving ? motion.facing : (targetFacing ?? motion?.facing),
+              targetKind: target && 'kind' in target ? target.kind : undefined,
+              target,
+              ready,
+              equipment,
+              recentEvent,
+            });
+            drawUnit(
+              ctx,
+              unit,
+              time,
+              selected?.id === unit.id && hasConcept(state, 'S_02'),
+              !!unit.carry && resourceKnown(state, unit.carry.resource),
+              custodians.get(unit.id),
+              isGroupMember,
+              (state.tribeEvents ?? []).some(
+                (event) =>
+                  event.kind === 'birth' &&
+                  event.unitId === unit.id &&
+                  state.time >= event.time &&
+                  state.time - event.time < 5,
+              ),
+              equipment,
+              hasConcept(state, 'O_08'),
+              pose,
+              foreignUnitDisposition(state, actual),
+            );
+          },
+          UNIT_ART_SCALE,
+        ),
     });
   for (const city of state.cities.filter(
     (c) =>
@@ -1589,40 +1608,44 @@ export function drawWorld(
   for (const spark of state.sparks) {
     const u = renderUnits.get(spark.unitId);
     if (!u || u.hp <= 0 || !inView(u)) continue;
-    sprite(u, () => {
-      const p = worldPoint(u.x, u.y),
-        x = p.x,
-        y = p.y - 36 + Math.sin(time * 3) * 2;
-      const glow = ctx.createRadialGradient(x, y, 1, x, y, 25);
-      glow.addColorStop(0, '#f9e4a477');
-      glow.addColorStop(1, '#f9e4a400');
-      ctx.fillStyle = glow;
-      ctx.fillRect(x - 25, y - 25, 50, 50);
-      polygon(
-        ctx,
-        [
-          [x, y - 10],
-          [x + 8, y],
-          [x, y + 10],
-          [x - 8, y],
-        ],
-        '#f7e5b0',
-      );
-      ctx.strokeStyle = '#a38740';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      line(
-        ctx,
-        [
-          [x + 1, y - 6],
-          [x - 3, y + 1],
-          [x + 2, y + 1],
-          [x - 1, y + 6],
-        ],
-        '#987c35',
-        2,
-      );
-    });
+    sprite(
+      u,
+      () => {
+        const p = worldPoint(u.x, u.y),
+          x = p.x,
+          y = p.y - 36 + Math.sin(time * 3) * 2;
+        const glow = ctx.createRadialGradient(x, y, 1, x, y, 25);
+        glow.addColorStop(0, '#f9e4a477');
+        glow.addColorStop(1, '#f9e4a400');
+        ctx.fillStyle = glow;
+        ctx.fillRect(x - 25, y - 25, 50, 50);
+        polygon(
+          ctx,
+          [
+            [x, y - 10],
+            [x + 8, y],
+            [x, y + 10],
+            [x - 8, y],
+          ],
+          '#f7e5b0',
+        );
+        ctx.strokeStyle = '#a38740';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        line(
+          ctx,
+          [
+            [x + 1, y - 6],
+            [x - 3, y + 1],
+            [x + 2, y + 1],
+            [x - 1, y + 6],
+          ],
+          '#987c35',
+          2,
+        );
+      },
+      UNIT_ART_SCALE,
+    );
   }
   if (hasConcept(state, 'O_10')) {
     const p = worldPoint(state.home.x, state.home.y),

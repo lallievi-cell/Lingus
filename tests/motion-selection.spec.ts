@@ -69,7 +69,7 @@ test('a moving person is selected at its painted position and returns its real c
         state = {
           ...state,
           time: 0.25,
-          units: [{ ...state.units[0], x: 254, tx: 260, ty: 252, action: 'moving' }],
+          units: [{ ...state.units[0], x: 256, tx: 260, ty: 252, action: 'moving' }],
         };
         render();
       },
@@ -91,13 +91,14 @@ test('a moving person is selected at its painted position and returns its real c
   });
   await session.send('Input.dispatchTouchEvent', {
     type: 'touchMove',
-    touchPoints: [finger(1, x - 20), finger(2, x - 20 + (40 * 10) / 4.5)],
+    touchPoints: [finger(1, x - (20 * 10) / 4.5), finger(2, x + (20 * 10) / 4.5)],
   });
   await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await session.detach();
   await expect(page.locator('.lingus-world__control-stack > span')).toHaveText('1000%');
 
-  const result = await page.evaluate(() => {
+  const result = await page.evaluate(async () => {
+    const { UNIT_ART_SCALE } = await import('/src/components/mapDrawing.ts');
     const fixture = window as typeof window & {
       drawMotionFrame(timestamp: number): void;
       moveMotionPerson(): void;
@@ -110,15 +111,24 @@ test('a moving person is selected at its painted position and returns its real c
     const canvas = document.querySelector<HTMLCanvasElement>('.lingus-world__canvas')!;
     const bounds = canvas.getBoundingClientRect();
     const scale = Math.max(bounds.width / 1200, bounds.height / 800) * 10;
-    // After 80ms of a 250ms sample, the painted anchor is x=251.28, while
-    // the actual unit is already x=254. Find a dark detail in its painted head.
-    const drawnX = bounds.width / 2 + 1.28 * 2.4 * scale;
+    // After 80ms of a 250ms sample, the painted anchor is x=251.92, while
+    // the actual unit is already x=256. Keep them separated by more than the
+    // enlarged silhouette and find a real dark detail in the painted head.
+    const drawnX = bounds.width / 2 + 1.92 * 2.4 * scale;
     const feetY = bounds.height / 2 + 2 * 1.6 * scale;
     const ratio = canvas.width / bounds.width;
     const image = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height);
     const pixels: { x: number; y: number }[] = [];
-    for (let y = Math.floor(feetY - 35 * 0.2 * scale); y < feetY - 20 * 0.2 * scale; y++) {
-      for (let x = Math.floor(drawnX - 10 * 0.2 * scale); x < drawnX + 10 * 0.2 * scale; x++) {
+    for (
+      let y = Math.floor(feetY - 35 * UNIT_ART_SCALE * scale);
+      y < feetY - 20 * UNIT_ART_SCALE * scale;
+      y++
+    ) {
+      for (
+        let x = Math.floor(drawnX - 10 * UNIT_ART_SCALE * scale);
+        x < drawnX + 10 * UNIT_ART_SCALE * scale;
+        x++
+      ) {
         const index = (Math.floor(y * ratio) * canvas.width + Math.floor(x * ratio)) * 4;
         const [red, green, blue] = image.data.slice(index, index + 3);
         if (red < 95 && green < 90 && blue < 80 && red > green && green > blue)
@@ -142,12 +152,12 @@ test('a moving person is selected at its painted position and returns its real c
       );
     return {
       selection: JSON.parse(document.body.dataset.selection ?? '{}'),
-      distanceFromActualAnchor: bounds.width / 2 + 4 * 2.4 * scale - pixel.x,
-      silhouetteHalfWidth: 9 * 0.2 * scale + 2,
+      distanceFromActualAnchor: bounds.width / 2 + 6 * 2.4 * scale - pixel.x,
+      silhouetteHalfWidth: 11 * UNIT_ART_SCALE * scale + 2,
     };
   });
 
   expect(result.distanceFromActualAnchor).toBeGreaterThan(result.silhouetteHalfWidth * 2);
-  expect(result.selection).toMatchObject({ type: 'unit', id: personId, x: 254, y: 252 });
+  expect(result.selection).toMatchObject({ type: 'unit', id: personId, x: 256, y: 252 });
   expect(errors).toEqual([]);
 });
