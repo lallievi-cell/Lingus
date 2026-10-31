@@ -11,17 +11,12 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import {
-  BUILDING_ORDER,
-  BUILDING_SPECS,
-  RESOURCE_ORDER,
-  RESOURCE_SPECS,
-  WORDS,
-} from '../game/content';
+import { BUILDING_ORDER, BUILDING_SPECS, RESOURCE_SPECS, WORDS } from '../game/content';
 import { getIntelligibility, playerPopulation, removeLaw, removeTradition } from '../game/imperial';
 import { hasWord } from '../game/runtime';
 import { isVisibleAt } from './mapDrawing';
 import { Glyph } from './Glyph';
+import { describeStockQuantity, getInventoryEntries } from './campInventory';
 import type { City, GameState, Resource, Target } from '../game/types';
 
 export type CivilizationMode =
@@ -78,13 +73,11 @@ export function CivilizationPanel({
     ));
   const inventory = (r: GameState['resources']) => (
     <div className="inventory-grid">
-      {RESOURCE_ORDER.filter(
-        (key) => !RESOURCE_SPECS[key].wordId || hasWord(s, RESOURCE_SPECS[key].wordId!),
-      ).map((key) => (
-        <div key={key}>
-          <Glyph id={RESOURCE_SPECS[key].wordId ?? 'V_02'} size={17} />
-          <span>{RESOURCE_SPECS[key].label}</span>
-          <b>{describeQuantity(r[key], numbered)}</b>
+      {getInventoryEntries(s, r).map(({ resource, label, amount }) => (
+        <div key={resource}>
+          <Glyph id={RESOURCE_SPECS[resource].wordId ?? 'V_02'} size={17} />
+          <span>{label}</span>
+          <b>{describeStockQuantity(amount, numbered)}</b>
         </div>
       ))}
     </div>

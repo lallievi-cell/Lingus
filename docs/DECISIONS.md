@@ -131,6 +131,12 @@ Le ulteriori verifiche sui mondi generati hanno richiesto tre correzioni collega
 | A-55 | La prima fabbricazione dipendeva dall’incrocio dei raggi di due nodi casuali.        | Un artigiano nel raggio di 15 m dal campo usa scorte e materiali già estratti entro 35 m dal giaciglio. Fuori dal campo rimane il raggio locale di 15 m.              |
 | A-56 | Compagni al caldo partivano per resti lontani e tornavano ipotermici senza mangiare. | Gli istinti considerano il raffreddamento del tragitto e un riparo reale. Fame urgente e ordini espliciti restano liberi; nessun cibo o calore aggiunto.              |
 
+## Scorte osservabili prima dei concetti astratti
+
+| ID   | Problema                                                                                                                | Decisione                                                                                                                                                                                                                                                                                                                     |
+| ---- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A-57 | Le consegne sparivano dalla mappa e i materiali posseduti potevano restare nascosti senza Domani o la parola associata. | Su richiesta dell’utente, presenza fisica e inventario delle scorte sono osservabili dall’inizio, comprese le pelli. Quantità qualitative prima di Numero; cumuli decorativi derivati dall’inventario, carichi separati e nessuna modifica alle risorse o alle formule. Dettagli e prove in [CAMP-STOCKS.md](CAMP-STOCKS.md). |
+
 ## Portata delle decisioni
 
 Risolvere gli indefiniti rende il modello eseguibile e giudicabile. Non certifica da solo che ogni regola esplicita sia implementata o che ogni vittoria sia raggiungibile in una partita ordinaria.

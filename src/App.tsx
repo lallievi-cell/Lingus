@@ -37,6 +37,8 @@ import {
   Zap,
 } from 'lucide-react';
 import { WorldMap } from './components/WorldMap';
+import { CampInventoryPanel } from './components/CampInventoryPanel';
+import { describeStockQuantity } from './components/campInventory';
 import { TribeMemberCard } from './components/TribeMemberCard';
 import {
   lastCustodianLabel,
@@ -156,6 +158,7 @@ type Panel =
   | 'spark'
   | 'word-help'
   | 'readiness'
+  | 'stocks'
   | CivilizationMode
   | null;
 const KIND_NAMES: Record<WordKind, string> = {
@@ -274,6 +277,7 @@ function App() {
   const numbered = hasWord(game, 'O_08');
   const individuality = hasWord(game, 'S_02');
   const quantity = (value: number) => describeQuantity(value, numbered);
+  const stockQuantity = (value: number) => describeStockQuantity(value, numbered, true);
   const voiceMax = hasWord(game, 'S_07') ? 5 : 3;
   const known = WORD_ORDER.filter((id) => hasWord(game, id));
   const unreadEvents = (game.tribeEvents ?? []).filter((event) => !dismissedEvents.has(event.id));
@@ -1124,17 +1128,17 @@ function App() {
             <>
               <span title="Scorte alimentari">
                 <AppleIcon />
-                {quantity(game.resources.food + game.resources.meat + game.resources.cooked)}
+                {stockQuantity(game.resources.food + game.resources.meat + game.resources.cooked)}
                 <small>Cibo</small>
               </span>
               <span title="Legno disponibile">
                 <TreePine size={15} />
-                {quantity(game.resources.wood)}
+                {stockQuantity(game.resources.wood)}
                 <small>Legno</small>
               </span>
               <span title="Pietra disponibile">
                 <Glyph id="O_02" size={15} />
-                {quantity(game.resources.stone)}
+                {stockQuantity(game.resources.stone)}
                 <small>Pietra</small>
               </span>
             </>
@@ -1143,7 +1147,7 @@ function App() {
             <span className="season-chip">
               {season.isNight ? <Glyph id="C_01" size={15} /> : <Sun size={15} />}
               {hasWord(game, 'M_02')
-                ? `${season.name} · Anno ${season.year}`
+                ? `${season.name}${numbered ? ` · Anno ${season.year}` : ''}`
                 : season.isNight
                   ? 'È notte'
                   : 'È giorno'}
@@ -1695,6 +1699,7 @@ function App() {
             <WorldMap
               key={mapSession}
               state={game}
+              onInspectStocks={() => setPanel('stocks')}
               focusRequest={focusRequest}
               selectedTarget={target}
               groupAnchor={groupAnchor}
@@ -2406,6 +2411,22 @@ function App() {
               Costruzioni conosciute
             </button>
           </div>
+        </Modal>
+      )}
+      {panel === 'stocks' && (
+        <Modal
+          title={game.urbanized ? 'Scorte della capitale' : 'Scorte del campo'}
+          onClose={closePanel}
+          className="camp-inventory-modal"
+        >
+          <CampInventoryPanel
+            state={game}
+            onFocusCamp={() => {
+              closePanel();
+              setMobileSection('map');
+              setFocusRequest({ ...game.home, nonce: Date.now() });
+            }}
+          />
         </Modal>
       )}
       {panel === 'readiness' && (

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Crosshair, Minus, Plus, Move, MapPin, MousePointer2, X } from 'lucide-react';
+import { Crosshair, Minus, Plus, Move, MapPin, MousePointer2, PackageOpen, X } from 'lucide-react';
 import type { GameState, WorldTarget } from '../game/types';
 import { getCalendar } from '../game/calendar';
 import {
@@ -28,6 +28,8 @@ import { getBattalionDisplayPoint } from './regionalLayout';
 import { deriveSiegePresentation } from './mapSiegeArt';
 import { visibleUnitName } from './unitReadability';
 import { anchoredPinchView, type MapPinchAnchor } from './mapGestures';
+import { getCampStockSlots } from './campInventory';
+import { CAMP_STOCK_ART_BOUNDS } from './mapCampStockArt';
 import './WorldMap.css';
 
 interface WorldMapProps {
@@ -38,6 +40,7 @@ interface WorldMapProps {
   commandReady?: boolean;
   selectingGroup?: boolean;
   onSpark?: (sparkId: string) => void;
+  onInspectStocks?: () => void;
   groupAnchor?: WorldTarget | null;
   isGroupActive?: boolean;
   orderFeedback?: {
@@ -158,6 +161,7 @@ export function WorldMap({
   commandReady = false,
   selectingGroup = false,
   onSpark,
+  onInspectStocks,
   groupAnchor = null,
   isGroupActive = false,
   orderFeedback = null,
@@ -553,6 +557,25 @@ export function WorldMap({
     [getTransform, toWorld],
   );
 
+  // Stored goods are an inventory view, not another gatherable world target.
+  // Actual people and resources keep priority; issuing orders still selects the ground.
+  const hitStoredGoods = (clientX: number, clientY: number) => {
+    const point = toWorld(clientX, clientY),
+      scale = getTransform().scale;
+    return getCampStockSlots(stateRef.current).some((slot) => {
+      if (!isVisibleAt(stateRef.current, slot.x, slot.y)) return false;
+      const art = CAMP_STOCK_ART_BOUNDS[slot.group];
+      const dx = (point.x - slot.x) * WORLD_X * scale,
+        dy = ((point.y - slot.y) * WORLD_Y + art.verticalOffset * SPRITE_SCALE) * scale;
+      return (
+        Math.hypot(
+          dx / Math.max(18, art.rx * SPRITE_SCALE * scale),
+          dy / Math.max(16, art.ry * SPRITE_SCALE * scale),
+        ) <= 1
+      );
+    });
+  };
+
   useEffect(() => {
     if (!targetChoices.length) return;
     choiceRef.current?.querySelector<HTMLButtonElement>('button[data-target-choice]')?.focus();
@@ -906,6 +929,17 @@ export function WorldMap({
           }
           const choices: WorldTarget[] = [];
           const picked = hitTest(event.clientX, event.clientY, choices);
+          if (
+            picked.type === 'point' &&
+            !commandReady &&
+            !selectingGroup &&
+            onInspectStocks &&
+            hitStoredGoods(event.clientX, event.clientY)
+          ) {
+            setTargetChoices([]);
+            onInspectStocks();
+            return;
+          }
           if (choices.length > 1 && !selectingGroup) {
             setTargetChoices([...choices, { type: 'point', x: p.x, y: p.y }]);
             return;
@@ -1017,6 +1051,18 @@ export function WorldMap({
           <circle cx="25" cy="31" r="2" fill="currentColor" />
         </svg>
       </div>
+      {onInspectStocks && (
+        <button
+          className="lingus-world__stocks"
+          type="button"
+          onClick={onInspectStocks}
+          aria-label={state.urbanized ? 'Scorte della capitale' : 'Scorte del campo'}
+          title="Consulta cibo, materiali e pelli già consegnati"
+        >
+          <PackageOpen size={17} />
+          <span>Scorte</span>
+        </button>
+      )}
       <div className="lingus-world__control-stack">
         <button
           type="button"

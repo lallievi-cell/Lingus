@@ -20,6 +20,8 @@ import { drawRegionalRoutes } from './mapRouteArt';
 import { drawRegionalSieges } from './mapSiegeArt';
 import { getBattalionDisplayPoint } from './regionalLayout';
 import { foreignUnitDisposition } from './unitReadability';
+import { getCampStockSlots } from './campInventory';
+import { drawCampStock } from './mapCampStockArt';
 
 const fallbackMotionSession = createMapMotionSession();
 
@@ -1306,6 +1308,13 @@ export function drawWorld(
     objects.push({
       y: pile.y + 0.1,
       draw: () => sprite(pile, () => drawGroundPile(ctx, state, pile)),
+    });
+  }
+  for (const stock of getCampStockSlots(state)) {
+    if (!inView(stock) || !isVisibleAt(state, stock.x, stock.y)) continue;
+    objects.push({
+      y: stock.y,
+      draw: () => sprite(stock, () => drawCampStock(ctx, stock)),
     });
   }
   if (!state.urbanized)
