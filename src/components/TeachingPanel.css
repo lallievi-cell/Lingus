@@ -11,6 +11,47 @@
   font-size: 12px;
   line-height: 1.5;
 }
+.opening-council > .modal-symbol {
+  display: none;
+}
+.opening-council > h2 {
+  font-size: 32px;
+  margin: 6px 0 8px;
+}
+.opening-council > .modal-intro {
+  margin-bottom: 10px !important;
+}
+.opening-council .attention-counter {
+  margin: 10px 0;
+  padding: 8px 12px;
+}
+.opening-council .attention-counter > strong {
+  font-size: 24px;
+}
+.opening-council .guided-council {
+  padding: 8px 10px;
+  margin: 8px 0;
+}
+.opening-council .guided-council > div > strong {
+  display: none;
+}
+.opening-council .first-lesson-help {
+  margin: 8px 0;
+  padding: 8px 10px;
+}
+.opening-council .first-lesson-help small {
+  font-size: 12px;
+  line-height: 1.45;
+}
+@media (max-width: 760px) {
+  .opening-council > h2 {
+    display: none;
+  }
+  .opening-council > .eyebrow {
+    display: block;
+    margin-top: 8px;
+  }
+}
 .first-lesson-help > svg {
   flex-shrink: 0;
   margin-top: 2px;
@@ -22,6 +63,19 @@
   display: block;
   font-size: 11px;
   color: #65715c;
+}
+.first-lesson-help .lesson-budget {
+  margin: 6px 0 0;
+  color: #365d3d;
+  font-size: 12px;
+  font-weight: 650;
+}
+.teaching-panel .lesson-purpose {
+  display: block;
+  margin: 3px 0 6px;
+  color: #53604c;
+  font-size: 11px;
+  line-height: 1.45;
 }
 .teaching-panel .teaching-row {
   align-items: start;

@@ -13,7 +13,7 @@ async function loadTier(page: Page, tier: number, night = false) {
         tier,
         started: true,
         paused: true,
-        time: night ? 70 : 20,
+        time: night ? 110 : 20, // First Guided night begins at 100s.
         seasonIndex: 0,
         cities: [],
         factions: [],

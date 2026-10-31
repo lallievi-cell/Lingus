@@ -3,7 +3,7 @@ import { replayRandomFirstYear, replayRandomOpening } from '../../tests/scenario
 import { HOME } from './content';
 import { hasWord, parseGame, serializeGame } from './engine';
 
-describe('ordinary opening on generated maps', () => {
+describe('ordinary legacy opening on generated maps', () => {
   it.each([0, 1, 42, 6842, 4294967295])(
     'earns a real central fire before winter with visible sources and coarse group orders, seed %s',
     (seed) => {

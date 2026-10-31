@@ -251,7 +251,7 @@ async function seed(
   await page.reload();
 }
 
-test('a real physical order discovers Legno and the version-two save survives reload', async ({
+test('a real Guided order understands Legno without a puzzle and the save survives reload', async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -274,12 +274,12 @@ test('a real physical order discovers Legno and the version-two save survives re
   await expect(page.locator('.map-toolbar')).toContainText('Un ostacolo senza nome');
   await page.getByRole('button', { name: 'Pronuncia', exact: true }).click();
   await expect(page.locator('.toast')).toContainText('La tribù ha ascoltato');
-  const intuition = page.getByRole('button', { name: /Segui l’intuizione/ });
-  await expect(intuition).toBeVisible({ timeout: 22_000 });
-  await intuition.click();
-  const puzzle = page.getByRole('dialog', { name: 'La Scintilla Cognitiva' });
-  await puzzle.getByRole('button', { name: /^Colpire:/ }).click();
-  await puzzle.getByRole('button', { name: 'Dai un nome all’intuizione' }).click();
+  const understanding = page.locator('.contextual-discovery-notice');
+  await expect(understanding).toContainText('La tribù comprende «Legno»', { timeout: 22_000 });
+  await expect(page.getByRole('dialog', { name: 'La Scintilla Cognitiva' })).toHaveCount(0);
+  // Understanding a material does not stop the world; pause explicitly to inspect
+  // its actual first custodian and inventory before the next experience matures.
+  await page.getByRole('button', { name: 'Metti in pausa', exact: true }).click();
   await page
     .getByRole('group', { name: 'Filtra le parole' })
     .getByRole('button', { name: 'Tutte', exact: true })
@@ -289,7 +289,12 @@ test('a real physical order discovers Legno and the version-two save survives re
   const saved = await saveAndRead(page);
 
   expect(saved.version).toBe(2);
+  expect(saved.openingBalanceVersion).toBe(1);
+  expect(saved.openingCouncilsCompleted).toBe(0);
   expect(saved.words.O_03.retention).toBe(50);
+  expect(saved.words.O_03.custodians).toHaveLength(1);
+  expect(saved.words.O_03.learnedRecipe).toEqual(['V_03']);
+  expect(saved.sparks.some((spark: { wordId: string }) => spark.wordId === 'O_03')).toBe(false);
   expect(saved.stats.commands).toBe(1);
   expect(saved.resources.wood).toBe(0); // No invented stored materials before carrying is known.
   await page.reload();

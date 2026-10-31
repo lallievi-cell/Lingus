@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GameAudioEvents, GameAudioSynth } from '../audio/gameAudio';
 import type { GameState } from '../game/types';
+import { getCalendar } from '../game/calendar';
 
 type AudioOptions = { ambience?: boolean; sessionKey?: string | number };
 
@@ -47,7 +48,7 @@ export function useGameAudio(state: GameState, enabled: boolean, options: AudioO
     for (const cue of cues) synth.current?.playCue(cue);
   }, [state, enabled, visible, options.sessionKey]);
 
-  const night = state.time % 90 >= 60;
+  const night = getCalendar(state).isNight;
   useEffect(() => {
     if (
       !enabled ||

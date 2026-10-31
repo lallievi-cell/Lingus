@@ -12,6 +12,9 @@ async function seedLife(page: Page, kind: 'named' | 'anonymous' | 'birth' = 'nam
     const { seasonalCore } = await import('/src/game/simulation.ts');
     const { HOME, emptyInventory } = await import('/src/game/content.ts');
     const state = createGame(1, 'guided');
+    // Preserve the historical seasonal settlement and health fixture.
+    delete state.openingBalanceVersion;
+    delete state.openingCouncilsCompleted;
     Object.assign(state, {
       started: true,
       paused: true,

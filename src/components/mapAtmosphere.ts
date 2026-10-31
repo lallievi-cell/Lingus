@@ -1,5 +1,6 @@
 import type { Building, GameState } from '../game/types';
 import { freeCapacity } from '../game/runtime';
+import { getCalendar } from '../game/calendar';
 import { CITY_FOUNDRY_CHIMNEY } from './regionalLayout';
 
 export interface AtmosphereOptions {
@@ -189,22 +190,19 @@ export function getAtmosphereFrame(
     }
   }
   const frame: AtmosphereFrame = { weather, particles, sources, time };
-  const age = state.time % 90;
+  const calendar = getCalendar(state);
+  const age = calendar.phase;
   // lightning is a season-long outcome flag, not a licence to flash repeatedly.
   // The actual summer strike ignites the nearest living tree once, on the boundary.
-  if (
-    !options.reducedMotion &&
-    state.disasters.lightning &&
-    state.seasonIndex % 4 === 1 &&
-    age < 0.8
-  ) {
+  if (!options.reducedMotion && state.disasters.lightning && calendar.season === 1 && age < 0.8) {
     const tree = state.entities
       .filter((e) => e.kind === 'tree' && e.amount > 0)
       .reduce<
         GameState['entities'][number] | undefined
       >((near, e) => (!near || Math.hypot(e.x - state.home.x, e.y - state.home.y) < Math.hypot(near.x - state.home.x, near.y - state.home.y) ? e : near), undefined);
     if (tree?.burning && visible(state, tree, viewport)) {
-      const phase = state.paused ? age : clamp(renderTime % 90, 0, 0.8);
+      // A flash belongs to the actual strike, not to the independent animation clock.
+      const phase = age;
       frame.lightning = {
         x: tree.x,
         y: tree.y,

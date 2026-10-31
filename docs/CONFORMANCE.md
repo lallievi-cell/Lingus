@@ -13,7 +13,7 @@ I commit successivi dell’utente (`5bd10a7`–`667cf89`) portano la scoperta di
 
 Legenda delle verifiche: **da verificare** = requisito estratto, nessuna prova indipendente ancora associata; **verificato** = prova citata eseguita; **parziale** = la prova citata copre soltanto una parte del requisito; **decisione** = parametro o conflitto della fonte risolto secondo [DECISIONS.md](DECISIONS.md). Non si attribuisce una percentuale di conformità alle sole righe di questo registro.
 
-I 48 punti di interpretazione, rappresentazione, calibrazione e generazione censiti hanno decisioni esplicite. A-36–A-48 documentano le modifiche autorizzate dopo la prova del giocatore; Guidata e mappa casuale non vengono attribuite retroattivamente al DOCX. I completamenti verificati e le prove ancora aperte sono elencati separatamente in [REMAINING.md](REMAINING.md).
+I punti di interpretazione, rappresentazione, calibrazione e generazione censiti hanno decisioni esplicite. A-36–A-56 documentano le modifiche autorizzate dopo la prova del giocatore; Guidata e mappa casuale non vengono attribuite retroattivamente al DOCX. I completamenti verificati e le prove ancora aperte sono elencati separatamente in [REMAINING.md](REMAINING.md).
 
 ## Prove eseguite e loro portata
 
@@ -48,6 +48,8 @@ Verifica del motore nella revisione precedente: **1.098 test unitari e di integr
 - **P21 — composizione insieme alla mappa:** [MOBILE-COMPOSITION.md](MOBILE-COMPOSITION.md) documenta la palette nel layout verticale e laterale in orizzontale, il catalogo esplicito, la selezione del bersaglio durante la composizione, la chiusura delle sole frasi terminali e la modifica degli spazi. Dieci nuove prove verificano mappa realmente raggiungibile, ripetizione con costo effettivo, continuazioni della caccia e delle leggi, coda conservata, annullamento durante la modifica e ricerca con tastiera e rotazione simulate. Nessuna modifica alle formule del motore.
 
 - **P22 — revisione editoriale italiana:** [EDITORIAL-REVIEW.md](EDITORIAL-REVIEW.md) documenta istruzioni, descrizioni, indizi, eventi e terminologia rivisti. Le prove mantengono verifiche su costi, inventari, lezioni e informazioni ancora sconosciute. La preparazione stagionale distingue risultato e ipotesi del calcolo; gli avvisi concordano con la persona e non promettono trasmissione automatica della memoria. Formule, valori, identificativi e ricette non cambiano.
+
+- **P23 — nuova apertura Guidata:** [PATIENT-OPENING.md](PATIENT-OPENING.md) documenta A-49–A-56: calendario versionato, consumi e lavori normalizzati, deterioramento graduale, budget delle lezioni, trasmissione da un ultimo custode, oblio progressivo, calore vissuto, scoperte contestuali, previdenza da consegne reali, cura dei fondatori e istinti termici. I replay delle nuove regole restano distinti dai salvataggi legacy e dagli stati preparati. Sono controllati i confini a 150/450/600 secondi, le previsioni e le spese effettive; la prova del primo Falò nel browser usa uno stato ottenuto da una rotta ordinaria. Il giudizio sul divertimento resta distinto dalla verifica tecnica.
 
 Le voci “verificato” sotto indicano soltanto la parte nominata nella colonna. I restanti requisiti della stessa riga conservano la propria verifica aperta.
 

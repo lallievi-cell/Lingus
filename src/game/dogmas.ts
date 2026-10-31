@@ -1,4 +1,10 @@
 import { BUILDING_SPECS, RESOURCE_SPECS, WORDS } from './content';
+import {
+  effectiveElapsed,
+  getCalendar,
+  hasOpeningBalance,
+  secondsForEffectiveDuration,
+} from './calendar';
 import { dogmaWeight } from './math';
 import {
   DOGMA_TARGETS,
@@ -152,7 +158,7 @@ function applyOppositeBonus(s: GameState, target: string, ctx: DogmaContext, f: 
   const tokens = ctx.tokens ?? ctx.unit?.command ?? [],
     subject = ctx.subjectId ?? tokens.find((t) => t.startsWith('S_')),
     inferred = inferredTarget(s, ctx),
-    day = !(ctx.isNight ?? s.time % 90 >= 60);
+    day = !(ctx.isNight ?? getCalendar(s).isNight);
   if (target === 'O_06') {
     f.growth *= 1.25;
     return;
@@ -263,7 +269,7 @@ export function dogmaTargetPresent(s: GameState, target: string): boolean {
       activeUnits(s).some((u) => u.caste !== 'slave') ||
       s.cities.some((c) => c.factionId === 'player' && c.cohorts.workers > 0)
     );
-  if (target === 'C_01') return s.time % 90 >= 60 || s.time >= 60;
+  if (target === 'C_01') return s.time >= getCalendar(s, 0).dayLength;
   if (
     target === 'V_09' &&
     ownBuildings.some(
@@ -276,7 +282,9 @@ export function dogmaTargetPresent(s: GameState, target: string): boolean {
     (s.caravans.some(
       (c) => c.kind === 'trade' && c.factionId === 'player' && !c.arrived && c.hp > 0,
     ) ||
-      s.factions.some((f) => f.lastTradeAt !== undefined && s.time - f.lastTradeAt <= 90))
+      s.factions.some(
+        (f) => f.lastTradeAt !== undefined && effectiveElapsed(s, f.lastTradeAt, s.time) <= 90,
+      ))
   )
     return true;
   if (
@@ -285,7 +293,7 @@ export function dogmaTargetPresent(s: GameState, target: string): boolean {
   )
     return true;
   const last = s.eventTimes[`dogmaUse:${target}`];
-  return last !== undefined && s.time - last <= 90;
+  return last !== undefined && effectiveElapsed(s, last, s.time) <= 90;
 }
 export function getDogmaEffects(s: GameState, ctx: DogmaContext = {}): DogmaEffects {
   const f: DogmaEffects = {
@@ -332,7 +340,7 @@ export function getDogmaEffects(s: GameState, ctx: DogmaContext = {}): DogmaEffe
     moneyForbidden: false,
     monarchSelection: null,
   };
-  const night = ctx.isNight ?? s.time % 90 >= 60;
+  const night = ctx.isNight ?? getCalendar(s).isNight;
   for (const d of s.dogmas) {
     const a = d.targetId,
       b = d.vectorId,
@@ -692,7 +700,7 @@ export function forbiddenByDogma(
         tokens.includes(a) ||
         resource === a ||
         (a === 'O_05' && (tokens.includes('V_07') || tokens.includes('V_12')));
-    if (a === 'C_01' && b === 'M_01' && s.time % 90 >= 60)
+    if (a === 'C_01' && b === 'M_01' && getCalendar(s).isNight)
       return 'Il Tabù delle Tenebre impone il ritorno alla tana.';
     if (a === 'O_04' && b === 'M_01') {
       if (tokens.includes('V_03') && (resource === 'O_04' || tokens.includes('O_04')))
@@ -803,6 +811,7 @@ export function handleDogmaticDeath(s: GameState, u: Unit, cause: string) {
   };
 }
 export function updateDogmas(s: GameState, dt: number) {
+  if (hasOpeningBalance(s)) dt = effectiveElapsed(s, s.time - dt, s.time);
   for (const d of s.dogmas) {
     if (d.vectorId === 'C_02') {
       const present = dogmaTargetPresent(s, d.targetId);
@@ -886,11 +895,11 @@ export function updateDogmasSeason(s: GameState) {
             remaining -= consumed;
           }
           s.cohesion = clamp(s.cohesion + 15);
-          s.eventTimes.sacrificeMorale = s.time + 90;
+          s.eventTimes.sacrificeMorale = s.time + secondsForEffectiveDuration(s, s.time, 90);
         } else if (r && s.resources[r] >= 10) {
           s.resources[r] -= 10;
           s.cohesion = clamp(s.cohesion + 15);
-          s.eventTimes.sacrificeMorale = s.time + 90;
+          s.eventTimes.sacrificeMorale = s.time + secondsForEffectiveDuration(s, s.time, 90);
         }
       }
     }

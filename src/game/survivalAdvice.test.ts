@@ -6,6 +6,9 @@ import type { GameState, MapEntity } from './types';
 
 function fixture() {
   const state = createGame(6842, 'guided');
+  // Prepared 90-second scenes preserve the legacy Guided save rules.
+  delete state.openingBalanceVersion;
+  delete state.openingCouncilsCompleted;
   Object.assign(state, {
     started: true,
     time: 330,

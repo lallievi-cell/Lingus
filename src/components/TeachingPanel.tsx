@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { BookOpen, MapPin, MessageCircle, Search } from 'lucide-react';
 import { INNATE_WORDS, WORD_ORDER, WORDS } from '../game/content';
 import { canRehearseWord } from '../game/guidedProgression';
+import { hasLearningBalance } from '../game/learningBalance';
 import { getCustodianStatuses } from '../game/custodianStatus';
 import { rehearseWord, teachWord } from '../game/engine';
 import { getLessonPreview, lessonIssueText } from '../game/teaching';
@@ -10,6 +11,25 @@ import type { GameState, Target, Unit } from '../game/types';
 import { Glyph } from './Glyph';
 import { lastCustodianLabel, lifeStageLabel, visibleUnitName } from './unitReadability';
 import './TeachingPanel.css';
+
+const PRACTICAL_KNOWLEDGE: Record<string, string> = {
+  S_02: 'Scegliere una persona e seguirne la storia.',
+  O_01: 'Ritrovare il luogo a cui tornare e consegnare le risorse.',
+  V_04: 'Rifornire il campo con cibo e materiali.',
+  O_02: 'Riconoscere e distinguere le pietre utilizzabili.',
+  O_03: 'Riconoscere il materiale raccolto dagli alberi.',
+  M_01: 'Riconoscere una minaccia e sapere quando fuggire.',
+  C_01: 'Riconoscere il buio e organizzare le attività.',
+  O_04: 'Riconoscere ciò che può nutrire la tribù.',
+  M_02: 'Prevedere i bisogni e preparare scorte.',
+  V_05: 'Custodire le risorse e proteggere ciò che conta.',
+  V_06: 'Fabbricare utensili e armi.',
+  O_05: 'Scaldare la comunità e condividere il sapere.',
+  V_07: 'Preparare pasti più sicuri e duraturi.',
+  V_08: 'Preparare edifici e ripari per la comunità.',
+  O_06: 'Riconoscere la perdita di una vita e prendersi cura dei resti.',
+  M_03: 'Dare una regola condivisa ai timori della comunità.',
+};
 
 /** Explains the exact ordinary lesson; no lesson is auto-selected or prepaid. */
 export function TeachingPanel({
@@ -29,6 +49,8 @@ export function TeachingPanel({
     rehearsal?: boolean;
   } | null>(null);
   const numbered = hasWord(state, 'O_08');
+  const balanced = hasLearningBalance(state);
+  const fundedLessons = Math.floor(state.attention / 10);
   const custodians = new Map(
     getCustodianStatuses(state).flatMap((status) =>
       status.wordIds.map((id) => [id, status] as const),
@@ -88,12 +110,36 @@ export function TeachingPanel({
                 ? 'Scegli una parola custodita da una sola persona. Controlla chi la racconta e chi la imparerà, poi premi Tramanda. La nuova voce continuerà a custodirla anche dopo il maestro.'
                 : 'Proteggi prima gli ultimi custodi. La memoria piena non sostituisce un secondo custode: puoi insegnare anche una parola già salda.'}
             </p>
+            {balanced && (
+              <p>
+                Nel primo anno, tramandare una parola fondamentale dal suo ultimo custode rafforza
+                la memoria e aggiunge una nuova voce. Scegli quali capacità conservare per il futuro
+                della tribù.
+              </p>
+            )}
+            {balanced && hasWord(state, 'O_05') && (
+              <p>
+                Quando un custode beneficia davvero del calore, la memoria del Fuoco si rafforza. Le
+                parole vissute ogni giorno sono più facili da conservare.
+              </p>
+            )}
           </details>
           <small>
             {numbered
               ? 'Ogni lezione costa 10 punti Attenzione. I bambini hanno la precedenza.'
               : 'Ogni lezione consuma Attenzione. I bambini hanno la precedenza.'}
           </small>
+          {balanced && (
+            <p className="lesson-budget" role="status" aria-live="polite">
+              {fundedLessons === 0
+                ? 'Serve altra Attenzione per una lezione.'
+                : fundedLessons === 1
+                  ? 'Attenzione per una lezione.'
+                  : numbered
+                    ? `Attenzione per ${fundedLessons} lezioni.`
+                    : 'Attenzione per più lezioni.'}
+            </p>
+          )}
         </div>
       </div>
       {outcome && (
@@ -170,6 +216,9 @@ export function TeachingPanel({
               <Glyph id={id} size={23} />
               <div className="teaching-word-details">
                 <strong>{WORDS[id].label}</strong>
+                {balanced && PRACTICAL_KNOWLEDGE[id] && (
+                  <span className="lesson-purpose">{PRACTICAL_KNOWLEDGE[id]}</span>
+                )}
                 {custodian && (
                   <span className={`teaching-custodian ${custodian.risk}`}>
                     <MessageCircle size={10} />

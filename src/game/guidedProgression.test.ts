@@ -47,8 +47,11 @@ describe('explicit Guided progression calibration', () => {
     expect(guidedBirthMultiplier(state)).toBe(1);
   });
 
-  it('pays fuel and lesson costs once, adds a real pupil, and never carries credited fuel to another council', () => {
+  it('preserves legacy fuel and lesson costs, adds a real pupil, and never carries credited fuel to another council', () => {
     let state = createGame(6842, 'guided');
+    // The new profile has its own first-transmission and council-budget tests.
+    delete state.openingBalanceVersion;
+    delete state.openingCouncilsCompleted;
     addBuilding(state, 'campfire');
     state.campfirePending = true;
     state.attention = 0;
@@ -179,6 +182,9 @@ describe('explicit Guided progression calibration', () => {
     for (const mode of ['guided', 'classic'] as const) {
       const state = createGame(6842, mode);
       state.time = 90;
+      // This funeral fixture closes an ordinary 90-second legacy shift.
+      delete state.openingBalanceVersion;
+      delete state.openingCouncilsCompleted;
       state.units = state.units.slice(0, 1);
       const witness = state.units[0];
       Object.assign(witness, { ...state.home, age: 8, intelligence: 9 });
@@ -207,6 +213,9 @@ describe('explicit Guided progression calibration', () => {
     for (const mode of ['guided', 'classic'] as const) {
       let state = createGame(6842, mode);
       Object.assign(state, { started: true, tier: 2, time: 365 });
+      // Bucket4 and the preserved paid reopening belong to the legacy clock.
+      delete state.openingBalanceVersion;
+      delete state.openingCouncilsCompleted;
       for (const id of ['V_10', 'O_04', 'O_01'])
         state.words[id] = { retention: 100, custodians: [state.units[0].id], uses: 0 };
       const pen = addBuilding(state, 'pen');

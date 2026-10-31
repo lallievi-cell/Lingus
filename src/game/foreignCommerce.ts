@@ -1,4 +1,5 @@
 import { emptyInventory, RESOURCE_ORDER } from './content';
+import { effectiveElapsed } from './calendar';
 import { getDogmaEffects } from './dogmas';
 import { imperialLawEffects } from './imperialLawPolicy';
 import { areFactionsHostile } from './foreignPolicy';
@@ -35,8 +36,9 @@ export function dispatchForeignMerchants(s: GameState) {
       f.hostile ||
       f.relation < 0 ||
       getDogmaEffects({ ...s, dogmas: f.dogmas }).isolated ||
-      s.time - (s.eventTimes[`merchantDeparture:${f.id}`] ?? -Infinity) <
-        FOREIGN_COMMERCE_ASSUMPTIONS.departureIntervalSeconds ||
+      (s.eventTimes[`merchantDeparture:${f.id}`] !== undefined &&
+        effectiveElapsed(s, s.eventTimes[`merchantDeparture:${f.id}`], s.time) <
+          FOREIGN_COMMERCE_ASSUMPTIONS.departureIntervalSeconds) ||
       s.caravans.some((c) => c.kind === 'trade' && c.factionId === f.id && !c.arrived && c.hp > 0)
     )
       continue;

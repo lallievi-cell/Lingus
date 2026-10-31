@@ -6,8 +6,15 @@ import {
   SEASON_TEMPERATURES,
 } from './content';
 import { getDogmaEffects } from './dogmas';
+import {
+  effectiveElapsed,
+  getCalendar,
+  secondsForEffectiveDuration,
+  seasonStart,
+} from './calendar';
 import { imperialLawEffects } from './imperialLawPolicy';
 import { resourceSpoilage } from './math';
+import { openingFoodSpoilageMultiplier } from './foodPreservation';
 import { thermalConditionsAt } from './thermal';
 import { activeUnits, copy, distance, isPlayerBuilding, pay } from './runtime';
 import type { Building, GameState, Inventory, Resource, Target } from './types';
@@ -24,8 +31,11 @@ const targetOf = (b: Building): Target => ({ type: 'building', id: b.id, x: b.x,
 /** Reserves today's stocks in the same order as seasonalCore, without rolling weather,
  * killing elders, crediting future harvests or claiming a prediction of player behaviour. */
 export function getSeasonReadiness(state: GameState) {
-  const season = Math.floor(state.time / 90) % 4;
-  const remaining = 90 - (state.time % 90);
+  const calendar = getCalendar(state);
+  const season = calendar.season;
+  const remaining = calendar.seasonEnd - state.time;
+  const horizonEnd = seasonStart(state, calendar.seasonIndex + 2);
+  const effectiveHorizon = effectiveElapsed(state, state.time, horizonEnd);
   const nextSeason = (season + 1) % 4;
   const inventory = copy(state.resources);
   const provinces = new Map(
@@ -131,7 +141,8 @@ export function getSeasonReadiness(state: GameState) {
         entry.inventory[r] *=
           1 -
           (spec.category === 'food'
-            ? resourceSpoilage(spec.spoil, season === 1, storage, entry.inventory.pottery > 0)
+            ? resourceSpoilage(spec.spoil, season === 1, storage, entry.inventory.pottery > 0) *
+              openingFoodSpoilageMultiplier(state, calendar.seasonIndex)
             : spec.spoil);
     }
   }
@@ -141,8 +152,11 @@ export function getSeasonReadiness(state: GameState) {
       const safeNutrition =
         entry.inventory.food * RESOURCE_SPECS.food.nutrition +
         entry.inventory.cooked * RESOURCE_SPECS.cooked.nutrition;
-      const seconds =
+      const effectiveSeconds =
         entry.population > 0 ? safeNutrition / (entry.population * 0.8 * ration) : Infinity;
+      const seconds = Number.isFinite(effectiveSeconds)
+        ? secondsForEffectiveDuration(state, state.time, effectiveSeconds)
+        : Infinity;
       return {
         id: entry.id,
         label: entry.label,
@@ -150,7 +164,7 @@ export function getSeasonReadiness(state: GameState) {
         safeNutrition,
         rawMeat: entry.inventory.meat,
         seconds,
-        sufficient: seconds >= remaining + 90,
+        sufficient: effectiveSeconds + 1e-9 >= effectiveHorizon,
       };
     })
     .filter((entry) => entry.population > 0);

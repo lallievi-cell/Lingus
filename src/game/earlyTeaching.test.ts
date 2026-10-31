@@ -3,9 +3,12 @@ import { createGame, prepareBriefLesson, prepareCampfireCouncil, teachWord } fro
 import { getLessonPreview, briefLessonIssue, lessonIssueText } from './teaching';
 import { killUnit, seasonalCore } from './simulation';
 
-/** Isolated teaching fixtures, not a full opening replay. */
+/** Isolated legacy teaching fixtures, not a full opening replay. */
 function lesson(mode: 'guided' | 'classic' = 'guided') {
   const state = createGame(6842, mode);
+  // Keep the original paid-lesson and seasonal budget regression explicit.
+  delete state.openingBalanceVersion;
+  delete state.openingCouncilsCompleted;
   state.started = true;
   state.time = 110;
   state.cities = [];

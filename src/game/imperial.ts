@@ -4,9 +4,16 @@ import {
   ELDER_AGE,
   INNATE_WORDS,
   RESOURCE_SPECS,
+  SEASON_LENGTH,
   SPEC_ASSUMPTIONS,
   WORDS,
 } from './content';
+import {
+  effectiveElapsed,
+  getCalendar,
+  hasOpeningBalance,
+  secondsForEffectiveDuration,
+} from './calendar';
 import { rememberCombatWound } from './damageAttribution';
 import { recordCaravanTravel } from './regionalHistory';
 import { guidedBirthMultiplier } from './guidedProgression';
@@ -39,6 +46,7 @@ import {
   random,
   totalFood,
 } from './runtime';
+import { openingFoodSpoilageMultiplier } from './foodPreservation';
 import {
   dogmaDiplomaticPenalty,
   forbiddenByDogma,
@@ -151,7 +159,10 @@ const cityBuildings = (s: GameState, c: City) =>
 const cityHas = (s: GameState, c: City, k: BuildingKind) =>
   cityBuildings(s, c).some((b) => b.kind === k && b.active);
 const capital = (s: GameState) => ownCities(s).find((c) => c.capital) ?? ownCities(s)[0];
-const phase = (s: GameState) => ({ season: Math.floor(s.time / 90) % 4, night: s.time % 90 >= 60 });
+const phase = (s: GameState) => {
+  const calendar = getCalendar(s);
+  return { season: calendar.season, night: calendar.isNight };
+};
 const endedSeason = (s: GameState) => (phase(s).season + 3) % 4;
 export const cityPopulation = (c: City) =>
   c.cohorts.workers + c.cohorts.warriors + c.cohorts.sages + c.cohorts.slaves;
@@ -836,7 +847,8 @@ export function applySanction(s: GameState, law: Law, unit?: Unit, city?: City, 
       if (unit) {
         unit.hp = Math.max(1, unit.hp - 40);
         unit.lastEventAt ??= {};
-        unit.lastEventAt.LAW_PRODUCTIVITY_UNTIL = s.time + 90;
+        unit.lastEventAt.LAW_PRODUCTIVITY_UNTIL =
+          s.time + secondsForEffectiveDuration(s, s.time, SEASON_LENGTH);
       }
       s.cohesion = clamp(s.cohesion - 2);
       break;
@@ -1161,7 +1173,11 @@ function startTrade(
     send,
   );
   caravan.sourceResource = offered;
-  if (faction) faction.peaceUntil = Math.max(faction.peaceUntil ?? 0, s.time + 90);
+  if (faction)
+    faction.peaceUntil = Math.max(
+      faction.peaceUntil ?? 0,
+      s.time + secondsForEffectiveDuration(s, s.time, SEASON_LENGTH),
+    );
   return {
     valid: true,
     message: 'La carovana parte. Lo scambio avverrà quando raggiungerà l’altro insediamento.',
@@ -1640,7 +1656,10 @@ function completeCaravan(s: GameState, c: Caravan) {
       c.arrived = true;
       if (faction) {
         faction.relation = clamp(faction.relation + 10, -100, 100);
-        faction.peaceUntil = Math.max(faction.peaceUntil ?? 0, s.time + 90);
+        faction.peaceUntil = Math.max(
+          faction.peaceUntil ?? 0,
+          s.time + secondsForEffectiveDuration(s, s.time, SEASON_LENGTH),
+        );
       }
       witnessExchange(s, destination, 'ENV_FIRST_GIFT');
       contactKnowledge(s, destination.words);
@@ -2146,12 +2165,15 @@ export function updateImperial(s: GameState, dt: number) {
           (unit) => unit.caste === 'slave' && !unit.cityId && !travellingDelegate(s, unit),
         ).length
       : activeUnits(s).filter((u) => u.caste === 'slave').length;
-  s.revoltTension = clamp(s.revoltTension + ((slaves * 0.5) / 60) * dt * effects.slaveRevolt);
+  const socialTime = hasOpeningBalance(s) ? effectiveElapsed(s, s.time - dt, s.time) : dt;
+  s.revoltTension = clamp(
+    s.revoltTension + ((slaves * 0.5) / 60) * socialTime * effects.slaveRevolt,
+  );
   if (hasWord(s, 'M_04'))
-    s.inequality = clamp(s.inequality + (Math.max(0, effects.inequality - 1) * dt) / 60);
+    s.inequality = clamp(s.inequality + (Math.max(0, effects.inequality - 1) * socialTime) / 60);
   for (const c of ownCities(s))
     c.revoltTension = clamp(
-      c.revoltTension + ((c.cohorts.slaves * 0.5) / 60) * dt * effects.slaveRevolt,
+      c.revoltTension + ((c.cohorts.slaves * 0.5) / 60) * socialTime * effects.slaveRevolt,
     );
   dispatchForeignMerchants(s);
   inspectForeignCustoms(s);
@@ -2298,7 +2320,7 @@ function produceCity(s: GameState, c: City, spentCycles = 0) {
       const forgeWork = c.factionId === PLAYER ? 0 : takeForeignForgeWork(s, b.id),
         mode = b.productionMode ?? 'ingot',
         workBudget =
-          (Math.max(0, 90 * efficiency - forgeWork) / 5) *
+          (Math.max(0, SEASON_LENGTH * efficiency - forgeWork) / 5) *
           ctx.production *
           republic *
           (vocation.includes('V_12') ? 1.5 : 1);
@@ -2336,7 +2358,7 @@ function produceCity(s: GameState, c: City, spentCycles = 0) {
               c.id,
               tokens,
               completed * (mode === 'coin' ? 100 : 1),
-              Math.max(0, Math.floor(s.time / 90) * 90 - 1e-6),
+              Math.max(0, getCalendar(s).seasonStart - 1e-6),
             );
           }
           if (mode === 'coin') mintedCoin += completed * 100;
@@ -2374,7 +2396,7 @@ function produceCity(s: GameState, c: City, spentCycles = 0) {
     if (b.kind === 'archive' && efficiency > 0 && c.factionId === PLAYER && !ctx.writingForbidden) {
       for (const m of Object.values(s.words))
         m.support = Math.max(m.support ?? 0, efficiency >= 1 ? 1 : efficiency);
-      recordUrbanCraft(s, c, b, (90 * efficiency) / 5, ['O_14', 'V_14']);
+      recordUrbanCraft(s, c, b, (SEASON_LENGTH * efficiency) / 5, ['O_14', 'V_14']);
     }
     if (b.kind === 'school' && efficiency > 0) {
       for (const u of activeUnits(s).filter((u) => u.cityId === c.id && u.age < 4))
@@ -2395,7 +2417,12 @@ function produceCity(s: GameState, c: City, spentCycles = 0) {
         ['tree', 'stone', 'ore'].includes(e.kind) &&
         e.amount > 0,
     );
-  let cycles = Math.max(0, (free * 90) / IMPERIAL_ASSUMPTIONS.extractionCycleSeconds - spentCycles);
+  // Urban quotas use equivalent season effort, matching normalized biological needs.
+  // A slower opening calendar must not duplicate harvests or minting opportunities.
+  let cycles = Math.max(
+    0,
+    (free * SEASON_LENGTH) / IMPERIAL_ASSUMPTIONS.extractionCycleSeconds - spentCycles,
+  );
   for (const node of nodes) {
     const r: Resource = node.kind === 'tree' ? 'wood' : node.kind === 'ore' ? 'ore' : 'stone',
       token = node.kind === 'tree' ? 'O_03' : node.kind === 'ore' ? 'O_07' : 'O_02',
@@ -2428,7 +2455,7 @@ function produceCity(s: GameState, c: City, spentCycles = 0) {
     if (cycles <= 0) break;
   }
   if (c.factionId === PLAYER) {
-    const stamp = Math.max(0, Math.floor(s.time / 90) * 90 - 1e-6);
+    const stamp = Math.max(0, getCalendar(s).seasonStart - 1e-6);
     if (c.production.food > 0)
       recordLawWork(s, c.id, ['S_09', 'V_09', 'O_04', 'O_01'], c.production.food, stamp);
     if (c.production.meat > 0)
@@ -2451,7 +2478,7 @@ function cityNutritionAndBirths(s: GameState, c: City) {
     inv = inventoryFor(s, c);
   const fullNeed =
       unrepresented *
-      90 *
+      SEASON_LENGTH *
       0.8 *
       (c.factionId === PLAYER ? imperialLawEffects(s).foodConsumptionMultiplier : 1),
     foraged = c.seasonFoodConsumed ?? 0,
@@ -2666,7 +2693,7 @@ function taxCities(s: GameState) {
 function applySeasonalLaws(s: GameState) {
   const settled = {
     ...s,
-    time: Math.max(0, Math.floor(s.time / 90) * 90 - 1e-6),
+    time: Math.max(0, getCalendar(s).seasonStart - 1e-6),
   };
   const legal = imperialLawEffects(settled);
   for (const law of s.laws) {
@@ -2869,9 +2896,10 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
     available = workingCityCohorts(s, c),
     workforce = available.workers + available.slaves,
     initialCycles =
-      (Math.max(0, workforce - occupied) * 90) / IMPERIAL_ASSUMPTIONS.extractionCycleSeconds,
+      (Math.max(0, workforce - occupied) * SEASON_LENGTH) /
+      IMPERIAL_ASSUMPTIONS.extractionCycleSeconds,
     population = cityPopulation(c),
-    fullNeed = population * 90 * 0.8;
+    fullNeed = population * SEASON_LENGTH * 0.8;
   let cycles = initialCycles,
     reservedNew = 0;
   const previousNutrition = FOOD.reduce((n, r) => n + inv[r] * RESOURCE_SPECS[r].nutrition, 0);
@@ -2891,7 +2919,8 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
         future === 1,
         cityHas(s, c, 'storage'),
         inv.pottery > 0,
-      );
+      ) *
+        openingFoodSpoilageMultiplier(s, getCalendar(s).seasonIndex - 1 + future - season);
   const reservedVegetables = Math.min(inv.food, vegetableTarget);
   inv.food -= reservedVegetables;
   c.seasonFoodConsumed = consumeNutrition(inv, fullNeed);
@@ -2921,7 +2950,9 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
     Math.max(
       0,
       Math.max(0, needed - expectedHarvest) +
-        (f.words.includes('V_05') && cityHas(s, c, 'storage') ? population * 90 * 0.8 : 0) -
+        (f.words.includes('V_05') && cityHas(s, c, 'storage')
+          ? population * SEASON_LENGTH * 0.8
+          : 0) -
         FOOD.reduce((n, r) => n + inv[r] * RESOURCE_SPECS[r].nutrition, 0),
     ) + (vegetables ? Math.max(0, vegetableTarget - inv.food) * 25 : 0);
   const physicalDelivery = (amount: number) => {
@@ -3126,7 +3157,8 @@ export function seasonalImperial(s: GameState) {
         if (base > 0) {
           const rate =
             RESOURCE_SPECS[r].category === 'food'
-              ? resourceSpoilage(base, summer, cityHas(s, city, 'storage'), inv.pottery > 0)
+              ? resourceSpoilage(base, summer, cityHas(s, city, 'storage'), inv.pottery > 0) *
+                openingFoodSpoilageMultiplier(s, getCalendar(s).seasonIndex - 1)
               : base;
           inv[r] *= 1 - rate;
         }

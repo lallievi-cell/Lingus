@@ -9,6 +9,9 @@ async function scene(page: Page, pending = false) {
     const { createGame } = await import('/src/game/engine.ts');
     const { WORD_ORDER } = await import('/src/game/content.ts');
     const s = createGame(6842, 'guided');
+    // Historical prepared council: ordinary +20 teaching and seasonal erosion.
+    delete s.openingBalanceVersion;
+    delete s.openingCouncilsCompleted;
     Object.assign(s, {
       started: true,
       paused: true,

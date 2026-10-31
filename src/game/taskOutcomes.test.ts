@@ -5,6 +5,9 @@ import { appendTaskOutcomes, observeTaskOutcomes, type TaskOutcome } from './tas
 
 function fixture(mode: 'guided' | 'classic' = 'guided', people = 1) {
   const s = createGame(6842, mode);
+  // Prepared 90-second scenes preserve the legacy Guided save rules.
+  delete s.openingBalanceVersion;
+  delete s.openingCouncilsCompleted;
   Object.assign(s, {
     started: true,
     paused: false,

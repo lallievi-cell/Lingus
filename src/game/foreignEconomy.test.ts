@@ -173,6 +173,9 @@ describe('untouched foreign societies in an isolated multiyear study', () => {
     'keeps all four starting communities economically viable through twenty real seasons, %s',
     (mapMode) => {
       const state = createGame(6842, 'guided', mapMode);
+      // The historical study settles twenty ordinary 90-second seasons.
+      delete state.openingBalanceVersion;
+      delete state.openingCouncilsCompleted;
       // Remove the player actors, whose opening is tested separately. Only the
       // player's era schedule is controlled; foreign resources, people, words,
       // buildings, random rolls and map nodes remain their actual initial values.

@@ -9,6 +9,9 @@ import type { BuildingKind, City, GameState } from '../../src/game/types';
  */
 export function preparedUrbanRoute(seed = 6842) {
   const state = createGame(seed, 'guided');
+  // Prepared late-game cohorts use the ordinary, pre-opening-balance calendar.
+  delete state.openingBalanceVersion;
+  delete state.openingCouncilsCompleted;
   Object.assign(state, {
     started: true,
     paused: false,

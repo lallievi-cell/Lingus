@@ -1,4 +1,5 @@
 import { BUILDING_SPECS, emptyInventory, RESOURCE_ORDER } from './content';
+import { effectiveElapsed, getCalendar, secondsForEffectiveDuration } from './calendar';
 import { rememberCombatWound } from './damageAttribution';
 import { dogmaDiplomaticPenalty, getDogmaEffects, protectedByDogma } from './dogmas';
 import { effectiveDamage } from './math';
@@ -51,14 +52,15 @@ const ownCity = (state: GameState, faction: Faction) =>
   ) ?? state.cities.find((city) => city.factionId === faction.id && liveCity(city));
 const ready = (state: GameState) =>
   state.tier >= FOREIGN_POLICY_ASSUMPTIONS.minimumTier &&
-  state.time >= FOREIGN_POLICY_ASSUMPTIONS.graceSeconds &&
+  effectiveElapsed(state, 0, state.time) >= FOREIGN_POLICY_ASSUMPTIONS.graceSeconds &&
   !state.gameOver &&
   !state.victory;
 function policy(state: GameState) {
   return (state.foreignPolicy ??= { raids: [], ultimata: [], relations: [] });
 }
 function intervalReady(state: GameState, key: string, seconds: number) {
-  return state.time - (state.eventTimes[key] ?? -Infinity) >= seconds;
+  const last = state.eventTimes[key];
+  return last === undefined || effectiveElapsed(state, last, state.time) >= seconds;
 }
 function move(
   point: { x: number; y: number },
@@ -414,7 +416,12 @@ export function resolveForeignUltimatum(
   faction.hostile = false;
   faction.peaceUntil = Math.max(
     faction.peaceUntil ?? 0,
-    state.time + FOREIGN_POLICY_ASSUMPTIONS.paymentPeaceSeconds,
+    state.time +
+      secondsForEffectiveDuration(
+        state,
+        state.time,
+        FOREIGN_POLICY_ASSUMPTIONS.paymentPeaceSeconds,
+      ),
   );
   log(
     state,
@@ -474,7 +481,7 @@ function guardAtHome(state: GameState, unit: Unit) {
     unit.command?.includes('V_05') &&
     unit.command.includes('O_01') &&
     distance(unit, state.home) <= 15 &&
-    (unit.command[0] !== 'C_01' || state.time % 90 >= 60)
+    (unit.command[0] !== 'C_01' || getCalendar(state).isNight)
   );
 }
 function retaliate(state: GameState, guard: Unit, raider: Unit) {

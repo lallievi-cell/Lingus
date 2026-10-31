@@ -23,6 +23,9 @@ import type { BuildingKind, Target, Unit } from '../../src/game/types';
  */
 export function preparedNeolithicSettlement(seed = 6842) {
   const state = createGame(seed, 'guided');
+  // This prepared eight-season study retains the ordinary legacy calendar.
+  delete state.openingBalanceVersion;
+  delete state.openingCouncilsCompleted;
   const template = state.units[0];
   Object.assign(state, {
     started: true,

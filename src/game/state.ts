@@ -214,6 +214,9 @@ export function createInitialState(
   const state: GameState = {
     version: 2,
     playMode,
+    ...(playMode === 'guided'
+      ? { openingBalanceVersion: 1 as const, openingCouncilsCompleted: 0 }
+      : {}),
     mapGeneration: { mode: mapMode, seed: seed >>> 0, version: 1 },
     seed: seed >>> 0,
     time: 0,

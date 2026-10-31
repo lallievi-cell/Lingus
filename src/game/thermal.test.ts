@@ -22,6 +22,9 @@ import type { GameState } from './types';
  * the rescue itself. The actual simulation performs all movement and recovery. */
 function winter(mode: 'guided' | 'classic' = 'guided', fire = true) {
   const state = createGame(6842, mode);
+  // Prepared 90-second scenes preserve the legacy Guided save rules.
+  delete state.openingBalanceVersion;
+  delete state.openingCouncilsCompleted;
   Object.assign(state, {
     started: true,
     paused: false,

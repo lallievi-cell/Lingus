@@ -12,6 +12,9 @@ async function showWorkingGroup(page: Page) {
     const { createGame, issueCommand, tick } = await import('/src/game/engine.ts');
     const { WorldMap } = await import('/src/components/WorldMap.tsx');
     let state = createGame(6842, 'guided');
+    // Keep the original twelve-second work observation as a legacy replay.
+    delete state.openingBalanceVersion;
+    delete state.openingCouncilsCompleted;
     state.started = true;
     state.words.O_03 = { retention: 100, custodians: state.units.map((u) => u.id), uses: 0 };
     for (const unit of state.units) unit.knows.push('O_03');

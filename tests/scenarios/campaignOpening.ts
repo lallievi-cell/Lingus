@@ -11,12 +11,15 @@ import {
 } from '../../src/game/engine';
 import type { GameState, MapEntity, Target } from '../../src/game/types';
 
-/** The first270seconds of a Guided seed-zero route. Five-second decisions
+/** The first270seconds of a legacy Guided seed-zero route. Five-second decisions
  * use actual group selections, exploration, materials and paid lessons.
  * The eastbound scout explores before the player can target distant resources.
  */
 export function replayCampaignOpening(seed = 6842, until = 270) {
   let state: GameState = { ...createGame(seed, 'guided'), started: true };
+  // This published campaign opening retains its original 90-second profile.
+  delete state.openingBalanceVersion;
+  delete state.openingCouncilsCompleted;
   let firstFireAt: number | null = null;
   const roleIds = new Set<string>();
   let houseStarted = false;

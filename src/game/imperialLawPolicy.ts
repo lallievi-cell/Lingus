@@ -1,4 +1,5 @@
 import { ADULT_AGE } from './content';
+import { getCalendar } from './calendar';
 import type { Battalion, City, GameState, Law, Unit } from './types';
 
 /** Source examples add their stated consequences to the general six-slot compiler.
@@ -124,7 +125,8 @@ export function lawSubjectMatches(s: GameState, law: Pick<Law, 'subjectId'>, tar
 
 const evidencePrefix = 'legal-work:';
 // Completion at the boundary belongs to the season that has just ended.
-const workSeason = (time: number) => Math.max(0, Math.ceil(time / 90) - 1);
+const workSeason = (state: GameState, time: number) =>
+  getCalendar(state, Math.max(0, time - 1e-8)).seasonIndex;
 const workKey = (season: number, id: string, verb: string, object: string) =>
   `${evidencePrefix}${season}:${id}:${verb}:${object}`;
 
@@ -147,7 +149,7 @@ export function recordLawWork(
   // Carrying has home as its implicit destination unless a foreign recipient
   // is explicitly named. This is the same rule used by the direct compiler.
   if (verb === 'V_04' && !objects.has('S_05')) objects.add('O_01');
-  const season = workSeason(atTime);
+  const season = workSeason(s, atTime);
   for (const object of objects) {
     const key = workKey(season, subjectId, verb, object);
     s.eventTimes[key] = (s.eventTimes[key] ?? 0) + amount;
@@ -170,7 +172,7 @@ export function seasonalDutyFulfilled(
   target: { id: string },
 ) {
   return (
-    (s.eventTimes[workKey(workSeason(s.time), target.id, law.verbId, law.objectId)] ?? 0) >=
+    (s.eventTimes[workKey(workSeason(s, s.time), target.id, law.verbId, law.objectId)] ?? 0) >=
     LAW_POLICY_ASSUMPTIONS.seasonalDutyMinimumCompletedUnits
   );
 }
@@ -189,11 +191,15 @@ export function cityUnderSiege(s: Pick<GameState, 'cities' | 'battalions'>, city
 /** Pure, additive exception policy. Applying these numbers belongs to the actual
  * production, birth, theft, research and enactment paths, not to this classifier.
  */
-export function imperialLawEffects(s: Pick<GameState, 'laws' | 'time' | 'cities' | 'battalions'>) {
+export function imperialLawEffects(
+  s: Pick<GameState, 'laws' | 'time' | 'cities' | 'battalions'> &
+    Partial<Pick<GameState, 'playMode' | 'openingBalanceVersion'>>,
+) {
   const active = new Set(s.laws.map(lawArchetype));
   const has = (kind: LawArchetype) => active.has(kind);
-  const winter = Math.floor(s.time / 90) % 4 === 3;
-  const curfew = has('night_curfew') && s.time % 90 >= 60 && cityUnderSiege(s);
+  const calendar = getCalendar(s);
+  const winter = calendar.season === 3;
+  const curfew = has('night_curfew') && calendar.isNight && cityUnderSiege(s);
   const educationAge = Math.max(
     0,
     ...s.laws.filter((l) => lawArchetype(l) === 'state_education').map((l) => l.age),

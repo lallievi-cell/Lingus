@@ -11,7 +11,7 @@ async function loadColdEmergency(page: Page) {
     Object.assign(state, {
       started: true,
       paused: true,
-      time: 335,
+      time: 565, // The new Guided opening's first winter night.
       tier: 3,
       entities: [],
       cities: [],
@@ -125,7 +125,7 @@ for (const viewport of [
           const state = await page.evaluate(() =>
             JSON.parse(localStorage.getItem('lingus.save.v2')!),
           );
-          return state.time > 335 && state.units[0].x < 270 && state.units[0].hp > 0;
+          return state.time > 565 && state.units[0].x < 270 && state.units[0].hp > 0;
         },
         { timeout: 10_000 },
       )

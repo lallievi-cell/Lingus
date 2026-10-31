@@ -11,6 +11,9 @@ import type { Building } from './types';
 
 function fixture() {
   const s = createGame(6842, 'guided');
+  // Prepared 90-second scenes preserve the legacy Guided save rules.
+  delete s.openingBalanceVersion;
+  delete s.openingCouncilsCompleted;
   s.started = true;
   s.tier = 3;
   s.units = s.units.slice(0, 2);

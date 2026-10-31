@@ -1339,7 +1339,7 @@ function fire(ctx: CanvasRenderingContext2D, time: number, active: boolean, smal
   }
   // Smoke is drawn once by the fog-clipped, bounded atmosphere layer.
 }
-function farmland(ctx: CanvasRenderingContext2D, time: number) {
+function farmland(ctx: CanvasRenderingContext2D, time: number, season: number) {
   shadow(ctx, 37);
   material(
     ctx,
@@ -1353,7 +1353,7 @@ function farmland(ctx: CanvasRenderingContext2D, time: number) {
     'hide',
     12,
   );
-  const winter = Math.floor(time / 90) % 4 === 3;
+  const winter = season === 3;
   for (let row = 0; row < 7; row++) {
     const x = -31 + row * 6,
       y = -7 - row * 2.7;
@@ -1530,7 +1530,7 @@ export function drawPainterlyBuilding(
   ctx: CanvasRenderingContext2D,
   building: Building,
   time: number,
-  options: { producing?: boolean } = {},
+  options: { producing?: boolean; season?: number } = {},
 ): boolean {
   if (!supported.has(building.kind)) return false;
   ctx.save();
@@ -1539,7 +1539,7 @@ export function drawPainterlyBuilding(
   } else if (building.kind === 'campfire') {
     fire(ctx, time, building.active);
   } else if (building.kind === 'farm') {
-    farmland(ctx, time);
+    farmland(ctx, time, options.season ?? 0);
   } else if (building.kind === 'pen') {
     pen(ctx, building, time);
   } else {

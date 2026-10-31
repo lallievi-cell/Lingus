@@ -10,13 +10,16 @@ import {
 } from '../../src/game/engine';
 import type { GameState, MapEntity, Target } from '../../src/game/types';
 
-/** Ordinary Guided play on the seed-zero map: group orders at ten-second
+/** Ordinary legacy Guided play on the seed-zero map: group orders at ten-second
  * decisions, actual discoveries, materials, exploration, meals and paid lessons.
  * The southern foraging trip first explores the plain; it never targets a
  * hidden resource. This is a first-year check, not a sustainable campaign proof.
  */
 export function replayGuidedFirstYear(seed = 6842, departureDelay = 0) {
   let state: GameState = { ...createGame(seed, 'guided'), started: true };
+  // This route and its snapshots describe the original 90-second calendar.
+  delete state.openingBalanceVersion;
+  delete state.openingCouncilsCompleted;
   let firstFireAt: number | null = null;
   const orders: { at: number; tokens: string[]; target?: Target }[] = [];
   const rejectedOrders: { at: number; tokens: string[]; reason: string }[] = [];

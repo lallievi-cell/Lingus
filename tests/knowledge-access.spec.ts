@@ -2,14 +2,17 @@ import { expect, test, type Page } from '@playwright/test';
 
 type KnowledgeFixture = 'first' | 'rediscovered-guided' | 'rediscovered-classic';
 
-/** Actual work produces both intuitions. Only the view is isolated afterward;
- * this is a focused interaction check, not a full opening playthrough. */
+/** Actual work produces both intuitions in legacy Guided / Classic games.
+ * The new contextual flow has its own real-work browser checks. Only the view
+ * is isolated afterward; this is not a full opening playthrough. */
 async function seedKnowledge(page: Page, scenario: KnowledgeFixture) {
   await page.goto('/');
   const fixture = await page.evaluate(async (scenario) => {
     const { createGame, issueCommand, solveSpark, tick } = await import('/src/game/engine.ts');
     const { killUnit } = await import('/src/game/simulation.ts');
     let state = createGame(6842, scenario === 'rediscovered-classic' ? 'classic' : 'guided');
+    delete state.openingBalanceVersion;
+    delete state.openingCouncilsCompleted;
     state.started = true;
     const tree = state.entities.find((entity) => entity.kind === 'tree')!;
     state = issueCommand(state, ['S_01', 'V_03'], {
@@ -82,7 +85,7 @@ async function savedState(page: Page) {
   return state;
 }
 
-test('a first real discovery still requires the puzzle', async ({ page }) => {
+test('a first real discovery in legacy Guided still requires the puzzle', async ({ page }) => {
   const fixture = await seedKnowledge(page, 'first');
   const dialog = page.getByRole('dialog', { name: 'La Scintilla Cognitiva' });
   await expect(dialog.getByRole('button', { name: /Ricorda la parola/ })).toHaveCount(0);

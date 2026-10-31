@@ -3,7 +3,7 @@ import { replayGuidedOpening } from '../../tests/scenarios/guidedOpening';
 import { HOME } from './content';
 import { hasWord, parseGame, serializeGame } from './engine';
 
-describe('ordinary Guided opening', () => {
+describe('ordinary legacy Guided opening', () => {
   it('lights a real central fire with a full minute to spare using coarse group orders', () => {
     const result = replayGuidedOpening();
     const { state, orders, discoveries } = result;

@@ -1,4 +1,5 @@
 import { activeUnits, distance, hasBuilding, hasWord, isPlayerBuilding } from './runtime';
+import { effectiveElapsed } from './calendar';
 import { LEARNING_AGE_LIMIT, WORDS } from './content';
 import type { GameState } from './types';
 
@@ -47,7 +48,9 @@ export function recordGuidedWorkUse(state: GameState, tokens: readonly string[])
     if (
       !memory ||
       memory.retention <= 0 ||
-      state.time - (state.eventTimes[key] ?? -Infinity) < GUIDED_PROGRESSION.productiveUseInterval
+      (state.eventTimes[key] !== undefined &&
+        effectiveElapsed(state, state.eventTimes[key], state.time) <
+          GUIDED_PROGRESSION.productiveUseInterval)
     )
       continue;
     memory.uses++;

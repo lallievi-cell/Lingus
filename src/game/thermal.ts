@@ -1,4 +1,5 @@
 import { SEASON_TEMPERATURES } from './content';
+import { getCalendar } from './calendar';
 import { getDogmaEffects } from './dogmas';
 import { bodyTemperatureDelta } from './math';
 import { activeUnits, distance, isPlayerBuilding } from './runtime';
@@ -75,10 +76,10 @@ export function thermalConditionsAt(
   point: Point = unit,
   ambient?: number,
 ) {
-  const phase = Math.floor(state.time / 90) % 4;
+  const calendar = getCalendar(state);
   ambient ??= state.disasters.blizzard
     ? -10
-    : SEASON_TEMPERATURES[phase][state.time % 90 >= 60 ? 'night' : 'day'];
+    : SEASON_TEMPERATURES[calendar.season][calendar.isNight ? 'night' : 'day'];
   const fireHeat = campfireHeatAt(state, point),
     shelterWarmth = shelterWarmthAt(state, point),
     pelts = unitPelts(state, unit);

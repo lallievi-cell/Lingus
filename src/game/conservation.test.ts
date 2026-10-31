@@ -7,6 +7,9 @@ import type { GameState } from './types';
 /** Small food fixtures isolate instinct, explicit meals and the learned flag. */
 function camp(known = true, mode: 'classic' | 'guided' = 'classic') {
   const s = createGame(6842, mode);
+  // Prepared 90-second scenes preserve the legacy Guided save rules.
+  delete s.openingBalanceVersion;
+  delete s.openingCouncilsCompleted;
   Object.assign(s, {
     started: true,
     time: 10,

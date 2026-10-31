@@ -2,6 +2,7 @@ import { ADULT_AGE, LEARNING_AGE_LIMIT, WORDS } from './content';
 import { getDogmaEffects } from './dogmas';
 import { GUIDED_PROGRESSION } from './guidedProgression';
 import { activeUnits, hasBuilding } from './runtime';
+import { teachingMemoryGain } from './learningBalance';
 import type { GameState, Unit } from './types';
 
 export type LessonIssue =
@@ -42,10 +43,13 @@ export function getLessonPreview(state: GameState, wordId: string): LessonPrevie
   const pupils = children.length ? children : eligible;
   const pupil =
     pupils[Math.min(Math.floor((state.seed / 4294967296) * pupils.length), pupils.length - 1)];
-  const memoryGain =
+  const memoryGain = teachingMemoryGain(
+    state,
+    wordId,
     10 *
-    getDogmaEffects(state).teaching *
-    (state.playMode === 'guided' ? GUIDED_PROGRESSION.teachingMultiplier : 1);
+      getDogmaEffects(state).teaching *
+      (state.playMode === 'guided' ? GUIDED_PROGRESSION.teachingMultiplier : 1),
+  );
   const issue: LessonIssue | undefined =
     !memory || !WORDS[wordId]
       ? 'unknown'

@@ -3,7 +3,7 @@ import { replayGuidedFirstYear } from '../../tests/scenarios/guidedFirstYear';
 import { HOME } from './content';
 import { hasWord, parseGame, serializeGame } from './engine';
 
-describe('ordinary Guided first year', () => {
+describe('ordinary legacy Guided first year', () => {
   it.each([6842, 1, 42, 12])(
     'survives the first normal winter and pays for teaching, seed %s',
     (seed) => {

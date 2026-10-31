@@ -2,6 +2,8 @@ import { Flame } from 'lucide-react';
 import { hasWord } from '../game/runtime';
 import type { GameState } from '../game/types';
 import { briefLessonIssue, councilPreparationIssue } from '../game/teaching';
+import { hasLearningBalance, LEARNING_BALANCE } from '../game/learningBalance';
+import { getCalendar } from '../game/calendar';
 
 export function GuidedCouncil({
   state,
@@ -14,6 +16,10 @@ export function GuidedCouncil({
 }) {
   if (state.playMode !== 'guided' || (!state.campfirePending && !onPrepareBrief)) return null;
   const numbered = hasWord(state, 'O_08');
+  const balanced = hasLearningBalance(state);
+  const season = Math.max(0, getCalendar(state).seasonIndex - (state.campfirePending ? 1 : 0));
+  const base =
+    season < 4 ? LEARNING_BALANCE.firstYearCouncilBase : LEARNING_BALANCE.laterCouncilBase;
   const issue = state.campfirePending ? councilPreparationIssue(state) : briefLessonIssue(state);
   return (
     <div className="guide-note guided-council">
@@ -30,15 +36,24 @@ export function GuidedCouncil({
           </summary>
           <details className="story-explanation">
             <summary>Come funziona l’Attenzione</summary>
+            {balanced && (
+              <p>
+                {numbered
+                  ? `Il consiglio stagionale parte da ${base} punti Attenzione. Il legno bruciato e gli anziani presenti aggiungono tempo per raccontare; la fame media oltre ${LEARNING_BALANCE.hungerPenaltyStarts} lo riduce.`
+                  : 'Il consiglio stagionale offre una base di Attenzione. Il legno bruciato e gli anziani presenti la aumentano; solo la fame grave la riduce.'}{' '}
+                Nel primo anno il racconto ha più spazio, per affidare le prime conoscenze a nuove
+                voci.
+              </p>
+            )}
             <p>
               {state.campfirePending
                 ? 'In Guidata puoi bruciare il legno delle scorte per ottenere più Attenzione al consiglio.'
                 : state.attention >= 10
                   ? 'Hai già Attenzione per una lezione: puoi scegliere una parola e premere Tramanda. Preparare altra legna è facoltativo.'
                   : 'Non serve aspettare la fine della stagione. Usa il legno delle scorte per preparare un racconto, poi scegli una parola da tramandare.'}{' '}
-              Ogni lezione spende Attenzione e forma un nuovo custode. Durante il consiglio puoi
-              anche ripassare una parola già nota a tutti gli allievi: spendi Attenzione per
-              rafforzarne la memoria.
+              Ogni lezione spende Attenzione e forma un nuovo custode. Durante il consiglio, quando
+              non ci sono nuovi allievi disponibili, puoi ripassare una parola: spendi Attenzione
+              per rafforzarne la memoria.
             </p>
             {hasWord(state, 'S_06') && hasWord(state, 'S_02') && !hasWord(state, 'M_05') && (
               <p>

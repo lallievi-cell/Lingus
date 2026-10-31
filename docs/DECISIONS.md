@@ -111,6 +111,26 @@ Le regole esplicite più recenti restano il riferimento. Le eccezioni esplicite 
 
 [PLAYTEST-QUALITY-OF-LIFE.md](PLAYTEST-QUALITY-OF-LIFE.md) collega questi cambiamenti autorizzati ai comportamenti, alla compatibilità e alle prove dedicate. Il successivo [audit mobile](MOBILE-PLAYTEST-AUDIT.md) corregge la presentazione A-48 dopo lo screenshot reale: banco chiuso inizialmente, controlli principali senza scorrimento laterale, modifica di uno spazio senza perdere i successivi e prove sulla porzione di mappa effettivamente utilizzabile. Non cambia formule o costi della simulazione.
 
+## Ritmo e trasmissione nelle nuove Guidate
+
+Le decisioni A-49–A-53 sono autorizzate dalla richiesta successiva del giocatore di ricalibrare l’apertura e tutti i calcoli impattati. Si applicano soltanto a `openingBalanceVersion: 1`; Classica e salvataggi precedenti conservano le regole precedenti. [PATIENT-OPENING.md](PATIENT-OPENING.md) riporta formule e verifiche.
+
+| ID   | Problema                                                       | Decisione                                                                                                                                         |
+| ---- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A-49 | Poco tempo rispetto ai sistemi da imparare.                    | Quattro stagioni da 150 s, poi 90 s. Consumi e lavoro normalizzati; calendario, economie, previsioni, meteo e UI condividono i confini.           |
+| A-50 | Il normale appetito azzerava l’insegnamento.                   | Base di 30 Attenzione nei primi quattro consigli, poi 20; bonus reali e penalità soltanto sopra 70 fame. Costo della lezione invariato.           |
+| A-51 | Trasmissione poco rassicurante e Fuoco vissuto senza rinforzo. | Trasmissione da un ultimo custode fondamentale almeno a 80 memoria; oblio in tre fasi; il calore realmente ricevuto da un custode rinforza Fuoco. |
+| A-52 | Puzzle elementari ripetuti e previdenza legata alla crisi.     | Legno, Pietra e Pericolo compresi dalle vere esperienze; una consegna reale di cibo dopo Notte può generare Domani.                               |
+| A-53 | Fondatori persi prima di una trasmissione significativa.       | Curva senile ritardata di due stagioni; fondatori protetti dalla sola vecchiaia fino a due consigli conclusi, con limite alla stagione 8.         |
+
+Le ulteriori verifiche sui mondi generati hanno richiesto tre correzioni collegate, sempre limitate al nuovo profilo Guidato:
+
+| ID   | Problema                                                                             | Decisione                                                                                                                                                             |
+| ---- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A-54 | Il marciume iniziale poteva annullare una preparazione alimentare ragionevole.       | Deterioramento del cibo moltiplicato per 0,4 nel primo anno, 0,7 nel secondo, poi normale. Previsioni e contabilità condividono la regola; altri materiali invariati. |
+| A-55 | La prima fabbricazione dipendeva dall’incrocio dei raggi di due nodi casuali.        | Un artigiano nel raggio di 15 m dal campo usa scorte e materiali già estratti entro 35 m dal giaciglio. Fuori dal campo rimane il raggio locale di 15 m.              |
+| A-56 | Compagni al caldo partivano per resti lontani e tornavano ipotermici senza mangiare. | Gli istinti considerano il raffreddamento del tragitto e un riparo reale. Fame urgente e ordini espliciti restano liberi; nessun cibo o calore aggiunto.              |
+
 ## Portata delle decisioni
 
 Risolvere gli indefiniti rende il modello eseguibile e giudicabile. Non certifica da solo che ogni regola esplicita sia implementata o che ogni vittoria sia raggiungibile in una partita ordinaria.

@@ -7,6 +7,9 @@ import type { Building, BuildingKind, GameState } from './types';
 
 function fixture(time = 80) {
   const s = createGame(6842, 'guided');
+  // Prepared 90-second scenes preserve the legacy Guided save rules.
+  delete s.openingBalanceVersion;
+  delete s.openingCouncilsCompleted;
   s.time = time;
   s.factions = [];
   s.cities = [];

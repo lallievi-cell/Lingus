@@ -15,12 +15,15 @@ export interface GuidedOpeningOrder {
   target?: Target;
 }
 
-/** A new Guided game, with public player actions only. Decisions are made
+/** A legacy Guided game, with public player actions only. Decisions are made
  * every five seconds; no individual isolation or precise positioning is used.
  * This proves the first fire, not a complete sustainable winter economy.
  */
 export function replayGuidedOpening(seed = 6842) {
   let state: GameState = { ...createGame(seed, 'guided'), started: true };
+  // Preserve this published 90-second route as a legacy-save regression.
+  delete state.openingBalanceVersion;
+  delete state.openingCouncilsCompleted;
   let stage: 'meal' | 'wood' | 'woodWait' | 'stoneWait' | 'home' | 'craft' = 'meal';
   let lastOrder = 0;
   const orders: GuidedOpeningOrder[] = [];

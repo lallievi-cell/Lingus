@@ -1,0 +1,32 @@
+.contextual-discovery-notice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid #8d9f73;
+  border-radius: 8px;
+  background: #edf0de;
+  color: #35513c;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.contextual-discovery-notice > svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.contextual-discovery-notice > div {
+  flex: 1;
+  min-width: 0;
+}
+.contextual-discovery-notice p {
+  margin: 3px 0;
+}
+.contextual-discovery-notice .text-button,
+.contextual-discovery-notice .icon-button {
+  min-height: 44px;
+}
+.contextual-discovery-notice > .icon-button {
+  flex-shrink: 0;
+  min-width: 44px;
+  margin: -8px -8px 0 0;
+}

@@ -10,7 +10,7 @@ test('one freezing member overrides a reassuring tribe average and the opening a
     Object.assign(state, {
       started: true,
       paused: true,
-      time: 335,
+      time: 565, // The new Guided opening's first winter night.
       entities: [],
       cities: [],
       factions: [],

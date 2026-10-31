@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { replayContinuousCampaign } from '../../tests/scenarios/continuousCampaign';
 
-describe('bounded public campaign from seven founders', () => {
+describe('bounded legacy public campaign from seven founders', () => {
   it('supports several generations through 30 actual seasons without resource or knowledge grants', () => {
     const replay = replayContinuousCampaign(6842, 2700);
     const final = replay.snapshots.at(-1)!;

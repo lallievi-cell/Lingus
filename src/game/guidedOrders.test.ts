@@ -11,9 +11,12 @@ import {
 } from './engine';
 import type { GameState, Resource, Target } from './types';
 
-/** Isolated task fixtures: these are not ordinary campaigns from the beginning. */
+/** Isolated legacy task fixtures: these are not ordinary campaigns from the beginning. */
 function village(mode: 'guided' | 'classic' = 'guided', people = 1) {
   const s = createGame(6842, mode);
+  // Fixed cycle lengths below verify the original 90-second Guided profile.
+  delete s.openingBalanceVersion;
+  delete s.openingCouncilsCompleted;
   Object.assign(s, {
     started: true,
     tier: 2,

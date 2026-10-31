@@ -489,6 +489,9 @@ export interface MapGeneration {
 export interface GameState {
   version: 2;
   playMode?: 'guided' | 'classic';
+  /** New Guided openings opt in; omitted fields retain the previous balance. */
+  openingBalanceVersion?: 1;
+  openingCouncilsCompleted?: number;
   mapGeneration?: MapGeneration;
   seed: number;
   time: number;

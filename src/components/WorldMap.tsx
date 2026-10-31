@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Crosshair, Minus, Plus, Move, MapPin, MousePointer2, X } from 'lucide-react';
 import type { GameState, WorldTarget } from '../game/types';
+import { getCalendar } from '../game/calendar';
 import {
   createTerrain,
   drawWorld,
@@ -308,6 +309,7 @@ export function WorldMap({
       const p = toWorld(clientX, clientY),
         current = stateRef.current,
         t = getTransform();
+      const calendar = getCalendar(current);
       const candidates: { target: WorldTarget; distance: number; padded: boolean }[] = [];
       const add = (
         type: WorldTarget['type'],
@@ -395,7 +397,7 @@ export function WorldMap({
         if (e.kind === 'ore' && !hasConcept(current, 'O_07')) return;
         if (
           e.kind === 'wolf' &&
-          current.time % 90 < 60 &&
+          !calendar.isNight &&
           !e.attacked &&
           !current.units.some((u) => u.hp > 0 && Math.hypot(u.x - e.x, u.y - e.y) < 20)
         )

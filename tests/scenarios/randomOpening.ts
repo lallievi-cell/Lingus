@@ -45,12 +45,15 @@ function concludeCouncil(state: GameState) {
   return dismissCampfire(state);
 }
 
-/** Ordinary opening on a newly generated map. The player only chooses visible
+/** Ordinary legacy opening on a newly generated map. The player only chooses visible
  * material sources and gives group orders at ten-second decisions. Inventory,
  * knowledge, unit positions and random outcomes are never prepared by the test.
  */
 export function replayRandomOpening(seed: number) {
   let state: GameState = { ...createGame(seed, 'guided', 'random'), started: true };
+  // Keep the historical timings as coverage for existing Guided saves.
+  delete state.openingBalanceVersion;
+  delete state.openingCouncilsCompleted;
   const orders: RandomOpeningOrder[] = [];
   const discoveries: { at: number; wordId: string; recipe: string[] }[] = [];
   const rejectedOrders: { at: number; tokens: string[]; reason: string }[] = [];

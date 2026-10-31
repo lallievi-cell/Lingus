@@ -10,6 +10,9 @@ async function showPressure(page: Page, food = 20, hostile = false, multiple = f
       const { dispatchForeignPolicy } = await import('/src/game/foreignPolicy.ts');
       const { emptyInventory } = await import('/src/game/content.ts');
       const state = createGame(6842, 'guided');
+      // This prepared diplomacy save uses the historical 90-second calendar.
+      delete state.openingBalanceVersion;
+      delete state.openingCouncilsCompleted;
       Object.assign(state, {
         tier: 3,
         started: true,

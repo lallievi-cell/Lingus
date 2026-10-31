@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { hasBuilding, hasWord } from '../game/runtime';
 import { getPersonalDiscoveryProgress } from '../game/personalDiscovery';
 import { thermalConditionsAt } from '../game/thermal';
+import { getCalendar, hasOpeningBalance } from '../game/calendar';
 import type { GameState } from '../game/types';
 
 export function OpeningGuide({
@@ -17,7 +18,8 @@ export function OpeningGuide({
   onTeach?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  if (state.time >= 360 || state.urbanized) return null;
+  const calendar = getCalendar(state);
+  if (calendar.seasonIndex >= 4 || state.urbanized) return null;
   const guided = state.playMode === 'guided';
   const fire = hasBuilding(state, 'campfire');
   const hearth = state.buildings.some(
@@ -61,18 +63,25 @@ export function OpeningGuide({
   } else if (!fire && !hasWord(state, 'O_05')) {
     title = 'Prepara il primo fuoco';
     text = `Porta legno e pietra al campo. Poi componi Gruppo · Scheggiare · Pietra: fabbricare utensili può far nascere la Scintilla del Fuoco.${guided ? ' In Guidata gli addetti ripetono trasporti e fabbricazione di utensili durante il giorno, finché ci sono risorse e spazio.' : ' In Classica ogni viaggio o manufatto richiede un nuovo ordine.'} Per accendere il primo Falò servono cinque unità di legno.`;
+    if (hasOpeningBalance(state))
+      text += ' Un artigiano al campo può usare anche le schegge già estratte nelle vicinanze.';
   } else if (!fire) {
     title = hearth ? 'Riaccendi il Falò' : 'Manca il combustibile';
     text = hearth
       ? 'Riaccendi il focolare con Conservare · Fuoco: serve un’unità di legno al campo. Una guardia presente lo protegge dalle tempeste. Tieni altre scorte per il cambio di stagione.'
       : 'Porta cinque unità di legno al campo per accendere il primo Falò. Il legno lasciato accanto agli alberi deve ancora essere trasportato.';
-  } else if (state.time < 180) {
+  } else if (hasOpeningBalance(state) && !hasWord(state, 'M_02')) {
+    title = 'Il primo fuoco, il prossimo pasto';
+    text =
+      'Puoi affidare una parola a un nuovo custode e organizzare i rifornimenti. Porta anche cibo al campo: metterlo da parte può far comprendere il bisogno di prepararsi al prossimo buio.';
+    action = 'teach';
+  } else if (calendar.seasonIndex < 2) {
     title = 'Prepara il primo insegnamento';
     text = guided
       ? 'Puoi tramandare già ora: apri il Falò, prepara una breve lezione con legna consegnata e usa l’Attenzione per formare un nuovo custode. Il pannello indica insegnante e allievo. Non aspettare che l’anziano sia in pericolo.'
       : 'Apri il Falò per scegliere una parola e un nuovo custode. Fai mangiare il gruppo prima del consiglio stagionale: la fame riduce l’Attenzione. Conservare · Fuoco assegna una guardia contro le tempeste.';
     action = 'teach';
-  } else if (state.time >= 270) {
+  } else if (calendar.season === 3) {
     title = 'Attraversare l’inverno';
     text =
       'Le bacche sono gelate fino alla primavera: usa le scorte consegnate o la carne di animali abbattuti. Tieni il gruppo dentro il calore del Falò durante la notte, mantieni legna di riserva e tramanda le parole.';
@@ -84,7 +93,7 @@ export function OpeningGuide({
         ? ' In Guidata, dopo aver scoperto Conservare, Portare · Preda ripete i viaggi dalla stessa fonte di cibo durante il giorno.'
         : '');
   }
-  const autumn = state.time >= 180 && !fire;
+  const autumn = calendar.season === 2 && !fire;
   return (
     <aside
       className={`opening-guide ${autumn || cold || starving ? 'urgent' : ''} ${expanded ? 'expanded' : ''}`}
@@ -95,7 +104,7 @@ export function OpeningGuide({
         <strong>{title}</strong>
         <p>{text}</p>
         <span>
-          {state.time < 270
+          {calendar.season < 3
             ? autumn
               ? 'L’inverno è vicino.'
               : 'L’inverno arriva dopo l’autunno.'

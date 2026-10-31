@@ -1,4 +1,5 @@
 import { cognitiveSlots } from './grammar';
+import { getCalendar } from './calendar';
 import { getDogmaEffects } from './dogmas';
 import { getCustodianStatuses } from './custodianStatus';
 import { activeUnits, distance, hasBuilding, hasWord, isPlayerBuilding } from './runtime';
@@ -61,7 +62,7 @@ export function getSurvivalAdvice(state: GameState): SurvivalAdvice | null {
       focus: unitTarget(cold.unit),
     };
   if (hungry) {
-    const season = Math.floor(state.time / 90) % 4;
+    const season = getCalendar(state).season;
     const vegetarian = getDogmaEffects(state, { unit: hungry }).vegetarian;
     const source = state.entities
       .filter(

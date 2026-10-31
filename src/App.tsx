@@ -58,11 +58,14 @@ import {
 } from './components/MapPicker';
 import { GrowthReadiness, IndividualGrowthReadiness } from './components/GrowthReadiness';
 import { GuidedCouncil } from './components/GuidedCouncil';
+import { getCalendar, hasOpeningBalance, seasonStart } from './game/calendar';
 import { TeachingPanel } from './components/TeachingPanel';
 import { MobileActionDock } from './components/MobileActionDock';
 import { MobileWordPalette } from './components/MobileWordPalette';
 import { useMobileViewport } from './components/useMobileViewport';
 import { ContextualWordShelf } from './components/ContextualWordShelf';
+import { ContextualDiscoveryNotice } from './components/ContextualDiscoveryNotice';
+import { contextualDiscoveryKey, newContextualDiscoveries } from './game/contextualDiscovery';
 import { SurvivalAdvisor } from './components/SurvivalAdvisor';
 import { TaskOutcomes } from './components/TaskOutcomes';
 import { getSurvivalAdvice } from './game/survivalAdvice';
@@ -230,6 +233,8 @@ function App() {
   const [dogmaTarget, setDogmaTarget] = useState('C_01');
   const [dogmaVector, setDogmaVector] = useState('M_01');
   const [toast, setToast] = useState('');
+  const [contextualNotices, setContextualNotices] = useState<string[]>([]);
+  const contextualSnapshot = useRef({ game, session: mapSession });
   const [newMode, setNewMode] = useState<'guided' | 'classic'>(game.playMode ?? 'guided');
   const [newMap, setNewMap] = useState<MapChoice>(
     game.mapGeneration?.mode ?? (game.started ? 'random' : 'seed-zero'),
@@ -417,6 +422,28 @@ function App() {
     setPanel(null);
     setPuzzle([]);
   }, []);
+
+  useEffect(() => {
+    const previous = contextualSnapshot.current;
+    contextualSnapshot.current = { game, session: mapSession };
+    if (previous.session !== mapSession || game.time < previous.game.time) {
+      setContextualNotices([]);
+      return;
+    }
+    const learned = newContextualDiscoveries(previous.game, game);
+    setContextualNotices((current) => {
+      const live = current.filter(
+        (id) =>
+          hasWord(game, id) &&
+          game.time - (game.eventTimes[contextualDiscoveryKey(id)] ?? -Infinity) <= 18,
+      );
+      return learned.length
+        ? [...new Set([...live, ...learned])]
+        : live.length === current.length
+          ? current
+          : live;
+    });
+  }, [game, mapSession]);
 
   useEffect(() => {
     const previous = outcomeSnapshot.current;
@@ -1555,6 +1582,21 @@ function App() {
           aria-label="Mappa e ordini"
         >
           <div className="map-notices" role="region" aria-label="Avvisi della valle" tabIndex={0}>
+            {contextualNotices[0] && (
+              <ContextualDiscoveryNotice
+                wordId={contextualNotices[0]}
+                rediscovered={
+                  (game.bornWords?.[contextualNotices[0]] ?? game.time) <
+                  game.eventTimes[contextualDiscoveryKey(contextualNotices[0])]
+                }
+                onInspect={(id) => {
+                  setContextualNotices((current) => current.filter((word) => word !== id));
+                  setLexiconSearch(WORDS[id].label);
+                  setPanel('lexicon');
+                }}
+                onDismiss={() => setContextualNotices((current) => current.slice(1))}
+              />
+            )}
             {survivalAdvice ? (
               <SurvivalAdvisor
                 state={game}
@@ -2522,10 +2564,12 @@ function App() {
           <div className="guide-note">
             <Clock3 size={18} />
             <p>
-              Una stagione dura 90 secondi: 60 di luce e 30 di notte. Usa <kbd>SPAZIO</kbd> per
-              fermare il tempo e i tasti <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> per la velocità.
-              All’inizio hai tre punti Voce. Ogni ordine diretto ne consuma uno; ne recuperi uno
-              ogni 10 secondi.
+              {hasOpeningBalance(game)
+                ? 'Nel primo anno Guidato una stagione dura 150 secondi: 100 di luce e 50 di notte. Dal secondo anno dura 90 secondi: 60 di luce e 30 di notte.'
+                : 'Una stagione dura 90 secondi: 60 di luce e 30 di notte.'}{' '}
+              Usa <kbd>SPAZIO</kbd> per fermare il tempo e i tasti <kbd>1</kbd> <kbd>2</kbd>{' '}
+              <kbd>3</kbd> per la velocità. All’inizio hai tre punti Voce. Ogni ordine diretto ne
+              consuma uno; ne recuperi uno ogni 10 secondi.
             </p>
           </div>
           <button
@@ -2745,7 +2789,7 @@ function App() {
         <Modal
           title="Attorno al falò"
           onClose={game.campfirePending ? undefined : closePanel}
-          className="campfire-modal"
+          className={`campfire-modal ${hasOpeningBalance(game) ? 'opening-council' : ''}`}
           headerAction={
             game.campfirePending ? (
               <button
@@ -2763,7 +2807,11 @@ function App() {
           <div className="modal-symbol">
             <Flame size={37} />
           </div>
-          <span className="eyebrow">CIÒ CHE NON TRAMANDI PUÒ SCOMPARIRE</span>
+          <span className="eyebrow">
+            {hasOpeningBalance(game)
+              ? 'IL SAPERE TROVA NUOVE VOCI'
+              : 'CIÒ CHE NON TRAMANDI PUÒ SCOMPARIRE'}
+          </span>
           <h2>Attorno al falò.</h2>
           <p className="modal-intro">Scegli una parola e affidala a una nuova voce.</p>
           <div className="attention-counter">
@@ -2780,7 +2828,9 @@ function App() {
           />
           <TribeEvents
             state={game}
-            events={(game.tribeEvents ?? []).filter((event) => event.time >= game.time - 90)}
+            events={(game.tribeEvents ?? []).filter(
+              (event) => event.time >= seasonStart(game, getCalendar(game).seasonIndex - 1),
+            )}
             summary
             onFocus={(id) => {
               const unit = game.units.find((u) => u.id === id);
@@ -2814,7 +2864,10 @@ function App() {
           <p className="campfire-explanation">
             Ogni lezione costa 10 punti Attenzione e forma un nuovo custode. Il recupero base è di{' '}
             {game.playMode === 'guided' ? 20 : 10} punti di memoria e può aumentare con i dogmi. Al
-            cambio di stagione, il legno bruciato e gli anziani generano Attenzione.{' '}
+            cambio di stagione,{' '}
+            {hasOpeningBalance(game)
+              ? 'il consiglio dispone di una base di Attenzione. Legno bruciato e anziani la aumentano; solo la fame grave la riduce.'
+              : 'il legno bruciato e gli anziani generano Attenzione.'}{' '}
             {game.playMode === 'guided' &&
               'Durante il consiglio puoi ripassare una parola già nota a tutti gli allievi: costa 10 punti Attenzione e rafforza la memoria dei custodi.'}
           </p>
@@ -2959,6 +3012,10 @@ function App() {
           <p className="mode-label">
             Partita {game.playMode === 'guided' ? 'Guidata' : 'Classica'}. La modalità si sceglie
             all’inizio di una nuova storia.
+            {game.playMode === 'guided' &&
+              (hasOpeningBalance(game)
+                ? ' Questa storia usa il primo anno disteso e il nuovo equilibrio del Falò.'
+                : ' Questa storia conserva il ritmo precedente. Le nuove Guidate usano il primo anno disteso.')}
           </p>
           <p className="current-map-info" aria-label="Mappa attuale">
             {game.mapGeneration ? (
@@ -3165,9 +3222,9 @@ function ModePicker({
       <button type="button" aria-pressed={value === 'guided'} onClick={() => onChange('guided')}>
         <strong>Guidata</strong>
         <small>
-          Più tempo per imparare: primo inverno senza tormente, scoperta di Qui dopo una notte e
-          anziana iniziale più giovane. Trasporto e fabbricazione di utensili possono proseguire
-          durante il giorno.
+          Un primo anno più disteso, con stagioni da 150 secondi, prime materie comprese vivendo e
+          più spazio per tramandare. Il primo inverno è senza tormente. Dal secondo anno le stagioni
+          durano 90 secondi. Trasporti e utensili possono proseguire durante il giorno.
         </small>
       </button>
       <button type="button" aria-pressed={value === 'classic'} onClick={() => onChange('classic')}>

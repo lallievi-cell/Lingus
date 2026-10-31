@@ -1,4 +1,5 @@
 import { ADULT_AGE } from './content';
+import { effectiveElapsed, getCalendar } from './calendar';
 import { rememberCombatWound } from './damageAttribution';
 import { forbiddenByDogma, getDogmaEffects, protectedByDogma } from './dogmas';
 import { lawArchetype, lawSubjectMatches } from './imperialLawPolicy';
@@ -168,8 +169,9 @@ export function updateCivilConflicts(s: GameState, dt: number, assault: Assault)
   if (
     s.inequality < CIVIL_LAW_ASSUMPTIONS.inequalityThreshold ||
     s.cohesion > CIVIL_LAW_ASSUMPTIONS.cohesionThreshold ||
-    s.time - (s.eventTimes['civil-last-episode'] ?? -Infinity) <
-      CIVIL_LAW_ASSUMPTIONS.episodeCooldownSeconds
+    (s.eventTimes['civil-last-episode'] !== undefined &&
+      effectiveElapsed(s, s.eventTimes['civil-last-episode'], s.time) <
+        CIVIL_LAW_ASSUMPTIONS.episodeCooldownSeconds)
   )
     return;
   const adults = activeUnits(s).filter(
@@ -183,7 +185,7 @@ export function updateCivilConflicts(s: GameState, dt: number, assault: Assault)
   const rations = s.entities.filter(
     (e) =>
       e.amount > 0 &&
-      ((e.kind === 'berries' && Math.floor(s.time / 90) % 4 !== 3) ||
+      ((e.kind === 'berries' && getCalendar(s).season !== 3) ||
         (e.kind === 'ground' && ['food', 'meat', 'cooked'].includes(e.resource ?? '')) ||
         (['deer', 'wolf', 'alpha', 'mammoth'].includes(e.kind) && e.hp <= 0)),
   );

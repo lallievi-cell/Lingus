@@ -5,6 +5,9 @@ import { processWork } from './simulation';
 
 function scene() {
   const s = createGame(6842, 'guided');
+  // Prepared 90-second scenes preserve the legacy Guided save rules.
+  delete s.openingBalanceVersion;
+  delete s.openingCouncilsCompleted;
   Object.assign(s, {
     started: true,
     cities: [],

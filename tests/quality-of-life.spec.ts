@@ -12,6 +12,11 @@ async function loadScene(
     const { killUnit, seasonalCore } = await import('/src/game/simulation.ts');
     const { WORD_ORDER, emptyInventory, HOME } = await import('/src/game/content.ts');
     const s = createGame(variant === 'council' ? 1 : 6842, 'guided');
+    if (variant === 'season' || variant === 'council') {
+      // These prepared boundaries intentionally close a historical 90s season.
+      delete s.openingBalanceVersion;
+      delete s.openingCouncilsCompleted;
+    }
     Object.assign(s, {
       started: true,
       paused: true,

@@ -2,6 +2,7 @@ import { BUILDING_SPECS, INNATE_WORDS, RESOURCE_ORDER, WORDS } from './content';
 import type { GameState } from './types';
 import { TRIBE_EVENT_LIMIT } from './demography';
 import { validLearnedRecipe } from './knowledgeRecovery';
+import { seasonLength } from './calendar';
 import {
   REGIONAL_ROUTE_GRID,
   REGIONAL_ROUTE_LIMIT,
@@ -150,6 +151,14 @@ export function validSave(value: unknown): value is GameState {
   if (!record(value)) return false;
   const s = value;
   if (!optional(s.playMode, (x) => x === 'guided' || x === 'classic')) return false;
+  if (
+    !optional(s.openingBalanceVersion, (version) => version === 1) ||
+    (s.openingBalanceVersion !== undefined && s.playMode !== 'guided') ||
+    (s.openingBalanceVersion === undefined && s.openingCouncilsCompleted !== undefined) ||
+    (s.openingBalanceVersion === 1 &&
+      (!number(s.openingCouncilsCompleted) || !Number.isInteger(s.openingCouncilsCompleted)))
+  )
+    return false;
   if (
     !optional(s.foreignPolicy, (value) => {
       if (
@@ -418,13 +427,22 @@ export function validSave(value: unknown): value is GameState {
           v.seasonWork,
           (x) =>
             record(x) &&
-            Object.entries(x).every(
-              ([season, work]) =>
+            Object.entries(x).every(([season, work]) => {
+              const maximum = seasonLength(
+                {
+                  time: 0,
+                  playMode: s.playMode === 'guided' ? 'guided' : 'classic',
+                  openingBalanceVersion: s.openingBalanceVersion === 1 ? 1 : undefined,
+                },
+                Number(season),
+              );
+              return (
                 /^\d+$/.test(season) &&
+                Number.isSafeInteger(Number(season)) &&
                 record(work) &&
-                number(work.efficiencySeconds, 0, 90) &&
+                number(work.efficiencySeconds, 0, maximum) &&
                 record(work.workerSeconds) &&
-                Object.values(work.workerSeconds).every((seconds) => number(seconds, 0, 90)) &&
+                Object.values(work.workerSeconds).every((seconds) => number(seconds, 0, maximum)) &&
                 optional(
                   work.commandSeconds,
                   (commands) =>
@@ -434,11 +452,12 @@ export function validSave(value: unknown): value is GameState {
                         record(signatures) &&
                         Object.entries(signatures).every(
                           ([signature, seconds]) =>
-                            words(signature.split('|')) && number(seconds, 0, 90),
+                            words(signature.split('|')) && number(seconds, 0, maximum),
                         ),
                     ),
-                ),
-            ),
+                )
+              );
+            }),
         ),
     )
   )
@@ -565,6 +584,11 @@ export function validSave(value: unknown): value is GameState {
     ['commands', 'discoveries', 'hunts', 'deaths', 'births', 'taught', 'seasonsSurvived'].some(
       (k) => !number((s.stats as RecordValue)[k]),
     )
+  )
+    return false;
+  if (
+    s.openingBalanceVersion === 1 &&
+    (s.openingCouncilsCompleted as number) > (s.stats.seasonsSurvived as number)
   )
     return false;
   if (

@@ -7,6 +7,9 @@ async function seedLesson(page: Page, scenario: 'early' | 'anonymous' | 'already
     const { createGame } = await import('/src/game/engine.ts');
     const { emptyInventory } = await import('/src/game/content.ts');
     const state = createGame(6842, 'guided');
+    // This imported Guided save retains the original +20-memory lesson.
+    delete state.openingBalanceVersion;
+    delete state.openingCouncilsCompleted;
     Object.assign(state, {
       started: true,
       paused: true,

@@ -7,7 +7,7 @@ import { hasWord } from './engine';
 import { validSave } from './saveValidation';
 import { RESOURCE_SPECS } from './content';
 
-describe('continuous growth from an explicitly prepared Neolithic settlement', () => {
+describe('continuous legacy growth from an explicitly prepared Neolithic settlement', () => {
   it('declares a finite, reloadable 35-person starting position without Writing or Cities', () => {
     const state = preparedNeolithicSettlement();
     expect(validSave(state)).toBe(true);
@@ -36,6 +36,7 @@ describe('continuous growth from an explicitly prepared Neolithic settlement', (
     const result = replayNeolithicTransition(6842, 720),
       state = result.state;
     expect(state.time).toBe(720);
+    expect(state.stats.seasonsSurvived).toBe(8);
     expect(state.gameOver).toBeNull();
     expect(validSave(state)).toBe(true);
     expect(state.stats.births).toBeGreaterThanOrEqual(20);

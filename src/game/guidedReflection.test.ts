@@ -25,6 +25,9 @@ function community(
   } = {},
 ) {
   const state = createGame(6842, options.mode ?? 'guided');
+  // These reflection scenes retain their original 90-second Guided clock.
+  delete state.openingBalanceVersion;
+  delete state.openingCouncilsCompleted;
   const foreignCity = state.cities[0];
   const foreignFaction = state.factions.find((faction) => faction.id === foreignCity.factionId)!;
   Object.assign(state, {
@@ -140,6 +143,9 @@ function workplace(
   } = {},
 ) {
   const state = createGame(6842, options.mode ?? 'guided');
+  // Hunger and completed shifts below describe the legacy Guided cadence.
+  delete state.openingBalanceVersion;
+  delete state.openingCouncilsCompleted;
   Object.assign(state, {
     started: true,
     tier: 3,

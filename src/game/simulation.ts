@@ -11,7 +11,6 @@ import {
   WORD_ORDER,
 } from './content';
 import {
-  attentionPoints,
   birthProbability,
   cognitiveTension,
   custodianLoss,
@@ -19,7 +18,6 @@ import {
   faunaGrowth,
   resourceSpoilage,
   retentionDelta,
-  senileDeathProbability,
 } from './math';
 import {
   activeUnits,
@@ -78,6 +76,18 @@ import {
   type PersonalExperience,
 } from './personalDiscovery';
 import { COLD_RESCUE, thermalConditionsAt } from './thermal';
+import { getCouncilAttention, learningDecayGamma, recordLivedFireUse } from './learningBalance';
+import {
+  effectiveElapsed,
+  getCalendar,
+  hasOpeningBalance,
+  seasonLength,
+  seasonStart,
+  secondsForEffectiveDuration,
+} from './calendar';
+import { getOldAgeProbability } from './founderCare';
+import { openingFoodSpoilageMultiplier } from './foodPreservation';
+import { safeInstinctiveFood } from './safeForaging';
 import type {
   Building,
   BuildingKind,
@@ -105,20 +115,20 @@ export const CORE_DEFAULTS = {
   heavyWorkHungerPerSecond: 0.8,
   inheritance: 'parent-mean-plus-or-minus-one',
 };
-export const seasonOf = (s: GameState) => ({
-  index: Math.floor(s.time / 90) % 4,
-  isNight: s.time % 90 >= 60,
-});
+export const seasonOf = (s: GameState) => {
+  const calendar = getCalendar(s);
+  return { index: calendar.season, isNight: calendar.isNight };
+};
 export function getSeason(s: GameState) {
-  const p = s.time % 90,
-    index = Math.floor(s.time / 90) % 4;
+  const calendar = getCalendar(s),
+    index = calendar.season;
   return {
     name: ['Primavera', 'Estate', 'Autunno', 'Inverno'][index],
     index,
-    year: Math.floor(s.time / 360) + 1,
-    progress: p / 90,
-    isNight: p >= 60,
-    remaining: Math.ceil(p < 60 ? 60 - p : 90 - p),
+    year: calendar.year,
+    progress: calendar.progress,
+    isNight: calendar.isNight,
+    remaining: calendar.remaining,
   };
 }
 export function population(s: GameState) {
@@ -227,22 +237,26 @@ export function evaluateDiscoveries(s: GameState, u: Unit) {
         ? event.tag === 'ENV_PERSONAL_MEAL'
           ? 'Mentre gli altri non hanno fame, una persona sceglie di nutrirsi: il suo bisogno è diverso da quello del gruppo.'
           : 'Un compagno completa con le proprie mani un manufatto: è parte del gruppo, ma riconosce il proprio lavoro.'
-        : craftedFire
-          ? 'Sfregando e lavorando il legno, una brace nasce tra le mani.'
-          : event.tag === 'ENV_FUNERAL' && wordId === 'M_03'
-            ? 'Il commiato di un compagno diventa un rito condiviso.'
-            : event.tag === 'ENV_SHARED_CAPTIVE_MEAL' && wordId === 'M_05'
-              ? 'Condividere il pasto rivela che anche il prigioniero è un individuo.'
-              : word.event,
+        : event.tag === 'ENV_FOOD_RESERVE' && wordId === 'M_02'
+          ? 'Il cibo consegnato rimane al campo: potrà nutrire la tribù quando tornerà il buio.'
+          : craftedFire
+            ? 'Sfregando e lavorando il legno, una brace nasce tra le mani.'
+            : event.tag === 'ENV_FUNERAL' && wordId === 'M_03'
+              ? 'Il commiato di un compagno diventa un rito condiviso.'
+              : event.tag === 'ENV_SHARED_CAPTIVE_MEAL' && wordId === 'M_05'
+                ? 'Condividere il pasto rivela che anche il prigioniero è un individuo.'
+                : word.event,
       expiresAt: s.time + 45,
       recipe: [...recipe],
       hint: personalSelf
         ? 'Una sola persona può appartenere al Gruppo e avere un’esperienza propria.'
-        : craftedFire
-          ? 'La lavorazione della pietra incontra il legno.'
-          : funeralRecipe && recipe === funeralRecipe
-            ? 'Il luogo del commiato unisce Morte e Qui.'
-            : word.hint,
+        : event.tag === 'ENV_FOOD_RESERVE' && wordId === 'M_02'
+          ? 'Ciò che mangiamo può aspettare il ritorno della Notte. Quale pensiero nasce dalle scorte?'
+          : craftedFire
+            ? 'La lavorazione della pietra incontra il legno.'
+            : funeralRecipe && recipe === funeralRecipe
+              ? 'Il luogo del commiato unisce Morte e Qui.'
+              : word.hint,
     });
     log(s, `${u.name} cerca un nome per un’esperienza nuova.`, 'discovery');
   }
@@ -790,13 +804,28 @@ function trainStrength(u: Unit) {
 
 function workCycle(s: GameState, u: Unit, dt: number, seconds = CORE_DEFAULTS.workSeconds) {
   const f = getDogmaEffects(s, { unit: u, tokens: u.command });
+  const productive = [
+    'building',
+    'crafting',
+    'cooking',
+    'guarding',
+    'working',
+    'farming',
+    'smelting',
+    'copying',
+    'researching',
+    'domesticating',
+    'planting',
+    'gathering',
+  ].includes(u.action);
+  const workTime = productive ? effectiveElapsed(s, s.time - dt, s.time) : dt;
   const lawFear = (u.lastEventAt?.LAW_PRODUCTIVITY_UNTIL ?? 0) > s.time ? 1.2 : 1,
     property =
       (u.lastEventAt?.LAW_PRIVATE_BONUS ?? 0) > 0 || (hasWord(s, 'M_04') && (u.wealth ?? 0) > 0)
         ? 1.3
         : 1;
   u.progress +=
-    dt *
+    workTime *
     (u.action !== 'eating' && (u.parasiteUntil ?? 0) > s.time ? 0.5 : 1) *
     f.production *
     (u.action === 'building' ? imperialLawEffects(s).constructionMultiplier : 1) *
@@ -998,7 +1027,8 @@ function resumeBuildingJob(s: GameState, u: Unit) {
     const tradition = s.traditions.find((t) => t.tokens.join('|') === job.command.join('|'));
     if (tradition) {
       initializeUnit(u);
-      u.cooldowns![`law-order:${tradition.id}`] = s.time + 90;
+      u.cooldowns![`law-order:${tradition.id}`] =
+        s.time + secondsForEffectiveDuration(s, s.time, 90);
     }
     u.suspendedJob = undefined;
     return false;
@@ -1017,8 +1047,8 @@ function resumeBuildingJob(s: GameState, u: Unit) {
 /** A full ordinary 60-second shift earns one seasonal yield; extra shifts cap at one. */
 function recordBuildingWork(s: GameState, dt: number) {
   const start = Math.max(0, s.time - dt),
-    firstSeason = Math.floor(start / 90),
-    lastSeason = Math.floor(s.time / 90);
+    firstSeason = getCalendar(s, start).seasonIndex,
+    lastSeason = getCalendar(s).seasonIndex;
   for (const b of s.buildings) {
     const spec = BUILDING_SPECS[b.kind];
     if (b.cityId || spec.workers === 0 || !b.active || b.hp <= 0 || b.completed === false) continue;
@@ -1048,23 +1078,29 @@ function recordBuildingWork(s: GameState, dt: number) {
     for (let season = firstSeason; season <= lastSeason; season++) {
       const seconds = Math.max(
         0,
-        Math.min(s.time, (season + 1) * 90) - Math.max(start, season * 90),
+        Math.min(s.time, seasonStart(s, season + 1)) - Math.max(start, seasonStart(s, season)),
       );
       if (seconds <= 0) continue;
       const work = (b.seasonWork[season] ??= { efficiencySeconds: 0, workerSeconds: {} });
       work.efficiencySeconds = Math.min(
-        90,
+        seasonLength(s, season),
         work.efficiencySeconds + (seconds * workers.length) / spec.workers,
       );
       for (const id of workers) {
-        work.workerSeconds[id] = Math.min(90, (work.workerSeconds[id] ?? 0) + seconds);
+        work.workerSeconds[id] = Math.min(
+          seasonLength(s, season),
+          (work.workerSeconds[id] ?? 0) + seconds,
+        );
         const command = s.units.find((u) => u.id === id)?.command;
         if (command?.length) {
           recordGuidedWorkUse(s, command);
           work.commandSeconds ??= {};
           const signatures = (work.commandSeconds[id] ??= {}),
             signature = command.join('|');
-          signatures[signature] = Math.min(90, (signatures[signature] ?? 0) + seconds);
+          signatures[signature] = Math.min(
+            seasonLength(s, season),
+            (signatures[signature] ?? 0) + seconds,
+          );
         }
       }
     }
@@ -1073,8 +1109,11 @@ function recordBuildingWork(s: GameState, dt: number) {
 function seasonalBuildingEfficiency(s: GameState, b: Building) {
   if (!b.active || b.hp <= 0 || b.completed === false) return 0;
   if (BUILDING_SPECS[b.kind].workers === 0) return 1;
-  const ended = Math.floor(s.time / 90) - 1;
-  return Math.min(1, (b.seasonWork?.[ended]?.efficiencySeconds ?? 0) / 60);
+  const ended = getCalendar(s).seasonIndex - 1;
+  return Math.min(
+    1,
+    (b.seasonWork?.[ended]?.efficiencySeconds ?? 0) / ((seasonLength(s, ended) * 2) / 3),
+  );
 }
 /** Civil blows share the real equipment and damage equation with ordinary combat. */
 export function civilStrike(s: GameState, attacker: Unit, victim: Unit, requestedDamage?: number) {
@@ -1278,6 +1317,12 @@ export function processWork(s: GameState, u: Unit, dt: number) {
         recordLawWork(s, u.id, tokens, n);
         recordCraft(s, u, 'V_08');
         recordCraft(s, u, 'V_05');
+        if (
+          hasOpeningBalance(s) &&
+          hasWord(s, 'C_01') &&
+          ['food', 'cooked', 'meat'].includes(carried.resource)
+        )
+          recordEvent(s, u, 'ENV_FOOD_RESERVE', 100, ['M_02']);
         if (tokens.includes('S_02')) {
           u.wealth = (u.wealth ?? 0) + n;
           recordCraft(s, u, 'M_04');
@@ -1746,7 +1791,10 @@ function startInstinct(s: GameState, u: Unit, dt: number) {
     sleep = fx.nightWatch ? !night : night;
   if (u.hunger >= 60) {
     if (nearInventory(s, u) && consume(s, u)) return;
-    const food = closest(edibleEntities(s, u), u);
+    const food = closest(
+      edibleEntities(s, u).filter((entity) => safeInstinctiveFood(s, u, entity)),
+      u,
+    );
     const stock = inventoryAt(s, u);
     // Guided instincts can return to a nearer delivered meal. Children cannot
     // receive work orders, and should not leave nearby stores for distant forage.
@@ -1825,7 +1873,7 @@ function assignTradition(s: GameState, u: Unit) {
       e = clicked ?? closest(pool, u);
     if (forbiddenByDogma(s, tokens, target, u)) continue;
     if (!enforceActionLaws(s, tokens, target, [u.id])) {
-      u.cooldowns![`law-order:${t.id}`] = s.time + 90;
+      u.cooldowns![`law-order:${t.id}`] = s.time + secondsForEffectiveDuration(s, s.time, 90);
       if (u.hp <= 0 || u.factionId !== 'player') return false;
       continue;
     }
@@ -1886,6 +1934,8 @@ function applyEducation(s: GameState) {
   }
 }
 export function updateUnits(s: GameState, dt: number) {
+  const biologicalTime = effectiveElapsed(s, s.time - dt, s.time);
+  const thermalState = hasOpeningBalance(s) ? { ...s, time: Math.max(0, s.time - dt / 2) } : s;
   const elderPrivilege = getDogmaEffects(s).elderFoodPrivilege;
   const ordered = rationCandidates(s);
   if (s.foodPriority || elderPrivilege)
@@ -1912,11 +1962,11 @@ export function updateUnits(s: GameState, dt: number) {
           c.id === u.cityId && (c.factionId === 'player' || residentForeignDelegate(s, u, c.id)),
       );
       if (!city) continue;
-      u.hunger = clamp(u.hunger + 0.8 * dt);
+      u.hunger = clamp(u.hunger + 0.8 * biologicalTime);
       const mortality = u.caste === 'slave' ? imperialLawEffects(s).slaveMortalityMultiplier : 1;
       if (u.plagueUntil && u.plagueUntil > s.time) u.hp -= 1.5 * dt * mortality;
-      if (u.hunger >= 100 && !protectedFromFamine) u.hp -= 2 * dt * mortality;
-      if (u.hunger <= 20) u.hp = clamp(u.hp + 0.5 * dt);
+      if (u.hunger >= 100 && !protectedFromFamine) u.hp -= 2 * biologicalTime * mortality;
+      if (u.hunger <= 20) u.hp = clamp(u.hp + 0.5 * biologicalTime);
       if (u.hp <= 0) {
         killUnit(s, u, u.hunger >= 100 && !protectedFromFamine ? 'ENV_STARVATION' : 'STAT_PLAGUE');
         continue;
@@ -1940,16 +1990,16 @@ export function updateUnits(s: GameState, dt: number) {
     }
     const phase = seasonOf(s),
       fx = getDogmaEffects(s, { unit: u, tokens: u.command });
-    u.hunger = clamp(u.hunger + 0.8 * dt);
-    const thermal = thermalConditionsAt(s, u),
+    u.hunger = clamp(u.hunger + 0.8 * biologicalTime);
+    const thermal = thermalConditionsAt(thermalState, u),
       fire = thermal.fireHeat > 0,
       ambient = thermal.ambient;
-    u.temp = clamp(u.temp + thermal.delta * dt);
+    u.temp = clamp(u.temp + thermal.delta * biologicalTime);
     const mortality = u.caste === 'slave' ? imperialLawEffects(s).slaveMortalityMultiplier : 1;
-    if (u.temp <= 20) u.hp -= 1.5 * dt * mortality;
-    if (u.hunger >= 100 && !protectedFromFamine) u.hp -= 2 * dt * mortality;
+    if (u.temp <= 20) u.hp -= 1.5 * biologicalTime * mortality;
+    if (u.hunger >= 100 && !protectedFromFamine) u.hp -= 2 * biologicalTime * mortality;
     if (u.plagueUntil && u.plagueUntil > s.time) u.hp -= 1.5 * dt * mortality;
-    if (u.hunger <= 20 && distance(u, s.home) <= 10) u.hp = clamp(u.hp + 0.5 * dt);
+    if (u.hunger <= 20 && distance(u, s.home) <= 10) u.hp = clamp(u.hp + 0.5 * biologicalTime);
     if (u.hp <= 0) {
       killUnit(
         s,
@@ -1979,10 +2029,10 @@ export function updateUnits(s: GameState, dt: number) {
     if (
       phase.isNight &&
       ['moving', 'fleeing', 'resting'].includes(u.action) &&
-      u.lastNightEvent !== Math.floor(s.time / 90)
+      u.lastNightEvent !== getCalendar(s).seasonIndex
     ) {
       recordEvent(s, u, 'ENV_NIGHTFALL', 25, ['C_01']);
-      u.lastNightEvent = Math.floor(s.time / 90);
+      u.lastNightEvent = getCalendar(s).seasonIndex;
     }
     if ((phase.isNight || phase.index === 3) && u.hunger >= 80 && totalFood(s.resources) <= 0)
       recordEvent(s, u, 'ENV_STARVATION', 15, ['M_02'], 1);
@@ -2026,7 +2076,7 @@ export function updateUnits(s: GameState, dt: number) {
       u.hunger >= 75 &&
       !outsideShift
     ) {
-      const worked = fireJob?.seasonWork?.[Math.floor(s.time / 90)]?.workerSeconds[u.id] ?? 0;
+      const worked = fireJob?.seasonWork?.[getCalendar(s).seasonIndex]?.workerSeconds[u.id] ?? 0;
       if (worked >= 5) recordEvent(s, u, 'ENV_DISOBEDIENCE', 100, ['C_03'], 30);
     }
     if (u.jobBuildingId && (u.hunger >= 75 || outsideShift || (fx.nightTaboo && phase.isNight)))
@@ -2258,7 +2308,7 @@ export function seasonalCore(s: GameState) {
       u.strength = clamp(u.strength - 3, 1, 10);
       u.intelligence = clamp(u.intelligence + 2, 1, 10);
     }
-    if (random(s) < senileDeathProbability(u.age)) killUnit(s, u, 'oldAge');
+    if (random(s) < getOldAgeProbability(s, u)) killUnit(s, u, 'oldAge');
   }
   const fx = getDogmaEffects(s);
   // Upkeep determines the next season. Preserve output and bonuses already
@@ -2312,7 +2362,8 @@ export function seasonalCore(s: GameState) {
   // Guided gives the first winter time to teach food and fuel management.
   // Keep the real draw, so the grace period does not shift later random events.
   const rolledBlizzard = season.index === 3 && random(s) < 0.15;
-  s.disasters.blizzard = rolledBlizzard && !(s.playMode === 'guided' && s.time < 360);
+  s.disasters.blizzard =
+    rolledBlizzard && !(s.playMode === 'guided' && getCalendar(s).seasonIndex < 4);
   s.disasters.lightning = season.index === 1 && random(s) < 0.15;
   if (s.disasters.storm && !hasBuilding(s, 'temple'))
     for (const b of s.buildings.filter((b) => isPlayerBuilding(s, b) && b.kind === 'campfire'))
@@ -2342,7 +2393,8 @@ export function seasonalCore(s: GameState) {
     if (spec.spoil > 0) {
       const factor =
         spec.category === 'food'
-          ? resourceSpoilage(spec.spoil, endedSeason === 1, hadStorage, s.resources.pottery > 0)
+          ? resourceSpoilage(spec.spoil, endedSeason === 1, hadStorage, s.resources.pottery > 0) *
+            openingFoodSpoilageMultiplier(s, getCalendar(s).seasonIndex - 1)
           : spec.spoil;
       s.resources[r] *= 1 - factor;
     }
@@ -2364,7 +2416,7 @@ export function seasonalCore(s: GameState) {
           fx.production *
           (hadDrought && !hadWorkshop ? 0.5 : 1),
       );
-      const work = b.seasonWork?.[Math.floor(s.time / 90) - 1],
+      const work = b.seasonWork?.[getCalendar(s).seasonIndex - 1],
         totalWork = Object.values(work?.workerSeconds ?? {}).reduce(
           (sum, seconds) => sum + seconds,
           0,
@@ -2381,7 +2433,7 @@ export function seasonalCore(s: GameState) {
               worker.id,
               signature.split('|'),
               (harvested * earnedSeconds) / Math.max(1e-9, totalWork),
-              Math.max(0, Math.floor(s.time / 90) * 90 - 1e-6),
+              Math.max(0, getCalendar(s).seasonStart - 1e-6),
             );
           // Older saves or explicit diagnostic fixtures have no phrase ledger.
           if (seconds > recorded)
@@ -2390,7 +2442,7 @@ export function seasonalCore(s: GameState) {
               worker.id,
               ['S_01', 'V_09', 'O_04'],
               (harvested * (seconds - recorded)) / Math.max(1e-9, totalWork),
-              Math.max(0, Math.floor(s.time / 90) * 90 - 1e-6),
+              Math.max(0, getCalendar(s).seasonStart - 1e-6),
             );
         }
     }
@@ -2417,11 +2469,14 @@ export function seasonalCore(s: GameState) {
     const temple = s.buildings
       .filter((b) => isPlayerBuilding(s, b) && b.kind === 'temple')
       .reduce((n, b) => n + 20 * (villageWork.get(b.id) ?? 0), 0);
-    s.attention = clamp(
-      attentionPoints(s.burntWood, elders * fx.elderAttention, hunger, fx.attentionCap) + temple,
-      0,
+    s.attention = getCouncilAttention(
+      s,
+      s.burntWood,
+      elders * fx.elderAttention,
+      hunger,
       fx.attentionCap,
-    );
+      temple,
+    ).total;
     s.campfirePending = true;
   } else s.attention = 0;
   s.burntWood = 0;
@@ -2568,19 +2623,29 @@ export function finishSeasonMemory(s: GameState) {
       if (b.kind === 'archive') {
         // Copying belongs to the shift just completed, including scribes now
         // asleep and copies made before next season's upkeep became unpaid.
-        const ended = Math.floor(s.time / 90) - 1;
+        const ended = getCalendar(s).seasonIndex - 1;
         const copied = b.cityId
           ? b.active
             ? Math.min(1, b.lastEfficiency ?? 0)
             : 0
-          : Math.min(1, (b.seasonWork?.[ended]?.efficiencySeconds ?? 0) / 60);
+          : Math.min(
+              1,
+              (b.seasonWork?.[ended]?.efficiencySeconds ?? 0) / ((seasonLength(s, ended) * 2) / 3),
+            );
         support = Math.max(support, copied);
       }
     }
     m.support = support;
     const remembered = m.retention > 0;
     m.retention = clamp(
-      m.retention + retentionDelta(m.uses, 0, w.complexity, support, fx.gamma * fx.decay),
+      m.retention +
+        retentionDelta(
+          m.uses,
+          0,
+          w.complexity,
+          support,
+          learningDecayGamma(s, fx.gamma) * fx.decay,
+        ),
     );
     m.uses = 0;
     m.investment = 0;
@@ -2624,6 +2689,7 @@ export function simulationStep(s: GameState, dt: number) {
   recordBuildingWork(s, dt);
   updateCivilConflicts(s, dt, civilStrike);
   updateUnits(s, dt);
+  recordLivedFireUse(s, dt);
   updateAnimals(s, dt);
   updateDogmas(s, dt);
   const survivors = activeUnits(s);
@@ -2635,7 +2701,9 @@ export function simulationStep(s: GameState, dt: number) {
   const corpseCount = s.entities.filter(
     (e) => e.kind === 'corpse' && e.amount > 0 && distance(e, s.home) <= 30,
   ).length;
-  s.cohesion = clamp(s.cohesion - ((corpseCount * 2) / 60) * dt);
+  s.cohesion = clamp(
+    s.cohesion - ((corpseCount * 2) / 60) * effectiveElapsed(s, s.time - dt, s.time),
+  );
   for (const spark of [...s.sparks])
     if (spark.expiresAt < s.time || !s.units.some((u) => u.id === spark.unitId && u.hp > 0)) {
       s.sparks = s.sparks.filter((p) => p.id !== spark.id);
@@ -2648,7 +2716,12 @@ export function simulationStep(s: GameState, dt: number) {
     }
   if (s.resources.wood >= 5 && hasWord(s, 'O_05') && !hasBuilding(s, 'campfire')) tryIgnite(s);
   const sum = RESOURCE_ORDER.filter((r) => r !== 'coin').reduce((n, r) => n + s.resources[r], 0),
-    erosion = availableWords(s).reduce((n, w) => n + 3 * WORDS[w].complexity, 0);
+    memoryEffects = getDogmaEffects(s),
+    gamma = hasOpeningBalance(s) ? memoryEffects.gamma * memoryEffects.decay : 3,
+    erosion = availableWords(s).reduce(
+      (n, w) => n + learningDecayGamma(s, gamma, false) * WORDS[w].complexity,
+      0,
+    );
   for (const u of activeUnits(s)) {
     if (sum > 500) recordEvent(s, u, 'ENV_ACCOUNTING', 100, ['O_08'], 30);
     // P is normalized to blocks of ten Attention in the final teaching rule.

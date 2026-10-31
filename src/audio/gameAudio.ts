@@ -1,5 +1,6 @@
 import type { GameState } from '../game/types';
 import { institutionIds } from '../game/commandAcknowledgement';
+import { CONTEXTUAL_WORDS, contextualDiscoveryKey } from '../game/contextualDiscovery';
 
 export type GameAudioCue = 'command' | 'spark' | 'birth' | 'loss' | 'disaster';
 type SessionKey = string | number;
@@ -9,6 +10,7 @@ type AudioObservation = {
   institutions: Set<string>;
   births: number;
   sparks: Set<string>;
+  contextualDiscoveries: Map<string, number>;
   events: Set<string>;
   weather: Set<string>;
   infections: Set<string>;
@@ -27,6 +29,12 @@ export class GameAudioEvents {
       institutions: institutionIds(state),
       births: state.stats.births,
       sparks: new Set(state.sparks.map((spark) => spark.id)),
+      contextualDiscoveries: new Map(
+        CONTEXTUAL_WORDS.flatMap((id) => {
+          const at = state.eventTimes[contextualDiscoveryKey(id)];
+          return typeof at === 'number' ? [[id, at] as const] : [];
+        }),
+      ),
       events: new Set((state.tribeEvents ?? []).map((event) => event.id)),
       weather: new Set(
         (['storm', 'drought', 'blizzard', 'lightning'] as const).filter(
@@ -64,6 +72,13 @@ export class GameAudioEvents {
     // Urban cohorts also have real births, without individual tribe-event identities.
     if (state.stats.births > previous.births) cues.add('birth');
     if (state.sparks.some((spark) => !previous.sparks.has(spark.id))) cues.add('spark');
+    if (
+      [...current.contextualDiscoveries].some(
+        ([id, at]) =>
+          at >= previous.time && at <= state.time && previous.contextualDiscoveries.get(id) !== at,
+      )
+    )
+      cues.add('spark');
     for (const event of state.tribeEvents ?? []) {
       if (previous.events.has(event.id) || event.time < previous.time || event.time > state.time)
         continue;

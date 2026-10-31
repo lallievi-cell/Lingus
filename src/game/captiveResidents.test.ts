@@ -10,6 +10,9 @@ import type { City, GameState, Unit } from './types';
  */
 function fixture(mode: 'guided' | 'classic' = 'classic') {
   const state = createGame(6842, mode);
+  // Prepared 90-second scenes preserve the legacy Guided save rules.
+  delete state.openingBalanceVersion;
+  delete state.openingCouncilsCompleted;
   Object.assign(state, {
     started: true,
     paused: false,

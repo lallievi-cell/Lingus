@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HOME, INNATE_WORDS } from './content';
+import { getCalendar, getSeasonRate } from './calendar';
 import {
   createGame,
   issueCommand,
@@ -129,8 +130,10 @@ describe('Guided rediscovery preserves player knowledge without granting tribal 
     future.bornWords!.O_02 = future.time + 1;
     expect(parseGame(serializeGame(future))).toBeNull();
   });
-  it('recovers after a real custodian death only when a real new work intuition is available', () => {
+  it('keeps legacy Guided recovery after a real death dependent on a new work intuition', () => {
     let state = createGame(6842, 'guided');
+    delete state.openingBalanceVersion;
+    delete state.openingCouncilsCompleted;
     state.started = true;
     const first = state.entities.find((entity) => entity.kind === 'tree')!;
     state = issueCommand(state, ['S_01', 'V_03'], {
@@ -189,11 +192,16 @@ describe('Io has a real early personal experience in Guided', () => {
       x: tree.x,
       y: tree.y,
     });
-    for (let i = 0; i < 240 && !state.sparks.some((spark) => spark.wordId === 'S_02'); i++)
+    const firstDay = getCalendar(state).dayLength;
+    for (
+      let i = 0;
+      i < firstDay / 0.25 && !state.sparks.some((spark) => spark.wordId === 'S_02');
+      i++
+    )
       state = tick(state, 0.25);
     const spark = state.sparks.find((entry) => entry.wordId === 'S_02');
     expect(spark).toBeDefined();
-    expect(state.time).toBeLessThan(60);
+    expect(state.time).toBeLessThan(firstDay);
     expect(state.words.O_01).toBeUndefined();
     expect(state.units.every((unit) => unit.isolation < 30)).toBe(true);
     expect(spark!.eventLabel).toContain('nutrirsi');
@@ -244,7 +252,7 @@ describe('Io has a real early personal experience in Guided', () => {
     state.units[0].knows = [...INNATE_WORDS, 'V_06', 'O_02'];
     Object.assign(state.units[0], { ...HOME, hunger: 0, temp: 100 });
     state = issueCommand(state, ['S_01', 'V_06', 'O_02']);
-    state = advance(state, 16);
+    state = advance(state, 16 / getSeasonRate(state));
     expect(state.resources.tool).toBeGreaterThanOrEqual(3);
     expect(state.sparks.some((spark) => spark.wordId === 'S_02')).toBe(true);
     expect(state.words.S_02).toBeUndefined();

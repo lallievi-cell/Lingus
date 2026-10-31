@@ -1,6 +1,7 @@
 import type { GameState, Resource, WorldTarget } from '../game/types';
 import { hasBuilding, isPlayerBuilding } from '../game/runtime';
 import { FIRE_HEAT } from '../game/thermal';
+import { getCalendar } from '../game/calendar';
 import { isAllAdultsAnchor, selectableTribeAdults } from '../game/tribeSelection';
 import { getCustodianStatuses, type CustodianStatus } from '../game/custodianStatus';
 import { getLifeStage } from '../game/demography';
@@ -582,11 +583,12 @@ function drawBuilding(
   building: GameState['buildings'][number],
   time: number,
   producing?: boolean,
+  season = 0,
 ) {
   const { x, y } = worldPoint(building.x, building.y);
   ctx.save();
   ctx.translate(x, y);
-  drawPainterlyBuilding(ctx, building, time, { producing });
+  drawPainterlyBuilding(ctx, building, time, { producing, season });
   ctx.restore();
 }
 
@@ -1013,7 +1015,7 @@ export function drawSelection(
 function drawCampground(ctx: CanvasRenderingContext2D, state: GameState, showBoundary: boolean) {
   if (state.urbanized || !state.home || !showBoundary) return;
   const p = worldPoint(state.home.x, state.home.y);
-  const isNight = state.time % 90 >= 60;
+  const isNight = getCalendar(state).isNight;
 
   ctx.save();
 
@@ -1056,6 +1058,7 @@ export function drawWorld(
   motionSession: MapMotionSession = fallbackMotionSession,
   atmosphereOptions?: AtmosphereOptions,
 ) {
+  const calendar = getCalendar(state);
   ctx.drawImage(terrain, 0, 0, MAP_WIDTH, MAP_HEIGHT);
   drawRegionalRoutes(ctx, state, viewport);
   const nearHome = (target: WorldTarget | null) =>
@@ -1274,7 +1277,7 @@ export function drawWorld(
       continue;
     if (
       entity.kind === 'wolf' &&
-      state.time % 90 < 60 &&
+      !calendar.isNight &&
       !entity.attacked &&
       !state.units.some((u) => u.hp > 0 && Math.hypot(u.x - entity.x, u.y - entity.y) < 20)
     )
@@ -1318,6 +1321,7 @@ export function drawWorld(
               b,
               time,
               b.kind === 'foundry' ? isFoundryProducing(state, b) : undefined,
+              calendar.season,
             ),
           ),
       });
@@ -1469,6 +1473,8 @@ export function drawWorld(
                     active: true,
                   },
                   time,
+                  undefined,
+                  calendar.season,
                 );
             },
             0.45,
@@ -1490,7 +1496,11 @@ export function drawWorld(
               x: city.x + Math.cos(angle) * 18,
               y: city.y + Math.sin(angle) * 22,
             };
-            sprite(building, () => drawBuilding(ctx, building, time), 0.18);
+            sprite(
+              building,
+              () => drawBuilding(ctx, building, time, undefined, calendar.season),
+              0.18,
+            );
           }
         }
         ctx.fillStyle = own ? '#456a48' : '#a57855';
@@ -1641,7 +1651,7 @@ export function drawWorld(
       }
 
   // Twilight comes from the simulation, so pausing also pauses the day.
-  const seasonTime = state.time % 90;
+  const seasonTime = calendar.canonicalPhase;
   const darkness =
     seasonTime < 54
       ? 0

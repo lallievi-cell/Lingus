@@ -6,6 +6,9 @@ import type { GameState, MapEntity } from './types';
 /** Local task fixtures exercise real extraction, carrying and shared capacity. */
 function camp(mode: 'classic' | 'guided' = 'guided', people = 2) {
   const s = createGame(6842, mode);
+  // Prepared 90-second scenes preserve the legacy Guided save rules.
+  delete s.openingBalanceVersion;
+  delete s.openingCouncilsCompleted;
   Object.assign(s, {
     started: true,
     tier: 2,

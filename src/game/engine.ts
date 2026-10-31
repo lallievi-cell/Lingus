@@ -13,6 +13,8 @@ import { canFitCraftOutput, canPayLocally, payLocally } from './craftMaterials';
 import { validSave } from './saveValidation';
 import { canRehearseWord, GUIDED_PROGRESSION } from './guidedProgression';
 import { recalledSparkTokens } from './knowledgeRecovery';
+import { contextualDiscoveryKey, contextualSparkWitness } from './contextualDiscovery';
+import { getCalendar, hasOpeningBalance } from './calendar';
 import { updateForeignPolicy } from './foreignPolicy';
 import { cognitiveSlots, compileSentence, getPredicate, resolveConstruction } from './grammar';
 import { getDogmaEffects, inscribeDogma } from './dogmas';
@@ -571,6 +573,12 @@ export function solveSpark(state: GameState, id: string, chosen: string[]): Game
     );
     return s;
   }
+  learnSpark(s, spark, u);
+  return s;
+}
+
+/** All discovery routes share custody, memory, history and world consequences. */
+function learnSpark(s: GameState, spark: Spark, u: Unit) {
   s.words[spark.wordId] = {
     retention: 50,
     custodians: [u.id],
@@ -606,7 +614,22 @@ export function solveSpark(state: GameState, id: string, chosen: string[]): Game
     'discovery',
   );
   advanceTier(s);
-  return s;
+}
+
+/** Runs inside the real tick, after experience has produced a valid intuition.
+ * It never fabricates a spark or learns a word from elapsed time alone. */
+export function resolveContextualDiscoveries(s: GameState): string[] {
+  const learned: string[] = [];
+  for (const spark of [...s.sparks]) {
+    const witness = contextualSparkWitness(s, spark);
+    if (!witness) continue;
+    initializeUnit(witness);
+    s.sparks = s.sparks.filter((entry) => entry.id !== spark.id);
+    learnSpark(s, spark, witness);
+    s.eventTimes[contextualDiscoveryKey(spark.wordId)] = s.time;
+    learned.push(spark.wordId);
+  }
+  return learned;
 }
 /** Guided players remember a solved concept; the community still needs a new real spark. */
 export function recallSpark(state: GameState, id: string): GameState {
@@ -624,7 +647,7 @@ export function teachWord(state: GameState, id: string): GameState {
   const efficacy =
     getDogmaEffects(s).teaching *
     (s.playMode === 'guided' ? GUIDED_PROGRESSION.teachingMultiplier : 1);
-  m.retention = clamp(m.retention + 10 * efficacy);
+  m.retention = clamp(m.retention + preview.memoryGain);
   m.investment = (m.investment ?? 0) + efficacy;
   s.stats.taught++;
   m.custodians.push(pupil.id);
@@ -640,7 +663,7 @@ export function teachWord(state: GameState, id: string): GameState {
   if (id === 'O_09') recordLawWork(s, pupil.id, ['S_01', 'V_05', 'O_09', 'M_02']);
   log(
     s,
-    `«${WORDS[id].label}» viene tramandata a ${pupil.name}: ${10 * efficacy} memoria e un nuovo custode.`,
+    `«${WORDS[id].label}» viene tramandata a ${pupil.name}: ${Math.round(preview.retentionGain * 10) / 10} memoria e un nuovo custode.`,
     'good',
   );
   advanceTier(s);
@@ -735,7 +758,10 @@ export function prepareCampfireCouncil(state: GameState): GameState {
 
 export function dismissCampfire(state: GameState) {
   const s = copy(state);
-  if (s.campfirePending) finishSeasonMemory(s);
+  if (s.campfirePending) {
+    finishSeasonMemory(s);
+    if (hasOpeningBalance(s)) s.openingCouncilsCompleted = (s.openingCouncilsCompleted ?? 0) + 1;
+  }
   s.campfirePending = false;
   s.pendingSeason = false;
   return s;
@@ -754,23 +780,26 @@ export function tick(state: GameState, dt: number): GameState {
   const s = copy(state);
   let remaining = Math.min(60, dt) * s.speed;
   while (remaining > 1e-8 && !s.gameOver && !s.campfirePending && !s.victory) {
-    const d = Math.min(0.25, remaining),
-      previous = Math.floor(s.time / 90),
+    const calendar = getCalendar(s),
+      d = Math.min(0.25, remaining, hasOpeningBalance(s) ? calendar.seasonEnd - s.time : Infinity),
+      previous = calendar.seasonIndex,
       archiveBefore = s.buildings.some(
         (b) => isPlayerBuilding(s, b) && b.kind === 'archive' && b.hp > 0,
       );
     s.time += d;
+    if (hasOpeningBalance(s) && s.time >= calendar.seasonEnd - 1e-9) s.time = calendar.seasonEnd;
     remaining -= d;
-    s.seasonIndex = Math.floor(s.time / 90);
+    s.seasonIndex = getCalendar(s).seasonIndex;
     s.voiceProgress += d;
     while (s.voiceProgress >= 10) {
       s.voice = Math.min(hasWord(s, 'S_07') ? 5 : 3, s.voice + 1);
       s.voiceProgress -= 10;
     }
     simulationStep(s, d);
+    resolveContextualDiscoveries(s);
     updateForeignPolicy(s, d);
     updateImperial(s, d);
-    if (Math.floor(s.time / 90) > previous) {
+    if (getCalendar(s).seasonIndex > previous) {
       seasonalCore(s);
       seasonalImperial(s);
       if (!s.campfirePending) finishSeasonMemory(s);
@@ -787,7 +816,7 @@ export function tick(state: GameState, dt: number): GameState {
       );
     }
     if (
-      s.time >= 360 &&
+      getCalendar(s).seasonIndex >= 4 &&
       population(s) >= 4 &&
       hasBuilding(s, 'campfire') &&
       hasBuilding(s, 'storage')

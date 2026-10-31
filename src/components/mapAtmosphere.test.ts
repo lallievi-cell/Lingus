@@ -227,4 +227,36 @@ describe('world atmosphere follows the real simulation', () => {
     state.sectors.find((s) => s.x === 2 && s.y === 2)!.explored = false;
     expect(getAtmosphereFrame(state, 450.3, view).lightning).toBeUndefined();
   });
+
+  it('keeps the longer Guided summer strike tied to simulation time, independently of animation time', () => {
+    const state = createGame(6842, 'guided');
+    state.openingBalanceVersion = 1;
+    state.paused = false;
+    state.time = 150.3;
+    state.seasonIndex = 1;
+    state.disasters.lightning = true;
+    state.entities = [
+      {
+        id: 'guided-struck-tree',
+        kind: 'tree',
+        x: 252,
+        y: 252,
+        hp: 100,
+        maxHp: 100,
+        amount: 10,
+        burning: true,
+      },
+    ];
+    expect(getAtmosphereFrame(state, 9999, view).lightning).toMatchObject({ x: 252, y: 252 });
+    state.paused = true;
+    expect(getAtmosphereFrame(state, 10000, view).lightning).toEqual(
+      getAtmosphereFrame(state, 9999, view).lightning,
+    );
+    state.paused = false;
+    state.time = 150.9;
+    expect(getAtmosphereFrame(state, 9999, view).lightning).toBeUndefined();
+    state.time = 90.3;
+    state.seasonIndex = 0;
+    expect(getAtmosphereFrame(state, 9999, view).lightning).toBeUndefined();
+  });
 });
