@@ -16,6 +16,7 @@ import { getIntelligibility, playerPopulation, removeLaw, removeTradition } from
 import { hasWord } from '../game/runtime';
 import { isVisibleAt } from './mapDrawing';
 import { Glyph } from './Glyph';
+import { buildingPurpose } from '../game/phrasebook';
 import { describeStockQuantity, getInventoryEntries } from './campInventory';
 import type { City, GameState, Resource, Target } from '../game/types';
 
@@ -474,7 +475,7 @@ export function CivilizationPanel({
                         ? kind === 'campfire' && s.playMode === 'guided'
                           ? 'Nucleo caldo entro sei metri, protezione esterna fino a quindici. Permette di tramandare le parole.'
                           : b.description
-                        : 'Questa costruzione prende forma dalle parole che conosci.'}
+                        : buildingPurpose(kind)}
                     </p>
                     <small>
                       {Object.entries(b.cost)

@@ -19,6 +19,8 @@ interface Props {
   onRemoveEditingWord?: () => void;
   compactChildren?: (controls: { expand: () => void; close: () => void }) => ReactNode;
   onModeChange?: (mode: 'closed' | 'compact' | 'catalog') => void;
+  libraryActions?: ReactNode;
+  onBeforeWordToggle?: () => void;
 }
 
 /** Everyday composition shares the layout with the map. The larger catalogue
@@ -38,6 +40,8 @@ export function MobileActionDock({
   onRemoveEditingWord,
   compactChildren,
   onModeChange,
+  libraryActions,
+  onBeforeWordToggle,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
   const [expanded, setExpanded] = useState(false);
@@ -160,7 +164,7 @@ export function MobileActionDock({
   }
 
   return (
-    <div className="mobile-action-dock" data-open={open} ref={root}>
+    <div className="mobile-action-dock" data-open={open} data-has-target={!!targetLabel} ref={root}>
       <div
         ref={body}
         id={contentId}
@@ -233,12 +237,13 @@ export function MobileActionDock({
           </>
         )}
       </div>
-      <div className="mobile-dock-header">
+      <div className={`mobile-dock-header ${libraryActions ? 'has-library-actions' : ''}`}>
         <button
           className="mobile-words-toggle"
           type="button"
           ref={trigger}
           onClick={() => {
+            onBeforeWordToggle?.();
             setExpanded(false);
             setOpen((value) => !value);
           }}
@@ -250,6 +255,7 @@ export function MobileActionDock({
           <span>Parole</span>
           <ChevronUp size={14} className={open ? 'is-open' : ''} />
         </button>
+        {libraryActions && <div className="mobile-library-actions">{libraryActions}</div>}
         <div className="mobile-target-strip" role="status" aria-label="Bersaglio del comando">
           <MapPin size={14} aria-hidden="true" />
           <span title={targetLabel ?? undefined}>{targetLabel || 'Scegli sulla mappa'}</span>

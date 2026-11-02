@@ -273,6 +273,14 @@ export interface KnowledgeHistoryEvent {
   teacherId: string;
   pupilId?: string;
 }
+/** Player reference material; it does not preserve the tribe’s word retention. */
+export interface PhrasebookEntry {
+  id: string;
+  tokens: string[];
+  favorite: boolean;
+  firstUsedAt?: number;
+  lastUsedAt?: number;
+}
 export interface Target {
   type: 'point' | 'entity' | 'unit' | 'building' | 'city' | 'battalion' | 'caravan';
   id?: string;
@@ -524,6 +532,7 @@ export interface GameState {
   logs: LogEntry[];
   tribeEvents?: TribeEvent[];
   knowledgeHistory?: KnowledgeHistoryEvent[];
+  phrasebook?: PhrasebookEntry[];
   explored: { x: number; y: number }[];
   stats: {
     commands: number;

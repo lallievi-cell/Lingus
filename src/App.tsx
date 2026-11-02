@@ -11,6 +11,7 @@ import {
   Flame,
   Heart,
   History,
+  Hammer,
   Home,
   Leaf,
   LockKeyhole,
@@ -149,13 +150,11 @@ import {
   solveSpark,
 } from './game/engine';
 import type { GameState, Spark, Target, WordKind } from './game/types';
-import {
-  getSyntaxSuggestions,
-  phraseRecallIssue,
-  rememberRecentPhrase,
-  STARTER_PHRASES,
-} from './game/syntaxAssistant';
+import { getSyntaxSuggestions, phraseRecallIssue, STARTER_PHRASES } from './game/syntaxAssistant';
 import { useGameAudio } from './components/useGameAudio';
+import { Phrasebook } from './components/Phrasebook';
+import { rememberPhrase, phraseKey } from './game/phrasebook';
+import './components/PhrasebookAccess.css';
 
 type Panel =
   | 'welcome'
@@ -260,7 +259,10 @@ function App() {
   const { audioPreferences, setAudioPreferences, sound, setSound } = useAudioPreferences();
   const [lexiconSearch, setLexiconSearch] = useState('');
   const [hasSeenMilestone, setHasSeenMilestone] = useState(!!game.victory);
-  const [recentPhrases, setRecentPhrases] = useState<string[][]>([]);
+  const [phrasebookTab, setPhrasebookTab] = useState<
+    'all' | 'construction' | 'recent' | 'favorites' | null
+  >(null);
+  const phrasebookTrigger = useRef<HTMLElement | null>(null);
   const [taskOutcomes, setTaskOutcomes] = useState<TaskOutcome[]>([]);
   const outcomeSnapshot = useRef(game);
   const [orderFeedback, setOrderFeedback] = useState<{
@@ -295,6 +297,11 @@ function App() {
   const bankSentence = mobile && editingSlot !== null ? sentence.slice(0, editingSlot) : sentence;
   const syntax = getSyntaxSuggestions(game, bankSentence);
   const compatibleWords = new Set(syntax.tokenIds);
+  const recentPhrases = (game.phrasebook ?? [])
+    .filter((entry) => entry.lastUsedAt !== undefined)
+    .sort((a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0))
+    .slice(0, 8)
+    .map((entry) => entry.tokens);
   const shownPhrases = recentPhrases.length
     ? recentPhrases
     : STARTER_PHRASES.filter((phrase) => !phraseRecallIssue(game, phrase));
@@ -553,7 +560,12 @@ function App() {
 
   useEffect(() => {
     const keydown = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).matches('input,textarea,select') || panel) return;
+      if (
+        (e.target as HTMLElement).matches('input,textarea,select') ||
+        panel ||
+        phrasebookTab !== null
+      )
+        return;
       // A focused control keeps native Enter/Space activation. Recalling a
       // phrase or choosing a word must never also pronounce the old sentence.
       if (
@@ -588,7 +600,7 @@ function App() {
     };
     window.addEventListener('keydown', keydown);
     return () => window.removeEventListener('keydown', keydown);
-  }, [panel, sentence, game, target, executorId, groupAnchor]);
+  }, [panel, sentence, game, target, executorId, groupAnchor, phrasebookTab]);
 
   function addWord(id: string, fromPalette = false) {
     if (mobile && editingSlot !== null && editingSlot < sentence.length) {
@@ -622,7 +634,12 @@ function App() {
     if (mobile && (panel || mobileSection !== 'map')) closeWordBank();
   }, [mobile, panel, mobileSection]);
 
+  useEffect(() => {
+    if (panel || (mobile && mobileSection !== 'map')) setPhrasebookTab(null);
+  }, [panel, mobile, mobileSection]);
+
   function editSentenceSlot(index: number) {
+    setPhrasebookTab(null);
     if (!mobile) {
       if (sentence[index]) setSentence((current) => current.filter((_, at) => at !== index));
       return;
@@ -660,9 +677,8 @@ function App() {
     const destination = tribeRecallDestination(game);
     const next = recallTribe(game);
     const success = orderAcknowledged(game, next);
-    setGame(next);
+    setGame(success ? rememberPhrase(next, ['S_01', 'V_01']) : next);
     if (success) {
-      setRecentPhrases((phrases) => rememberRecentPhrase(phrases, ['S_01', 'V_01']));
       setGroupAnchor(allAdultsAnchor(game));
       setFocusRequest({ ...destination, nonce: Date.now() });
       setMobileSection('map');
@@ -683,7 +699,10 @@ function App() {
       return;
     }
     setSentence([...words]);
-    const check = compileSentence(game, words, target ?? undefined);
+    setTarget(null);
+    setPhrasebookTab(null);
+    closeWordBank();
+    const check = compileSentence(game, words);
     notify(
       `Frase richiamata: ${words.map((id) => WORDS[id].label).join(' · ')}.${check.valid ? ' Scegli o verifica il bersaglio, poi pronuncia.' : ` ${check.message}`}`,
     );
@@ -721,6 +740,10 @@ function App() {
       return;
     }
     setSentence([...words]);
+    setTarget(null);
+    setSelectingGroup(false);
+    setPhrasebookTab(null);
+    closeWordBank();
     setWordSearch('');
     setFilter('compatible');
     setPanel(null);
@@ -728,6 +751,55 @@ function App() {
     if (destination) focusTarget(destination);
     notify(
       'Frase pronta da controllare. Apri l’anteprima per vedere chi agirà e dove, poi premi Pronuncia.',
+    );
+  }
+
+  const closePhrasebook = useCallback(() => {
+    setPhrasebookTab(null);
+    phrasebookTrigger.current?.focus({ preventScroll: true });
+  }, []);
+
+  function openPhrasebook(tab: 'all' | 'construction', trigger: HTMLElement) {
+    if (phrasebookTab === tab) {
+      closePhrasebook();
+      return;
+    }
+    phrasebookTrigger.current = trigger;
+    closeWordBank();
+    setPanel(null);
+    setMobileSection('map');
+    setSelectingGroup(false);
+    for (const preview of document.querySelectorAll<HTMLDetailsElement>('.order-preview[open]'))
+      preview.open = false;
+    setPhrasebookTab(tab);
+  }
+
+  function libraryActions() {
+    return (
+      <>
+        <button
+          type="button"
+          className="phrasebook-access"
+          aria-label="Apri frasario"
+          aria-expanded={phrasebookTab !== null && phrasebookTab !== 'construction'}
+          aria-controls="game-phrasebook"
+          onClick={(event) => openPhrasebook('all', event.currentTarget)}
+        >
+          <BookOpen size={17} aria-hidden="true" />
+          <span>Frasi</span>
+        </button>
+        <button
+          type="button"
+          className="phrasebook-access"
+          aria-label="Costruisci: apri le frasi degli edifici"
+          aria-expanded={phrasebookTab === 'construction'}
+          aria-controls="game-phrasebook"
+          onClick={(event) => openPhrasebook('construction', event.currentTarget)}
+        >
+          <Hammer size={17} aria-hidden="true" />
+          <span>Costruisci</span>
+        </button>
+      </>
     );
   }
 
@@ -771,11 +843,12 @@ function App() {
         Object.values(previous.paidConstruction ?? {}).some((amount) => amount > 0)
       );
     });
-    setGame(next);
+    const remembered = success ? rememberPhrase(next, sentence) : next;
+    const registered = remembered.phrasebook?.some((entry) => entry.id === phraseKey(sentence));
+    setGame(remembered);
     if (success) {
       playtest.recordAction('command-accepted');
       closeWordBank();
-      setRecentPhrases((prev) => rememberRecentPhrase(prev, sentence));
       if (target) {
         const liveTarget =
           target.type === 'entity'
@@ -806,7 +879,9 @@ function App() {
       success
         ? abandonedConstruction
           ? 'L’ordine ha interrotto una costruzione già pagata. I materiali impegnati non tornano nelle scorte.'
-          : 'La tribù ha ascoltato.'
+          : registered
+            ? 'La tribù ha ascoltato.'
+            : 'Ordine inviato. Il frasario è pieno di preferite: rimuovi una stella per annotare nuove frasi.'
         : (next.logs[0]?.text ?? 'La tribù non può eseguire questo ordine.'),
     );
   }
@@ -892,7 +967,7 @@ function App() {
     setSelectingGroup(false);
     setOrderFeedback(null);
     setSentence([]);
-    setRecentPhrases([]);
+    setPhrasebookTab(null);
     setTaskOutcomes([]);
     outcomeSnapshot.current = next;
     setWordSearch('');
@@ -1745,6 +1820,7 @@ function App() {
               orderFeedback={orderFeedback}
               onSelectGroupAnchor={handleSetGroupAnchor}
               onSelect={(picked) => {
+                setPhrasebookTab(null);
                 if (wordBankMode === 'catalog') closeWordBank();
                 if (selectingGroup) {
                   handleSetGroupAnchor(picked);
@@ -2095,6 +2171,9 @@ function App() {
               </span>
             </div>
           </div>
+          <div className="composer-library-shortcuts" aria-label="Frasi e costruzioni">
+            {libraryActions()}
+          </div>
           {shownPhrases.length > 0 && (
             <div
               className="echo-shelf desktop-echo-shelf"
@@ -2248,7 +2327,27 @@ function App() {
           executorId={executorId}
           groupAnchor={groupAnchor}
         />
+        {phrasebookTab !== null && !panel && (
+          <Phrasebook
+            key={`${mapSession}:${phrasebookTab}`}
+            state={game}
+            initialTab={phrasebookTab}
+            draft={
+              sentence.length >= 2 && (compilation.valid || compilation.requiresTarget)
+                ? sentence
+                : undefined
+            }
+            onChange={setGame}
+            onUse={(words) => {
+              preparePhrase(words);
+              sentenceSlotsRef.current?.focus({ preventScroll: true });
+            }}
+            onClose={closePhrasebook}
+          />
+        )}
         <MobileActionDock
+          libraryActions={libraryActions()}
+          onBeforeWordToggle={() => setPhrasebookTab(null)}
           targetLabel={targetName}
           onClearTarget={() => setTarget(null)}
           sessionKey={mapSession}

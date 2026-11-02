@@ -25,6 +25,8 @@ L'output è in `dist/`. I processi devono essere riavviati quando una sessione c
 
 ## Come giocare
 
+Accanto al compositore, **Costruisci** apre le ricette note e spiega a cosa servono gli edifici. **Frasi** apre il frasario: cerca un ordine, segnalo con una stella o recuperalo dai recenti. Le frasi usate e le preferite restano nel salvataggio. **Usa** prepara i tasselli senza eseguire l’ordine: verifica il gruppo, scegli il bersaglio e premi **Pronuncia**. Puoi conservare anche la frase composta prima di usarla. [FRASARIO.md](docs/FRASARIO.md) descrive funzionamento e verifiche.
+
 Le nuove storie propongono una **mappa casuale**; puoi inserire un seed per ritrovare la stessa valle oppure scegliere **Seed Zero** per lo scenario originario. La scelta è indipendente da Guidata/Classica. I vecchi salvataggi mantengono il proprio mondo. [MAP-GENERATION.md](docs/MAP-GENERATION.md) descrive generazione, risorse iniziali e prove.
 
 1. Componi **Gruppo + Colpire** e scegli un albero o una roccia. Il selettore vicino usa un raggio di quindici metri; **Tutti gli adulti** include anche i compagni sparpagliati. Scegliere gli esecutori non impartisce ancora un ordine.

@@ -139,7 +139,6 @@ test('recalling an acknowledged order restores the full phrase without executing
   const before = await saved(page);
   expect(before.stats.commands).toBe(1);
   expect(before.voice).toBe(2);
-  const target = await page.locator('.map-toolbar strong').textContent();
   await workbench.getByRole('button', { name: 'Rimuovi ultima parola' }).click();
   await workbench.getByRole('button', { name: 'Rimuovi ultima parola' }).click();
   await expect(workbench.locator('.sentence-slot.filled')).toHaveCount(0);
@@ -154,8 +153,8 @@ test('recalling an acknowledged order restores the full phrase without executing
   expect(after.units.map((u: { command?: string[] }) => u.command)).toEqual(
     before.units.map((u: { command?: string[] }) => u.command),
   );
-  await expect(page.getByRole('button', { name: 'Deseleziona bersaglio' })).toBeVisible();
-  await expect(page.locator('.map-toolbar strong')).toHaveText(target!);
+  // Recalling words must not silently reuse the previous destination.
+  await expect(page.getByRole('button', { name: 'Deseleziona bersaglio' })).toHaveCount(0);
   // Enter on a history button must not also fire the global pronounce shortcut.
   await page.getByRole('button', { name: 'Riprendi il tempo', exact: true }).click();
   const recall = page
