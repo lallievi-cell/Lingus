@@ -74,6 +74,24 @@ costruzione multipla. Non sono prove di una campagna completa.
 
 ## Interfaccia verificata
 
+La verifica del deploy ha successivamente rilevato una regressione: selezionare
+un bersaglio aggiungeva una seconda riga alla barra mobile, portando il
+compositore a 200 px. La barra ora mantiene una sola riga: il nome della
+destinazione resta sulla mappa, mentre vicino ai comandi rimangono lo stato
+accessibile e il pulsante di rimozione da 44 px. Non sono stati allentati i
+limiti del test: 180 px sul telefono verticale e 140 px in orizzontale.
+
+Quattro casi aggiuntivi verificano la selezione e rimozione del bersaglio con
+testo grande a 320 × 568, 384 × 720, 390 × 844 e 844 × 390: nessuna riga
+aggiunta, pulsanti raggiungibili, Voce leggibile e nessun ordine eseguito per
+la sola selezione. Anche la prova della build sotto `/Lingus/` apre Frasi e
+Costruisci e controlla l’altezza dopo la selezione. In caso di nuovi errori,
+la pipeline conserva immagini e tracce del browser per sette giorni.
+
+Dopo la correzione è stato ripetuto l’intero gruppo usato dal deploy, con un
+solo worker: **76 casi superati**, incluso il test 39 segnalato da GitHub.
+È passato anche il controllo dell’artefatto di produzione sotto `/Lingus/`.
+
 La revisione passa **1.408 test unitari in 108 file**. Il gruppo browser su
 frasario, composizione mobile, assistente sintattico, anteprime e costruzioni
 pagate passa **38 casi**. Il frasario è stato esercitato a 320 × 568,

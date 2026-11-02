@@ -70,10 +70,24 @@
     grid-row: 1;
   }
   .has-library-actions .mobile-target-strip {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    min-width: 0;
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+    justify-content: center;
+    width: 44px;
     min-height: 44px;
+    gap: 0;
+  }
+  /* The selected destination is already printed in the map toolbar. Keep its
+     accessible status and thumb-reachable clear action without adding a row. */
+  .has-library-actions .mobile-target-strip > span,
+  .has-library-actions .mobile-target-strip > svg {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    white-space: nowrap;
+    clip-path: inset(50%);
   }
   .mobile-action-dock[data-has-target='false'] .has-library-actions .mobile-target-strip {
     position: absolute;
@@ -84,19 +98,19 @@
     clip-path: inset(50%);
     white-space: nowrap;
   }
-  .app .mobile-ergonomic:has(.mobile-action-dock[data-has-target='true']) .order-preview summary {
-    bottom: calc(49px + max(5px, env(safe-area-inset-bottom)));
+  .mobile-action-dock[data-has-target='true'] .mobile-dock-header.has-library-actions {
+    grid-template-columns: auto auto 44px auto;
   }
   .app[data-text-size='large'] .mobile-library-actions .phrasebook-access {
     font-size: 14px;
   }
 }
-@media (max-width: 860px) and (max-height: 540px) and (orientation: landscape) {
-  .app .mobile-ergonomic .has-library-actions .mobile-target-strip {
-    max-width: calc(100% - 220px);
+@media (max-width: 360px) {
+  .app .mobile-ergonomic .mobile-dock-header.has-library-actions {
+    column-gap: 2px;
   }
-  .app .mobile-ergonomic:has(.mobile-action-dock[data-has-target='true']) .order-preview summary {
-    bottom: auto;
-    top: 5px;
+  .has-library-actions .mobile-words-toggle > svg,
+  .has-library-actions .mobile-voice > svg {
+    display: none;
   }
 }

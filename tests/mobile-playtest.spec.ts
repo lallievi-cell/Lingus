@@ -320,3 +320,65 @@ test('search and close stay visible while a reduced viewport simulates the on-sc
   await expect(page.locator('.sentence-slot.filled').nth(0)).toContainText('Gruppo');
   await expect(page.locator('.sentence-slot.filled').nth(1)).toContainText('Portare');
 });
+
+for (const viewport of [
+  { width: 320, height: 568 },
+  { width: 384, height: 720 },
+  { width: 390, height: 844 },
+  { width: 844, height: 390 },
+]) {
+  test(`selecting a target keeps the phrasebook toolbar in one touchable row at ${viewport.width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() =>
+      localStorage.setItem(
+        'lingus.interface.v1',
+        JSON.stringify({ textSize: 'large', contrast: 'standard' }),
+      ),
+    );
+    await loadPhone(page);
+    await page.getByRole('button', { name: 'Mostra parole', exact: true }).tap();
+    const sheet = page.getByRole('region', { name: 'Parole per comporre' });
+    await sheet.getByRole('button', { name: /^Gruppo:/ }).tap();
+    await sheet.getByRole('button', { name: /^Andare:/ }).tap();
+    await expect(sheet).not.toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    const composer = page.getByRole('region', { name: 'Costruttore di frasi' });
+    const before = (await composer.boundingBox())!;
+    const map = page.getByRole('img', { name: /Mappa della valle/ });
+    const bounds = (await map.boundingBox())!;
+    // A clear patch of terrain avoids the independent overlapping-person picker.
+    await map.tap({ position: { x: bounds.width * 0.2, y: bounds.height * 0.7 } });
+    const after = (await composer.boundingBox())!;
+    expect(
+      after.height,
+      'selecting a destination must not insert another composer row',
+    ).toBeLessThanOrEqual(before.height + 1);
+    expect(after.height).toBeLessThanOrEqual(viewport.width > viewport.height ? 140 : 180);
+    for (const name of [
+      'Mostra parole',
+      'Apri frasario',
+      'Costruisci: apri le frasi degli edifici',
+      'Rimuovi bersaglio del comando',
+      'Pronuncia',
+    ]) {
+      const control = page.getByRole('button', { name, exact: true });
+      await expectTappable(control, viewport);
+      expect((await control.boundingBox())!.width).toBeGreaterThanOrEqual(43.5);
+    }
+    await expect(page.locator('.mobile-voice')).toContainText('3/3');
+    expect((await page.locator('.map-frame').boundingBox())!.height).toBeGreaterThanOrEqual(100);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({ path: test.info().outputPath(`target-toolbar-${viewport.width}.png`) });
+    await page.getByRole('button', { name: 'Rimuovi bersaglio del comando', exact: true }).tap();
+    await expect(
+      page.getByRole('button', { name: 'Deseleziona bersaglio', exact: true }),
+    ).toHaveCount(0);
+    const state = await saved(page);
+    expect(state.voice).toBe(3);
+    expect(state.stats.commands).toBe(0);
+  });
+}
