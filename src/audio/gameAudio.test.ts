@@ -184,6 +184,46 @@ class FakeContext {
     this.state = 'closed';
   }
 }
+class FakeBufferSource extends FakeOscillator {
+  buffer: unknown;
+  loop = false;
+  offsets: number[] = [];
+  override start(time: number, offset = 0) {
+    super.start(time);
+    this.offsets.push(offset);
+  }
+}
+class FakeFilter {
+  frequency = new Parameter();
+  Q = new Parameter();
+  type = 'lowpass';
+  disconnected = 0;
+  connect(_node: unknown) {}
+  disconnect() {
+    this.disconnected++;
+  }
+}
+class FakeNoiseContext extends FakeContext {
+  sampleRate = 8000;
+  buffersCreated = 0;
+  sources: FakeBufferSource[] = [];
+  filters: FakeFilter[] = [];
+  createBuffer(_channels: number, length: number, _rate: number) {
+    this.buffersCreated++;
+    const samples = new Float32Array(length);
+    return { getChannelData: (_channel: number) => samples };
+  }
+  createBufferSource() {
+    const source = new FakeBufferSource();
+    this.sources.push(source);
+    return source;
+  }
+  createBiquadFilter() {
+    const filter = new FakeFilter();
+    this.filters.push(filter);
+    return filter;
+  }
+}
 function synth() {
   const context = new FakeContext();
   let created = 0;
@@ -195,6 +235,64 @@ function synth() {
 }
 
 describe('bounded procedural audio synthesis', () => {
+  it('mixes channels independently and changing a level cancels voices at the old volume', () => {
+    const { audio, context } = synth();
+    audio.setLevels({ master: 0.5, ambience: 0.4, effects: 0, music: 0 });
+    audio.unlockFromGesture();
+    audio.setAudible(true);
+    expect(audio.playCue('command')).toBe(false);
+    expect(audio.playAmbience(false)).toBe(true);
+    expect(context.gains[0].gain.calls.at(-1)?.value).toBe(0.5);
+    expect(context.gains[1].gain.calls.find((call) => call.kind === 'linear')?.value).toBeCloseTo(
+      0.012 * 0.4,
+    );
+    audio.setLevels({ effects: 0.7, ambience: 0 });
+    expect(context.oscillators[0].disconnected).toBe(1);
+    expect(audio.playAmbience(false)).toBe(false);
+    expect(audio.playCue('command')).toBe(true);
+    expect(context.gains[2].gain.calls.find((call) => call.kind === 'linear')?.value).toBeCloseTo(
+      0.035 * 0.7,
+    );
+    audio.setLevels({ master: 0 });
+    expect(audio.playCue('loss')).toBe(false);
+    expect(context.oscillators.every((node) => node.disconnected === 1)).toBe(true);
+  });
+
+  it('reuses one bounded noise buffer and cancels both pending crackles and musical voices on hiding', () => {
+    const context = new FakeNoiseContext();
+    const audio = new GameAudioSynth(() => context as unknown as AudioContext);
+    audio.setAudible(true);
+    const frame = { night: true, season: 3, weather: 'blizzard' as const, fire: 1, tense: false };
+    expect(audio.playSoundscape(frame)).toBe(false);
+    expect(context.buffersCreated).toBe(0);
+    audio.unlockFromGesture();
+    expect(audio.playSoundscape(frame)).toBe(true);
+    expect(context.sources.some((source) => source.started[0] > context.currentTime)).toBe(true);
+    expect(context.buffersCreated).toBe(1);
+    expect(audio.playMusic(frame)).toBe(true);
+    expect(audio.playMusic(frame)).toBe(false);
+    for (let i = 0; i < 20; i++) {
+      context.currentTime += 0.3;
+      audio.playWorldCue({ kind: 'stone', volume: 1 });
+    }
+    const active = [...context.sources, ...context.oscillators].filter(
+      (source) => source.disconnected === 0,
+    );
+    expect(active.length).toBeLessThanOrEqual(GAME_AUDIO_VOICE_LIMIT);
+    expect(context.buffersCreated).toBe(1);
+    audio.setAudible(true, false);
+    expect(
+      [...context.sources, ...context.oscillators].every((source) => source.disconnected === 1),
+    ).toBe(true);
+    expect(context.filters.every((filter) => filter.disconnected === 1)).toBe(true);
+    const count = context.sources.length + context.oscillators.length;
+    expect(audio.playSoundscape(frame)).toBe(false);
+    expect(audio.playWorldCue({ kind: 'wood', volume: 1 })).toBe(false);
+    expect(context.sources.length + context.oscillators.length).toBe(count);
+    audio.dispose();
+    expect(context.closes).toBe(1);
+  });
+
   it('uses one gesture-created context for command, crystalline event and ambient envelopes', () => {
     const { audio, context, created } = synth();
     audio.setAudible(true);

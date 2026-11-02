@@ -67,7 +67,7 @@ export function OrderPreview({
         <span>
           {preview.accepted
             ? people.length
-              ? `${numbered ? people.length : people.length === 1 ? 'Una persona' : 'Persone selezionate'}${numbered ? (preview.institutional ? ' persone coinvolte' : people.length === 1 ? ' esecutore' : ' esecutori') : ''}${preview.interruptions.length ? ' · sostituisce attività in corso' : ''}`
+              ? `${numbered ? people.length : people.length === 1 ? 'Una persona' : 'Persone selezionate'}${numbered ? (preview.institutional ? ' persone coinvolte' : people.length === 1 ? ' esecutore' : ' esecutori') : ''}${preview.abandonedConstructionIds.length ? ' · interrompe una costruzione già pagata' : preview.interruptions.length ? ' · sostituisce attività in corso' : ''}`
               : 'Decisione della comunità'
             : 'Apri per capire cosa manca'}
         </span>
@@ -100,6 +100,12 @@ export function OrderPreview({
           <p className="qol-warning">
             Sostituisce {numbered ? preview.interruptions.length : 'le'} attività in corso e i
             relativi incarichi.
+          </p>
+        )}
+        {preview.abandonedConstructionIds.length > 0 && (
+          <p className="qol-warning">
+            Questo ordine abbandona una costruzione già pagata. I materiali già impegnati non
+            verranno restituiti. Scegli altri esecutori per lasciarla proseguire.
           </p>
         )}
         {preview.cargoDrops.length > 0 && (

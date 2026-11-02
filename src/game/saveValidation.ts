@@ -3,6 +3,7 @@ import type { GameState } from './types';
 import { TRIBE_EVENT_LIMIT } from './demography';
 import { validLearnedRecipe } from './knowledgeRecovery';
 import { seasonLength } from './calendar';
+import { validKnowledgeHistory } from './knowledgeHistory';
 import {
   REGIONAL_ROUTE_GRID,
   REGIONAL_ROUTE_LIMIT,
@@ -382,6 +383,7 @@ export function validSave(value: unknown): value is GameState {
     )
   )
     return false;
+  if (!validKnowledgeHistory(s.knowledgeHistory, s as unknown as GameState)) return false;
   if (
     !list(
       s.entities,

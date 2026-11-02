@@ -264,6 +264,15 @@ export interface TribeEvent {
   wordIds?: string[];
   lostWordIds?: string[];
 }
+/** Recorded actors of an actual discovery or lesson; absent in legacy saves. */
+export interface KnowledgeHistoryEvent {
+  id: string;
+  kind: 'discovery' | 'teaching';
+  wordId: string;
+  time: number;
+  teacherId: string;
+  pupilId?: string;
+}
 export interface Target {
   type: 'point' | 'entity' | 'unit' | 'building' | 'city' | 'battalion' | 'caravan';
   id?: string;
@@ -514,6 +523,7 @@ export interface GameState {
   dogmas: Dogma[];
   logs: LogEntry[];
   tribeEvents?: TribeEvent[];
+  knowledgeHistory?: KnowledgeHistoryEvent[];
   explored: { x: number; y: number }[];
   stats: {
     commands: number;

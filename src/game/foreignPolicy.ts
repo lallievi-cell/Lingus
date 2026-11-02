@@ -148,20 +148,26 @@ export function takeForeignForgeWork(state: GameState, buildingId: string) {
   return used;
 }
 
+/** Allocation and continuous forging must agree about useful military work. */
+export function foreignForgeNeedsArms(state: GameState, city: City) {
+  const faction = state.factions.find((entry) => entry.id === city.factionId);
+  return (
+    ready(state) &&
+    !!faction?.words.includes('V_12') &&
+    city.resources.ingot >= 1 &&
+    city.resources.metalArms < FOREIGN_POLICY_ASSUMPTIONS.militaryArmsReserve &&
+    state.cities.some(
+      (other) => liveCity(other) && areFactionsHostile(state, faction.id, other.factionId),
+    )
+  );
+}
+
 function updateForeignForges(state: GameState, dt: number) {
   if (!ready(state)) return;
   for (const city of state.cities.filter(
     (entry) => entry.factionId !== 'player' && entry.factionId !== 'ruins' && liveCity(entry),
   )) {
-    const faction = state.factions.find((entry) => entry.id === city.factionId);
-    if (
-      !faction ||
-      !faction.words.includes('V_12') ||
-      !state.cities.some(
-        (other) => liveCity(other) && areFactionsHostile(state, faction.id, other.factionId),
-      )
-    )
-      continue;
+    if (!foreignForgeNeedsArms(state, city)) continue;
     for (const building of state.buildings.filter(
       (entry) =>
         entry.kind === 'foundry' &&

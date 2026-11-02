@@ -1,7 +1,8 @@
+import { setImmediate as yieldToRunner } from 'node:timers/promises';
 import { describe, expect, it } from 'vitest';
 import {
   preparedNeolithicSettlement,
-  replayNeolithicTransition,
+  replayNeolithicTransitionAsync,
 } from '../../tests/scenarios/neolithicTransition';
 import { hasWord } from './engine';
 import { validSave } from './saveValidation';
@@ -32,8 +33,8 @@ describe('continuous legacy growth from an explicitly prepared Neolithic settlem
     expect(Object.values(state.resources).every(Number.isFinite)).toBe(true);
   });
 
-  it('produces real oral overload, pays for an archive and grows through eight actual seasons', () => {
-    const result = replayNeolithicTransition(6842, 720),
+  it('produces real oral overload, pays for an archive and grows through eight actual seasons', async () => {
+    const result = await replayNeolithicTransitionAsync(6842, 720),
       state = result.state;
     expect(state.time).toBe(720);
     expect(state.stats.seasonsSurvived).toBe(8);
@@ -63,4 +64,36 @@ describe('continuous legacy growth from an explicitly prepared Neolithic settlem
     expect(hasWord(state, 'S_09')).toBe(false);
     expect(state.urbanized).toBe(false);
   }, 60000);
+
+  it('keeps real scribes through the generational handover and condenses an actual city', async () => {
+    // Flush Vitest's start notification before the CPU-bound campaign, and its
+    // completion before reporting assertions. No simulated time is skipped.
+    await yieldToRunner();
+    const result = await replayNeolithicTransitionAsync(6842, 1710);
+    await yieldToRunner();
+    const state = result.state;
+    expect(state.gameOver).toBeNull();
+    expect(validSave(state)).toBe(true);
+    expect(state.stats.seasonsSurvived).toBeGreaterThanOrEqual(18);
+    expect(state.stats.births).toBeGreaterThanOrEqual(100);
+    expect(state.stats.deaths).toBeGreaterThan(0);
+    expect(state.urbanized).toBe(true);
+    expect(state.tier).toBeGreaterThanOrEqual(4);
+    expect(hasWord(state, 'O_09')).toBe(true);
+    expect(hasWord(state, 'S_09')).toBe(true);
+    const capital = state.cities.find((city) => city.factionId === 'player' && city.capital);
+    expect(capital).toBeDefined();
+    expect(Object.values(capital!.cohorts).reduce((sum, n) => sum + n, 0)).toBeGreaterThanOrEqual(
+      150,
+    );
+    expect(
+      result.snapshots
+        .filter((entry) => entry.at >= 1080 && entry.archive > 0)
+        .every((entry) => entry.archive > 0.9),
+    ).toBe(true);
+    expect(result.actions.every((action) => action.accepted)).toBe(true);
+    expect(result.discoveries.find((entry) => entry.id === 'S_09')).toMatchObject({
+      recipe: ['S_01', 'O_10', 'O_09'],
+    });
+  }, 180_000);
 });

@@ -2,7 +2,8 @@
 
 Questa prova isola crescita, sussistenza, ricambio e Scrittura a partire da una
 società **preparata di 35 persone**. Non dimostra il percorso dalle sette persone
-iniziali, la crescita fino a 150 o una vittoria. Non va sommata ai replay urbani
+iniziali o una vittoria. La revisione successiva dimostra invece la crescita a 150
+e la condensazione urbana da questa posizione preparata. Non va sommata ai replay urbani
 preparati per dichiarare completata una campagna ordinaria.
 
 ## Posizione iniziale dichiarata
@@ -53,36 +54,49 @@ conoscenze o popolazione direttamente.
 
 I due casi permanenti in `neolithicTransition.test.ts` verificano la validità e
 la capienza della posizione preparata, poi otto stagioni continue. Nel percorso
-corrente a 720 secondi ci sono **80 persone, 46 nascite e una morte naturale**. La
+corrente a 720 secondi ci sono **89 persone, 56 nascite e due morti naturali**. La
 Scrittura nasce a cinque secondi dall'esperienza di sovraccarico orale, con la
 ricetta `Numero + Pietra + Domani`; il pilota paga e costruisce un Archivio e ne
 fa lavorare realmente gli scribi. Sono verificati anche insegnamento pagato,
 parentele effettive e assenza di urbanizzazione prematura. Le asserzioni usano
 soglie conservative, senza fissare l'intera sequenza casuale delle nascite.
 
-## Proseguimento osservato e limite aperto
+## Diciotto stagioni, ricambio e condensazione urbana
 
-Un'esecuzione separata dello stesso pilota fino a 2700 secondi raggiunge il picco
-di **113 persone a 1890 secondi**. Termina a 2232,5 secondi per coesione esaurita,
-con 106 persone vive, 144 nascite e 73 morti registrate: 66 di vecchiaia e sette
-dopo pasti di carne cruda. Il salvataggio finale è valido e il conteggio delle
-morti coincide con quello dei corpi: nessun individuo resta fuori dalla contabilità.
+La revisione continua dello stesso pilota arriva a **161 abitanti a 1620 secondi**,
+con 169 nascite, 43 morti, Coesione 85 e alloggi effettivi per 274 persone. Il
+sovraccarico orale ha generato Scrittura a cinque secondi; la comprensione di
+Città avviene a 1625 secondi attraverso `Gruppo + Confine + Scrittura`. Il motore
+condensa effettivamente la comunità nel Tier 4 a 1625,25 secondi. Il replay si
+ferma al primo aggiornamento successivo, a 1630 secondi.
 
-Il pilota mantiene cibo e legna, ma trascura la pietra per il mantenimento delle
-case: gli alloggi si disattivano e le nascite si fermano temporaneamente. Inoltre
-non organizza una dieta cotta sufficiente; le intossicazioni, pur con sepolture
-reali, consumano la coesione. Deve migliorare queste strategie prima di poter
-provare crescita a 150 e condensazione urbana. Questo fallimento non dimostra
-un'impossibilità della formula demografica.
+Il percorso usa **116 ordini accettati e 171 lezioni pagate**. Al passaggio urbano
+Scrittura conserva memoria 83,58. Le scorte rimanenti sono finite, con circa
+78,77 legno e 137 pietra; il cibo effettivo fornisce circa 27213 punti di
+nutrimento. Non vengono aggiunti nuovi materiali, persone, parole o riserve al
+di fuori dei normali risultati delle azioni successive alla preparazione.
 
-Il percorso impiega ceramica realmente fabbricata, prevede il marciume per la
-riserva di mangime, ripristina gli addetti alle strutture prima delle raccolte
-facoltative e tramanda le parole ai nuovi nati con Attenzione e legna pagate.
-Non altera le probabilità o gli inventari per superare le difficoltà.
+Il pilota ora riserva pietra alla manutenzione, fabbrica ceramica, prevede il
+marciume del mangime e organizza la cottura. Durante il ricambio generazionale
+riassegna quattro persone realmente qualificate all’Archivio, anche cambiando
+un precedente lavoro agricolo con un ordine pubblico. Aspettare soltanto saggi
+senza un incarico lasciava i posti vuoti: la Scrittura decadeva prima di arrivare a Città.
+L’efficienza dell’Archivio rimane superiore al novanta per cento nelle stagioni
+completate del ricambio finale.
 
-Questo studio ha individuato un difetto separatamente corretto e verificato:
-il sostegno dell'Archivio preurbano legge ora il lavoro della stagione conclusa,
-anche quando gli scribi dormono al consiglio. La prova di crescita a 150, la
-condensazione urbana ordinaria e la calibrazione dei tempi delle tre vittorie
-rimangono aperte. Le condizioni finali da società urbane preparate sono descritte
-separatamente in [VICTORY-ROUTES.md](VICTORY-ROUTES.md).
+La prova ha anche individuato un difetto di esecuzione: il compilatore accettava
+le tradizioni di Cuocere e Scheggiare, ma il motore non assegnava il lavoro
+artigiano. Queste tradizioni ora avviano cicli reali, pagando ogni input prima
+che cominci il lavoro. Senza falò attivo, ingredienti o capienza sufficiente non
+pagano e non producono; di notte Sempre non avvia nuovi cicli. I cinque casi di
+`artisanTraditions.test.ts` verificano pasti ripetuti, mancanza del fuoco,
+riposo, deposito pieno e costo di ogni lancia. Non aumentano rese o probabilità
+demografiche.
+
+Il terzo caso permanente di `neolithicTransition.test.ts` verifica diciotto
+stagioni, custodia della Scrittura, nascita reale di Città, coorti per almeno
+150 persone e salvataggio valido. Il punto iniziale rimane ricco e preparato:
+**questa prova non chiude il percorso dalle sette persone a trentacinque**, né
+la sostenibilità urbana successiva o una delle tre vittorie. Le condizioni
+finali da società urbane preparate restano descritte separatamente in
+[VICTORY-ROUTES.md](VICTORY-ROUTES.md).

@@ -1,0 +1,64 @@
+.session-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid #aebba0;
+  border-radius: 10px;
+  background: #edf1e3;
+  color: #314b38;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.session-status > svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.session-status > div:first-of-type {
+  min-width: 0;
+  flex: 1;
+}
+.session-status p {
+  margin: 3px 0 0;
+  font-size: 12px;
+}
+.session-status.has-issue {
+  background: #fbeddc;
+  border-color: #be9164;
+  color: #75472c;
+}
+.session-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.session-status button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: #fffaf080;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.session-status.is-detailed {
+  margin: 16px 0;
+  flex-wrap: wrap;
+}
+.session-status.is-detailed > div {
+  flex-basis: 100%;
+}
+@media (max-width: 860px) {
+  .session-status {
+    flex-wrap: wrap;
+    padding: 9px 11px;
+  }
+  .session-status-actions {
+    margin-left: 28px;
+  }
+}

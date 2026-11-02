@@ -836,308 +836,544 @@ function store(ctx: CanvasRenderingContext2D, kind: 'storage' | 'depot') {
     smallRock(ctx, 31, 3, 4);
   }
 }
-function hall(ctx: CanvasRenderingContext2D, kind: BuildingKind) {
-  const palace = kind === 'palace',
-    open = kind === 'temple' || kind === 'court' || palace;
-  shadow(ctx, 39);
+/** Institutional identity is carried by the whole silhouette, not a roof icon. */
+function masonryBlock(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  depth = 8,
+  warm = false,
+) {
   material(
     ctx,
     [
-      [-34, 3],
-      [-34, -29],
-      [27, -29],
-      [27, 5],
+      [x, y],
+      [x, y - height],
+      [x + width, y - height],
+      [x + width, y],
     ],
-    ['#e5d7b6', '#c6bd9c', '#899c80'],
+    warm ? ['#d9c297', '#baaa83', '#89987b'] : ['#e5dbc0', '#c5c4a8', '#899c83'],
     'stone',
+    71 + width,
   );
   material(
     ctx,
     [
-      [27, 5],
-      [36, -2],
-      [36, -36],
-      [27, -29],
+      [x + width, y],
+      [x + width + depth, y - depth * 0.55],
+      [x + width + depth, y - height - depth * 0.55],
+      [x + width, y - height],
     ],
-    ['#a8b094', '#526f5b'],
+    ['#9eaa90', '#617c66', '#4b6757'],
     'stone',
-    80,
+    31 + height,
   );
-  if (palace) {
-    material(
-      ctx,
-      [
-        [13, -29],
-        [13, -54],
-        [28, -60],
-        [37, -51],
-        [37, -30],
-      ],
-      ['#cec6a1', '#99a58b'],
-      'stone',
-      71,
-    );
-    shape(
-      ctx,
-      [
-        [9, -54],
-        [28, -65],
-        [41, -52],
-        [24, -46],
-      ],
-      gradient(ctx, ['#caa570', '#887853']),
-    );
-  }
-  if (open) {
-    shape(
-      ctx,
-      [
-        [-29, 0],
-        [-29, -27],
-        [24, -27],
-        [24, 0],
-      ],
-      '#344e3e',
-    );
-    for (let i = 0; i < 4; i++) {
-      const x = -26 + i * 15;
-      material(
-        ctx,
-        [
-          [x - 2, 0],
-          [x - 2, -27],
-          [x + 3, -27],
-          [x + 3, 0],
-        ],
-        ['#f0dfb9', '#c9c09c', '#789179'],
-        'stone',
-        100 + i,
-      );
-      shape(
-        ctx,
-        [
-          [x - 4, 0],
-          [x + 5, 0],
-          [x + 6, 3],
-          [x - 5, 3],
-        ],
-        '#aeb59a',
-      );
-      line(
-        ctx,
-        [
-          [x - 3, -27],
-          [x + 4, -27],
-        ],
-        '#ebe1c4',
-        2,
-      );
-    }
-    line(
-      ctx,
-      [
-        [-36, 7],
-        [31, 7],
-      ],
-      '#99a58c',
-      4,
-    );
-    line(
-      ctx,
-      [
-        [-40, 11],
-        [35, 11],
-      ],
-      '#bec1a3',
-      3.5,
-    );
-  } else {
-    for (const x of [-24, 17]) {
-      shape(
-        ctx,
-        [
-          [x, -8],
-          [x, -22],
-          [x + 8, -22],
-          [x + 8, -8],
-        ],
-        '#2d4b3d',
-      );
-      line(
-        ctx,
-        [
-          [x + 1, -21],
-          [x + 7, -21],
-        ],
-        '#d0d0b08c',
-        0.8,
-      );
-    }
-    doorway(ctx, 0, 3, 12, 23);
-  }
-  material(
+  shape(
     ctx,
     [
-      [-40, -29],
-      [-5, -56],
-      [39, -31],
-      [3, -20],
+      [x, y - height],
+      [x + depth, y - height - depth * 0.55],
+      [x + width + depth, y - height - depth * 0.55],
+      [x + width, y - height],
     ],
-    palace ? ['#bb9c70', '#99815b', '#78694c'] : ['#ddc9a0', '#b6a984', '#7f8e73'],
-    'thatch',
+    gradient(ctx, ['#eee1bd', '#bfbc97']),
   );
   line(
     ctx,
     [
-      [-40, -29],
-      [-5, -56],
-      [39, -31],
+      [x + 1, y - height + 1],
+      [x + width, y - height + 1],
     ],
-    '#e4d6ad',
-    1.1,
+    '#f5e9c9aa',
+    1.2,
   );
-  if (kind === 'temple') {
-    ctx.strokeStyle = '#d4bc74';
-    ctx.lineWidth = 1.7;
-    ctx.beginPath();
-    ctx.arc(-3, -40, 5, 0, Math.PI * 2);
-    ctx.stroke();
-    for (let i = 0; i < 8; i++) {
-      const a = (i * Math.PI) / 4;
-      line(
-        ctx,
-        [
-          [-3 + Math.cos(a) * 6, -40 + Math.sin(a) * 6],
-          [-3 + Math.cos(a) * 8, -40 + Math.sin(a) * 8],
-        ],
-        '#ad9562',
-        0.7,
-      );
-    }
-  } else if (kind === 'court') {
-    line(
-      ctx,
-      [
-        [-3, -47],
-        [-3, -31],
-        [-11, -31],
-        [4, -31],
-      ],
-      '#6c7d64',
-      1.1,
-    );
-    line(
-      ctx,
-      [
-        [-14, -40],
-        [8, -40],
-      ],
-      '#718269',
-      1.1,
-    );
-    for (const x of [-12, 6]) {
-      line(
-        ctx,
-        [
-          [x, -40],
-          [x - 3, -35],
-          [x + 3, -35],
-          [x, -40],
-        ],
-        '#7b8a70',
-        0.7,
-      );
-    }
-  } else if (kind === 'palace') {
-    timber(ctx, 28, -58, 25, 1.4);
+}
+
+function lowBench(ctx: CanvasRenderingContext2D, x: number, y: number, width = 16) {
+  timber(ctx, x + 2, y + 2, 5, 1.3);
+  timber(ctx, x + width - 2, y + 1, 5, 1.3);
+  shape(
+    ctx,
+    [
+      [x - 1, y - 3],
+      [x + 3, y - 6],
+      [x + width + 3, y - 6],
+      [x + width, y - 2],
+    ],
+    '#b29361',
+    '#6c6348',
+  );
+  line(
+    ctx,
+    [
+      [x + 1, y - 3.6],
+      [x + width, y - 3.6],
+    ],
+    '#ddc491',
+    0.8,
+  );
+}
+
+function tablets(ctx: CanvasRenderingContext2D, x: number, y: number, columns = 3) {
+  for (let column = 0; column < columns; column++) {
+    const px = x + column * 5.4;
     shape(
       ctx,
       [
-        [29, -82],
-        [45, -78],
-        [42, -73],
-        [29, -70],
+        [px, y],
+        [px + 0.4, y - 6],
+        [px + 4.1, y - 6.5],
+        [px + 4.3, y],
       ],
-      gradient(ctx, ['#bd9a59', '#8c7349']),
+      column % 2 ? '#bca078' : '#d2ba8c',
+      '#766f51',
     );
     line(
       ctx,
       [
-        [30, -81],
-        [41, -78],
+        [px + 1.2, y - 4],
+        [px + 3.3, y - 4.2],
       ],
-      '#e4c586',
+      '#81734f',
+      0.5,
+    );
+    line(
+      ctx,
+      [
+        [px + 1.3, y - 2.2],
+        [px + 3, y - 2.5],
+      ],
+      '#8b7b54',
+      0.45,
+    );
+  }
+}
+
+function templeHall(ctx: CanvasRenderingContext2D) {
+  // A raised sanctuary with a broad stair and four deep openings.
+  masonryBlock(ctx, -36, 7, 66, 5, 7);
+  masonryBlock(ctx, -32, 1, 58, 6, 7);
+  masonryBlock(ctx, -28, -5, 50, 6, 7);
+  shape(
+    ctx,
+    [
+      [-24, -11],
+      [-24, -38],
+      [23, -38],
+      [23, -11],
+    ],
+    '#344e42',
+  );
+  for (const x of [-25, -10, 5, 20]) {
+    material(
+      ctx,
+      [
+        [x - 2, -11],
+        [x - 2, -39],
+        [x + 3.8, -39],
+        [x + 3.8, -11],
+      ],
+      ['#f2e7c8', '#c7c5a2', '#80957b'],
+      'stone',
+      x + 80,
+    );
+    line(
+      ctx,
+      [
+        [x - 3, -39],
+        [x + 5, -39],
+      ],
+      '#ead9ad',
+      2.5,
+    );
+  }
+  masonryBlock(ctx, -30, -38, 57, 6, 6, true);
+  material(
+    ctx,
+    [
+      [-35, -44],
+      [-6, -68],
+      [35, -47],
+      [5, -37],
+    ],
+    ['#d7c7a2', '#b49f78', '#788c72'],
+    'stone',
+    92,
+  );
+  shape(
+    ctx,
+    [
+      [-26, -45],
+      [-6, -61],
+      [23, -46],
+    ],
+    '#677e67',
+  );
+  line(
+    ctx,
+    [
+      [-34, -44],
+      [-6, -68],
+      [34, -47],
+    ],
+    '#f2e3bc',
+    1.4,
+  );
+  // A plain sacred stone avoids attributing a particular dogma to every temple.
+  shape(
+    ctx,
+    [
+      [-7, -14],
+      [-8, -24],
+      [-4, -30],
+      [1, -28],
+      [3, -15],
+    ],
+    '#bec6ab',
+    '#526e5b',
+  );
+  line(
+    ctx,
+    [
+      [-6, -23],
+      [-3, -27],
+      [-1, -20],
+    ],
+    '#e9e2be',
+    0.8,
+  );
+  for (const x of [-31, 29]) vessel(ctx, x, -5, 3.8);
+}
+
+function archiveHall(ctx: CanvasRenderingContext2D) {
+  // An enclosed storehouse, a raised ventilated roof and shelves of clay tablets.
+  masonryBlock(ctx, -34, 3, 58, 34, 11);
+  masonryBlock(ctx, -29, -31, 49, 7, 11, true);
+  material(
+    ctx,
+    [
+      [-36, -38],
+      [-25, -49],
+      [30, -49],
+      [36, -39],
+      [24, -32],
+    ],
+    ['#b59367', '#8e7654', '#66765e'],
+    'wood',
+    141,
+  );
+  masonryBlock(ctx, -16, -46, 29, 15, 8);
+  shape(
+    ctx,
+    [
+      [-20, -61],
+      [-10, -69],
+      [24, -69],
+      [23, -60],
+      [11, -56],
+    ],
+    '#a4865e',
+  );
+  line(
+    ctx,
+    [
+      [-20, -61],
+      [-10, -69],
+      [23, -69],
+    ],
+    '#dcc49a',
+    1.3,
+  );
+  for (const x of [-11, -3, 5]) {
+    shape(
+      ctx,
+      [
+        [x, -51],
+        [x, -57],
+        [x + 4, -57],
+        [x + 4, -51],
+      ],
+      '#4b6655',
+    );
+  }
+  doorway(ctx, -20, 4, 12, 26);
+  for (const y of [-20, -8]) {
+    shape(
+      ctx,
+      [
+        [0, y + 5],
+        [0, y - 5],
+        [22, y - 5],
+        [22, y + 5],
+      ],
+      '#4e6250',
+    );
+    tablets(ctx, 2, y + 4, 4);
+    line(
+      ctx,
+      [
+        [-1, y + 5],
+        [23, y + 5],
+      ],
+      '#8e7b54',
+      1.5,
+    );
+  }
+  tablets(ctx, -33, 5, 2);
+  vessel(ctx, 31, 2, 4);
+}
+
+function schoolHall(ctx: CanvasRenderingContext2D) {
+  // A light teaching canopy opens onto a lower courtyard of benches.
+  masonryBlock(ctx, -33, -3, 27, 27, 8, true);
+  shape(
+    ctx,
+    [
+      [-38, -31],
+      [-20, -50],
+      [16, -43],
+      [27, -26],
+      [-9, -20],
+    ],
+    gradient(ctx, ['#dfc78f', '#bb9e64', '#7d805a']),
+    '#776b48',
+  );
+  material(
+    ctx,
+    [
+      [-38, -31],
+      [-20, -50],
+      [16, -43],
+      [-9, -20],
+    ],
+    ['#e9d29a', '#bca36e', '#8e8d63'],
+    'thatch',
+    181,
+  );
+  for (const x of [-31, -6, 21]) {
+    timber(ctx, x, -2, x === -31 ? 29 : 25, 2.5);
+    line(
+      ctx,
+      [
+        [x - 1, -1],
+        [x + 2, -25],
+      ],
+      '#e9d7ac',
       0.7,
     );
-  } else if (kind === 'archive') {
-    for (let i = 0; i < 6; i++) {
-      shape(
-        ctx,
-        [
-          [-20 + i * 7, -31],
-          [-20 + i * 7, -38],
-          [-15 + i * 7, -38],
-          [-15 + i * 7, -31],
-        ],
-        i % 2 ? '#a98f69' : '#c8b88f',
-        '#6d7153',
-      );
-      line(
-        ctx,
-        [
-          [-19 + i * 7, -35],
-          [-16 + i * 7, -35],
-        ],
-        '#776c4b',
-        0.45,
-      );
-    }
-  } else {
-    shape(
-      ctx,
-      [
-        [-13, -42],
-        [-3, -39],
-        [7, -42],
-        [7, -33],
-        [-3, -30],
-        [-13, -33],
-      ],
-      '#d7c69d',
-      '#7f805c',
-    );
-    line(
-      ctx,
-      [
-        [-3, -39],
-        [-3, -30],
-      ],
-      '#8d8761',
-      0.65,
-    );
-    for (const y of [-36, -33])
-      line(
-        ctx,
-        [
-          [-11, y],
-          [-5, y + 1],
-        ],
-        '#9d936b',
-        0.5,
-      );
-    for (const x of [-18, 16]) {
-      timber(ctx, x, 6, 7, 1.5);
-      line(
-        ctx,
-        [
-          [x - 6, 0],
-          [x + 7, 0],
-        ],
-        '#b49b6c',
-        2.6,
-      );
-    }
   }
+  // The board and benches are fixtures, not invented pupils or workers.
+  shape(
+    ctx,
+    [
+      [-29, -8],
+      [-29, -23],
+      [-13, -23],
+      [-13, -8],
+    ],
+    '#6f795d',
+    '#4b634f',
+  );
+  tablets(ctx, -27, -10, 2);
+  line(
+    ctx,
+    [
+      [-8, 5],
+      [30, 5],
+      [37, -2],
+    ],
+    '#aab28f',
+    1.7,
+  );
+  lowBench(ctx, 3, -1, 18);
+  lowBench(ctx, -14, 8, 18);
+  lowBench(ctx, 14, 8, 14);
+  vessel(ctx, 30, -9, 3.5);
+}
+
+function justiceCourt(ctx: CanvasRenderingContext2D) {
+  // A U-shaped public court has no monumental temple roof.
+  masonryBlock(ctx, -33, -4, 56, 24, 9);
+  masonryBlock(ctx, -35, 5, 15, 25, 7, true);
+  masonryBlock(ctx, 21, 5, 12, 25, 7, true);
+  material(
+    ctx,
+    [
+      [-36, -20],
+      [-27, -36],
+      [-14, -32],
+      [-18, -16],
+    ],
+    ['#cab584', '#aa9366', '#778668'],
+    'thatch',
+    193,
+  );
+  material(
+    ctx,
+    [
+      [20, -20],
+      [27, -36],
+      [40, -32],
+      [36, -16],
+    ],
+    ['#cbb686', '#a28f63', '#6a7f64'],
+    'thatch',
+    194,
+  );
+  shape(
+    ctx,
+    [
+      [-20, -28],
+      [-12, -44],
+      [20, -44],
+      [31, -28],
+    ],
+    '#af9b72',
+    '#738267',
+  );
+  line(
+    ctx,
+    [
+      [-12, -44],
+      [20, -44],
+    ],
+    '#e0cca4',
+    1.3,
+  );
+  doorway(ctx, -4, -4, 11, 22);
+  masonryBlock(ctx, -12, -1, 25, 6, 4);
+  // An empty judgement seat and two listening benches establish its use.
+  material(
+    ctx,
+    [
+      [-5, -8],
+      [-5, -20],
+      [4, -20],
+      [4, -8],
+    ],
+    ['#bfad7e', '#8a926c', '#5c755e'],
+    'wood',
+    211,
+  );
+  shape(
+    ctx,
+    [
+      [-7, -8],
+      [4, -8],
+      [8, -5],
+      [-5, -4],
+    ],
+    '#c5b98f',
+  );
+  lowBench(ctx, -17, 8, 13);
+  lowBench(ctx, 4, 8, 13);
+}
+
+function royalPalace(ctx: CanvasRenderingContext2D) {
+  // Two uneven wings and an elevated gate tower create a recognisable skyline.
+  masonryBlock(ctx, -34, 5, 18, 38, 8, true);
+  masonryBlock(ctx, 16, 5, 17, 32, 7, true);
+  masonryBlock(ctx, -17, 3, 33, 32, 8);
+  material(
+    ctx,
+    [
+      [-38, -33],
+      [-25, -51],
+      [-10, -40],
+      [-15, -29],
+    ],
+    ['#c9a577', '#a4885d', '#6f8063'],
+    'thatch',
+    221,
+  );
+  material(
+    ctx,
+    [
+      [13, -27],
+      [25, -44],
+      [42, -33],
+      [31, -23],
+    ],
+    ['#bd9c70', '#8d7957', '#657a60'],
+    'thatch',
+    222,
+  );
+  masonryBlock(ctx, -9, -28, 24, 33, 9, true);
+  material(
+    ctx,
+    [
+      [-13, -61],
+      [2, -76],
+      [29, -65],
+      [14, -54],
+    ],
+    ['#c0a16d', '#937e55', '#687c61'],
+    'thatch',
+    223,
+  );
+  line(
+    ctx,
+    [
+      [-12, -61],
+      [2, -76],
+      [28, -65],
+    ],
+    '#ead5a8',
+    1.2,
+  );
+  for (const x of [-3, 7]) doorway(ctx, x, -35, 5, 15);
+  doorway(ctx, -1, 4, 15, 29);
+  shape(
+    ctx,
+    [
+      [-7, 4],
+      [-7, -20],
+      [5, -20],
+      [5, 4],
+    ],
+    '#405a47',
+  );
+  line(
+    ctx,
+    [
+      [-9, -22],
+      [7, -22],
+    ],
+    '#d4b476',
+    2.3,
+  );
+  masonryBlock(ctx, -19, 8, 39, 4, 7);
+  timber(ctx, 13, -62, 24, 1.3);
+  shape(
+    ctx,
+    [
+      [14, -85],
+      [28, -81],
+      [26, -74],
+      [14, -76],
+    ],
+    gradient(ctx, ['#b48647', '#865c37']),
+  );
+  line(
+    ctx,
+    [
+      [15, -84],
+      [25, -81],
+    ],
+    '#edce91',
+    0.7,
+  );
+}
+
+function hall(ctx: CanvasRenderingContext2D, kind: BuildingKind) {
+  shadow(ctx, 38);
+  if (kind === 'temple') templeHall(ctx);
+  else if (kind === 'archive') archiveHall(ctx);
+  else if (kind === 'school') schoolHall(ctx);
+  else if (kind === 'court') justiceCourt(ctx);
+  else royalPalace(ctx);
 }
 function market(ctx: CanvasRenderingContext2D) {
   shadow(ctx, 34);

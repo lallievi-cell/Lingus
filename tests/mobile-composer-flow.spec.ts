@@ -303,3 +303,86 @@ test('the full catalog is explicit and its search remains usable with a reduced 
   expect(state.stats.commands).toBe(0);
   expect(state.voice).toBe(3);
 });
+
+for (const viewport of [
+  { width: 320, height: 568 },
+  { width: 390, height: 744 },
+  { width: 844, height: 390 },
+]) {
+  test(`map tools form a clear touch row with large text at ${viewport.width}×${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'lingus.interface.v1',
+        JSON.stringify({ textSize: 'large', contrast: 'standard' }),
+      );
+    });
+    await scene(page, 2);
+    const tools = [
+      page.getByRole('button', { name: 'Scorte del campo', exact: true }),
+      page.getByRole('button', { name: 'Elementi visibili', exact: true }),
+      page.getByRole('button', { name: 'Ingrandisci la mappa', exact: true }),
+      page.getByRole('button', { name: 'Riduci la mappa', exact: true }),
+      page.getByRole('button', { name: "Torna all'accampamento", exact: true }),
+    ];
+    const boxes = [];
+    for (const tool of tools) {
+      await expectTappable(tool);
+      const box = (await tool.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      boxes.push(box);
+    }
+    const overlaps = (a: (typeof boxes)[number], b: (typeof boxes)[number]) =>
+      a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+    for (let index = 0; index < boxes.length; index++) {
+      for (const other of boxes.slice(index + 1)) expect(overlaps(boxes[index], other)).toBe(false);
+      expect(Math.abs(boxes[index].y - boxes[0].y)).toBeLessThanOrEqual(2);
+    }
+    for (const tool of tools.slice(0, 2)) {
+      expect(
+        await tool
+          .locator('span')
+          .evaluate((label) => parseFloat(getComputedStyle(label).fontSize)),
+      ).toBeGreaterThanOrEqual(14);
+      expect(
+        await tool.evaluate((button) => button.scrollWidth <= button.clientWidth),
+        'large tool labels must fit without clipping',
+      ).toBe(true);
+    }
+    const pause = (await page.locator('.paused-badge').boundingBox())!;
+    const daylight = (await page.locator('.day-cycle').boundingBox())!;
+    const minimap = (await page.locator('.lingus-world__minimap').boundingBox())!;
+    expect(overlaps(pause, daylight)).toBe(false);
+    expect(overlaps(pause, minimap)).toBe(false);
+    expect(overlaps(daylight, minimap)).toBe(false);
+    for (const box of boxes) expect(overlaps(pause, box)).toBe(false);
+    const canvas = (await map(page).boundingBox())!;
+    for (const box of [...boxes, pause, daylight, minimap]) {
+      expect(box.x).toBeGreaterThanOrEqual(canvas.x - 2);
+      expect(box.y).toBeGreaterThanOrEqual(canvas.y - 2);
+      expect(box.x + box.width).toBeLessThanOrEqual(canvas.x + canvas.width + 2);
+      expect(box.y + box.height).toBeLessThanOrEqual(canvas.y + canvas.height + 2);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: test.info().outputPath(`map-tools-large-${viewport.width}.png`),
+    });
+
+    await tools[0].tap();
+    await expect(page.getByRole('dialog', { name: 'Scorte del campo', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Chiudi finestra', exact: true }).tap();
+    await tools[1].tap();
+    const entries = page.getByRole('region', { name: 'Elementi visibili sulla mappa' });
+    await expect(entries).toBeVisible();
+    await entries.getByRole('button', { name: 'Chiudi elementi visibili', exact: true }).tap();
+    await expect(entries).not.toBeVisible();
+    const state = await saved(page);
+    expect(state.stats.commands).toBe(0);
+    expect(state.voice).toBe(3);
+    expect(state.paused).toBe(true);
+  });
+}

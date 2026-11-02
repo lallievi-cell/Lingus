@@ -5,21 +5,24 @@ import { getPersonalDiscoveryProgress } from '../game/personalDiscovery';
 import { thermalConditionsAt } from '../game/thermal';
 import { getCalendar, hasOpeningBalance } from '../game/calendar';
 import type { GameState } from '../game/types';
+import { getGrowthReadiness } from '../game/growthReadiness';
 
 export function OpeningGuide({
   state,
   onHome,
   onSpark,
   onTeach,
+  onGrowth,
 }: {
   state: GameState;
   onHome: () => void;
   onSpark?: (id: string) => void;
   onTeach?: () => void;
+  onGrowth?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const calendar = getCalendar(state);
-  if (calendar.seasonIndex >= 4 || state.urbanized) return null;
+  if (calendar.seasonIndex >= (hasOpeningBalance(state) ? 8 : 4) || state.urbanized) return null;
   const guided = state.playMode === 'guided';
   const fire = hasBuilding(state, 'campfire');
   const hearth = state.buildings.some(
@@ -31,7 +34,7 @@ export function OpeningGuide({
   const cold = living.some((unit) => unit.temp <= 20 && thermalConditionsAt(state, unit).delta < 0);
   const starving = living.some((unit) => unit.hunger >= 95);
   const personal = getPersonalDiscoveryProgress(state);
-  let action: 'spark' | 'teach' | undefined;
+  let action: 'spark' | 'teach' | 'growth' | undefined;
   let title: string, text: string;
   if (cold) {
     title = 'La tribù sta gelando';
@@ -70,6 +73,35 @@ export function OpeningGuide({
     text = hearth
       ? 'Riaccendi il focolare con Conservare · Fuoco: serve un’unità di legno al campo. Una guardia presente lo protegge dalle tempeste. Tieni altre scorte per il cambio di stagione.'
       : 'Porta cinque unità di legno al campo per accendere il primo Falò. Il legno lasciato accanto agli alberi deve ancora essere trasportato.';
+  } else if (hasOpeningBalance(state) && calendar.seasonIndex >= 4) {
+    const growth = getGrowthReadiness(state);
+    const buildingMemory = state.words.V_08;
+    const builders =
+      buildingMemory?.custodians.filter((id) => living.some((unit) => unit.id === id)) ?? [];
+    if (buildingMemory && buildingMemory.retention > 0 && builders.length === 1) {
+      title = 'Conserva il sapere dei ripari';
+      text =
+        'Costruire vive ancora in una sola voce. Affida questa conoscenza a un compagno giovane prima di perdere chi la custodisce: servirà per dare spazio alle nuove famiglie.';
+      action = 'teach';
+    } else if (growth.blockers.includes('food')) {
+      title = 'Un pasto per la prossima generazione';
+      text =
+        'La crescita richiede futuri genitori sazi, riposati e al campo. Il cibo cotto rende i pasti più sicuri; mantieni i rifornimenti anche mentre costruisci e insegni.' +
+        (hasWord(state, 'V_07')
+          ? ' In Guidata, un ordine di cottura tiene occupato un cuoco durante il giorno, finché restano carne, fuoco e spazio nelle scorte.'
+          : '');
+      action = 'growth';
+    } else if (growth.blockers.includes('housing') || growth.population / growth.housing > 0.65) {
+      title = 'Lascia spazio alle famiglie';
+      text =
+        'Gli alloggi affollati frenano le nascite. Prepara un altro riparo e tieni da parte i materiali per mantenerlo attivo: un tetto senza manutenzione non offre posto alle famiglie.';
+      action = 'growth';
+    } else {
+      title = 'La tribù prepara il proprio futuro';
+      text =
+        'Organizza rifornimenti regolari, riposo al campo e nuovi custodi. Le nascite dipendono dalle coppie in età fertile e dalle loro condizioni: controlla la crescita prima del cambio di stagione.';
+      action = 'growth';
+    }
   } else if (hasOpeningBalance(state) && !hasWord(state, 'M_02')) {
     title = 'Il primo fuoco, il prossimo pasto';
     text =
@@ -109,7 +141,9 @@ export function OpeningGuide({
               ? 'L’inverno è vicino.'
               : 'L’inverno arriva dopo l’autunno.'
             : 'È inverno: resta vicino al riparo.'}
-          {guided && ' In Guidata le tormente possono arrivare dal secondo inverno.'}
+          {hasOpeningBalance(state) && calendar.seasonIndex >= 4
+            ? ' Il primo anno disteso è concluso: ora le stagioni seguono il ritmo ordinario.'
+            : guided && ' In Guidata le tormente possono arrivare dal secondo inverno.'}
         </span>
       </div>
       <button
@@ -131,6 +165,11 @@ export function OpeningGuide({
       {action === 'teach' && onTeach && (
         <button className="text-button" onClick={onTeach}>
           <Flame size={14} /> Tramanda
+        </button>
+      )}
+      {action === 'growth' && onGrowth && (
+        <button className="text-button" onClick={onGrowth}>
+          Crescita della tribù
         </button>
       )}
     </aside>

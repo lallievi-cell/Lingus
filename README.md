@@ -78,7 +78,7 @@ Orologio, scorte, coesione e dati numerici dipendono dalle parole corrispondenti
 
 ## Salvataggi
 
-Autosave ogni cinque secondi nel `localStorage` del browser, chiave `lingus.save.v2`. La ripresa avviene in pausa. Le impostazioni consentono salvataggio immediato, esportazione/importazione JSON e nuova partita dopo conferma.
+Autosave ogni cinque secondi nel `localStorage` del browser, chiave `lingus.save.v2`. La ripresa avviene in pausa. Le impostazioni consentono salvataggio immediato, esportazione/importazione JSON, recupero delle tre copie precedenti e conservazione di tre storie. Gli errori restano visibili; cambiare storia richiede prima di conservare quella aperta. Una modifica proveniente da un’altra scheda blocca le scritture della sessione precedente.
 
 Lo schema corrente è **2**: separa bacche, carne, carne cotta e le altre risorse, e conserva istituzioni, città e stato geopolitico. Lo schema precedente aggregava dati che non possono essere ricostruiti fedelmente; i vecchi salvataggi non vengono convertiti inventando risorse. La chiave `lingus.save.v1` resta distinta. Un import non valido o oltre cinque megabyte viene rifiutato.
 
@@ -90,6 +90,7 @@ Il salvataggio appartiene all'origine e al browser utilizzati. Esporta una copia
 npm test
 npm run build
 npm run test:e2e
+npm run test:production # dopo la build: verifica dist/ sotto /Lingus/
 npm run format:check
 ```
 
@@ -122,7 +123,9 @@ Le nuove partite propongono **Guidata**, con più margine per il primo Falò, co
 
 [FOUR-IMPROVEMENTS.md](docs/FOUR-IMPROVEMENTS.md) raccoglie le ulteriori calibrazioni Guidate, la continuità delle scoperte urbane, l'assistente sintattico e l'audio. [VICTORY-ROUTES.md](docs/VICTORY-ROUTES.md) verifica le tre vie finali con tempo e costi reali da società avanzate preparate; queste prove restano separate dalle campagne complete da sette persone.
 
-[CAMPAIGN-AUDIT.md](docs/CAMPAIGN-AUDIT.md) documenta trenta stagioni ordinarie con ricambio generazionale. [MIDGAME-TRANSITION.md](docs/MIDGAME-TRANSITION.md) distingue la prova 35 → 80 con Scrittura da un insediamento preparato dalla crescita fino a 150, ancora da dimostrare.
+[CAMPAIGN-AUDIT.md](docs/CAMPAIGN-AUDIT.md) documenta trenta stagioni ordinarie con ricambio generazionale. [MIDGAME-TRANSITION.md](docs/MIDGAME-TRANSITION.md) documenta separatamente la crescita e la transizione urbana da un insediamento preparato di 35 persone; non chiude la campagna completa dall’inizio.
+
+[PRODUCT-CONSOLIDATION.md](docs/PRODUCT-CONSOLIDATION.md) raccoglie gli interventi della versione 0.3: piani di insegnamento, storia del sapere, preferenze di leggibilità e audio, selezione da tastiera sulla mappa, economia straniera, affidabilità delle sessioni e controllo della build pubblicata. Il [protocollo di playtest](docs/PLAYTEST-PROTOCOL.md) prepara le prove con nuovi giocatori usando un resoconto locale facoltativo, senza telemetria.
 
 - `src/game/content.ts`, `types.ts`, `state.ts`: cataloghi, schema e stato iniziale.
 - `src/game/math.ts`: formule isolate; `runtime.ts`: inventario e utilità condivise.

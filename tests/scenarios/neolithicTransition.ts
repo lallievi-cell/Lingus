@@ -1,3 +1,4 @@
+import { setImmediate as yieldToRunner } from 'node:timers/promises';
 import {
   BUILDING_SPECS,
   emptyInventory,
@@ -16,7 +17,8 @@ import {
 } from '../../src/game/engine';
 import { villageHousing } from '../../src/game/growthReadiness';
 import { resourceSpoilage } from '../../src/game/math';
-import type { BuildingKind, Target, Unit } from '../../src/game/types';
+import { getCalendar } from '../../src/game/calendar';
+import type { BuildingKind, GameState, Target, Unit } from '../../src/game/types';
 
 /** Deliberately prepared Neolithic settlement. This is not a seven-person replay.
  * All subsequent changes use public actions and real simulation ticks.
@@ -167,8 +169,8 @@ export function preparedNeolithicSettlement(seed = 6842) {
   return state;
 }
 
-export function replayNeolithicTransition(seed = 6842, until = 3600) {
-  let state = preparedNeolithicSettlement(seed);
+function* runNeolithicTransition(seed = 6842, until = 3600, initialState?: GameState) {
+  let state = initialState ?? preparedNeolithicSettlement(seed);
   const initial = {
     population: state.units.length,
     resources: { ...state.resources },
@@ -226,8 +228,9 @@ export function replayNeolithicTransition(seed = 6842, until = 3600) {
   const say = (tokens: string[], target: Target | undefined, unit: Unit) => {
     if (state.voice < 1 || !tokens.every((id) => hasWord(state, id))) return false;
     const before = state.stats.commands;
+    const traditions = state.traditions.length;
     state = issueCommand(state, tokens, target, unit.id);
-    const accepted = state.stats.commands > before;
+    const accepted = state.stats.commands > before || state.traditions.length > traditions;
     actions.push({
       at: state.time,
       tokens,
@@ -258,6 +261,7 @@ export function replayNeolithicTransition(seed = 6842, until = 3600) {
   const jobs = () =>
     state.buildings.filter((b) => !b.cityId && b.hp > 0 && b.active && b.completed !== false);
   let nextDecision = 0;
+  let nextYield = 60;
   const snapshot = () =>
     snapshots.push({
       at: state.time,
@@ -350,9 +354,10 @@ export function replayNeolithicTransition(seed = 6842, until = 3600) {
     }
     if (state.time >= nextDecision) {
       nextDecision += 5;
-      const phase = state.time % 90;
+      const phase = getCalendar(state).canonicalPhase;
       const daytime = phase < 55 && !state.disasters.blizzard;
-      const person = free()[0];
+      const person =
+        free()[0] ?? adults().find((u) => u.action === 'cooking' && u.hunger < 60 && !u.carry);
       const count = (kind: BuildingKind) =>
         state.buildings.filter((b) => b.kind === kind && b.hp > 0 && b.completed !== false).length;
       if (state.voice >= 1 && person) {
@@ -370,7 +375,30 @@ export function replayNeolithicTransition(seed = 6842, until = 3600) {
               ).length < BUILDING_SPECS[b.kind].workers
             );
           });
-        const scholar = free().find((u) => u.intelligence >= 7);
+        // Keep the four scribal posts staffed as generations turn over. A
+        // qualified farmer can change jobs through the same paid public order;
+        // waiting only for an idle sage silently starves the archive.
+        const scholar = adults()
+          .filter(
+            (u) =>
+              u.intelligence >= 7 &&
+              !u.carry &&
+              !u.isKing &&
+              u.action !== 'building' &&
+              u.hunger < 70 &&
+              u.jobBuildingId !== archive?.id &&
+              u.suspendedJob?.buildingId !== archive?.id &&
+              !jobs().some(
+                (b) =>
+                  ['campfire', 'grave'].includes(b.kind) &&
+                  (u.jobBuildingId === b.id || u.suspendedJob?.buildingId === b.id),
+              ),
+          )
+          .sort(
+            (a, b) =>
+              Number(!!a.jobBuildingId || !!a.suspendedJob) -
+                Number(!!b.jobBuildingId || !!b.suspendedJob) || a.age - b.age,
+          )[0];
         const closedPen = state.buildings.find(
           (b) => b.kind === 'pen' && !b.active && b.hp > 0 && b.completed !== false,
         );
@@ -400,7 +428,7 @@ export function replayNeolithicTransition(seed = 6842, until = 3600) {
               )
             : false;
         };
-        const season = Math.floor(state.time / 90) % 4;
+        const season = getCalendar(state).season;
         let feedReserve = (BUILDING_SPECS.pen.upkeep.food ?? 0) * count('pen');
         for (let future = season; future < 3; future++)
           feedReserve /=
@@ -429,10 +457,40 @@ export function replayNeolithicTransition(seed = 6842, until = 3600) {
           );
         else if (
           daytime &&
+          archive &&
+          scholar &&
+          adults().filter(
+            (u) => u.jobBuildingId === archive.id || u.suspendedJob?.buildingId === archive.id,
+          ).length < 4
+        )
+          say(
+            ['S_02', 'V_05', 'O_09'],
+            { type: 'building', id: archive.id, x: archive.x, y: archive.y },
+            scholar,
+          );
+        else if (
+          daytime &&
           state.resources.pottery < 1 &&
           !adults().some((u) => u.action === 'cooking')
         )
           say(['S_02', 'V_07', 'O_02', 'O_05'], undefined, person);
+        else if (
+          state.resources.pottery >= 1 &&
+          !state.traditions.some((t) => t.tokens.includes('V_07'))
+        )
+          say(['C_02', 'S_01', 'V_07', 'O_04', 'O_05'], undefined, person);
+        else if (
+          daytime &&
+          state.resources.stone < Math.max(70, count('house') * 4 + 50) &&
+          hauling('O_02') < Math.max(2, Math.ceil(own().length / 35))
+        )
+          collectMaterial('O_02');
+        else if (
+          daytime &&
+          state.resources.wood < 140 &&
+          hauling('O_03') < Math.max(2, Math.ceil(own().length / 35))
+        )
+          collectMaterial('O_03');
         else if (daytime && needs)
           say(
             [
@@ -454,7 +512,7 @@ export function replayNeolithicTransition(seed = 6842, until = 3600) {
           );
         else if (
           daytime &&
-          Math.floor(state.time / 90) % 4 !== 3 &&
+          season !== 3 &&
           (state.resources.food < feedReserve || state.resources.seed < seedReserve) &&
           vegetableHaulers < 3 &&
           berries
@@ -470,19 +528,6 @@ export function replayNeolithicTransition(seed = 6842, until = 3600) {
           !adults().some((u) => u.action === 'building')
         )
           build('archive', person);
-        else if (
-          daytime &&
-          archive &&
-          scholar &&
-          adults().filter(
-            (u) => u.jobBuildingId === archive.id || u.suspendedJob?.buildingId === archive.id,
-          ).length < 4
-        )
-          say(
-            ['S_02', 'V_05', 'O_09'],
-            { type: 'building', id: archive.id, x: archive.x, y: archive.y },
-            scholar,
-          );
         else if (
           daytime &&
           !hasWord(state, 'O_13') &&
@@ -545,7 +590,33 @@ export function replayNeolithicTransition(seed = 6842, until = 3600) {
     const prior = state.time;
     state = tick(state, Math.min(5, until - state.time));
     if (state.time === prior && !state.campfirePending) break;
+    if (state.time >= nextYield) {
+      nextYield += 60;
+      yield;
+    }
   }
   snapshot();
   return { state, initial, actions, discoveries, snapshots };
+}
+
+/** Synchronous public replay for callers which do not need runner scheduling. */
+export function replayNeolithicTransition(...args: Parameters<typeof runNeolithicTransition>) {
+  const replay = runNeolithicTransition(...args);
+  let step = replay.next();
+  while (!step.done) step = replay.next();
+  return step.value;
+}
+
+/** The identical replay, yielding only wall-clock execution between real ticks.
+ * This keeps the test worker responsive; no world time or action is skipped. */
+export async function replayNeolithicTransitionAsync(
+  ...args: Parameters<typeof runNeolithicTransition>
+) {
+  const replay = runNeolithicTransition(...args);
+  let step = replay.next();
+  while (!step.done) {
+    await yieldToRunner();
+    step = replay.next();
+  }
+  return step.value;
 }

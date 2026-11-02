@@ -1,8 +1,12 @@
-import { HOME, INNATE_WORDS, BASE_HOUSING, emptyInventory } from './content';
+import { HOME, INNATE_WORDS, BASE_HOUSING, ADULT_AGE, emptyInventory } from './content';
 import { generateWorld } from './worldGeneration';
 import type { City, Faction, GameState, MapEntity, MapMode, Sector, Unit } from './types';
 
-/** Exactly the seven Seed Zero people, in the order stated in the final GDD. */
+/** Guided product calibration A-59: time to establish the first generation.
+ * Persisted ages are never changed on import; Classic keeps the GDD profiles. */
+export const GUIDED_FOUNDER_AGE_OFFSET = 2;
+
+/** The seven Seed Zero identities, in the order stated in the final GDD. */
 export function createInitialState(
   seed = 6842,
   playMode: 'guided' | 'classic' = 'classic',
@@ -26,7 +30,14 @@ export function createInitialState(
     hp,
     hunger,
     temp: 100,
-    age: playMode === 'guided' && name === 'Uma' ? 12 : age,
+    age:
+      playMode === 'guided'
+        ? name === 'Uma'
+          ? 12
+          : name === 'Ilo'
+            ? age
+            : Math.max(ADULT_AGE, age - GUIDED_FOUNDER_AGE_OFFSET)
+        : age,
     strength,
     intelligence,
     initialStrength: strength,

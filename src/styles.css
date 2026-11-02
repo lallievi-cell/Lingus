@@ -2305,6 +2305,22 @@ kbd {
   flex-direction: column;
   margin-top: 19px;
 }
+.settings-preferences {
+  margin-block: 1rem;
+  border-block: 1px solid var(--line);
+}
+.settings-preferences > summary {
+  min-height: 48px;
+  display: list-item;
+  align-content: center;
+  cursor: pointer;
+  font-weight: 650;
+  padding: 12px 4px;
+}
+.settings-preferences > summary:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
 .settings-actions > button {
   display: flex;
   align-items: center;

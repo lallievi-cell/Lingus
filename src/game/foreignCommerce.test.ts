@@ -20,6 +20,7 @@ function fixture(customs = true) {
   foreign.y = 250;
   foreign.resources = emptyInventory();
   foreign.resources.food = 20;
+  foreign.cohorts = { workers: 2, warriors: 0, sages: 0, slaves: 0 }; // Genuine trade surplus.
   foreign.resources.coin = 5;
   foreign.words = [...WORD_ORDER];
   foreign.dogmas = [];
@@ -105,6 +106,67 @@ function total(s: GameState, r: Resource) {
 }
 
 describe('foreign merchants and physical customs', () => {
+  it('does not export the next meals of a larger community, but can trade real surplus', () => {
+    const { s, foreign } = fixture(false);
+    foreign.cohorts.workers = 12;
+    foreign.resources.coin = 0;
+    dispatchForeignMerchants(s);
+    expect(s.caravans).toEqual([]);
+    expect(foreign.resources.food).toBe(20);
+    foreign.resources.cooked = 20;
+    dispatchForeignMerchants(s);
+    expect(s.caravans).toHaveLength(1);
+    expect(s.caravans[0].resources.food).toBe(10);
+    expect(foreign.resources.food).toBe(10);
+    expect(foreign.resources.cooked).toBe(20);
+  });
+
+  it('keeps a returning load physical when its origin falls and redirects it to a surviving city', () => {
+    const { s, foreign } = fixture(false);
+    dispatchForeignMerchants(s);
+    const merchant = s.caravans[0];
+    merchant.returning = true;
+    const cargo = { ...merchant.resources };
+    foreign.factionId = 'player';
+    completeForeignMerchant(s, merchant);
+    expect(merchant.arrived).not.toBe(true);
+    expect(merchant.resources).toEqual(cargo);
+    const refuge = {
+      ...structuredClone(foreign),
+      id: 'refuge',
+      factionId: merchant.factionId,
+      x: 100,
+      y: 100,
+      resources: emptyInventory(),
+    };
+    s.cities.push(refuge);
+    completeForeignMerchant(s, merchant);
+    expect(merchant.target.id).toBe(refuge.id);
+    expect(refuge.resources.food).toBe(0);
+    expect(merchant.resources).toEqual(cargo);
+    merchant.x = refuge.x;
+    merchant.y = refuge.y;
+    completeForeignMerchant(s, merchant);
+    expect(merchant.arrived).toBe(true);
+    expect(refuge.resources.food).toBe(cargo.food);
+    expect(merchant.resources.food).toBe(0);
+  });
+
+  it('does not deliver a returning cargo into a depopulated city', () => {
+    const { s, foreign } = fixture(false);
+    dispatchForeignMerchants(s);
+    const merchant = s.caravans[0];
+    merchant.returning = true;
+    const cargo = { ...merchant.resources },
+      abandonedStocks = { ...foreign.resources };
+    foreign.cohorts = { workers: 0, warriors: 0, sages: 0, slaves: 0 };
+    completeForeignMerchant(s, merchant);
+    expect(merchant.arrived).not.toBe(true);
+    expect(merchant.resources).toEqual(cargo);
+    expect(foreign.resources).toEqual(abandonedStocks);
+    expect(merchant.target).toEqual({ type: 'point', x: merchant.x, y: merchant.y });
+  });
+
   it('deducts real goods and a real duty purse, with one route per faction and a 90-second interval', () => {
     const { s, foreign } = fixture();
     const food = total(s, 'food'),

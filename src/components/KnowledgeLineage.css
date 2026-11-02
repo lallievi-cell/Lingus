@@ -1,0 +1,225 @@
+.knowledge-lineage {
+  margin-top: 14px;
+  border: 1px solid #bec8b4;
+  border-radius: 12px;
+  background: #f4f2e7;
+  color: var(--ink, #253d2c);
+  overflow: hidden;
+}
+.knowledge-lineage > summary,
+.lineage-word > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
+  padding: 12px;
+  cursor: pointer;
+}
+.knowledge-lineage > summary::after,
+.lineage-word > summary::after {
+  content: '+';
+  margin-left: auto;
+  font-size: 20px;
+  font-weight: 400;
+  color: #5e755c;
+}
+.knowledge-lineage[open] > summary::after,
+.lineage-word[open] > summary::after {
+  content: '−';
+}
+.knowledge-lineage summary::-webkit-details-marker {
+  display: none;
+}
+.knowledge-lineage summary > span {
+  min-width: 0;
+}
+.knowledge-lineage summary strong,
+.knowledge-lineage summary small {
+  display: block;
+}
+.knowledge-lineage summary strong {
+  font-size: 13px;
+  line-height: 1.4;
+}
+.knowledge-lineage summary small {
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #526a51;
+}
+.knowledge-lineage-mark {
+  display: grid;
+  place-items: center;
+  width: 35px;
+  height: 35px;
+  flex: 0 0 35px;
+  border-radius: 50%;
+  background: #e2e7d6;
+  color: #58724d;
+}
+.knowledge-lineage-content {
+  padding: 0 12px 12px;
+}
+.knowledge-lineage-content > p {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #536852;
+}
+.lineage-word {
+  border-top: 1px solid #d2d8c8;
+}
+.lineage-word > summary {
+  padding: 10px 2px;
+  min-height: 55px;
+}
+.lineage-word.risk-ageing > summary {
+  color: #795b30;
+}
+.lineage-word.risk-critical > summary {
+  color: #8d4c36;
+}
+.lineage-word-content {
+  padding: 0 0 12px;
+  min-width: 0;
+}
+.lineage-word-content h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 13px 0 6px;
+  font-size: 12px;
+  font-weight: 650;
+}
+.lineage-people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.knowledge-lineage .lineage-person {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 7px 9px;
+  background: #e6eadf;
+  color: #304e39;
+  border: 1px solid #c8d1be;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.lineage-person small {
+  font-size: 10px;
+  font-weight: 450;
+  color: #566e53;
+}
+.lineage-person.is-static {
+  border-color: transparent;
+}
+.knowledge-lineage .lineage-care {
+  margin: 0 0 10px;
+  padding: 9px 10px;
+  border-radius: 7px;
+  background: #ede1c9;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #715837;
+}
+.risk-critical .lineage-care {
+  background: #f0dfd1;
+  color: #854d37;
+}
+.lineage-family {
+  margin-bottom: 8px;
+  padding: 7px;
+  border-radius: 8px;
+  background: #ecebdf;
+}
+.lineage-family > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+.lineage-family > small {
+  display: block;
+  padding-top: 5px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #53684f;
+}
+.knowledge-lineage .lineage-note {
+  margin: 6px 0;
+  font-size: 11px;
+  line-height: 1.55;
+  color: #5b6c54;
+}
+.lineage-history {
+  display: grid;
+  gap: 7px;
+  margin: 12px 0 0;
+  padding-left: 16px;
+}
+.lineage-history li {
+  padding-left: 2px;
+  font-size: 11px;
+  line-height: 1.55;
+  color: #5e6854;
+}
+.lineage-teach {
+  display: grid;
+  gap: 5px;
+  margin-top: 12px;
+}
+.lineage-teach > button,
+.lineage-show-all {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 9px 11px;
+  border: 1px solid #afbf9d;
+  border-radius: 8px;
+  background: #dfe7d4;
+  color: #345333;
+  font-size: 12px;
+  font-weight: 650;
+}
+.lineage-teach > button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.lineage-teach > small {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #69735f;
+}
+.lineage-show-all {
+  width: 100%;
+  margin-top: 9px;
+  background: transparent;
+}
+.knowledge-lineage button:focus-visible,
+.knowledge-lineage summary:focus-visible {
+  outline: 2px solid #526e44;
+  outline-offset: 2px;
+}
+@media (max-width: 600px) {
+  .knowledge-lineage-content {
+    padding: 0 10px 10px;
+  }
+  .knowledge-lineage > summary {
+    padding: 10px;
+  }
+  .lineage-family .lineage-person {
+    flex: 1 1 110px;
+  }
+}

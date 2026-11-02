@@ -18,6 +18,14 @@ import { rememberCombatWound } from './damageAttribution';
 import { recordCaravanTravel } from './regionalHistory';
 import { guidedBirthMultiplier } from './guidedProgression';
 import {
+  foreignForgeCanWork,
+  foreignFuelReserve,
+  foreignIngotDemand,
+  foreignSeedReserve,
+  FOREIGN_ECONOMY_ASSUMPTIONS,
+} from './foreignEconomy';
+import { developForeignCulture } from './foreignCulture';
+import {
   areFactionsHostile,
   completeForeignExpansion,
   dispatchForeignPolicy,
@@ -437,7 +445,10 @@ export function allocateCityWorkers(s: GameState, c: City) {
     const spec = BUILDING_SPECS[b.kind];
     const previouslyReserved = new Set(reserved);
     b.workerIds = [];
-    if (!b.active) {
+    if (
+      !b.active ||
+      (c.factionId !== PLAYER && b.kind === 'foundry' && !foreignForgeCanWork(s, c))
+    ) {
       b.lastEfficiency = 0;
       continue;
     }
@@ -2325,7 +2336,12 @@ function produceCity(s: GameState, c: City, spentCycles = 0) {
           republic *
           (vocation.includes('V_12') ? 1.5 : 1);
       if (mode === 'ingot') {
-        const output = Math.min(inv.ore, inv.wood / 2, workBudget);
+        const output = Math.min(
+          inv.ore,
+          Math.max(0, inv.wood - (c.factionId === PLAYER ? 0 : foreignFuelReserve(s, c))) / 2,
+          c.factionId === PLAYER ? Infinity : Math.max(0, foreignIngotDemand(s, c) - inv.ingot),
+          workBudget,
+        );
         if (output > 0) {
           inv.ore -= output;
           inv.wood -= output * 2;
@@ -2922,6 +2938,7 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
       ) *
         openingFoodSpoilageMultiplier(s, getCalendar(s).seasonIndex - 1 + future - season);
   const reservedVegetables = Math.min(inv.food, vegetableTarget);
+  const seedTarget = foreignSeedReserve(s, c);
   inv.food -= reservedVegetables;
   c.seasonFoodConsumed = consumeNutrition(inv, fullNeed);
   inv.food += reservedVegetables;
@@ -2954,7 +2971,15 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
           ? population * SEASON_LENGTH * 0.8
           : 0) -
         FOOD.reduce((n, r) => n + inv[r] * RESOURCE_SPECS[r].nutrition, 0),
-    ) + (vegetables ? Math.max(0, vegetableTarget - inv.food) * 25 : 0);
+    ) +
+    (vegetables
+      ? Math.max(0, vegetableTarget - inv.food) * 25 +
+        (f.words.includes('V_09')
+          ? Math.max(0, seedTarget - inv.seed) *
+            25 *
+            FOREIGN_ECONOMY_ASSUMPTIONS.seedGatheringAttemptsPerSeed
+          : 0)
+      : 0);
   const physicalDelivery = (amount: number) => {
     for (let i = 0; i < Math.floor(amount); i++)
       foreignEvent(s, f, 'ENV_CRAFT', 20, ['V_04', 'V_05', 'V_08', 'V_10'], true);
@@ -2989,7 +3014,7 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
     if (resource === 'meat' && cityHas(s, c, 'campfire') && inv.wood >= 1) {
       const cooked = Math.min(
         raw,
-        Math.floor(inv.wood),
+        Math.floor(Math.max(0, inv.wood - (BUILDING_SPECS.campfire.upkeep.wood ?? 0))),
         Math.max(0, Math.floor(cycles - amount - tripWork)),
       );
       if (cooked > 0) {
@@ -3047,6 +3072,8 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
     const spec = BUILDING_SPECS[kind],
       existing = cityBuildings(s, c).filter((b) => b.kind === kind);
     if (existing.length >= maximum || !canPay(inv, spec.cost)) return false;
+    if (kind === 'farm' && inv.seed < (spec.cost.seed ?? 0) + foreignSeedReserve(s, c, 1))
+      return false;
     const animal =
       kind === 'pen'
         ? nodes.find((e) => e.kind === 'deer' && e.hp > 0 && !e.domesticated)
@@ -3089,8 +3116,13 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
     make('depot');
   }
   if (f.words.includes('O_05')) make('campfire');
+  if (['V_06', 'O_02', 'M_03'].every((word) => f.words.includes(word))) make('menhir');
   if (f.words.includes('V_09')) make('farm', Math.max(1, Math.ceil((population * 288) / 1250)));
-  if (f.words.includes('V_12')) make('foundry');
+  if (
+    f.words.includes('V_12') &&
+    inv.wood >= (BUILDING_SPECS.foundry.cost.wood ?? 0) + foreignFuelReserve(s, c) + 10
+  )
+    make('foundry');
   if (f.words.includes('O_09')) make('archive');
   if (f.words.includes('S_07')) make('palace');
   if (f.words.includes('O_14')) make('court');
@@ -3104,7 +3136,12 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
   if (cityHas(s, c, 'campfire') && inv.wood >= 10 && nodes.some((e) => e.kind === 'ore'))
     foreignEvent(s, f, 'ENV_HIGH_HEAT', 50, ['O_07']);
   if (cityHas(s, c, 'campfire') && inv.meat >= 1 && inv.wood >= 1 && cycles >= 1) {
-    const cooked = Math.min(Math.floor(inv.meat), Math.floor(inv.wood), Math.floor(cycles), 5);
+    const cooked = Math.min(
+      Math.floor(inv.meat),
+      Math.floor(Math.max(0, inv.wood - (BUILDING_SPECS.campfire.upkeep.wood ?? 0))),
+      Math.floor(cycles),
+      5,
+    );
     inv.meat -= cooked;
     inv.wood -= cooked;
     cycles -= cooked;
@@ -3135,6 +3172,18 @@ function maintainForeignCity(s: GameState, c: City) {
     if (canPay(c.resources, cost)) {
       pay(c.resources, cost);
       b.active = true;
+      if (b.kind === 'campfire') {
+        const faction = s.factions.find((entry) => entry.id === c.factionId);
+        const stamp = `foreignHearthPromiseAt:${c.id}`,
+          ordinal = getCalendar(s).seasonIndex;
+        if (faction && s.eventTimes[stamp] !== ordinal) {
+          s.eventTimes[stamp] = ordinal;
+          const key = `foreignHearthPromises:${c.id}`;
+          s.eventTimes[key] = (s.eventTimes[key] ?? 0) + 1;
+          if (s.eventTimes[key] >= 2)
+            foreignEvent(s, faction, 'ENV_REPEATED_PROMISE', 100, ['C_02']);
+        }
+      }
     } else {
       b.active = false;
       b.hp = Math.max(0, b.hp - spec.maxHp * 0.2);
@@ -3169,7 +3218,10 @@ export function seasonalImperial(s: GameState) {
         faction && city.factionId !== PLAYER ? prepareForeignEconomy(s, city, faction) : 0;
     produceCity(s, city, spentCycles);
     cityNutritionAndBirths(s, city);
-    if (faction) foreignComprehension(s, faction, city);
+    if (faction) {
+      foreignComprehension(s, faction, city);
+      developForeignCulture(s, city, faction);
+    }
   }
   for (const d of s.dogmas.filter((d) => d.reforming)) {
     const school = s.buildings.find(

@@ -74,31 +74,6 @@
   .app .mobile-quick-palette .word-compatible .word-label::after {
     content: none;
   }
-  .app.word-bank-compact .lingus-world__control-stack {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    width: auto;
-    top: 6px;
-    right: 6px;
-  }
-  .app.word-bank-compact .lingus-world__control-stack > span {
-    padding-inline: 4px;
-  }
-  .app.word-bank-compact .lingus-world__control-stack i {
-    height: 20px;
-    width: 1px;
-    margin: 0 2px;
-    border-top: 0;
-    border-left: 1px solid #a8af8877;
-  }
-  .app.word-bank-compact .paused-badge {
-    left: 6px;
-    top: 8px;
-    transform: none;
-    font-size: 10px;
-    padding: 6px 8px;
-  }
   .app.word-bank-compact .lingus-world__minimap {
     width: 74px;
     padding: 4px;

@@ -2,6 +2,8 @@
 
 Questa pagina non tratta più Bronzo e Ferro come semplici etichette future del primo prototipo. La revisione contiene i moduli e i cataloghi dell'arco completo; il lavoro residuo va distinto tra conformità, raggiungibilità e qualità del prodotto.
 
+[PRODUCT-CONSOLIDATION.md](PRODUCT-CONSOLIDATION.md) registra gli interventi della versione 0.3 nei dieci ambiti del prodotto, con prove e limiti separati dalle verifiche di conformità.
+
 ## 1. Consolidare i requisiti risolti
 
 [CONFORMANCE.md](CONFORMANCE.md) collega le regole del documento a formule, cataloghi, transizioni e prove. Ogni correzione deve conservare il riferimento alla fonte e aggiornare il test che può rilevarne una violazione.

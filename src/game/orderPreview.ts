@@ -2,7 +2,7 @@ import { RESOURCE_ORDER, RESOURCE_SPECS } from './content';
 import { issueCommand } from './engine';
 import { compileSentence, getPredicate } from './grammar';
 import { orderAcknowledged } from './commandAcknowledgement';
-import { guidedRepeatTransport, plainToolCraft } from './simulation';
+import { guidedRepeatTransport, plainFoodCook, plainToolCraft } from './simulation';
 import type { GameState, Resource, Target } from './types';
 
 /** No clock ticks: asks the actual command handler, against its normal deep copy. */
@@ -23,6 +23,7 @@ export function getOrderPreview(
       unitIds: [] as string[],
       destinations: [] as Target[],
       interruptions: [] as string[],
+      abandonedConstructionIds: [] as string[],
       cargoDrops: [] as string[],
       costs: [] as { resource: Resource; amount: number }[],
       voice: 0,
@@ -84,6 +85,13 @@ export function getOrderPreview(
       unit.action === 'building'
     );
   });
+  const abandonedConstructionIds = [...new Set(trace.assignedUnitIds)].filter((id) => {
+    const previous = state.units.find((unit) => unit.id === id);
+    return (
+      previous?.action === 'building' &&
+      Object.values(previous.paidConstruction ?? {}).some((amount) => amount > 0)
+    );
+  });
   const cargoDrops = state.units
     .filter((u) => (u.carry?.amount ?? 0) > 0 && !next.units.find((v) => v.id === u.id)?.carry)
     .map((u) => u.id);
@@ -133,7 +141,10 @@ export function getOrderPreview(
     behaviour =
       'Assegna un incarico all’edificio. Riposo, fame e freddo possono sospenderlo; un nuovo ordine lo sostituisce.';
   else if (predicate.verb === 'V_07')
-    behaviour = 'Un artigiano completa una cottura. Il compito diretto termina dopo questo ciclo.';
+    behaviour =
+      state.playMode === 'guided' && plainFoodCook(tokens)
+        ? 'Un cuoco prepara pasti durante il giorno finché ci sono carne, un Falò attivo e spazio. Ogni porzione consuma una carne; fame, freddo o un nuovo ordine interrompono il lavoro.'
+        : 'Un artigiano completa una cottura. Il compito diretto termina dopo questo ciclo.';
   else if (predicate.verb === 'V_02')
     behaviour =
       'Mangia dalle scorte raggiungibili o dalla fonte scelta, fino alla sazietà. La carne cruda può causare malattia.';
@@ -152,6 +163,7 @@ export function getOrderPreview(
     unitIds,
     destinations,
     interruptions,
+    abandonedConstructionIds,
     cargoDrops,
     costs,
     voice: Math.max(0, state.voice - next.voice),

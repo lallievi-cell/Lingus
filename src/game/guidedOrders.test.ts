@@ -334,7 +334,7 @@ describe('guided plain tool crafting pays for each real cycle', () => {
     expect(full.units[0].command).toBeUndefined();
   });
 
-  it('leaves Classic tools, Guided spears and cooking as single paid manufactures', () => {
+  it('leaves Classic tools and cooking, and Guided spears as single paid manufactures', () => {
     let classic = village('classic');
     classic.resources.stone = 8;
     classic = advance(issueCommand(classic, ['S_01', 'V_06', 'O_02']), 20);
@@ -346,7 +346,7 @@ describe('guided plain tool crafting pays for each real cycle', () => {
     expect(spear.resources.spear).toBe(1);
     expect(spear.resources.stone).toBe(2);
     expect(spear.resources.wood).toBe(2);
-    let cooking = village();
+    let cooking = village('classic');
     learn(cooking, 'O_05');
     createReadyBuilding(cooking, 'campfire');
     cooking.resources.meat = 3;

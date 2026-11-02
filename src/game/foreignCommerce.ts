@@ -1,8 +1,9 @@
-import { emptyInventory, RESOURCE_ORDER } from './content';
+import { emptyInventory, RESOURCE_ORDER, RESOURCE_SPECS, SEASON_LENGTH } from './content';
 import { effectiveElapsed } from './calendar';
 import { getDogmaEffects } from './dogmas';
 import { imperialLawEffects } from './imperialLawPolicy';
 import { areFactionsHostile } from './foreignPolicy';
+import { foreignFuelReserve } from './foreignEconomy';
 import { clamp, distance, hasBuilding, hasWord, log, nextId } from './runtime';
 import type { Caravan, City, GameState, Resource } from './types';
 
@@ -23,13 +24,32 @@ const price = (r: Resource) =>
 const alive = (c: City) => Object.values(c.cohorts).some((n) => n > 0);
 const inventory = (s: GameState, c: City) => (c.capital ? s.resources : c.resources);
 
+/** A merchant offers surplus, rather than exporting the city's next meals. */
+function exportable(s: GameState, city: City, resource: Resource) {
+  if (resource === 'food') {
+    const population = Object.values(city.cohorts).reduce((sum, count) => sum + count, 0);
+    const nutrition =
+      city.resources.food * RESOURCE_SPECS.food.nutrition +
+      city.resources.meat * RESOURCE_SPECS.meat.nutrition +
+      city.resources.cooked * RESOURCE_SPECS.cooked.nutrition;
+    return Math.min(
+      city.resources.food,
+      Math.max(0, nutrition - population * SEASON_LENGTH * 0.8) / RESOURCE_SPECS.food.nutrition,
+    );
+  }
+  if (resource === 'wood') return Math.max(0, city.resources.wood - foreignFuelReserve(s, city));
+  return city.resources[resource];
+}
+
 /** Departure removes both the merchandise and its cash purse from real foreign stocks. */
 export function dispatchForeignMerchants(s: GameState) {
   if (!hasWord(s, 'V_11') || getDogmaEffects(s).isolated) return;
   const destinations = s.cities.filter((c) => c.factionId === 'player' && alive(c));
   if (!destinations.length) return;
   for (const f of s.factions) {
-    const origin = s.cities.find((c) => c.id === f.cityId && c.factionId === f.id && alive(c));
+    const origin =
+      s.cities.find((c) => c.id === f.cityId && c.factionId === f.id && alive(c)) ??
+      s.cities.find((c) => c.factionId === f.id && alive(c));
     if (
       !origin ||
       !f.words.includes('V_11') ||
@@ -45,16 +65,16 @@ export function dispatchForeignMerchants(s: GameState) {
     const target = [...destinations].sort((a, b) => distance(a, origin) - distance(b, origin))[0];
     const choices = tradable.filter(
       (r) =>
-        origin.resources[r] >= 1 &&
+        exportable(s, origin, r) >= 1 &&
         (r !== 'coin' || (f.words.includes('O_12') && hasWord(s, 'O_12'))),
     );
     const offered = choices.sort(
-      (a, b) => origin.resources[b] * price(b) - origin.resources[a] * price(a),
+      (a, b) => exportable(s, origin, b) * price(b) - exportable(s, origin, a) * price(a),
     )[0];
     if (!offered) continue;
     const quantity = Math.min(
       FOREIGN_COMMERCE_ASSUMPTIONS.maximumCargoUnits,
-      origin.resources[offered],
+      exportable(s, origin, offered),
     );
     const load = emptyInventory();
     load[offered] = quantity;
@@ -162,8 +182,20 @@ export function completeForeignMerchant(
   const origin = s.cities.find((city) => city.id === c.fromCityId),
     destination = s.cities.find((city) => city.id === c.toCityId);
   if (c.returning) {
-    if (origin && origin.factionId === c.factionId)
-      for (const r of RESOURCE_ORDER) origin.resources[r] += c.resources[r];
+    if (!origin || origin.factionId !== c.factionId || !alive(origin)) {
+      const refuge = s.cities.find((city) => city.factionId === c.factionId && alive(city));
+      if (refuge) {
+        c.fromCityId = refuge.id;
+        c.toCityId = refuge.id;
+        c.target = { type: 'city', id: refuge.id, x: refuge.x, y: refuge.y };
+      } else {
+        // An extinct homeland cannot erase goods physically held by its trader.
+        c.toCityId = undefined;
+        c.target = { type: 'point', x: c.x, y: c.y };
+      }
+      return 'return';
+    }
+    for (const r of RESOURCE_ORDER) origin.resources[r] += c.resources[r];
     c.resources = emptyInventory();
     c.arrived = true;
     return 'return';

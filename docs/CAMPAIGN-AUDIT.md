@@ -1,6 +1,14 @@
 # Audit della campagna continua
 
-## Prova riproducibile sulla sorgente finale
+## Evidenza storica precedente alla calibrazione A-59
+
+I risultati numerici riportati in questa pagina appartengono alla revisione
+pubblicata prima di A-59, con i precedenti profili iniziali Guidati. Non sono
+presentati come un nuovo conteggio esatto della versione corrente. Il caso
+permanente continua a verificare trenta stagioni, ricambio generazionale,
+pagamenti e assenza di morti ambientali con soglie dichiarate; una nuova partita
+Guidata usa ora i fondatori più giovani. [GUIDED-GENERATIONS.md](GUIDED-GENERATIONS.md)
+riporta separatamente il nuovo percorso limitato a venti stagioni e i suoi limiti.
 
 `src/game/continuousCampaign.test.ts` esegue una partita Guidata dal seed
 originale `6842`, con sette fondatori e quattro parole innate. Raggiunge

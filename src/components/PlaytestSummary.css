@@ -1,0 +1,43 @@
+.playtest-summary {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid #b7c0ab;
+  border-radius: 10px;
+  background: #f4f1e4;
+}
+.playtest-summary > summary {
+  min-height: 44px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 650;
+}
+.playtest-summary p {
+  font-size: 13px;
+  line-height: 1.55;
+}
+.playtest-summary dl {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+.playtest-summary dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.playtest-summary dt {
+  font-weight: 600;
+}
+.playtest-summary dd {
+  margin: 0;
+}
+.playtest-summary-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.playtest-summary button {
+  min-height: 44px;
+  max-width: 100%;
+}

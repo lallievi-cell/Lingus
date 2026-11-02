@@ -67,6 +67,9 @@ async function loadScene(
     if (variant === 'season') {
       s.time = 260;
       s.resources.stone = 0;
+      // Leave real food capacity for the suggested cooking task: the depot
+      // holds materials, so it cannot justify 35 food items in a 30-item camp.
+      s.resources.food = 5;
       s.resources.meat = 20;
       s.resources.cooked = 0;
       s.buildings.push({
@@ -358,7 +361,8 @@ test('mobile preparation opens from the map and composes without spending, with 
   await expect(dialog).not.toBeVisible();
   const preview = page.locator('.order-preview');
   await preview.locator('summary').click();
-  await expect(preview).toContainText('Un artigiano completa una cottura');
+  await expect(preview).toContainText('Un cuoco prepara pasti durante il giorno');
+  await expect(preview).toContainText('Ogni porzione consuma una carne');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath('qol-orders-mobile.png'), fullPage: true });
   await page.getByRole('button', { name: /^Tribù/ }).click();

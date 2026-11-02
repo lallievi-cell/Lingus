@@ -18,6 +18,8 @@ import { getCalendar, hasOpeningBalance } from './calendar';
 import { updateForeignPolicy } from './foreignPolicy';
 import { cognitiveSlots, compileSentence, getPredicate, resolveConstruction } from './grammar';
 import { getDogmaEffects, inscribeDogma } from './dogmas';
+import { recordKnowledgeDiscovery, recordKnowledgeTeaching } from './knowledgeHistory';
+import { settlementObjective } from './settlementObjectives';
 import { recordLawWork } from './imperialLawPolicy';
 import { isAllAdultsAnchor, selectableTribeAdults } from './tribeSelection';
 import { canPrepareBriefLesson, getLessonPreview } from './teaching';
@@ -47,6 +49,7 @@ import {
   evaluateDiscoveries,
   matchingEntities,
   population,
+  plainFoodCook,
   recordEvent,
   resetUnit,
   seasonalCore,
@@ -340,11 +343,21 @@ export function issueCommand(
   }
   if (verb === 'V_07') cost = args.includes('O_02') ? { stone: 1 } : { meat: 1 };
   if (
-    verb === 'V_06' &&
+    (verb === 'V_06' || (s.playMode === 'guided' && plainFoodCook(tokens))) &&
     !kind &&
-    !canFitCraftOutput(s, cost, args.includes('O_03') ? 'spear' : 'tool')
+    !canFitCraftOutput(
+      s,
+      cost,
+      verb === 'V_07' ? 'cooked' : args.includes('O_03') ? 'spear' : 'tool',
+    )
   ) {
-    log(s, 'Non c’è spazio per un nuovo manufatto.', 'warning');
+    log(
+      s,
+      verb === 'V_07'
+        ? 'Non c’è spazio per un altro pasto nelle scorte.'
+        : 'Non c’è spazio per un nuovo manufatto.',
+      'warning',
+    );
     return s;
   }
   const localCraft = ['V_06', 'V_07'].includes(verb) && !kind;
@@ -589,6 +602,7 @@ function learnSpark(s: GameState, spark: Spark, u: Unit) {
   };
   if (!u.knows.includes(spark.wordId)) u.knows.push(spark.wordId);
   s.stats.discoveries++;
+  recordKnowledgeDiscovery(s, spark.wordId, u.id);
   s.bornWords ??= {};
   s.bornWords[spark.wordId] ??= s.time;
   if (spark.wordId === 'S_07') {
@@ -652,6 +666,7 @@ export function teachWord(state: GameState, id: string): GameState {
   s.stats.taught++;
   m.custodians.push(pupil.id);
   pupil.knows.push(id);
+  if (preview.teacher) recordKnowledgeTeaching(s, id, preview.teacher.id, pupil.id);
   pupil.intelligence = clamp(pupil.intelligence + 0.2, 1, 10);
   if (hasWord(s, 'S_02') && hasWord(s, 'C_02') && hasWord(s, 'M_03') && !hasWord(s, 'S_07')) {
     const teacher = activeUnits(s).find(
@@ -836,6 +851,8 @@ export function getObjective(s: GameState): Objective {
       current: 1,
       total: 1,
     };
+  const settlement = settlementObjective(s);
+  if (settlement) return settlement;
   if (s.tier >= 4)
     return {
       title: s.tier === 4 ? 'La memoria oltre la vita' : 'Una civiltà di parole',

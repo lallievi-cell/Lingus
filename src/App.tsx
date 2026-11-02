@@ -37,6 +37,19 @@ import {
   Zap,
 } from 'lucide-react';
 import { WorldMap } from './components/WorldMap';
+import { SaveRecoveryPanel } from './components/SaveRecoveryPanel';
+import { SessionStatus } from './components/SessionStatus';
+import { AudioSettings } from './components/AudioSettings';
+import { useAudioPreferences } from './components/useAudioPreferences';
+import { KnowledgeLineage } from './components/KnowledgeLineage';
+import { DiscoveryConsequence } from './components/DiscoveryConsequence';
+import { BuildDetails } from './components/BuildDetails';
+import { InterfaceSettings } from './components/InterfaceSettings';
+import { useInterfacePreferences } from './components/useInterfacePreferences';
+import { PlaytestSummary } from './components/PlaytestSummary';
+import { usePlaytestRecord } from './components/usePlaytestRecord';
+import { BUILD_INFO } from './buildInfo';
+import { browserSaves, useSessionSafety } from './session/useSessionSafety';
 import { CampInventoryPanel } from './components/CampInventoryPanel';
 import { describeStockQuantity } from './components/campInventory';
 import { TribeMemberCard } from './components/TribeMemberCard';
@@ -134,7 +147,6 @@ import {
   recallSpark,
   removeDogma,
   solveSpark,
-  tick,
 } from './game/engine';
 import type { GameState, Spark, Target, WordKind } from './game/types';
 import {
@@ -145,7 +157,6 @@ import {
 } from './game/syntaxAssistant';
 import { useGameAudio } from './components/useGameAudio';
 
-const SAVE_KEY = 'lingus.save.v2';
 type Panel =
   | 'welcome'
   | 'guide'
@@ -159,6 +170,7 @@ type Panel =
   | 'word-help'
   | 'readiness'
   | 'stocks'
+  | 'recovery'
   | CivilizationMode
   | null;
 const KIND_NAMES: Record<WordKind, string> = {
@@ -168,19 +180,6 @@ const KIND_NAMES: Record<WordKind, string> = {
   M: 'Concetto',
   C: 'Condizione',
 };
-
-function loadInitialGame(): GameState {
-  try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (raw) {
-      const parsed = parseGame(raw);
-      if (parsed) return parsed;
-    }
-  } catch {
-    /* A fresh game remains available when browser storage is unavailable. */
-  }
-  return createGame(freshMapSeed(), 'guided', 'random');
-}
 
 function loadEventPause(defaultValue: boolean) {
   try {
@@ -200,6 +199,7 @@ function timeLabel(time: number) {
 }
 
 function App() {
+  const { interfacePreferences, setInterfacePreferences } = useInterfacePreferences();
   const { mobile, keyboardOpen } = useMobileViewport();
   const [wordBankRequest, setWordBankRequest] = useState(0);
   const [wordBankCloseRequest, setWordBankCloseRequest] = useState(0);
@@ -210,9 +210,15 @@ function App() {
     setWordBankOpen(open);
     if (!open) setEditingSlot(null);
   }, []);
-  const [game, setGame] = useState<GameState>(loadInitialGame);
+  const [initialSave] = useState(() => browserSaves.load());
+  const [recoveryLoad, setRecoveryLoad] = useState(initialSave);
+  const [game, setGame] = useState<GameState>(
+    () => initialSave.game ?? createGame(freshMapSeed(), 'guided', 'random'),
+  );
   const [mapSession, setMapSession] = useState(0);
-  const [panel, setPanel] = useState<Panel>(() => (game.started ? null : 'welcome'));
+  const [panel, setPanel] = useState<Panel>(() =>
+    initialSave.issue ? 'recovery' : game.started ? null : 'welcome',
+  );
   const [sentence, setSentence] = useState<string[]>([]);
   const [executorId, setExecutorId] = useState<string | undefined>();
   const [groupAnchor, setGroupAnchor] = useState<Target>({ type: 'point', ...game.home });
@@ -251,7 +257,7 @@ function App() {
   const [focusRequest, setFocusRequest] = useState<{ x: number; y: number; nonce: number }>();
   const eventSnapshot = useRef(new Set((game.tribeEvents ?? []).map((event) => event.id)));
   const sparkSnapshot = useRef(new Set(game.sparks.map((spark) => spark.id)));
-  const [sound, setSound] = useState(false);
+  const { audioPreferences, setAudioPreferences, sound, setSound } = useAudioPreferences();
   const [lexiconSearch, setLexiconSearch] = useState('');
   const [hasSeenMilestone, setHasSeenMilestone] = useState(!!game.victory);
   const [recentPhrases, setRecentPhrases] = useState<string[][]>([]);
@@ -269,9 +275,11 @@ function App() {
   const { unlockFromGesture } = useGameAudio(game, sound, {
     ambience: !panel,
     sessionKey: mapSession,
+    levels: audioPreferences,
   });
-  const gameRef = useRef(game);
-  gameRef.current = game;
+  const { saveStatus, saveNow, recordSaveResult, backgroundPause, dismissBackgroundPause } =
+    useSessionSafety(game, setGame, initialSave, !!panel);
+  const playtest = usePlaytestRecord(game, mapSession, { paused: !!panel });
   const season = getSeason(game);
   const slots = cognitiveSlots(game);
   const numbered = hasWord(game, 'O_08');
@@ -426,6 +434,10 @@ function App() {
     setPanel(null);
     setPuzzle([]);
   }, []);
+  const closeRecovery = useCallback(
+    () => setPanel(game.started ? null : 'welcome'),
+    [game.started],
+  );
 
   useEffect(() => {
     const previous = contextualSnapshot.current;
@@ -513,36 +525,13 @@ function App() {
   }, [toast]);
 
   useEffect(() => {
-    if (panel) return;
-    let previous = performance.now();
-    const timer = window.setInterval(() => {
-      const now = performance.now();
-      const elapsed = Math.min(2, (now - previous) / 1000);
-      previous = now;
-      setGame((current) => tick(current, elapsed));
-    }, 250);
-    return () => window.clearInterval(timer);
-  }, [panel]);
-
-  useEffect(() => {
-    const persist = () => {
-      if (!gameRef.current.started) return;
-      try {
-        localStorage.setItem(SAVE_KEY, JSON.stringify(gameRef.current));
-      } catch {
-        /* Manual export remains available. */
-      }
-    };
-    const timer = window.setInterval(persist, 5000);
-    window.addEventListener('beforeunload', persist);
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener('beforeunload', persist);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (game.gameOver && panel && panel !== 'restart' && panel !== 'settings') {
+    if (
+      game.gameOver &&
+      panel &&
+      panel !== 'restart' &&
+      panel !== 'settings' &&
+      panel !== 'recovery'
+    ) {
       setPanel(null);
       return;
     }
@@ -573,7 +562,7 @@ function App() {
       )
         return;
       if (e.code === 'Enter' || e.code === 'NumpadEnter') {
-        if (sentence.length >= 2 && !game.paused && !panel && !game.gameOver) {
+        if (game.started && sentence.length >= 2 && !game.campfirePending && !game.gameOver) {
           e.preventDefault();
           pronounce();
         }
@@ -743,11 +732,18 @@ function App() {
   }
 
   function showWordHelp(id: string) {
+    playtest.recordAction('word-details-opened');
     setHelpWordId(id);
     setPanel('word-help');
   }
 
+  function openGuide() {
+    playtest.recordAction('help-opened');
+    setPanel('guide');
+  }
+
   function pronounce() {
+    playtest.recordAction('command-attempt');
     if (game.campfirePending) {
       notify('Concludi il consiglio al falò prima di inviare un nuovo ordine.');
       return;
@@ -765,10 +761,19 @@ function App() {
       notify('Non hai abbastanza Voce. Recuperi un punto ogni 10 secondi.');
       return;
     }
-    const next = issueCommand(game, sentence, target ?? undefined, executorId, groupAnchor);
+    const trace = { assignedUnitIds: [] as string[] };
+    const next = issueCommand(game, sentence, target ?? undefined, executorId, groupAnchor, trace);
     const success = orderAcknowledged(game, next);
+    const abandonedConstruction = trace.assignedUnitIds.some((id) => {
+      const previous = game.units.find((unit) => unit.id === id);
+      return (
+        previous?.action === 'building' &&
+        Object.values(previous.paidConstruction ?? {}).some((amount) => amount > 0)
+      );
+    });
     setGame(next);
     if (success) {
+      playtest.recordAction('command-accepted');
       closeWordBank();
       setRecentPhrases((prev) => rememberRecentPhrase(prev, sentence));
       if (target) {
@@ -799,7 +804,9 @@ function App() {
     }
     notify(
       success
-        ? 'La tribù ha ascoltato.'
+        ? abandonedConstruction
+          ? 'L’ordine ha interrotto una costruzione già pagata. I materiali impegnati non tornano nelle scorte.'
+          : 'La tribù ha ascoltato.'
         : (next.logs[0]?.text ?? 'La tribù non può eseguire questo ordine.'),
     );
   }
@@ -847,24 +854,77 @@ function App() {
   }
 
   function saveGame() {
-    try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify(game));
+    const result = saveNow(game, { reason: 'manual' });
+    if (result.ok) {
       notify('Partita salvata in questo browser.');
-    } catch {
-      notify('Il browser non consente il salvataggio. Usa Esporta partita.');
-    }
+    } else
+      notify(
+        result.issue?.message ?? 'Il browser non consente il salvataggio. Usa Esporta partita.',
+      );
   }
 
   function exportGame() {
-    const url = URL.createObjectURL(
-      new Blob([JSON.stringify(game, null, 2)], { type: 'application/json' }),
+    downloadSave(
+      JSON.stringify(game, null, 2),
+      `lingus-${timeLabel(game.time).replace(':', '-')}.json`,
     );
+    notify('Salvataggio esportato.');
+  }
+
+  function downloadSave(raw: string, filename = 'lingus-salvataggio-originale.json') {
+    const url = URL.createObjectURL(new Blob([raw], { type: 'application/json' }));
     const link = document.createElement('a');
     link.href = url;
-    link.download = `lingus-${timeLabel(game.time).replace(':', '-')}.json`;
+    link.download = filename;
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    notify('Salvataggio esportato.');
+  }
+
+  function openRecovery() {
+    setRecoveryLoad(browserSaves.load());
+    setPanel('recovery');
+  }
+
+  function activateStory(next: GameState) {
+    setGame(next);
+    setMapSession((session) => session + 1);
+    setFocusRequest(undefined);
+    setSelectingGroup(false);
+    setOrderFeedback(null);
+    setSentence([]);
+    setRecentPhrases([]);
+    setTaskOutcomes([]);
+    outcomeSnapshot.current = next;
+    setWordSearch('');
+    setFilter('compatible');
+    setTarget(null);
+    setPanel(null);
+    setHasSeenMilestone(!!next.victory);
+    setGroupAnchor({ type: 'point', ...next.home });
+    setExecutorId(undefined);
+    setTribeFilter('all');
+    setTribeSort('original');
+    setTribeTask('any');
+    setHelpWordId(null);
+    setCouncilInspection(false);
+    setNewMode(next.playMode ?? 'classic');
+    setNewMap(next.mapGeneration?.mode ?? 'random');
+    setNewSeed(next.mapGeneration ? String(next.mapGeneration.seed) : '');
+    setDismissedEvents(new Set());
+    dismissBackgroundPause();
+    eventSnapshot.current = new Set((next.tribeEvents ?? []).map((event) => event.id));
+    sparkSnapshot.current = new Set(next.sparks.map((spark) => spark.id));
+  }
+
+  function preserveCurrentStory() {
+    if (!game.started) return true;
+    const result = browserSaves.archive(game);
+    if (result.ok) return true;
+    recordSaveResult(result);
+    notify(
+      'Non è stato possibile conservare la storia attuale. Esportala prima di cambiare partita.',
+    );
+    return false;
   }
 
   async function importGame(file?: File) {
@@ -873,38 +933,22 @@ function App() {
       if (file.size > 5_000_000) throw new Error('too large');
       const parsed = parseGame(await file.text());
       if (!parsed) throw new Error('invalid');
-      setGame({ ...parsed, paused: true });
-      setMapSession((session) => session + 1);
-      setFocusRequest(undefined);
-      setSelectingGroup(false);
-      setOrderFeedback(null);
-      setSentence([]);
-      setRecentPhrases([]);
-      setTaskOutcomes([]);
-      outcomeSnapshot.current = parsed;
-      setWordSearch('');
-      setFilter('compatible');
-      setTarget(null);
-      setPanel(null);
-      setHasSeenMilestone(!!parsed.victory);
-      setGroupAnchor({ type: 'point', ...parsed.home });
-      setExecutorId(undefined);
-      setTribeFilter('all');
-      setTribeSort('original');
-      setTribeTask('any');
-      setHelpWordId(null);
-      setCouncilInspection(false);
-      setNewMode(parsed.playMode ?? 'classic');
-      setNewMap(parsed.mapGeneration?.mode ?? 'random');
-      setNewSeed(parsed.mapGeneration ? String(parsed.mapGeneration.seed) : '');
-      setDismissedEvents(new Set());
-      eventSnapshot.current = new Set((parsed.tribeEvents ?? []).map((event) => event.id));
-      sparkSnapshot.current = new Set(parsed.sparks.map((spark) => spark.id));
+      if (!preserveCurrentStory()) return;
+      const next = { ...parsed, paused: true };
+      const saved = saveNow(next, { reason: 'restore', allowReplaceInvalid: true });
+      if (!saved.ok) {
+        notify(
+          'Il file è leggibile, ma non è stato possibile salvarlo. La partita attuale resta aperta.',
+        );
+        return;
+      }
+      activateStory(next);
       notify('Partita importata in pausa.');
     } catch {
       notify('Impossibile aprire il file. Scegli un salvataggio di Lingus in formato JSON.');
+    } finally {
+      if (fileInput.current) fileInput.current.value = '';
     }
-    if (fileInput.current) fileInput.current.value = '';
   }
 
   function previewMap(map: MapChoice, seedText: string, mode = newMode, chooseNew = false) {
@@ -951,37 +995,13 @@ function App() {
         ? 6842
         : (parseMapSeed(newSeed) ?? freshMapSeed(game.mapGeneration?.seed));
     const fresh = { ...createGame(seed, newMode, newMap), started: true };
-    setGame(fresh);
-    setMapSession((session) => session + 1);
-    setFocusRequest(undefined);
-    setSelectingGroup(false);
-    setOrderFeedback(null);
-    setNewSeed(String(seed));
-    setSentence([]);
-    setRecentPhrases([]);
-    setTaskOutcomes([]);
-    outcomeSnapshot.current = fresh;
-    setWordSearch('');
-    setFilter('compatible');
-    setTarget(null);
-    setHasSeenMilestone(false);
-    setGroupAnchor({ type: 'point', ...fresh.home });
-    setExecutorId(undefined);
-    setTribeFilter('all');
-    setTribeSort('original');
-    setTribeTask('any');
-    setHelpWordId(null);
-    setCouncilInspection(false);
-    setPauseOnEvents(newMode === 'guided');
-    setDismissedEvents(new Set());
-    eventSnapshot.current = new Set();
-    sparkSnapshot.current = new Set();
-    closePanel();
-    try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify(fresh));
-    } catch {
-      /* Export available. */
+    if (!preserveCurrentStory()) return;
+    if (!saveNow(fresh, { reason: 'new-story', allowReplaceInvalid: true }).ok) {
+      notify('Il nuovo inizio non è stato salvato. La storia attuale resta aperta.');
+      return;
     }
+    activateStory(fresh);
+    setPauseOnEvents(newMode === 'guided');
   }
 
   const renderWord = (id: string, inPuzzle = false, fromPalette = false) => {
@@ -1062,6 +1082,8 @@ function App() {
   return (
     <div
       className={`app tier-${game.tier} ${season.isNight && game.started ? 'night-mode' : ''} ${keyboardOpen ? 'is-mobile-keyboard' : ''} ${wordBankOpen ? `word-bank-open word-bank-${wordBankMode}` : ''}`}
+      data-text-size={interfacePreferences.textSize}
+      data-contrast={interfacePreferences.contrast}
     >
       <header className="topbar">
         <a
@@ -1069,7 +1091,7 @@ function App() {
           href="#"
           onClick={(e) => {
             e.preventDefault();
-            setPanel('guide');
+            openGuide();
           }}
           aria-label="Lingus, apri la guida"
         >
@@ -1087,7 +1109,7 @@ function App() {
           <span>{ERA_NAMES[game.tier]}</span>
         </div>
         <div className="header-actions">
-          <button className="text-button guide-button" onClick={() => setPanel('guide')}>
+          <button className="text-button guide-button" onClick={openGuide}>
             <CircleHelp size={16} />
             <span>Come si gioca</span>
           </button>
@@ -1153,10 +1175,22 @@ function App() {
                   : 'È giorno'}
             </span>
           )}
-          <span className="prototype-label">EDIZIONE DELLE SEI ERE · 0.2</span>
+          <span className="prototype-label">EDIZIONE DELLE SEI ERE · {BUILD_INFO.version}</span>
         </div>
       </div>
 
+      {!panel && (
+        <SessionStatus
+          status={saveStatus}
+          backgroundPause={backgroundPause}
+          onExport={exportGame}
+          onRecovery={openRecovery}
+          onResume={() => {
+            dismissBackgroundPause();
+            setGame((current) => ({ ...current, paused: false }));
+          }}
+        />
+      )}
       <nav className="mobile-nav-bar" aria-label="Sezioni di gioco">
         <button
           type="button"
@@ -1621,6 +1655,10 @@ function App() {
                   if (spark) openSpark(spark);
                 }}
                 onTeach={() => setPanel('campfire')}
+                onGrowth={() => {
+                  setMobileSection('tribe');
+                  setTab('tribe');
+                }}
                 onHome={() => {
                   setFocusRequest({ ...game.home, nonce: Date.now() });
                   setTarget({ type: 'point', ...game.home });
@@ -2413,6 +2451,41 @@ function App() {
           </div>
         </Modal>
       )}
+      {panel === 'recovery' && (
+        <Modal
+          title="Recupero e storie conservate"
+          onClose={closeRecovery}
+          className="recovery-modal"
+        >
+          <SaveRecoveryPanel
+            load={recoveryLoad}
+            candidates={recoveryLoad.recoveryCandidates}
+            onRestore={(id) => {
+              const candidate = recoveryLoad.recoveryCandidates.find((entry) => entry.id === id);
+              if (!candidate) {
+                notify('Questa copia non è più disponibile. Riapri il recupero.');
+                return;
+              }
+              if (!preserveCurrentStory()) return;
+              const next = { ...candidate.game, paused: true };
+              const result = saveNow(next, {
+                reason: 'restore',
+                allowReplaceInvalid: true,
+                resolveConflict: true,
+              });
+              if (result.ok) {
+                activateStory(next);
+                notify('Storia recuperata in pausa.');
+              } else notify(result.issue?.message ?? 'Questa copia non è disponibile.');
+            }}
+            onExportRaw={(raw) => downloadSave(raw)}
+            onDismiss={closeRecovery}
+          />
+          <button className="text-button" onClick={() => fileInput.current?.click()}>
+            <Upload size={17} /> Importa un’altra partita
+          </button>
+        </Modal>
+      )}
       {panel === 'stocks' && (
         <Modal
           title={game.urbanized ? 'Scorte della capitale' : 'Scorte del campo'}
@@ -2509,14 +2582,24 @@ function App() {
             disabled={!newMapValid}
             onClick={() => {
               if (!newMapValid) return;
-              setGame((g) => ({ ...g, started: true, paused: false }));
+              const begun = { ...game, started: true, paused: false };
+              const saved = saveNow(begun, { reason: 'new-story', allowReplaceInvalid: true });
+              if (saved.issue?.kind === 'conflict') {
+                openRecovery();
+                notify('Un’altra scheda ha cambiato la partita. Scegli quale storia riprendere.');
+                return;
+              }
+              setGame(begun);
               closePanel();
             }}
           >
             Dai inizio alla storia <ArrowRight size={18} />
           </button>
-          <button className="text-button welcome-help" onClick={() => setPanel('guide')}>
+          <button className="text-button welcome-help" onClick={openGuide}>
             Come si gioca <CircleHelp size={15} />
+          </button>
+          <button className="text-button welcome-help" onClick={() => fileInput.current?.click()}>
+            <Upload size={15} /> Importa una storia
           </button>
           <small className="welcome-note">
             Sei ere · 45 parole · 20 edifici · Partita salvata nel browser
@@ -2618,6 +2701,7 @@ function App() {
             <>
               <p className="spark-context">{currentSpark.eventLabel}</p>
               <blockquote>{currentSpark.hint}</blockquote>
+              <DiscoveryConsequence state={game} spark={currentSpark} />
               {canRecallSpark(game, currentSpark.id) && (
                 <div className="recall-discovery">
                   <BookOpen size={20} />
@@ -2882,6 +2966,14 @@ function App() {
               focusTarget(destination);
             }}
           />
+          <KnowledgeLineage
+            state={game}
+            onFocusUnit={(id) => {
+              setCouncilInspection(game.campfirePending);
+              closePanel();
+              inspectPerson(id);
+            }}
+          />
           <p className="campfire-explanation">
             Ogni lezione costa 10 punti Attenzione e forma un nuovo custode. Il recupero base è di{' '}
             {game.playMode === 'guided' ? 20 : 10} punti di memoria e può aumentare con i dogmi. Al
@@ -3030,6 +3122,16 @@ function App() {
             La partita si salva automaticamente in questo browser ogni cinque secondi. Esportala per
             conservarne una copia o continuare su un altro dispositivo.
           </p>
+          <SessionStatus
+            details
+            status={saveStatus}
+            onExport={exportGame}
+            onRecovery={openRecovery}
+            onResume={() => {
+              closePanel();
+              setGame((current) => ({ ...current, paused: false }));
+            }}
+          />
           <p className="mode-label">
             Partita {game.playMode === 'guided' ? 'Guidata' : 'Classica'}. La modalità si sceglie
             all’inizio di una nuova storia.
@@ -3097,6 +3199,22 @@ function App() {
               <ChevronRight size={17} />
             </button>
           </div>
+          <details className="settings-preferences">
+            <summary>Suoni, musica e leggibilità</summary>
+            <AudioSettings
+              value={audioPreferences}
+              onChange={setAudioPreferences}
+              onUnlock={unlockFromGesture}
+            />
+            <InterfaceSettings value={interfacePreferences} onChange={setInterfacePreferences} />
+          </details>
+          <BuildDetails onBeforeReload={() => saveNow(game, { reason: 'manual' }).ok} />
+          <PlaytestSummary
+            summary={playtest.summary}
+            onStart={playtest.startRecording}
+            onStop={playtest.stopRecording}
+            onExport={() => downloadSave(playtest.exportReport(), 'lingus-playtest.json')}
+          />
           <div className="save-stats">
             <span>
               {game.stats.commands}
@@ -3125,7 +3243,8 @@ function App() {
           </div>
           <h2>Un nuovo inizio?</h2>
           <p>
-            La partita attuale verrà sostituita. Puoi esportarla prima di iniziare una nuova storia.
+            Prima del nuovo inizio proveremo a conservare questa storia nel recupero. Esportala per
+            tenerne una copia indipendente dal browser.
           </p>
           <ModePicker value={newMode} onChange={setNewMode} />
           <MapPicker
@@ -3191,7 +3310,7 @@ function App() {
           </Modal>
         )}
 
-      {game.gameOver && panel !== 'restart' && panel !== 'settings' && (
+      {game.gameOver && panel !== 'restart' && panel !== 'settings' && panel !== 'recovery' && (
         <Modal title="La storia della tribù è finita" className="gameover-modal">
           <div className="modal-symbol">
             <Wind size={40} />
@@ -3243,9 +3362,10 @@ function ModePicker({
       <button type="button" aria-pressed={value === 'guided'} onClick={() => onChange('guided')}>
         <strong>Guidata</strong>
         <small>
-          Un primo anno più disteso, con stagioni da 150 secondi, prime materie comprese vivendo e
-          più spazio per tramandare. Il primo inverno è senza tormente. Dal secondo anno le stagioni
-          durano 90 secondi. Trasporti e utensili possono proseguire durante il giorno.
+          Fondatori adulti più giovani e un primo anno più disteso, con stagioni da 150 secondi,
+          prime materie comprese vivendo e più spazio per tramandare. Il primo inverno è senza
+          tormente. Dal secondo anno le stagioni durano 90 secondi. Trasporti, utensili e cottura
+          dei pasti possono proseguire durante il giorno.
         </small>
       </button>
       <button type="button" aria-pressed={value === 'classic'} onClick={() => onChange('classic')}>

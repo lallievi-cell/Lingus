@@ -355,8 +355,10 @@
   .app .lingus-world__control-stack {
     right: 8px;
     top: 8px;
-    width: 44px;
+    width: auto;
     padding: 0;
+    flex-direction: row;
+    align-items: center;
     border-radius: 10px;
     background: #f5f0e2e8;
     transform: none !important;
@@ -407,10 +409,16 @@
     font-size: 11px;
   }
   .app .paused-badge {
-    top: 10px;
-    padding: 7px 10px;
-    font-size: 11px;
+    top: auto;
+    bottom: 8px;
+    left: 8px;
+    transform: none;
+    padding: 6px 8px;
+    font-size: 10px;
     pointer-events: none;
+  }
+  .app .map-frame:has(.paused-badge) .day-cycle {
+    bottom: 42px;
   }
   .app .tribe-panel.mobile-visible,
   .app .discovery-panel.mobile-visible {
@@ -495,23 +503,8 @@
   .app .survival-advisor p {
     max-height: 28px;
   }
-  .app .lingus-world__control-stack {
-    display: flex;
-    flex-direction: row;
-    width: auto;
-    align-items: center;
-    top: 4px;
-    right: 6px;
-  }
-  .app .lingus-world__control-stack > span {
-    padding-inline: 4px;
-  }
-  .app .lingus-world__control-stack i {
-    height: 20px;
-    width: 1px;
-    margin: 0 2px;
-    border-top: 0;
-    border-left: 1px solid #a8af8877;
+  .app .paused-badge {
+    left: 92px;
   }
   .app .lingus-world__minimap {
     width: 74px;
@@ -529,6 +522,23 @@
   }
   .app .lingus-world__location,
   .app .lingus-world__footer .lingus-world__hint:not(.has-target) {
+    display: none;
+  }
+}
+
+@media (max-width: 360px) {
+  /* The smallest maps need separate corners for daylight and the minimap. */
+  .app .day-cycle {
+    left: 8px;
+    transform: none;
+  }
+  .app .lingus-world.is-short-map .lingus-world__minimap {
+    width: 74px;
+    padding: 4px;
+    left: auto;
+    right: 8px !important;
+  }
+  .app .lingus-world.is-short-map .lingus-world__minimap > span {
     display: none;
   }
 }

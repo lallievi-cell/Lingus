@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createGame } from './engine';
 import { BUILDING_SPECS, emptyInventory, INNATE_WORDS } from './content';
-import { cityPopulation, seasonalImperial, updateImperial } from './imperial';
+import { allocateCityWorkers, cityPopulation, seasonalImperial, updateImperial } from './imperial';
 import { seasonalCore } from './simulation';
 import { updateForeignPolicy } from './foreignPolicy';
 import { validSave } from './saveValidation';
-import type { BuildingKind, GameState, MapEntity } from './types';
+import { foreignSeedReserve, foreignForgeCanWork, foreignFuelReserve } from './foreignEconomy';
+import type { Building, BuildingKind, GameState, MapEntity } from './types';
 
 /** Local cohorts isolate real inputs, rations, storage and worker time.
  * They are not an ordinary player campaign or guaranteed AI survival. */
@@ -25,7 +26,7 @@ function town(workers = 2, words = ['V_04', 'V_05', 'O_01', 'O_04']) {
   faction.words = [...city.words];
   city.buildingIds = [];
   const add = (kind: BuildingKind, livestock?: number) => {
-    const building = {
+    const building: Building = {
       id: `${kind}-${state.buildings.length}`,
       kind,
       x: city.x,
@@ -168,6 +169,108 @@ describe('foreign finite food logistics and productive experience', () => {
   });
 });
 
+describe('foreign planning reserves real future costs', () => {
+  it('gathers actual berries for seed maintenance even when the community has eaten', () => {
+    const { state, city, add } = town(8, ['V_04', 'V_05', 'V_09', 'O_01', 'O_04']);
+    add('storage');
+    add('depot');
+    add('farm');
+    city.resources.cooked = 100;
+    const berries = node(state, 'berries', 40);
+    season(state);
+    expect(city.seasonFoodConsumed).toBe(8 * 72);
+    expect(berries.amount).toBeLessThan(40);
+    expect(city.resources.food).toBeGreaterThan(0);
+    expect(city.resources.seed).toBeGreaterThan(0);
+  });
+
+  it('keeps maintenance seed instead of paying for another farm with the last seeds', () => {
+    const { state, city, add } = town(10, ['V_04', 'V_05', 'V_09', 'O_01', 'O_04']);
+    add('storage');
+    add('depot');
+    add('farm');
+    city.resources.cooked = 100;
+    city.resources.seed = 7;
+    state.time = 90;
+    season(state);
+    expect(state.buildings.filter((building) => building.kind === 'farm')).toHaveLength(1);
+    expect(city.resources.seed).toBeGreaterThan(foreignSeedReserve(state, city));
+  });
+
+  it('reserves projected spoilage for the new farm as well as the existing fields', () => {
+    const { state, city, add } = town(10);
+    add('farm');
+    state.time = 90; // Summer starts; the next seed bill follows three spoilage boundaries.
+    const oneField = foreignSeedReserve(state, city);
+    expect(oneField).toBeGreaterThan(1);
+    expect(foreignSeedReserve(state, city, 1)).toBeCloseTo(oneField * 2);
+    state.time = 360; // Winter has just ended: spring payment comes before the next spoilage.
+    expect(foreignSeedReserve(state, city)).toBe(1);
+    expect(foreignSeedReserve(state, city, 1)).toBe(2);
+  });
+
+  it('releases idle forge workers for actual gathering when the ingot reserve is filled', () => {
+    const { state, city, add } = town(4, ['V_04', 'V_05', 'V_12', 'O_01', 'O_05', 'O_07']);
+    add('storage');
+    add('depot');
+    add('campfire');
+    const forge = add('foundry');
+    Object.assign(city.resources, { cooked: 100, wood: 20, ore: 20, ingot: 12 });
+    const tree = node(state, 'tree', 20);
+    expect(foreignForgeCanWork(state, city)).toBe(false);
+    allocateCityWorkers(state, city);
+    expect(forge.lastEfficiency).toBe(0);
+    season(state);
+    expect(tree.amount).toBe(0);
+    expect(city.resources.ore).toBe(20);
+    expect(city.resources.ingot).toBe(12);
+    expect(city.resources.wood).toBeGreaterThan(20 - 7);
+  });
+
+  it('keeps a paid crew for arms made from existing ingots even when no ore or spare fuel remains', () => {
+    const { state, city, faction, add } = town(4, ['V_12']);
+    Object.assign(state, { tier: 4, time: 720 });
+    const forge = add('foundry'),
+      rival = structuredClone(city);
+    rival.id = 'hostile-city';
+    rival.factionId = 'hostile-faction';
+    state.cities.push(rival);
+    state.foreignPolicy = {
+      raids: [],
+      ultimata: [],
+      relations: [{ leftId: faction.id, rightId: rival.factionId, relation: -70, atWar: true }],
+    };
+    city.resources.ingot = 12;
+    expect(city.resources.ore).toBe(0);
+    expect(city.resources.wood).toBe(0);
+    expect(foreignForgeCanWork(state, city)).toBe(true);
+    allocateCityWorkers(state, city);
+    expect(forge.lastEfficiency).toBe(1);
+    for (let step = 0; step < 20; step++) {
+      state.time += 0.25;
+      updateForeignPolicy(state, 0.25);
+    }
+    expect(city.resources.metalArms).toBe(1);
+    expect(city.resources.ingot).toBe(11);
+    city.resources.metalArms = 20;
+    expect(foreignForgeCanWork(state, city)).toBe(false);
+    allocateCityWorkers(state, city);
+    expect(forge.lastEfficiency).toBe(0);
+  });
+
+  it('keeps next hearth upkeep instead of burning its last logs while cooking', () => {
+    const { state, city, add } = town(4, ['V_04', 'V_05', 'O_01', 'O_05', 'O_04']);
+    add('storage');
+    add('depot');
+    add('campfire');
+    Object.assign(city.resources, { meat: 30, wood: 10 });
+    expect(foreignFuelReserve(state, city)).toBeGreaterThan(2);
+    season(state);
+    expect(city.resources.wood).toBeGreaterThanOrEqual(BUILDING_SPECS.campfire.upkeep.wood!);
+    expect(city.resources.cooked).toBeGreaterThan(0);
+  });
+});
+
 describe('untouched foreign societies in an isolated multiyear study', () => {
   it.each(['seed-zero', 'random'] as const)(
     'keeps all four starting communities economically viable through twenty real seasons, %s',
@@ -204,6 +307,39 @@ describe('untouched foreign societies in an isolated multiyear study', () => {
         true,
       );
       expect(state.battalions).toEqual([]); // No war is manufactured by the study.
+    },
+    30_000,
+  );
+
+  it.each([
+    [6842, 'seed-zero'],
+    [6842, 'random'],
+    [1, 'random'],
+    [42, 'random'],
+  ] as const)(
+    'keeps every untouched society viable for forty paid seasons, seed %s / %s',
+    (seed, mapMode) => {
+      const state = createGame(seed, 'guided', mapMode);
+      delete state.openingBalanceVersion;
+      delete state.openingCouncilsCompleted;
+      state.units = [];
+      for (let step = 1; step <= 3600 * 4; step++) {
+        state.time = step / 4;
+        state.tier = state.time >= 1800 ? 4 : state.time >= 720 ? 3 : 0;
+        updateForeignPolicy(state, 0.25);
+        updateImperial(state, 0.25);
+        if (step % 360 === 0) {
+          seasonalCore(state);
+          seasonalImperial(state);
+        }
+      }
+      expect(state.cities).toHaveLength(4);
+      expect(state.cities.every((city) => cityPopulation(city) >= 8)).toBe(true);
+      expect(state.cities.every((city) => city.cohorts.workers >= 4)).toBe(true);
+      expect(
+        state.cities.every((city) => Object.values(city.resources).every((amount) => amount >= 0)),
+      ).toBe(true);
+      expect(validSave(state)).toBe(true);
     },
     30_000,
   );

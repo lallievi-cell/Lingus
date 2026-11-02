@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Crosshair, Minus, Plus, Move, MapPin, MousePointer2, PackageOpen, X } from 'lucide-react';
+import {
+  Crosshair,
+  Minus,
+  Plus,
+  Move,
+  MapPin,
+  MousePointer2,
+  PackageOpen,
+  ListFilter,
+  X,
+} from 'lucide-react';
 import type { GameState, WorldTarget } from '../game/types';
 import { getCalendar } from '../game/calendar';
 import {
@@ -31,6 +41,9 @@ import { visibleUnitName } from './unitReadability';
 import { anchoredPinchView, type MapPinchAnchor } from './mapGestures';
 import { getCampStockSlots } from './campInventory';
 import { CAMP_STOCK_ART_BOUNDS } from './mapCampStockArt';
+import { ensureNaturalAtlas } from './mapNaturalAtlas';
+import { getVisibleWorldTargets } from './visibleWorldTargets';
+import { VisibleWorldTargets } from './VisibleWorldTargets';
 import './WorldMap.css';
 
 interface WorldMapProps {
@@ -174,6 +187,7 @@ export function WorldMap({
   const motionSessionRef = useRef(createMapMotionSession());
   const animationClockRef = useRef(createAnimationClock());
   const reducedMotionRef = useRef(false);
+  const invalidateFrameRef = useRef<() => void>(() => {});
   const stateRef = useRef(state),
     anchorRef = useRef(groupAnchor),
     selectedRef = useRef(selectedTarget),
@@ -183,6 +197,7 @@ export function WorldMap({
     orderFeedbackRef = useRef(orderFeedback);
   const [ping, setPing] = useState<{ x: number; y: number; time: number } | null>(null);
   const [targetChoices, setTargetChoices] = useState<WorldTarget[]>([]);
+  const [visibleTargetsOpen, setVisibleTargetsOpen] = useState(false);
   const choiceRef = useRef<HTMLDivElement>(null);
   const choiceActivationRef = useRef<string | null>(null);
   const currentChoices = targetChoices
@@ -247,6 +262,7 @@ export function WorldMap({
     const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
     const update = () => {
       reducedMotionRef.current = preference.matches;
+      invalidateFrameRef.current();
     };
     update();
     preference.addEventListener('change', update);
@@ -641,10 +657,22 @@ export function WorldMap({
       miniCtx = mini.getContext('2d');
     if (!ctx || !miniCtx) return;
     let animation = 0,
-      lastDraw = 0;
+      lastDraw = -Infinity,
+      disposed = false,
+      pageVisible = document.visibilityState !== 'hidden',
+      inViewport = true,
+      wasDrawable = pageVisible;
+    const schedule = () => {
+      if (!disposed && pageVisible && inViewport && !animation)
+        animation = requestAnimationFrame(draw);
+    };
     const draw = (timestamp: number) => {
-      animation = requestAnimationFrame(draw);
-      if (timestamp - lastDraw < 1000 / 30) return;
+      animation = 0;
+      if (disposed || !pageVisible || !inViewport) return;
+      if (timestamp - lastDraw < 1000 / 30) {
+        schedule();
+        return;
+      }
       lastDraw = timestamp;
       const { width, height, dpr } = renderSizeRef.current;
       const pixelWidth = Math.round(width * dpr),
@@ -767,10 +795,72 @@ export function WorldMap({
         (width / t.scale / MAP_WIDTH) * mw - 1,
         (height / t.scale / MAP_HEIGHT) * mh - 1,
       );
+      // A paused canvas has no animation work until a real input changes it.
+      // Running scenes retain the existing maximum of thirty draws per second.
+      if (
+        current.started &&
+        !current.paused &&
+        !current.gameOver &&
+        timestamp - animationClockRef.current.timestamp < 250
+      )
+        schedule();
     };
-    animation = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(animation);
+    const suspendOrResume = () => {
+      if (!pageVisible || !inViewport) {
+        if (animation) cancelAnimationFrame(animation);
+        animation = 0;
+      } else {
+        if (!wasDrawable) {
+          // Return to the latest snapshot instead of animating a journey which
+          // happened while this map was hidden or on another mobile tab.
+          motionSessionRef.current = createMapMotionSession();
+          animationClockRef.current = createAnimationClock();
+        }
+        lastDraw = -Infinity;
+        schedule();
+      }
+      wasDrawable = pageVisible && inViewport;
+    };
+    const onVisibility = () => {
+      pageVisible = document.visibilityState !== 'hidden';
+      suspendOrResume();
+    };
+    invalidateFrameRef.current = schedule;
+    document.addEventListener('visibilitychange', onVisibility);
+    const observer =
+      typeof IntersectionObserver === 'undefined'
+        ? null
+        : new IntersectionObserver((entries) => {
+            inViewport = entries.some((entry) => entry.isIntersecting);
+            suspendOrResume();
+          });
+    if (containerRef.current) observer?.observe(containerRef.current);
+    // Asset completion invalidates even a paused scene; no polling is needed.
+    void ensureNaturalAtlas().then(schedule);
+    schedule();
+    return () => {
+      disposed = true;
+      if (animation) cancelAnimationFrame(animation);
+      observer?.disconnect();
+      document.removeEventListener('visibilitychange', onVisibility);
+      invalidateFrameRef.current = () => {};
+    };
   }, [terrain, getTransform]);
+
+  useEffect(() => {
+    invalidateFrameRef.current();
+  }, [
+    state,
+    selectedTarget,
+    hovered,
+    view,
+    size,
+    commandReady,
+    groupAnchor,
+    isGroupActive,
+    ping,
+    orderFeedback,
+  ]);
 
   const focusCamp = () =>
     setView({
@@ -781,6 +871,19 @@ export function WorldMap({
   const focusedTarget = hovered && hovered.type !== 'point' ? hovered : selectedTarget;
   const label = targetLabel(state, focusedTarget ?? null);
   const details = targetPresentation(state, focusedTarget ?? null);
+  const transform = getTransform();
+  const visibleTargets = visibleTargetsOpen
+    ? getVisibleWorldTargets(state, {
+        minX: -transform.x / transform.scale / WORLD_X,
+        minY: -transform.y / transform.scale / WORLD_Y,
+        maxX: (size.width - transform.x) / transform.scale / WORLD_X,
+        maxY: (size.height - transform.y) / transform.scale / WORLD_Y,
+      })
+    : [];
+  const closeVisibleTargets = () => {
+    setVisibleTargetsOpen(false);
+    canvasRef.current?.focus({ preventScroll: true });
+  };
   const mapSpan = Math.round(
     53 /
       ((state.tier >= 4 ? Math.min : Math.max)(size.width / MAP_WIDTH, size.height / MAP_HEIGHT) *
@@ -797,8 +900,18 @@ export function WorldMap({
         ref={canvasRef}
         tabIndex={0}
         className="lingus-world__canvas"
-        aria-label="Mappa della valle: seleziona risorse, abitanti e luoghi per dare un ordine alla tribù"
+        aria-label="Mappa della valle: seleziona risorse, abitanti e luoghi per dare un ordine alla tribù. Premi E per gli elementi visibili."
         role="img"
+        onKeyDown={(event) => {
+          if (event.code === 'KeyE') {
+            event.preventDefault();
+            event.stopPropagation();
+            setTargetChoices([]);
+            hoveredRef.current = null;
+            setHovered(null);
+            setVisibleTargetsOpen(true);
+          }
+        }}
         onPointerDown={(event) => {
           choiceActivationRef.current = null;
           pointerTypeRef.current = event.pointerType;
@@ -969,6 +1082,37 @@ export function WorldMap({
           setHovered(null);
         }}
       />
+      <button
+        className="lingus-world__elements"
+        type="button"
+        aria-label="Elementi visibili"
+        aria-expanded={visibleTargetsOpen}
+        aria-controls={visibleTargetsOpen ? 'visible-world-targets' : undefined}
+        aria-keyshortcuts="E"
+        title="Elementi visibili (E)"
+        onClick={() => {
+          setTargetChoices([]);
+          setVisibleTargetsOpen((open) => !open);
+        }}
+      >
+        <ListFilter size={17} />
+        <span>Elementi</span>
+      </button>
+      {visibleTargetsOpen && (
+        <VisibleWorldTargets
+          entries={visibleTargets}
+          onClose={closeVisibleTargets}
+          onChoose={(choice) => {
+            const live = liveMapChoice(stateRef.current, choice);
+            if (!live) return;
+            hoveredRef.current = null;
+            setHovered(null);
+            onSelect(live);
+            setView((previous) => ({ ...previous, centerX: live.x, centerY: live.y }));
+            closeVisibleTargets();
+          }}
+        />
+      )}
       {targetChoices.length > 0 && (
         <div
           className="map-target-choices"

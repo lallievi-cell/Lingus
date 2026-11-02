@@ -7,6 +7,7 @@ const executablePath =
 
 export default defineConfig({
   testDir: './tests',
+  testIgnore: ['**/production/**'],
   timeout: 35_000,
   expect: { timeout: 8_000 },
   fullyParallel: true,

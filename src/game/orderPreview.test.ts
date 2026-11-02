@@ -83,6 +83,25 @@ describe('command preview uses the real handler without advancing the world', ()
     expect(result.interruptions).toEqual([s.units[0].id, s.units[1].id]);
     expect(s.units[0].carry?.amount).toBe(3);
   });
+  it('warns before a paid construction is abandoned without charging the preview', () => {
+    const initial = fixture();
+    const building = issueCommand(initial, ['S_01', 'V_08', 'O_02', 'O_01'], point);
+    const builder = building.units.find((unit) => unit.action === 'building')!;
+    expect(builder.paidConstruction).toEqual({ stone: 20, wood: 10 });
+    const before = structuredClone(building);
+    const redirect = getOrderPreview(building, ['S_01', 'V_01'], point);
+    expect(redirect.accepted).toBe(true);
+    expect(redirect.abandonedConstructionIds).toEqual([builder.id]);
+    expect(building).toEqual(before);
+    const rejected = getOrderPreview(building, ['S_01', 'V_08', 'O_02', 'O_01'], point);
+    expect(rejected.accepted).toBe(false);
+    expect(rejected.abandonedConstructionIds).toEqual([]);
+    const otherWorker = building.units.find((unit) => unit.id !== builder.id)!;
+    const individual = getOrderPreview(building, ['S_02', 'V_01'], point, otherWorker.id);
+    expect(individual.accepted).toBe(true);
+    expect(individual.abandonedConstructionIds).toEqual([]);
+    expect(building).toEqual(before);
+  });
   it('counts a construction payment in full even when that order also drops a load', () => {
     const s = fixture();
     s.units[0].carry = { resource: 'wood', amount: 3 };

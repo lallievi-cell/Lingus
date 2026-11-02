@@ -9,6 +9,7 @@ import { getLessonPreview, lessonIssueText } from '../game/teaching';
 import { hasWord } from '../game/runtime';
 import type { GameState, Target, Unit } from '../game/types';
 import { Glyph } from './Glyph';
+import { LessonPlanner } from './LessonPlanner';
 import { lastCustodianLabel, lifeStageLabel, visibleUnitName } from './unitReadability';
 import './TeachingPanel.css';
 
@@ -303,6 +304,7 @@ export function TeachingPanel({
           </button>
         </p>
       )}
+      <LessonPlanner state={state} onChange={onChange} />
     </section>
   );
 }

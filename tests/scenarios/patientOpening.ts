@@ -20,6 +20,7 @@ export function replayPatientOpening(
   delay = 0,
   mapMode: MapMode = 'seed-zero',
   strategy: 'steady' | 'prepared' = 'steady',
+  until = 630,
 ) {
   let state: GameState = { ...createGame(seed, 'guided', mapMode), started: true };
   const orders: { at: number; tokens: string[]; target?: Target }[] = [];
@@ -158,7 +159,7 @@ export function replayPatientOpening(
           Math.hypot(b.x - state.home.x, b.y - state.home.y),
       )[0];
 
-  for (let step = 0; step <= 2520 && !state.gameOver; step++) {
+  for (let step = 0; step <= Math.ceil(until * 4) && !state.gameOver; step++) {
     if (step % 40 === 0) {
       for (const spark of [...state.sparks]) state = solveSpark(state, spark.id, spark.recipe);
       if (state.campfirePending) {
@@ -275,7 +276,7 @@ export function replayPatientOpening(
       (state.time >= 250 && state.time <= 460 && state.time % 10 === 0)
     )
       snapshots.push({ at: state.time, state });
-    if (state.time >= 630) break;
+    if (state.time >= until) break;
     state = tick(state, 0.25);
   }
   return {

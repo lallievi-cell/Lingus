@@ -1,0 +1,244 @@
+.interface-settings {
+  display: grid;
+  gap: 13px;
+  margin: 18px 0;
+  padding: 16px;
+  border: 1px solid #c5cbb8;
+  border-radius: 12px;
+  background: #f2f0e4;
+  color: var(--ink, #19271e);
+  min-width: 0;
+}
+.interface-settings h3 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+  font-size: 15px;
+}
+.interface-settings p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted, #435848);
+}
+.interface-settings > label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 9px 14px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.interface-settings > label > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.interface-settings select {
+  min-width: 125px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #a9b69d;
+  border-radius: 8px;
+  background: #fff9e9;
+  color: #284631;
+  font: inherit;
+}
+.interface-settings select:focus-visible {
+  outline: 3px solid #5c774f;
+  outline-offset: 3px;
+}
+.interface-settings .interface-settings-note {
+  font-size: 12px;
+}
+
+/* Opt-in presentation preferences: no filters, opacity or drawing changes on Canvas. */
+.app[data-text-size='large']
+  :is(.modal, .tribe-panel, .discovery-panel)
+  :is(p, label, button, summary, input, select, textarea, dt, dd, li, small) {
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+}
+.app[data-text-size='large']
+  :is(.modal h3, .unit-info > strong, .sentence-slot .word-label, .word-tile .word-label) {
+  font-size: 16px !important;
+  line-height: 1.3 !important;
+}
+.app[data-text-size='large']
+  :is(
+    .person-metadata,
+    .unit-work-status,
+    .word-kind,
+    .lesson-budget,
+    .teaching-word-details,
+    .camp-inventory-quantity,
+    .session-status,
+    .session-status p
+  ) {
+  font-size: 14px !important;
+  line-height: 1.45 !important;
+}
+.app[data-text-size='large']
+  :is(
+    .language-workbench button,
+    .mobile-quick-palette button,
+    .mobile-nav-bar button,
+    .opening-guide strong,
+    .opening-guide button,
+    .survival-advisor,
+    .order-preview-body,
+    .sentence-feedback,
+    .lingus-world__target-card p,
+    .lingus-world__target-card small,
+    .visible-world-targets
+  ) {
+  font-size: 14px !important;
+  line-height: 1.4 !important;
+}
+.app[data-text-size='large']
+  :is(button, summary, select, input:not([type='checkbox']):not([type='radio'])) {
+  min-height: 44px;
+}
+.app[data-text-size='large'] :is(.unit-card, .teaching-row, .camp-inventory-row) {
+  height: auto !important;
+  min-width: 0;
+}
+.app[data-text-size='large']
+  :is(.unit-info, .teaching-word-details, .camp-inventory-row dt, .camp-inventory-row dd) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.app[data-text-size='large'] .modal-toolbar {
+  min-height: 56px;
+}
+.app[data-text-size='large'] .opening-guide {
+  flex-wrap: wrap;
+}
+.app[data-text-size='large'] .opening-guide strong {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+.app[data-text-size='large'] .opening-guide > div {
+  flex: 1 1 160px;
+}
+.app[data-text-size='large'] .person-metadata {
+  flex-wrap: wrap;
+}
+.app[data-text-size='large'] :is(.word-tile, .sentence-slot) {
+  white-space: normal;
+}
+.app[data-text-size='large'] .world-resources {
+  font-size: 12px !important;
+}
+
+.app[data-contrast='high'] {
+  --ink: #122a1d !important;
+  --muted: #2b4433 !important;
+  --line: #71876b !important;
+  --paper: #fff9e9 !important;
+}
+.app[data-contrast='high']
+  :is(
+    .modal,
+    .language-workbench,
+    .tribe-panel,
+    .discovery-panel,
+    .mobile-quick-palette,
+    .opening-guide,
+    .session-status,
+    .lingus-world__target-card,
+    .visible-world-targets,
+    .interface-settings,
+    .build-details,
+    .audio-settings
+  ) {
+  background-color: #fff9e9 !important;
+  background-image: none !important;
+  color: #122a1d !important;
+  border-color: #71876b !important;
+  text-shadow: none !important;
+}
+.app[data-contrast='high']
+  :is(
+    .modal,
+    .tribe-panel,
+    .discovery-panel,
+    .language-workbench,
+    .opening-guide,
+    .mobile-quick-palette,
+    .visible-world-targets
+  )
+  :is(
+    p,
+    small,
+    label,
+    dt,
+    dd,
+    summary,
+    .word-kind,
+    .word-label,
+    .person-metadata,
+    .unit-work-status
+  ) {
+  color: #243e2c !important;
+}
+.app[data-contrast='high']
+  :is(
+    .word-tile,
+    .sentence-slot,
+    .unit-card,
+    .text-button,
+    .interface-settings select,
+    .build-details button
+  ) {
+  background: #fffdf2 !important;
+  border-color: #637c5d !important;
+  color: #173523 !important;
+  text-shadow: none !important;
+}
+.app[data-contrast='high'] :is(.pronounce-button, .primary-button) {
+  background: #21452e !important;
+  color: #fffdf0 !important;
+  border-color: #21452e !important;
+}
+.app[data-contrast='high'] :is(.primary-button, .pronounce-button) :is(span, small) {
+  color: #fffdf0 !important;
+}
+.app[data-contrast='high'] button:disabled {
+  background: #e4e7d8 !important;
+  color: #53614f !important;
+  opacity: 1 !important;
+}
+.app[data-contrast='high'] :is(.primary-button, .pronounce-button):disabled :is(span, small) {
+  color: #53614f !important;
+}
+.app[data-contrast='high'] .person-at-risk {
+  border-color: #8d3d29 !important;
+}
+.app[data-contrast='high'] :is(button, a, input, select, summary):focus-visible {
+  outline: 3px solid #85520a !important;
+  outline-offset: 3px;
+}
+@media (max-width: 600px) {
+  .interface-settings {
+    padding: 13px;
+  }
+  .interface-settings > label {
+    align-items: flex-start;
+  }
+  .app[data-text-size='large'] .topbar {
+    height: auto !important;
+    min-height: 52px !important;
+    flex-basis: auto !important;
+  }
+  .app[data-text-size='large'] .mobile-nav-bar {
+    height: auto !important;
+    min-height: 48px;
+  }
+  .app[data-text-size='large'] .camp-inventory-row {
+    flex-wrap: wrap;
+  }
+}

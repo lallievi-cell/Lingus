@@ -1,8 +1,14 @@
 import { WORDS } from './content';
 import { forbiddenByDogma, getDogmaEffects } from './dogmas';
-import { canPayLocally } from './craftMaterials';
-import { entityResource, getSeason, guidedRepeatTransport, plainToolCraft } from './simulation';
-import { freeCapacity, hasWord } from './runtime';
+import { canFitCraftOutput, canPayLocally } from './craftMaterials';
+import {
+  entityResource,
+  getSeason,
+  guidedRepeatTransport,
+  plainFoodCook,
+  plainToolCraft,
+} from './simulation';
+import { freeCapacity, hasBuilding, hasWord } from './runtime';
 import { COLD_RESCUE } from './thermal';
 import type { GameState, Target, Unit } from './types';
 
@@ -16,6 +22,7 @@ export type TaskOutcomeReason =
   | 'forgotten'
   | 'rule'
   | 'materials'
+  | 'fire'
   | 'ended';
 export interface TaskOutcome {
   id: string;
@@ -69,6 +76,11 @@ const messages: Record<TaskOutcomeReason, { title: string; detail: string }> = {
     title: 'Il compito incontra un divieto',
     detail:
       'Un dogma vieta questa azione. Per ripeterla, devi prima cambiare le regole della comunità.',
+  },
+  fire: {
+    title: 'Il Falò si è spento',
+    detail:
+      'Ravviva il fuoco prima di riprendere la cottura. Se la lavorazione era già iniziata, trovi la porzione o il materiale non ancora cotti sul posto.',
   },
   materials: {
     title: 'Mancano materiali utilizzabili',
@@ -162,7 +174,9 @@ export function observeTaskOutcomes(previous: GameState, next: GameState): TaskO
     const source = next.entities.find((entity) => entity.id === before.targetId);
     const endedDirectDayTask =
       previous.playMode === 'guided' &&
-      (guidedRepeatTransport(previous, before.command) || plainToolCraft(before.command));
+      (guidedRepeatTransport(previous, before.command) ||
+        plainToolCraft(before.command) ||
+        plainFoodCook(before.command));
     const night = getSeason(next).isNight;
     const outsideShift =
       before.command[0] === 'C_01'
@@ -197,9 +211,21 @@ export function observeTaskOutcomes(previous: GameState, next: GameState): TaskO
       freeCapacity(next, entityResource(source)) <= 0
     )
       reason = 'full';
-    else if (before.craftNeedsPayment && !canPayLocally(next, { stone: 1 }, after))
+    else if (before.command.includes('V_07') && !hasBuilding(next, 'campfire')) reason = 'fire';
+    else if (
+      before.craftNeedsPayment &&
+      !canPayLocally(next, plainFoodCook(before.command) ? { meat: 1 } : { stone: 1 }, after)
+    )
       reason = 'materials';
-    else if (before.craftNeedsPayment && freeCapacity(next, 'tool') <= 0) reason = 'full';
+    else if (
+      before.craftNeedsPayment &&
+      !canFitCraftOutput(
+        next,
+        plainFoodCook(before.command) ? { meat: 1 } : { stone: 1 },
+        plainFoodCook(before.command) ? 'cooked' : 'tool',
+      )
+    )
+      reason = 'full';
     else if (completedWork(previous, next, before, after)) reason = 'completed';
     // A routine daytime household return is too small to interrupt the player.
     if (reason === 'ended' && before.action === 'moving') continue;

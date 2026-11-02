@@ -1,0 +1,28 @@
+.discovery-consequence {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 14px;
+  margin: 16px 0;
+  border: 1px solid #b9aa7d;
+  border-radius: 11px;
+  background: #eee6cf;
+  color: #4c4e33;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.discovery-consequence > svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.discovery-consequence p {
+  font: inherit;
+  margin: 5px 0;
+  color: inherit;
+}
+.discovery-consequence small {
+  display: block;
+  margin-top: 7px;
+  line-height: 1.5;
+  font-size: 12px;
+}

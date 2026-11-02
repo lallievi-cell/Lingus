@@ -42,8 +42,11 @@ jobs:
       - name: Install Chromium for mobile checks
         run: npx playwright install --with-deps chromium
 
-      - name: Verify mobile play, screens, map gestures and illustrated world
-        run: npm run test:e2e -- tests/mobile-playtest.spec.ts tests/mobile-composer-flow.spec.ts tests/mobile-screen-review.spec.ts tests/map-touch.spec.ts tests/art-direction.spec.ts tests/visual-map.spec.ts tests/motion-selection.spec.ts --workers=1
+      - name: Verify the production artifact under the Pages subpath
+        run: npm run test:production
+
+      - name: Verify mobile play, session safety, accessibility and illustrated world
+        run: npm run test:e2e -- tests/mobile-playtest.spec.ts tests/mobile-composer-flow.spec.ts tests/mobile-screen-review.spec.ts tests/map-touch.spec.ts tests/art-direction.spec.ts tests/visual-map.spec.ts tests/motion-selection.spec.ts tests/session-safety.spec.ts tests/consolidation-settings.spec.ts tests/knowledge-planning.spec.ts tests/paid-construction.spec.ts tests/accessible-world.spec.ts --workers=1
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -57,6 +60,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify the published build and assets
+        env:
+          LINGUS_PUBLISHED_URL: ${{ steps.deployment.outputs.page_url }}
+        run: node scripts/verify-pages.mjs "$LINGUS_PUBLISHED_URL" "$GITHUB_SHA"

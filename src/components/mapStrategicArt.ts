@@ -1051,141 +1051,327 @@ function cityMarket(ctx: CanvasRenderingContext2D, active: boolean) {
   ctx.restore();
 }
 
-function cityLearningHall(ctx: CanvasRenderingContext2D, active: boolean) {
+function cityMasonry(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  active: boolean,
+  depth = 3,
+) {
+  shape(
+    ctx,
+    [
+      [x, y],
+      [x, y - height],
+      [x + width, y - height],
+      [x + width, y],
+    ],
+    active ? '#d5ceb0' : '#aab29c',
+  );
+  shape(
+    ctx,
+    [
+      [x + width, y],
+      [x + width + depth, y - depth * 0.6],
+      [x + width + depth, y - height - depth * 0.6],
+      [x + width, y - height],
+    ],
+    active ? '#788f74' : '#7e8e77',
+  );
+  shape(
+    ctx,
+    [
+      [x, y - height],
+      [x + depth, y - height - depth * 0.6],
+      [x + width + depth, y - height - depth * 0.6],
+      [x + width, y - height],
+    ],
+    '#eadcb5',
+  );
+  line(
+    ctx,
+    [
+      [x + 0.6, y - height + 0.7],
+      [x + width, y - height + 0.7],
+    ],
+    '#f5e8c5',
+    0.65,
+  );
+}
+
+function cityLearningHall(ctx: CanvasRenderingContext2D, active: boolean, kind: string) {
   ctx.save();
-  ctx.translate(-5, -19);
-  shape(
-    ctx,
-    [
-      [-10, -8],
-      [8, -9],
-      [8, 2],
-      [-9, 3],
-    ],
-    active ? '#e4d6b3' : '#b4b49a',
-  );
-  shape(
-    ctx,
-    [
-      [-12, -8],
-      [-2, -15],
-      [11, -9],
-      [8, -6],
-      [-11, -6],
-    ],
-    '#ac8554',
-  );
-  line(
-    ctx,
-    [
-      [-10, -7],
-      [8, -7.5],
-    ],
-    '#f5dfb0',
-    1,
-  );
-  for (let i = 0; i < 4; i++) {
-    line(
+  ctx.translate(-4, -19);
+  if (kind === 'temple') {
+    // The same stepped sanctuary silhouette survives the regional scale.
+    cityMasonry(ctx, -15, 4, 27, 3, active);
+    cityMasonry(ctx, -12, 0.5, 22, 3, active);
+    shape(
       ctx,
       [
-        [-7 + i * 4, -6],
-        [-7 + i * 4, 1.7],
+        [-10, -3],
+        [-10, -14],
+        [10, -14],
+        [10, -3],
       ],
-      '#eeebd3',
-      1.5,
+      '#435e4a',
+    );
+    for (const x of [-10, -3, 4, 10])
+      line(
+        ctx,
+        [
+          [x, -3],
+          [x, -15],
+        ],
+        active ? '#e8ddbd' : '#bcc4ab',
+        2.1,
+      );
+    cityMasonry(ctx, -13, -14, 26, 3, active, 2);
+    shape(
+      ctx,
+      [
+        [-16, -17],
+        [-3, -26],
+        [16, -18],
+        [2, -13],
+      ],
+      '#c3ae83',
+    );
+    shape(
+      ctx,
+      [
+        [-11, -17],
+        [-3, -23],
+        [10, -17],
+      ],
+      '#8b9d7f',
     );
     line(
       ctx,
       [
-        [-5.7 + i * 4, -5.5],
-        [-5.7 + i * 4, 1],
+        [-15, -17],
+        [-3, -26],
+        [15, -18],
       ],
-      '#838e7a',
-      0.55,
+      '#f0dfb5',
+      0.9,
     );
+  } else if (kind === 'archive') {
+    // An enclosed archive has a flat roof, clerestory and clay-tablet niches.
+    cityMasonry(ctx, -14, 3, 24, 14, active, 4);
+    cityMasonry(ctx, -13, -11, 23, 3, active, 4);
+    cityMasonry(ctx, -6, -13, 12, 7, active);
+    shape(
+      ctx,
+      [
+        [-8, -20],
+        [-3, -24],
+        [12, -24],
+        [10, -18],
+      ],
+      '#9d845d',
+    );
+    line(
+      ctx,
+      [
+        [-7, -20],
+        [-3, -24],
+        [11, -24],
+      ],
+      '#d4bc8e',
+      0.8,
+    );
+    shape(
+      ctx,
+      [
+        [-10, 3],
+        [-10, -7],
+        [-4, -7],
+        [-4, 3],
+      ],
+      '#48624f',
+    );
+    for (let row = 0; row < 2; row++) {
+      shape(
+        ctx,
+        [
+          [-0.5, -1 - row * 5],
+          [-0.5, -5 - row * 5],
+          [8, -5 - row * 5],
+          [8, -1 - row * 5],
+        ],
+        '#5e7259',
+      );
+      for (let i = 0; i < 3; i++)
+        line(
+          ctx,
+          [
+            [1 + i * 2.4, -1.3 - row * 5],
+            [1 + i * 2.4, -4.1 - row * 5],
+          ],
+          '#d0b786',
+          1.5,
+        );
+    }
+  } else {
+    // The school opens under a light canopy onto visible benches.
+    cityMasonry(ctx, -14, 0, 10, 11, active);
+    shape(
+      ctx,
+      [
+        [-17, -11],
+        [-8, -21],
+        [8, -18],
+        [14, -9],
+        [-2, -6],
+      ],
+      '#bc9e68',
+    );
+    shape(
+      ctx,
+      [
+        [-17, -11],
+        [-8, -21],
+        [8, -18],
+        [-2, -6],
+      ],
+      '#d5ba80',
+    );
+    line(
+      ctx,
+      [
+        [-16, -11],
+        [-8, -21],
+        [7, -18],
+      ],
+      '#eee0b0',
+      0.9,
+    );
+    for (const x of [-12, -3, 11])
+      line(
+        ctx,
+        [
+          [x, -0.5],
+          [x, -10],
+        ],
+        '#8e7952',
+        1.4,
+      );
+    for (const [x, y] of [
+      [0, 2],
+      [-7, 6],
+      [5, 6],
+    ]) {
+      line(
+        ctx,
+        [
+          [x, y + 1],
+          [x, y - 1],
+        ],
+        '#6b795a',
+        1,
+      );
+      line(
+        ctx,
+        [
+          [x + 6, y + 1],
+          [x + 6, y - 1],
+        ],
+        '#6b795a',
+        1,
+      );
+      line(
+        ctx,
+        [
+          [x - 1, y - 1],
+          [x + 7, y - 1],
+        ],
+        '#baa376',
+        2,
+      );
+    }
   }
-  line(
-    ctx,
-    [
-      [-9, 3],
-      [9, 2],
-    ],
-    '#a4aa90',
-    1.2,
-  );
   ctx.restore();
 }
 
 function cityPalace(ctx: CanvasRenderingContext2D, active: boolean) {
   ctx.save();
-  ctx.translate(0, -17);
+  ctx.translate(0, -16);
+  cityMasonry(ctx, -16, 2, 9, 17, active, 3);
+  cityMasonry(ctx, 7, 2, 8, 14, active, 3);
+  cityMasonry(ctx, -8, 2, 15, 13, active, 3);
   shape(
     ctx,
     [
-      [-11, -12],
-      [9, -13],
-      [10, 1],
-      [-11, 2],
+      [-18, -15],
+      [-12, -23],
+      [-4, -18],
+      [-7, -12],
     ],
-    active ? '#cfc7ab' : '#a9ac98',
+    '#b99b6a',
   );
   shape(
     ctx,
     [
-      [-13, -13],
-      [-2, -22],
-      [12, -14],
-      [9, -10],
-      [-12, -9],
+      [6, -12],
+      [12, -20],
+      [19, -14],
+      [14, -10],
     ],
-    '#a07f5c',
+    '#9c865d',
   );
+  cityMasonry(ctx, -4, -10, 11, 13, active, 3);
   shape(
     ctx,
     [
-      [-13, -13],
-      [-2, -22],
-      [-1, -16],
-      [-12, -9],
+      [-6, -23],
+      [1, -30],
+      [13, -25],
+      [6, -20],
     ],
-    '#c5a175',
+    '#b19463',
   );
   line(
     ctx,
     [
-      [-9, -8],
-      [-9, 1],
+      [-6, -23],
+      [1, -30],
+      [12, -25],
     ],
-    '#eee0b6',
-    1.8,
-  );
-  line(
-    ctx,
-    [
-      [6.5, -9],
-      [7, 0],
-    ],
-    '#eee0b6',
-    1.8,
+    '#e5d1a5',
+    0.9,
   );
   shape(
     ctx,
     [
-      [-3, -7],
-      [2, -7],
-      [2.5, 1],
-      [-3, 1.5],
+      [-3, 2],
+      [-3, -8],
+      [3, -8],
+      [3, 2],
     ],
-    '#536150',
+    '#3d5947',
   );
+  cityMasonry(ctx, -9, 4, 18, 2, active, 2);
   line(
     ctx,
     [
-      [-11, 3],
-      [11, 1.8],
+      [7, -22],
+      [7, -30],
     ],
-    '#8b9277',
-    1.4,
+    '#796941',
+    0.8,
+  );
+  shape(
+    ctx,
+    [
+      [7, -30],
+      [14, -28],
+      [13, -25],
+      [7, -26],
+    ],
+    '#ad8650',
   );
   ctx.restore();
 }
@@ -1428,7 +1614,8 @@ export function drawPainterlyCity(
     cityRoof(ctx, 21, -5, 0.6, state.tier >= 5);
   }
   if (profile.palace) cityPalace(ctx, profile.palace.active);
-  else if (profile.learningBuilding) cityLearningHall(ctx, profile.learningBuilding.active);
+  else if (profile.learningBuilding)
+    cityLearningHall(ctx, profile.learningBuilding.active, profile.learningBuilding.kind);
   else cityRoof(ctx, -1, -12, 1.1, state.tier >= 5);
   const granary = profile.institutions.find((building) => building.kind === 'storage');
   if (granary) cityGranary(ctx, granary.active);

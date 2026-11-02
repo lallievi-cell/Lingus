@@ -6,6 +6,7 @@ import {
   inscribeDogma,
   issueCommand,
   prepareCampfireCouncil,
+  prepareBriefLesson,
   rehearseWord,
   solveSpark,
   teachWord,
@@ -18,6 +19,8 @@ import {
 } from '../../src/game/growthReadiness';
 import type { MapEntity, Target, Unit } from '../../src/game/types';
 import { replayCampaignOpening } from './campaignOpening';
+import { replayPatientOpening } from './patientOpening';
+import { getCalendar } from '../../src/game/calendar';
 
 export interface CampaignAction {
   at: number;
@@ -65,26 +68,53 @@ export interface FertilityReport {
  * All changes use public commands, real sparks, paid lessons and ordinary ticks.
  * Reading a resource or a unit never changes it; only explored nodes are targeted.
  */
-export function replayContinuousCampaign(seed = 6842, until = 1800) {
-  const opening = replayCampaignOpening(seed, 270);
+export function replayContinuousCampaign(
+  seed = 6842,
+  until = 1800,
+  profile: 'legacy' | 'patient' = 'legacy',
+) {
+  const opening =
+    profile === 'patient'
+      ? replayPatientOpening(seed, 0, 'seed-zero', 'prepared', 450)
+      : replayCampaignOpening(seed, 270);
   let state = opening.state;
   const actions: CampaignAction[] = opening.orders.map((order) => ({ ...order, accepted: true }));
-  const discoveries = [...opening.discoveries];
+  const discoveries =
+    'discoveries' in opening ? [...opening.discoveries] : ([] as { at: number; wordId: string }[]);
   const snapshots: CampaignSnapshot[] = [];
   const fertilityReports: FertilityReport[] = [];
+  const decisionReports: { at: number; resources: object; workers: object[] }[] = [];
   const fedParents = new Set<string>();
   let maxPopulation = Math.max(
     7,
     opening.state.units.filter((u) => u.hp > 0 && u.factionId === 'player').length,
   );
   let nextDecision = state.time;
-  let nextSnapshot = (Math.floor(state.time / 90) + 1) * 90;
+  let nextSnapshot = getCalendar(state).seasonEnd;
   let phase = 'continuazione';
   const people = () => state.units.filter((u) => !u.factionId || u.factionId === 'player');
   const own = () => people().filter((u) => u.hp > 0);
   const adults = () => own().filter((u) => u.age >= 4);
   const homeDistance = (p: { x: number; y: number }) =>
     Math.hypot(p.x - state.home.x, p.y - state.home.y);
+  const safePath = (point: { x: number; y: number }) =>
+    profile !== 'patient' ||
+    !state.entities.some((predator) => {
+      if (!['alpha', 'wolf'].includes(predator.kind) || predator.hp <= 0) return false;
+      const dx = point.x - state.home.x,
+        dy = point.y - state.home.y;
+      const t = Math.max(
+        0,
+        Math.min(
+          1,
+          ((predator.x - state.home.x) * dx + (predator.y - state.home.y) * dy) /
+            Math.max(1, dx * dx + dy * dy),
+        ),
+      );
+      return (
+        Math.hypot(predator.x - state.home.x - t * dx, predator.y - state.home.y - t * dy) < 32
+      );
+    });
   const visible = (p: { x: number; y: number }) =>
     state.tier >= 4 ||
     state.sectors.some(
@@ -93,7 +123,14 @@ export function replayContinuousCampaign(seed = 6842, until = 1800) {
   const targetFor = (e: MapEntity): Target => ({ type: 'entity', id: e.id, x: e.x, y: e.y });
   const nearest = (kind: MapEntity['kind'], minimum = 0, alive = false) =>
     state.entities
-      .filter((e) => e.kind === kind && e.amount > minimum && visible(e) && (!alive || e.hp > 0))
+      .filter(
+        (e) =>
+          e.kind === kind &&
+          e.amount > minimum &&
+          visible(e) &&
+          safePath(e) &&
+          (!alive || e.hp > 0),
+      )
       .sort((a, b) => homeDistance(a) - homeDistance(b))[0];
   const villageBuildings = () =>
     state.buildings.filter((b) => !b.cityId && b.hp > 0 && b.completed !== false);
@@ -184,8 +221,20 @@ export function replayContinuousCampaign(seed = 6842, until = 1800) {
       ['S_04', 'M_03', 'M_04'].every((id) => hasWord(state, id))
     )
       state = inscribeDogma(state, 'S_04', 'M_04');
+    if (profile === 'patient' && !state.campfirePending && state.resources.wood >= 10) {
+      const fragile = ['V_08', 'O_05', 'V_04', 'S_02', 'O_01'].find(
+        (id) =>
+          hasWord(state, id) &&
+          state.words[id].custodians.length === 1 &&
+          own().some((u) => state.words[id].custodians.includes(u.id) && u.age >= 12),
+      );
+      if (fragile) {
+        if (state.attention < 10) state = prepareBriefLesson(state);
+        state = teachWord(state, fragile);
+      }
+    }
     if (state.campfirePending) {
-      while (state.resources.wood > 6 && state.attention < 100) {
+      while (state.resources.wood > (profile === 'patient' ? 32 : 6) && state.attention < 100) {
         const before = state.resources.wood;
         state = prepareCampfireCouncil(state);
         if (state.resources.wood === before) break;
@@ -240,24 +289,42 @@ export function replayContinuousCampaign(seed = 6842, until = 1800) {
     maxPopulation = Math.max(maxPopulation, own().length);
     if (state.time >= nextSnapshot) {
       record();
-      nextSnapshot += 90;
+      nextSnapshot = getCalendar(state).seasonEnd;
     }
     if (state.time >= nextDecision) {
       nextDecision += 5;
-      const day = state.time % 90 < 55 && !state.disasters.blizzard;
-      const season = Math.floor(state.time / 90) % 4;
-      const pens = villageBuildings().filter((b) => b.kind === 'pen' && b.active);
+      if (profile === 'patient' && state.time < 450)
+        decisionReports.push({
+          at: state.time,
+          resources: { ...state.resources },
+          workers: adults().map((u) => ({
+            id: u.id,
+            hunger: u.hunger,
+            action: u.action,
+            command: u.command,
+            carry: u.carry,
+            position: [u.x, u.y],
+            job: u.jobBuildingId,
+          })),
+        });
+      const calendar = getCalendar(state);
+      const day = calendar.canonicalPhase < 55 && !state.disasters.blizzard;
+      const season = calendar.season;
+      const ownedPens = villageBuildings().filter((b) => b.kind === 'pen');
+      const pens = ownedPens.filter((b) => b.active);
       const herders = adults().filter((u) => pens.some((b) => assigned(u, b.id)));
       const neededHerders = Math.min(
         pens.length * 2,
         Math.max(1, Math.ceil(own().length / 5) - (foodNutrition() > own().length * 140 ? 1 : 0)),
       );
-      const needsPen = pens.length < Math.ceil(own().length / 7);
+      const needsPen =
+        (profile === 'patient' ? ownedPens.length : pens.length) <
+        Math.ceil(own().length / (profile === 'patient' ? 10 : 7));
       const corpses = state.entities.some(
         (e) => e.kind === 'corpse' && e.amount > 0 && homeDistance(e) <= 100,
       );
       const gravedigger =
-        own().length < 7 && !corpses
+        (profile === 'patient' || own().length < 7) && !corpses
           ? adults().find((u) =>
               villageBuildings().some((b) => b.kind === 'grave' && assigned(u, b.id)),
             )
@@ -270,19 +337,69 @@ export function replayContinuousCampaign(seed = 6842, until = 1800) {
         .filter(idle)
         .filter((u) => u.hunger < 70 && u.temp > 30)
         .sort((a, b) => a.age - b.age || a.hunger - b.hunger);
-      const person = excessHerder ?? gravedigger ?? available[0];
+      // Reassign surplus haulers through public individual orders instead of
+      // waiting forever for a repeating delivery to become idle.
+      const surplusHauler =
+        profile === 'patient'
+          ? adults().find(
+              (u) =>
+                !u.carry &&
+                !u.jobBuildingId &&
+                !u.suspendedJob &&
+                u.hunger < 70 &&
+                u.command?.includes('V_04') &&
+                ((u.command.includes('O_03') && state.resources.wood >= 20) ||
+                  (u.command.includes('O_02') &&
+                    state.resources.stone >=
+                      (profile === 'patient' && corpses && !hasBuilding('grave')
+                        ? 31
+                        : profile === 'patient'
+                          ? 23
+                          : 35)) ||
+                  (u.command.includes('O_04') && foodNutrition() >= own().length * 90) ||
+                  (!hasBuilding('hut') &&
+                    state.resources.pelt >= 5 &&
+                    state.resources.wood >= 10) ||
+                  (villageHousing(state) < own().length * 3 &&
+                    !(corpses && !hasBuilding('grave')) &&
+                    state.resources.stone >= 20 &&
+                    state.resources.wood >= 10)),
+            )
+          : undefined;
+      const inactiveHerder =
+        profile === 'patient'
+          ? adults().find(
+              (u) =>
+                !u.carry && u.hunger < 70 && ownedPens.some((b) => !b.active && assigned(u, b.id)),
+            )
+          : undefined;
+      const person = excessHerder ?? gravedigger ?? inactiveHerder ?? available[0] ?? surplusHauler;
       const transportCount = (token: string) =>
         adults().filter(
           (u) =>
             u.command?.includes('V_04') &&
-            u.command.includes(token) &&
+            (u.command.includes(token) ||
+              (token === 'O_04' &&
+                state.entities.some(
+                  (e) =>
+                    e.id === u.targetId &&
+                    (e.kind === 'berries' ||
+                      (['deer', 'wolf', 'alpha', 'mammoth'].includes(e.kind) && e.hp <= 0) ||
+                      (e.kind === 'ground' &&
+                        ['food', 'meat', 'cooked'].includes(e.resource ?? ''))),
+                ))) &&
             ['gathering', 'returning'].includes(u.action),
         ).length;
       const collect = (unit: Unit, token: string) => {
         const resource = token === 'O_03' ? 'wood' : token === 'O_02' ? 'stone' : 'food';
         const pile = state.entities
           .filter(
-            (e) => e.kind === 'ground' && e.resource === resource && e.amount >= 1 && visible(e),
+            (e) =>
+              e.kind === 'ground' &&
+              e.resource === resource &&
+              e.amount >= 1 &&
+              visible(e) &&
+              safePath(e),
           )
           .sort((a, b) => homeDistance(a) - homeDistance(b))[0];
         const node =
@@ -291,7 +408,10 @@ export function replayContinuousCampaign(seed = 6842, until = 1800) {
             token === 'O_03' ? 'tree' : token === 'O_02' ? 'stone' : 'berries',
             token === 'O_04' ? 3 : 0,
           );
-        return !!node && say(['S_02', 'V_04', token], targetFor(node), unit.id);
+        return (
+          !!node &&
+          say(['S_02', 'V_04', ...(hasWord(state, token) ? [token] : [])], targetFor(node), unit.id)
+        );
       };
       const forage = (unit: Unit) => {
         const carcass = state.entities
@@ -300,13 +420,41 @@ export function replayContinuousCampaign(seed = 6842, until = 1800) {
               ['deer', 'wolf', 'alpha', 'mammoth'].includes(e.kind) &&
               e.hp <= 0 &&
               e.amount > 0 &&
-              visible(e),
+              visible(e) &&
+              safePath(e),
           )
           .sort((a, b) => homeDistance(a) - homeDistance(b))[0];
-        if (carcass) return say(['S_02', 'V_04', 'O_04'], targetFor(carcass), unit.id);
+        if (carcass)
+          return say(
+            ['S_02', 'V_04', ...(hasWord(state, 'O_04') ? ['O_04'] : [])],
+            targetFor(carcass),
+            unit.id,
+          );
         if (season !== 3) return collect(unit, 'O_04');
         const deer = nearest('deer', 0, true);
-        return !!deer && say(['S_02', 'V_03', 'O_04'], targetFor(deer), unit.id);
+        const hunter =
+          profile === 'patient'
+            ? adults()
+                .filter(
+                  (u) =>
+                    !u.jobBuildingId &&
+                    !u.suspendedJob &&
+                    !u.carry &&
+                    u.hunger < 75 &&
+                    !['building', 'hunting'].includes(u.action),
+                )
+                .sort((a, b) => b.strength - a.strength)[0]
+            : unit;
+        return (
+          !!deer &&
+          !!hunter &&
+          (profile !== 'patient' || !adults().some((u) => u.action === 'hunting')) &&
+          say(
+            ['S_02', 'V_03', ...(hasWord(state, 'O_04') ? ['O_04'] : [])],
+            targetFor(deer),
+            hunter.id,
+          )
+        );
       };
       const build = (kind: keyof typeof BUILDING_SPECS, unit: Unit) => {
         const spec = BUILDING_SPECS[kind];
@@ -350,6 +498,104 @@ export function replayContinuousCampaign(seed = 6842, until = 1800) {
         const closed = villageBuildings().find((b) => b.kind === 'pen' && !b.active);
         const plans: [boolean, () => boolean, string][] = [
           [
+            profile === 'patient' &&
+              season !== 3 &&
+              state.resources.food < Math.max(10, ownedPens.length * 8) &&
+              transportCount('O_04') < 2,
+            () => collect(person, 'O_04'),
+            'foraggio prima del prossimo inverno',
+          ],
+          [
+            profile === 'patient' &&
+              corpses &&
+              !hasBuilding('grave') &&
+              state.resources.stone >= 30,
+            () => build('grave', person),
+            'sepoltura urgente',
+          ],
+          [
+            profile === 'patient' &&
+              corpses &&
+              !hasBuilding('grave') &&
+              state.resources.stone < 31 &&
+              transportCount('O_02') < 2,
+            () => collect(person, 'O_02'),
+            'pietra per seppellire i defunti',
+          ],
+          [
+            profile === 'patient' &&
+              !hasWord(state, 'O_04') &&
+              !adults().some((u) => u.action === 'hunting') &&
+              !state.entities.some(
+                (e) =>
+                  ['deer', 'wolf', 'alpha', 'mammoth'].includes(e.kind) &&
+                  e.hp <= 0 &&
+                  e.amount > 0 &&
+                  visible(e),
+              ),
+            () => {
+              const hunter = adults()
+                .filter(
+                  (u) =>
+                    !u.jobBuildingId &&
+                    !u.suspendedJob &&
+                    !u.carry &&
+                    u.hunger < 75 &&
+                    u.action !== 'building',
+                )
+                .sort((a, b) => b.strength - a.strength)[0];
+              const deer = nearest('deer', 0, true);
+              return !!hunter && !!deer && say(['S_02', 'V_03'], targetFor(deer), hunter.id);
+            },
+            'prima caccia',
+          ],
+          [
+            profile === 'patient' && !hasWord(state, 'O_04'),
+            () => {
+              const carcass = state.entities.find(
+                (e) =>
+                  ['deer', 'wolf', 'alpha', 'mammoth'].includes(e.kind) &&
+                  e.hp <= 0 &&
+                  e.amount > 0 &&
+                  visible(e),
+              );
+              const eater = adults()
+                .filter((u) => idle(u) && u.hunger > 20)
+                .sort((a, b) => b.intelligence - a.intelligence)[0];
+              return !!carcass && !!eater && say(['S_02', 'V_02'], targetFor(carcass), eater.id);
+            },
+            'comprendere la preda',
+          ],
+          [
+            profile === 'patient' &&
+              foodNutrition() < own().length * (season === 3 ? 20 : 60) &&
+              (season !== 3 || adults().some((u) => u.hunger > 70)) &&
+              transportCount('O_04') < 2,
+            () => forage(person),
+            'riserva alimentare urgente',
+          ],
+          [
+            profile === 'patient' &&
+              state.resources.meat >= 1 &&
+              state.resources.cooked < own().length * 2 &&
+              adults().filter((u) => u.action === 'cooking').length < Math.ceil(own().length / 10),
+            () => say(['S_02', 'V_07', 'O_04', 'O_05'], undefined, person.id),
+            'cucina quotidiana',
+          ],
+          [
+            profile === 'patient' && !ownedPens.length && state.resources.wood >= 20,
+            () => build('pen', person),
+            'primo allevamento',
+          ],
+          [
+            profile === 'patient' &&
+              !ownedPens.length &&
+              state.resources.wood < 24 &&
+              transportCount('O_03') < 3,
+            () => collect(person, 'O_03'),
+            'legna per il primo recinto',
+          ],
+          [
             !!closed && state.resources.food >= 5,
             () =>
               say(
@@ -361,8 +607,35 @@ export function replayContinuousCampaign(seed = 6842, until = 1800) {
           ],
           [!hasBuilding('depot'), () => build('depot', person), 'deposito'],
           [
+            profile === 'patient' &&
+              !hasBuilding('hut') &&
+              pens.length > 0 &&
+              !(corpses && !hasBuilding('grave')) &&
+              state.resources.wood >= 12 &&
+              state.resources.pelt >= 5,
+            () => build('hut', person),
+            'riparo e nuove generazioni',
+          ],
+          [
+            profile === 'patient' &&
+              pens.length > 0 &&
+              villageHousing(state) < own().length * 3 &&
+              state.resources.wood >= 14 &&
+              state.resources.stone >= 23,
+            () => build('house', person),
+            'alloggi con margine',
+          ],
+          [
+            profile === 'patient' &&
+              pens.length > 0 &&
+              state.resources.wood < 28 &&
+              transportCount('O_03') < 2,
+            () => collect(person, 'O_03'),
+            'legno per ripari e trasmissione',
+          ],
+          [
             hasBuilding('grave') &&
-              (corpses || own().length >= 7) &&
+              (corpses || (profile !== 'patient' && own().length >= 7)) &&
               !adults().some((u) =>
                 villageBuildings().some((b) => b.kind === 'grave' && assigned(u, b.id)),
               ),
@@ -375,7 +648,11 @@ export function replayContinuousCampaign(seed = 6842, until = 1800) {
             () => build('house', person),
             'primo riparo',
           ],
-          [!pens.length && state.resources.wood >= 22, () => build('pen', person), 'recinto'],
+          [
+            !(profile === 'patient' ? ownedPens.length : pens.length) && state.resources.wood >= 22,
+            () => build('pen', person),
+            'recinto',
+          ],
           [
             hasBuilding('house') && state.resources.stone < 3 && transportCount('O_02') < 1,
             () => collect(person, 'O_02'),
@@ -410,6 +687,7 @@ export function replayContinuousCampaign(seed = 6842, until = 1800) {
           ],
           [
             !hasBuilding('grave') &&
+              (profile !== 'patient' || hasWord(state, 'O_06')) &&
               state.resources.stone < 31 &&
               state.resources.wood >= 4 &&
               transportCount('O_02') < 2,
@@ -483,6 +761,7 @@ export function replayContinuousCampaign(seed = 6842, until = 1800) {
           .sort((a, b) => a.hunger - b.hunger)[0];
         if (
           builder &&
+          !(corpses && !hasBuilding('grave')) &&
           villageHousing(state) < own().length * 2 &&
           state.resources.stone >= 23 &&
           state.resources.wood >= 14
@@ -490,8 +769,8 @@ export function replayContinuousCampaign(seed = 6842, until = 1800) {
           build('house', builder);
         else if (builder && needsPen && state.resources.wood >= 24) build('pen', builder);
       }
-      if (state.voice >= 1 && state.time % 90 >= 70 && foodNutrition() > 0) {
-        const seasonId = Math.floor(state.time / 90);
+      if (state.voice >= 1 && getCalendar(state).canonicalPhase >= 70 && foodNutrition() > 0) {
+        const seasonId = getCalendar(state).seasonIndex;
         const hungry = adults()
           .filter(
             (u) =>
@@ -512,7 +791,7 @@ export function replayContinuousCampaign(seed = 6842, until = 1800) {
       }
       for (const kind of ['pen', 'grave', 'farm'] as const) {
         if (!day || state.voice < 1) break;
-        if (kind === 'grave' && !corpses && own().length < 7) continue;
+        if (kind === 'grave' && !corpses && (profile === 'patient' || own().length < 7)) continue;
         if (
           kind === 'pen' &&
           adults().filter((u) => pens.some((b) => assigned(u, b.id))).length >= neededHerders
@@ -522,7 +801,7 @@ export function replayContinuousCampaign(seed = 6842, until = 1800) {
         if (free) assign(kind, free);
       }
     }
-    if (state.time % 90 === 85)
+    if (getCalendar(state).canonicalPhase === 85)
       fertilityReports.push({
         at: state.time,
         readiness: getGrowthReadiness(state),
@@ -548,6 +827,7 @@ export function replayContinuousCampaign(seed = 6842, until = 1800) {
     discoveries,
     snapshots,
     fertilityReports,
+    decisionReports,
     opening: { firstFireAt: opening.firstFireAt, orders: opening.orders.length },
     maxPopulation,
   };

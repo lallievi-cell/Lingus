@@ -91,7 +91,7 @@ function discover(state: GameState, wordId: string, custodians: Unit[]) {
 }
 
 describe('visible life stages and real family identities', () => {
-  it('preserves the classic seed and gives guided Uma two preparation seasons', () => {
+  it('preserves the classic seed and changes only the Guided founders’ initial ages', () => {
     const classic = createInitialState(6842),
       guided = createInitialState(6842, 'guided');
     expect(classic.units.map(resolveUnitSex)).toEqual(['M', 'F', 'F', 'M', 'F', 'F', 'M']);
@@ -99,8 +99,8 @@ describe('visible life stages and real family identities', () => {
     expect(guided.units.find((u) => u.name === 'Uma')!.age).toBe(12);
     expect(guided.playMode).toBe('guided');
     expect(classic.playMode).toBe('classic');
-    expect(guided.units.filter((u) => u.name !== 'Uma')).toEqual(
-      classic.units.filter((u) => u.name !== 'Uma'),
+    expect(guided.units.map((u) => ({ ...u, age: 0 }))).toEqual(
+      classic.units.map((u) => ({ ...u, age: 0 })),
     );
   });
 

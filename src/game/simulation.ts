@@ -1154,6 +1154,15 @@ export function guidedRepeatTransport(s: GameState, tokens: string[]) {
 export function plainToolCraft(tokens: string[]) {
   return tokens.includes('V_06') && tokens.length === 3 && tokens[2] === 'O_02';
 }
+/** Food only: ceramics remain a single physical craft, even in Guided. */
+export function plainFoodCook(tokens: string[]) {
+  return (
+    tokens.includes('V_07') &&
+    tokens.includes('O_04') &&
+    tokens.includes('O_05') &&
+    !tokens.includes('O_02')
+  );
+}
 export function processWork(s: GameState, u: Unit, dt: number) {
   let e = s.entities.find((e) => e.id === u.targetId);
   const tokens = u.command ?? [],
@@ -1371,19 +1380,32 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     return;
   }
   if (u.action === 'crafting' || u.action === 'cooking') {
+    const foodCook = plainFoodCook(tokens);
+    const repeatable = plainToolCraft(tokens) || foodCook;
+    const cycleCost: Partial<Inventory> = foodCook ? { meat: 1 } : { stone: 1 };
+    const cycleOutput: Resource = foodCook ? 'cooked' : 'tool';
+    // A fire going out cannot finish a new meal. Keep the already paid,
+    // unheated portion physically beside the cook, once, rather than losing it
+    // or leaving an invisible work reservation. This also applies to pottery
+    // and Classic's single paid cycle; only Guided's food task repeats.
+    if (verb === 'V_07' && !hasBuilding(s, 'campfire')) {
+      if (!u.craftNeedsPayment) drop(s, u, tokens.includes('O_02') ? 'stone' : 'meat', 1);
+      resetUnit(u);
+      return;
+    }
     if (u.craftNeedsPayment) {
       if (
-        !plainToolCraft(tokens) ||
+        !repeatable ||
         !guidedDirectTask(s, u, tokens) ||
-        !canFitCraftOutput(s, { stone: 1 }, 'tool') ||
-        !canPayLocally(s, { stone: 1 }, u) ||
+        !canFitCraftOutput(s, cycleCost, cycleOutput) ||
+        !canPayLocally(s, cycleCost, u) ||
         forbiddenByDogma(s, tokens, undefined, u) ||
         !enforceActionLaws(s, tokens, undefined, [u.id])
       ) {
         if (u.hp > 0) resetUnit(u);
         return;
       }
-      payLocally(s, { stone: 1 }, u);
+      payLocally(s, cycleCost, u);
       u.craftNeedsPayment = false;
     }
     if (!move(s, u, u.tx ?? s.home.x, u.ty ?? s.home.y, dt)) return;
@@ -1402,8 +1424,8 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     recordLawWork(s, u.id, tokens);
     onDogmaticUse(s, tokens, u);
     // Do not prepay a speculative cycle: a spark or a new order may interrupt
-    // before the next tick. Only the next actual work update pays its stone.
-    if (plainToolCraft(tokens) && guidedDirectTask(s, u, tokens)) {
+    // before the next tick. Only the next actual work update pays its input.
+    if (repeatable && guidedDirectTask(s, u, tokens)) {
       u.progress = 0;
       u.craftNeedsPayment = true;
     } else resetUnit(u);
@@ -1896,6 +1918,40 @@ function assignTradition(s: GameState, u: Unit) {
       if (assignWork(s, u, workKind)) return true;
       resetKeepingJob(u);
       continue;
+    }
+    // Registered artisan traditions need the same paid physical work as a
+    // direct command. Previously these valid phrases silently reset everyone.
+    // Pay each real cycle separately, so one instruction never creates free output.
+    const artisan =
+      verb === 'V_07' ||
+      (verb === 'V_06' && tokens.slice(3).every((id) => ['O_02', 'O_03'].includes(id)));
+    if (artisan) {
+      const pottery = verb === 'V_07' && tokens.includes('O_02');
+      const spear = verb === 'V_06' && tokens.includes('O_03');
+      const output: Resource =
+        verb === 'V_07' ? (pottery ? 'pottery' : 'cooked') : spear ? 'spear' : 'tool';
+      const cost: Partial<Inventory> =
+        verb === 'V_07'
+          ? pottery
+            ? { stone: 1 }
+            : { meat: 1 }
+          : spear
+            ? { stone: 1, wood: 1 }
+            : { stone: 1 };
+      if (
+        (verb === 'V_07' && !hasBuilding(s, 'campfire')) ||
+        !canPayLocally(s, cost, u) ||
+        !canFitCraftOutput(s, cost, output)
+      ) {
+        resetKeepingJob(u);
+        continue;
+      }
+      payLocally(s, cost, u);
+      u.action = verb === 'V_07' ? 'cooking' : 'crafting';
+      u.targetId = undefined;
+      u.tx = u.x;
+      u.ty = u.y;
+      return true;
     }
     if (verb === 'V_03')
       u.action =
