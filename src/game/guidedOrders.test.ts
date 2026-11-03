@@ -93,6 +93,61 @@ describe('guided material transport remains physical and bounded', () => {
     expect(s.words.V_04.uses).toBe(3);
   });
 
+  it('keeps a two-slot order working on its selected physical kind without requiring an unsaid word', () => {
+    let s = village();
+    s.entities[0].amount = 4;
+    s.words.O_03.retention = 0;
+    s.entities.push({ ...s.entities[0], id: 'nearby-tree', x: 261, amount: 3 });
+    s = until(
+      issueCommand(s, ['S_01', 'V_04'], source(s)),
+      (state) => state.resources.wood === 7 && !state.units[0].command,
+    );
+    expect(s.stats.commands).toBe(1);
+    expect(s.resources.wood).toBe(7);
+    expect(s.units[0].carry).toBeUndefined();
+    expect(s.words.O_03.retention).toBe(0);
+    expect(total(s, 'wood')).toBe(7);
+  });
+
+  it('keeps an implicit berry task distinct from a different nearby food source', () => {
+    let s = village();
+    Object.assign(s.entities[0], { kind: 'berries', amount: 4, hp: 1, maxHp: 1 });
+    s.entities.push({
+      ...s.entities[0],
+      id: 'carcass',
+      kind: 'deer',
+      x: 262,
+      hp: 0,
+      amount: 10,
+    });
+    s = until(
+      issueCommand(s, ['S_01', 'V_04'], source(s)),
+      (state) => state.resources.food === 4 && !state.units[0].command,
+    );
+    expect(s.resources.meat).toBe(0);
+    expect(s.entities.find((entry) => entry.id === 'carcass')!.amount).toBe(10);
+    expect(s.stats.commands).toBe(1);
+  });
+
+  it.each(['guided', 'classic'] as const)(
+    'cannot collect meat from a living animal in %s',
+    (mode) => {
+      const s = village(mode);
+      Object.assign(s.entities[0], { kind: 'deer', amount: 2, hp: 30, maxHp: 30 });
+      for (const tokens of [
+        ['S_01', 'V_04'],
+        ['S_01', 'V_04', 'O_04'],
+      ]) {
+        const next = issueCommand(s, tokens, source(s));
+        expect(next.stats.commands).toBe(s.stats.commands);
+        expect(next.voice).toBe(s.voice);
+        expect(next.units).toEqual(s.units);
+        expect(next.entities).toEqual(s.entities);
+        expect(next.logs[0].text).toContain('L’animale è vivo');
+      }
+    },
+  );
+
   it.each([
     ['stone', 'stone', 'O_02'],
     ['ore', 'ore', 'O_07'],
@@ -170,6 +225,46 @@ describe('guided material transport remains physical and bounded', () => {
     expect(s.entities.find((e) => e.id === 'remote')!.amount).toBe(10);
   });
 
+  it('delivers its real load before refusing another automatic trip near a visible predator', () => {
+    let s = village();
+    s.entities[0].x = 260;
+    s.entities[0].amount = 7;
+    s = until(
+      issueCommand(s, ['S_01', 'V_04', 'O_03'], source(s)),
+      (state) => state.units[0].action === 'returning',
+    );
+    s.entities.push({
+      id: 'new-alpha',
+      kind: 'alpha',
+      x: 283,
+      y: 250,
+      hp: 120,
+      maxHp: 120,
+      amount: 3,
+    });
+    s = until(s, (state) => state.resources.wood === 3 && !state.units[0].command);
+    expect(s.units[0].lastTaskResult?.reason).toBe('unsafe-route');
+    expect(s.entities[0].amount).toBe(4);
+    expect(s.units[0].carry).toBeUndefined();
+    expect(s.stats.commands).toBe(1);
+    expect(parseGame(serializeGame(s))).not.toBeNull();
+  });
+
+  it('does not silently retarget an exhausted safe source to a nearby predator-side source', () => {
+    let s = village();
+    s.entities[0].amount = 1;
+    s.entities.push(
+      { ...s.entities[0], id: 'unsafe-tree', x: 270, amount: 10 },
+      { id: 'alpha', kind: 'alpha', x: 293, y: 250, hp: 120, maxHp: 120, amount: 3 },
+    );
+    s = until(
+      issueCommand(s, ['S_01', 'V_04', 'O_03'], source(s)),
+      (state) => state.resources.wood === 1 && !state.units[0].command,
+    );
+    expect(s.entities.find((entry) => entry.id === 'unsafe-tree')!.amount).toBe(10);
+    expect(s.stats.commands).toBe(1);
+  });
+
   it('repeats real fuel deliveries from trees and accounts for burnt wood', () => {
     let s = village();
     learn(s, 'O_05');
@@ -205,6 +300,24 @@ describe('guided material transport remains physical and bounded', () => {
     expect(s.resources.wood).toBeCloseTo(gathered * 0.95);
     expect(s.entities[0].amount).toBe(17);
     expect(s.traditions).toHaveLength(0);
+  });
+
+  it('refuses a new daytime transport at night without charging Voice or cancelling an existing order', () => {
+    const s = village();
+    s.time = 70;
+    Object.assign(s.units[0], {
+      action: 'moving',
+      command: ['S_01', 'V_01'],
+      tx: 252,
+      ty: 252,
+      carry: { resource: 'wood', amount: 2 },
+    });
+    const next = issueCommand(s, ['S_01', 'V_04', 'O_03'], source(s));
+    expect(next.voice).toBe(s.voice);
+    expect(next.stats.commands).toBe(s.stats.commands);
+    expect(next.words.V_04.uses).toBe(s.words.V_04.uses);
+    expect(next.units).toEqual(s.units);
+    expect(next.logs[0].text).toContain('Attendi l’alba');
   });
 
   it.each(['hunger', 'cold', 'forgotten'] as const)(

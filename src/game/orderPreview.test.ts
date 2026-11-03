@@ -118,6 +118,18 @@ describe('command preview uses the real handler without advancing the world', ()
     s.voice = 0;
     expect(preview(s, ['S_01', 'V_01']).message).toContain('Voce');
   });
+  it('explains a nighttime daytime-task rejection before payment or interruption', () => {
+    const s = fixture();
+    s.time = 120;
+    const before = structuredClone(s);
+    const result = preview(s, ['S_01', 'V_04', 'O_03']);
+    expect(result.accepted).toBe(false);
+    expect(result.message).toContain('Attendi l’alba');
+    expect(result.voice).toBe(0);
+    expect(result.unitIds).toEqual([]);
+    expect(result.interruptions).toEqual([]);
+    expect(s).toEqual(before);
+  });
   it('does not confuse a registered tradition with immediate individual work', () => {
     const s = fixture();
     s.attention = 100;
@@ -154,5 +166,28 @@ describe('command preview uses the real handler without advancing the world', ()
     s.playMode = 'classic';
     expect(preview(s, ['S_01', 'V_04', 'O_03']).behaviour).toContain('un viaggio');
     expect(preview(s, ['S_01', 'V_06', 'O_02']).behaviour).toContain('attende un nuovo ordine');
+  });
+  it('describes the real food source of a two-slot transport instead of calling it mining', () => {
+    const s = fixture();
+    s.entities.push({
+      id: 'berries',
+      kind: 'berries',
+      x: 255,
+      y: 250,
+      hp: 1,
+      maxHp: 1,
+      amount: 15,
+    });
+    const result = getOrderPreview(s, ['S_01', 'V_04'], {
+      type: 'entity',
+      id: 'berries',
+      x: 255,
+      y: 250,
+    });
+    expect(result.accepted).toBe(true);
+    expect(result.behaviour).toContain('Raccoglie cibo');
+    expect(result.behaviour).toContain('ripete i viaggi');
+    expect(result.behaviour).toContain('venti metri');
+    expect(result.behaviour).not.toContain('estrae direttamente');
   });
 });

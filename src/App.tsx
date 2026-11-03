@@ -2173,13 +2173,20 @@ function App() {
             {!game.urbanized && (
               <button
                 className={`text-button all-adults-button ${isAllAdultsAnchor(groupAnchor) || (individuality && isCustomGroupAnchor(groupAnchor)) ? 'active' : ''}`}
-                aria-pressed={isAllAdultsAnchor(groupAnchor)}
+                aria-pressed={
+                  isAllAdultsAnchor(groupAnchor) ||
+                  (individuality && isCustomGroupAnchor(groupAnchor))
+                }
                 onClick={() =>
                   individuality && isCustomGroupAnchor(groupAnchor)
                     ? setPanel('work-team')
                     : chooseAllAdults()
                 }
-                title="Seleziona tutti gli adulti disponibili, anche lontani dal campo. La selezione è gratuita e non impartisce ordini."
+                title={
+                  individuality && isCustomGroupAnchor(groupAnchor)
+                    ? 'Rivedi le persone del gruppo scelto. La selezione è gratuita e non impartisce ordini.'
+                    : 'Seleziona tutti gli adulti disponibili, anche lontani dal campo. La selezione è gratuita e non impartisce ordini.'
+                }
               >
                 <Users size={13} />{' '}
                 {individuality && isCustomGroupAnchor(groupAnchor)

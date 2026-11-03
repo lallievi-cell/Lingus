@@ -88,7 +88,7 @@ import {
 } from './calendar';
 import { getOldAgeProbability } from './founderCare';
 import { openingFoodSpoilageMultiplier } from './foodPreservation';
-import { safeInstinctiveFood } from './safeForaging';
+import { safeAutonomousRoute, safeInstinctiveFood } from './safeForaging';
 import { promoteDeferredSparks, queueEarnedSpark } from './discoveryPacing';
 import type {
   Building,
@@ -1158,8 +1158,25 @@ export function guidedRepeatTransport(s: GameState, tokens: string[]) {
   return (
     s.playMode === 'guided' &&
     tokens.includes('V_04') &&
-    tokens.some((id) => ['O_02', 'O_03', 'O_07', 'O_04', 'O_05'].includes(id)) &&
+    (tokens.some((id) => ['O_02', 'O_03', 'O_07', 'O_04', 'O_05', 'O_06'].includes(id)) ||
+      tokens.slice(2).every((id) => ['O_01', 'M_02', 'M_04'].includes(id))) &&
     !['C_01', 'C_02'].includes(tokens[0])
+  );
+}
+
+/** A two-slot order binds the physical kind that the player actually selected.
+ * It needs no unsaid word and never turns a berry task into scavenging meat. */
+function guidedTransportSources(s: GameState, u: Unit, tokens: string[], source?: MapEntity) {
+  if (tokens.some((id) => ['O_02', 'O_03', 'O_07', 'O_04', 'O_05', 'O_06'].includes(id)))
+    return matchingEntities(s, tokens, u);
+  if (!source) return [];
+  return s.entities.filter(
+    (entry) =>
+      entry.kind === source.kind &&
+      entityResource(entry) === entityResource(source) &&
+      entry.amount > 0 &&
+      (entry.kind !== 'berries' || seasonOf(s).index !== 3) &&
+      (!['deer', 'wolf', 'alpha', 'mammoth'].includes(entry.kind) || entry.hp <= 0),
   );
 }
 /** A day task may move to another known source in its original local area.
@@ -1169,12 +1186,13 @@ function nextGuidedGatherSource(s: GameState, u: Unit, tokens: string[], source?
   const origin =
     u.workOrigin ?? source ?? (u.tx !== undefined && u.ty !== undefined ? { x: u.tx, y: u.ty } : u);
   u.workOrigin ??= { x: origin.x, y: origin.y, groundOnly: source?.kind === 'ground' };
-  const candidates = matchingEntities(s, tokens, u).filter(
+  const candidates = guidedTransportSources(s, u, tokens, source).filter(
     (entry) =>
       distance(entry, origin) <= 20 &&
       (!u.workOrigin?.groundOnly || entry.kind === 'ground') &&
       entry.amount > resourcePreservationFloor(s, entry) &&
       freeCapacity(s, entityResource(entry)) > 0 &&
+      safeAutonomousRoute(s, u, entry) &&
       s.sectors.some(
         (sector) =>
           sector.explored &&
@@ -1414,12 +1432,29 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     if (
       verb === 'V_04' &&
       guidedRepeatTransport(s, tokens) &&
+      e &&
+      e.amount > resourcePreservationFloor(s, e) &&
+      !safeAutonomousRoute(s, u, e)
+    ) {
+      u.lastTaskResult = {
+        time: s.time,
+        tokens: [...tokens],
+        reason: 'unsafe-route',
+        target: { type: 'entity', id: e.id, x: e.x, y: e.y },
+        suspended: false,
+      };
+      resetUnit(u);
+      return;
+    }
+    if (
+      verb === 'V_04' &&
+      guidedRepeatTransport(s, tokens) &&
       guidedDirectTask(s, u, tokens) &&
       e &&
       e.amount > resourcePreservationFloor(s, e) &&
       ['wood', 'stone', 'ore', 'food', 'meat', 'cooked'].includes(entityResource(e)) &&
       freeCapacity(s, entityResource(e)) > 0 &&
-      matchingEntities(s, tokens, u).includes(e) &&
+      guidedTransportSources(s, u, tokens, e).includes(e) &&
       !forbiddenByDogma(s, tokens, { type: 'entity', id: e.id, x: e.x, y: e.y }, u) &&
       enforceActionLaws(s, tokens, { type: 'entity', id: e.id, x: e.x, y: e.y }, [u.id])
     ) {
@@ -1646,6 +1681,10 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     return;
   }
   if (u.action === 'eating') {
+    if (!u.command?.length && e && !safeInstinctiveFood(s, u, e)) {
+      resetInstinct(u);
+      return;
+    }
     // Conservare restrains an autonomous meal; an explicit Mangiare order
     // still means eating to satiety, as specified by the sentence grammar.
     const conserve = verb !== 'V_02' && hasWord(s, 'V_05');

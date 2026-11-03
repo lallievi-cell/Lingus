@@ -8,13 +8,14 @@ import {
   tick,
 } from '../../src/game/engine';
 import { allAdultsAnchor } from '../../src/game/tribeControl';
+import { customGroupAnchor } from '../../src/game/tribeSelection';
 import { getCalendar } from '../../src/game/calendar';
 import { isPlayerBuilding } from '../../src/game/runtime';
 import { canIgnite } from '../../src/game/simulation';
 import type { GameState, MapEntity, MapMode, Target } from '../../src/game/types';
 
-/** Public, coarse group decisions in a chosen valley. No material,
- * experience, weather, age, position or knowledge is injected. This route
+/** Public, coarse decisions in a chosen valley, using the roster after Io.
+ * No material, experience, weather, age, position or knowledge is injected. This route
  * exercises the new opening; it is not a claim about a complete campaign. */
 export function replayPatientOpening(
   seed = 6842,
@@ -39,6 +40,7 @@ export function replayPatientOpening(
   }[] = [];
   const snapshots: { at: number; state: GameState }[] = [];
   let firstFireAt: number | null = null;
+  let fuelWorkerId: string | undefined;
   const own = () => state.units.filter((u) => u.hp > 0 && u.factionId === 'player');
   const visible = (entity: MapEntity) =>
     state.sectors.some(
@@ -67,7 +69,10 @@ export function replayPatientOpening(
     .sort(
       (a, b) => Math.hypot(a.x - stone.x, a.y - stone.y) - Math.hypot(b.x - stone.x, b.y - stone.y),
     )[0];
-  const say = (tokens: string[], destination?: Target) => {
+  const say = (tokens: string[], destination?: Target, selection?: Target) => {
+    // Direct Guided collection is a day job. At night the player lets the
+    // current returns and recovery finish rather than pronouncing a refused order.
+    if (tokens.includes('V_04') && getCalendar(state).isNight) return;
     const foodOrder =
       tokens.includes('V_04') &&
       destination?.type === 'entity' &&
@@ -84,7 +89,25 @@ export function replayPatientOpening(
     });
     const before = foodOrder ? foodTotals() : undefined;
     const commands = state.stats.commands;
-    state = issueCommand(state, tokens, destination, undefined, allAdultsAnchor(state));
+    if (foodOrder && fuelWorkerId && !selection)
+      selection = customGroupAnchor(
+        state,
+        own()
+          .filter(
+            (unit) =>
+              unit.age >= 4 &&
+              unit.id !== fuelWorkerId &&
+              !(unit.action === 'guarding' && unit.command?.includes('O_05')),
+          )
+          .map((unit) => unit.id),
+      );
+    state = issueCommand(
+      state,
+      tokens,
+      destination,
+      undefined,
+      selection ?? allAdultsAnchor(state),
+    );
     if (before) {
       const after = foodTotals();
       foodRetargets.push({
@@ -202,22 +225,69 @@ export function replayPatientOpening(
         if (wood) say(['S_01', 'V_04', 'O_03'], target(wood));
       }
       if (time === 200) say(['S_01', 'V_06', 'O_02']);
+      if (time === 220 && hasWord(state, 'S_02') && hasWord(state, 'V_04')) {
+        // Use the visible roster after Io: the artisan keeps making the real
+        // first fire while unloaded companions prepare a small food reserve.
+        const helpers = own().filter(
+          (unit) =>
+            unit.age >= 4 &&
+            !unit.carry &&
+            !['building', 'crafting', 'cooking'].includes(unit.action),
+        );
+        const berries = foods()
+          .filter((entity) => Math.hypot(entity.x - state.home.x, entity.y - state.home.y) < 30)
+          .sort((a, b) => b.amount - a.amount)[0];
+        if (helpers.length && berries)
+          say(
+            ['S_01', 'V_04'],
+            target(berries),
+            customGroupAnchor(
+              state,
+              helpers.map((unit) => unit.id),
+            ),
+          );
+      }
       if (strategy === 'prepared') {
         if (time === 260) {
           const berries = foods()
             .filter((e) => Math.hypot(e.x - state.home.x, e.y - state.home.y) < 30)
             .sort((a, b) => b.amount - a.amount)[0];
-          if (berries) say(['S_01', 'V_04'], target(berries));
+          if (berries) say(['S_01', 'V_02'], target(berries));
         }
         if (time === 290 + delay) {
           say(['S_01', 'V_01'], { type: 'point', x: state.home.x, y: state.home.y + 80 });
-          if (hasWord(state, 'V_05'))
+          if (hasWord(state, 'V_05') && state.resources.wood >= 5)
             say(['S_01', 'V_05', 'O_02'], {
               type: 'point',
               x: state.home.x + 5,
               y: state.home.y + 5,
             });
           guard();
+        }
+        if (time === 300 + delay && hasWord(state, 'S_02')) {
+          const fuelWorker = own()
+            .filter(
+              (unit) =>
+                unit.age >= 4 && !unit.carry && !['building', 'guarding'].includes(unit.action),
+            )
+            .sort(
+              (a, b) =>
+                Math.hypot(a.x - state.home.x, a.y - state.home.y) -
+                Math.hypot(b.x - state.home.x, b.y - state.home.y),
+            )[0];
+          const source = nearest('tree', 10);
+          if (fuelWorker && source) {
+            // Keep one real worker on fuel while the rest forage. The later
+            // food orders preserve this assignment and the actual fire watch.
+            const before = state.stats.commands;
+            const tokens = ['S_02', 'V_04', 'O_03'];
+            state = issueCommand(state, tokens, target(source), fuelWorker.id);
+            if (state.stats.commands > before) {
+              fuelWorkerId = fuelWorker.id;
+              orders.push({ at: state.time, tokens, target: target(source) });
+            } else
+              rejectedOrders.push({ at: state.time, tokens, reason: state.logs[0]?.text ?? '' });
+          }
         }
         const secondTripReady =
           time >= 360 + delay &&
@@ -247,7 +317,7 @@ export function replayPatientOpening(
         }
         if (time === 330 + delay) {
           say(['S_01', 'V_01'], { type: 'point', x: state.home.x, y: state.home.y + 80 });
-          if (hasWord(state, 'V_05'))
+          if (hasWord(state, 'V_05') && state.resources.wood >= 5)
             say(['S_01', 'V_05', 'O_02'], {
               type: 'point',
               x: state.home.x + 5,

@@ -1,4 +1,5 @@
 import { HOME } from '../../src/game/content';
+import { getCalendar } from '../../src/game/calendar';
 import {
   createGame,
   dismissCampfire,
@@ -21,7 +22,6 @@ export function replayCampaignOpening(seed = 6842, until = 270) {
   delete state.openingBalanceVersion;
   delete state.openingCouncilsCompleted;
   let firstFireAt: number | null = null;
-  const roleIds = new Set<string>();
   let houseStarted = false;
   let scoutId: string | undefined;
   const orders: {
@@ -153,6 +153,7 @@ export function replayCampaignOpening(seed = 6842, until = 270) {
       firstFireAt = state.time;
     if (step % 20 === 0) {
       const time = state.time;
+      const calendar = getCalendar(state);
       if (time === 0) {
         const people = own().filter((u) => u.age >= 4);
         let sent = false;
@@ -222,10 +223,13 @@ export function replayCampaignOpening(seed = 6842, until = 270) {
           .sort((a, b) => b.amount - a.amount)[0];
         if (berries) say(['S_01', 'V_02'], entityTarget(berries));
       }
-      // A real watch reaches the fire before autumn's possible rain. The
-      // previous meal has time to finish; no weather roll is bypassed.
-      if (time === 160) say(['S_01', 'V_04'], entityTarget(nearest('berries', 3)!));
-      if (time === 170) say(['S_01', 'V_04'], entityTarget(nearest('tree', 5)!));
+      // The old 160/170-second orders fell in summer's night. Start the
+      // physical autumn shifts in daylight and allow one food trip before
+      // switching the group to winter fuel; later individual roles keep mining.
+      if (calendar.seasonIndex === 2 && calendar.canonicalPhase === 0)
+        say(['S_01', 'V_04'], entityTarget(nearest('berries', 3)!));
+      if (calendar.seasonIndex === 2 && calendar.canonicalPhase === 15)
+        say(['S_01', 'V_04'], entityTarget(nearest('tree', 5)!));
       if (time === 135) {
         const u = own().find((u) => u.name === 'Nara')!;
         say(
@@ -241,6 +245,8 @@ export function replayCampaignOpening(seed = 6842, until = 270) {
         state.voice >= 1 &&
         !own().some((u) => u.action === 'building') &&
         !state.buildings.some((b) => !b.cityId && b.kind === 'pen') &&
+        // Winter production needs a worked pen before the seasonal settlement.
+        // The continuing wood and stone shifts also pay the following house.
         state.resources.wood >= 20 &&
         hasWord(state, 'V_10')
       ) {
@@ -265,41 +271,32 @@ export function replayCampaignOpening(seed = 6842, until = 270) {
             chosen,
           );
       }
-      if ([200, 205, 210, 215].includes(time)) {
-        const slots: ('stone' | 'wood')[] =
-          time === 200
-            ? ['stone']
-            : time === 205
-              ? ['stone', 'wood']
-              : time === 210
-                ? ['wood']
-                : ['wood'];
-        for (const kind of slots) {
-          const people = own().filter(
-            (u) =>
-              u.age >= 4 &&
-              !u.jobBuildingId &&
-              !u.suspendedJob &&
-              !u.carry &&
-              !roleIds.has(u.id) &&
-              u.hunger < 75 &&
-              u.action !== 'building',
-          );
-          const preferred = ['Nara', 'Oru', 'Tala', 'Uma', 'Ayla', 'Ilo', 'Korg'];
-          people.sort((a, b) => preferred.indexOf(a.name) - preferred.indexOf(b.name));
-          const u = people[0];
-          const source = materialSource(kind);
-          if (u && source && state.voice >= 1) {
-            const prior = state.stats.commands;
-            say(
-              ['S_02', 'V_04', kind === 'stone' ? 'O_02' : 'O_03'],
-              entityTarget(source),
-              undefined,
-              u.id,
-            );
-            if (state.stats.commands > prior) roleIds.add(u.id);
-          }
-        }
+      // A worker carrying a real load may be unavailable on one decision.
+      // Retry the autumn stone role in daylight instead of missing a one-shot
+      // appointment; the other workers continue their existing wood deliveries.
+      if (
+        calendar.seasonIndex === 2 &&
+        calendar.canonicalPhase >= 15 &&
+        calendar.canonicalPhase < 55 &&
+        state.resources.stone < 20 &&
+        own().filter((u) => u.command?.includes('V_04') && u.command.includes('O_02')).length < 2 &&
+        state.voice >= 1
+      ) {
+        const people = own().filter(
+          (u) =>
+            u.age >= 4 &&
+            !u.jobBuildingId &&
+            !u.suspendedJob &&
+            !u.carry &&
+            !u.command?.includes('O_02') &&
+            u.hunger < 75 &&
+            u.action !== 'building',
+        );
+        const preferred = ['Nara', 'Oru', 'Tala', 'Uma', 'Ayla', 'Ilo', 'Korg'];
+        people.sort((a, b) => preferred.indexOf(a.name) - preferred.indexOf(b.name));
+        const source = materialSource('stone');
+        if (people[0] && source)
+          say(['S_02', 'V_04', 'O_02'], entityTarget(source), undefined, people[0].id);
       }
       if (
         time >= 225 &&

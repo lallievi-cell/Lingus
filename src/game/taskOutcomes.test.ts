@@ -95,6 +95,39 @@ describe('task feedback observes real transitions without inventing work or rest
     });
     expect(next.units.every((u) => u.suspendedJob?.buildingId === 'farm')).toBe(true);
   });
+  it('explains a real preservation stop without calling the remaining resources exhausted', () => {
+    let s = fixture();
+    s.dogmas.push({
+      id: 'preserve-trees',
+      targetId: 'O_03',
+      vectorId: 'V_05',
+      name: 'Custodire gli alberi',
+      description: '',
+      age: 0,
+      weight: 1,
+    });
+    s.entities.push({
+      id: 'tree',
+      kind: 'tree',
+      x: 254,
+      y: 250,
+      amount: 5,
+      maxAmount: 20,
+      hp: 100,
+      maxHp: 100,
+    });
+    s = issueCommand(s, ['S_01', 'V_04', 'O_03'], {
+      type: 'entity',
+      id: 'tree',
+      x: 254,
+      y: 250,
+    });
+    for (let step = 0; step < 80 && s.units[0].command; step++) s = tick(s, 0.25);
+    expect(s.entities[0].amount).toBe(4);
+    expect(s.resources.wood).toBe(1);
+    expect(s.units[0].carry).toBeUndefined();
+    expect(s.units[0].lastTaskResult?.reason).toBe('preserved');
+  });
   it('explains real starvation interruption and never treats a cancelled builder as completed', () => {
     let s = fixture();
     s.resources.stone = 20;

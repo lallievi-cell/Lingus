@@ -126,9 +126,22 @@ export function getOrderPreview(
     behaviour =
       'Un costruttore usa i materiali prelevati subito dalle scorte. L’edificio funzionerà quando la costruzione sarà completata.';
   else if (predicate.verb === 'V_04') {
-    const food = tokens.includes('O_04') || tokens.includes('O_06');
+    const food =
+      tokens.includes('O_04') ||
+      tokens.includes('O_06') ||
+      destinations.some((destination) => {
+        const source = state.entities.find((entry) => entry.id === destination.id);
+        return (
+          source &&
+          (source.kind === 'berries' ||
+            source.kind === 'corpse' ||
+            (['deer', 'wolf', 'alpha', 'mammoth'].includes(source.kind) && source.hp <= 0) ||
+            (source.kind === 'ground' &&
+              ['food', 'meat', 'cooked'].includes(source.resource ?? '')))
+        );
+      });
     const repeated = guidedRepeatTransport(state, tokens);
-    behaviour = `${food ? 'Raccoglie cibo da fonti compatibili e carcasse; non abbatte animali vivi.' : 'Raccoglie dai cumuli a terra o estrae direttamente da alberi, rocce e giacimenti adatti.'} Trasporta poi il carico al campo. ${repeated ? 'In Guidata ripete i viaggi sulla stessa fonte durante il giorno, finché ci sono risorse e spazio.' : 'Completa un viaggio; per ripetere servono altri ordini o una tradizione disponibile.'}`;
+    behaviour = `${food ? 'Raccoglie cibo da fonti compatibili e carcasse; non abbatte animali vivi.' : 'Raccoglie dai cumuli a terra o estrae direttamente da alberi, rocce e giacimenti adatti.'} Trasporta poi il carico al campo. ${repeated ? 'In Guidata ripete i viaggi durante il giorno, finché ci sono risorse e spazio. Esaurita una fonte, cerca altre fonti compatibili entro venti metri dal punto iniziale, nelle terre già esplorate. Se scegli un cumulo, raccoglie solo materiali già a terra.' : 'Completa un viaggio; per ripetere servono altri ordini o una tradizione disponibile.'}`;
   } else if (predicate.verb === 'V_03')
     behaviour =
       'Su alberi e rocce lascia i materiali sul posto: non li consegna al campo. Contro animali vivi caccia e può subire ferite.';

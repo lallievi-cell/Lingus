@@ -25,6 +25,7 @@ import { isAllAdultsAnchor, selectableTribeAdults } from './tribeSelection';
 import { canPrepareBriefLesson, getLessonPreview } from './teaching';
 import { captureObservedTaskResults, snapshotTaskResultInputs } from './taskResults';
 import { promoteDeferredSparks } from './discoveryPacing';
+import { safeAutonomousRoute } from './safeForaging';
 import {
   activeUnits,
   adult,
@@ -47,6 +48,7 @@ import {
   dropCarriedLoad,
   finishSeasonMemory,
   getSeason,
+  guidedRepeatTransport,
   initializeUnit,
   evaluateDiscoveries,
   matchingEntities,
@@ -250,6 +252,18 @@ export function issueCommand(
     log(s, 'Questo ordine richiede la notte. Pronuncialo dopo il tramonto.', 'warning');
     return s;
   }
+  if (
+    !['S_08', 'S_09'].includes(subject) &&
+    guidedRepeatTransport(s, tokens) &&
+    getSeason(s).isNight
+  ) {
+    log(
+      s,
+      'È notte: questo incarico di raccolta si svolge di giorno. Attendi l’alba; non hai speso Voce né interrotto i compiti attuali.',
+      'warning',
+    );
+    return s;
+  }
   const workers = chooseSubjects(s, subject, target, executorId, selectionCenter);
   const selectedIds =
     ['S_08', 'S_09'].includes(subject) && executorId ? [executorId] : workers.map((u) => u.id);
@@ -430,7 +444,12 @@ export function issueCommand(
   } else
     for (const u of workers) {
       let e = target?.type === 'entity' ? s.entities.find((e) => e.id === target.id) : undefined;
-      const pool = matchingEntities(s, tokens, u);
+      const pool = matchingEntities(s, tokens, u).filter(
+        (entry) =>
+          verb !== 'V_02' ||
+          (target?.type === 'entity' && target.id === entry.id) ||
+          safeAutonomousRoute(s, u, entry),
+      );
       if (
         args.some((t) => ['O_02', 'O_03', 'O_04', 'O_07', 'O_06'].includes(t)) &&
         (!e || !pool.includes(e))
@@ -483,6 +502,7 @@ export function issueCommand(
             s.entities.filter(
               (e) =>
                 e.amount > 0 &&
+                safeAutonomousRoute(s, u, e) &&
                 ((e.kind === 'berries' && getSeason(s).index !== 3) ||
                   (['deer', 'wolf', 'alpha', 'mammoth', 'corpse'].includes(e.kind) && e.hp <= 0)),
             ),

@@ -34,25 +34,27 @@ pilota parte dai sette fondatori e dalle quattro parole innate. Il primo anno
 è quello di `replayPatientOpening`; la continuazione usa soltanto ordini,
 Scintille reali, insegnamento pagato e aggiornamenti ordinari.
 
-Alla fine della prova si osservano diciotto persone, diciotto nascite e sette
-morti per vecchiaia; nessuna morte per altre cause fino a quel punto. I
-discendenti sono diventati a loro volta genitori. Rimangono ventisette posti
-abitativi, circa 487 punti di nutrimento e Coesione 85. Le 163 azioni registrate
-sono accettate dal gestore reale; le lezioni hanno consumato l'Attenzione
-disponibile. Nessuna risorsa o persona viene introdotta dal pilota.
+La prova richiede almeno quindici persone vive e quindici nascite, un ricambio
+naturale dei fondatori e nessuna morte per altre cause fino a quel punto. I
+discendenti devono essere diventati a loro volta genitori. Gli alloggi superano
+la popolazione, il nutrimento resta positivo e la Coesione deve essere almeno
+sessanta. Ogni azione registrata deve essere accettata dal gestore reale; le
+lezioni consumano l'Attenzione disponibile. Nessuna risorsa o persona viene
+introdotta dal pilota. Gli esiti della versione corrente sono riportati in
+[PLAYTEST-WORK-LEARNING.md](PLAYTEST-WORK-LEARNING.md).
 
 Il pilota mantiene il primo Tumulo prima di aggiungere alloggi marginali quando
 ci sono cadaveri, conserva foraggio prima dell'inverno e distingue i recinti
 inattivi da quelli mancanti. Queste sono scelte di gioco, non aumenti delle
 rese. Senza queste priorità il villaggio poteva disperdersi per i cadaveri o
-costruire altri recinti invece di rifornire quelli esistenti.
+costruire altri recinti invece di rifornire quelli esistenti. La selezione
+multipla dopo Io permette anche un pasto serale pagato per gli adulti affamati
+presenti al campo, conservando i carichi e gli incarichi degli esclusi.
 
 ## Limite ancora aperto
 
-La stessa strategia, lasciata proseguire, perde la continuità produttiva e si
-disperde a 2259 secondi. Il picco resta diciotto persone. La prova a 2040
-secondi dimostra una fase con ricambio dei fondatori, non la sostenibilità
-indefinita né il percorso fino a trentacinque. Non equivale a una partita
+La prova si ferma a 2040 secondi e dimostra una fase con ricambio dei fondatori,
+non la sostenibilità indefinita né il percorso fino a trentacinque. Non equivale a una partita
 osservata con un nuovo giocatore. La transizione da trentacinque alle città è
 verificata separatamente da un insediamento preparato in
 [MIDGAME-TRANSITION.md](MIDGAME-TRANSITION.md).

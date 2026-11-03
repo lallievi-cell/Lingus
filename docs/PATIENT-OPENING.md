@@ -27,11 +27,11 @@ Il deterioramento alimentare delle nuove Guidate viene moltiplicato per 0,4 nell
 
 Un artigiano entro 15 metri dal giaciglio può usare i materiali effettivamente estratti entro 35 metri dal campo. Fuori dal campo rimane la portata locale di 15 metri. La spesa preleva davvero le scorte o riduce i cumuli: nessun materiale viene creato. Questo evita di dipendere dall’intersezione geometrica fra i primi due nodi di una mappa casuale.
 
-La ricerca autonoma del cibo stima anche il raffreddamento del viaggio di andata e ritorno. In presenza di un riparo reale, un appetito ordinario non porta una persona in un tragitto che la farebbe tornare sotto la soglia di allarme. Gli ordini espliciti e la fame urgente mantengono il comportamento ordinario; il percorso può comunque essere rischioso e il cibo va preparato dal giocatore.
+La ricerca autonoma del cibo stima anche il raffreddamento del viaggio di andata e ritorno. In presenza di un riparo reale, un appetito ordinario non porta una persona in un tragitto che la farebbe tornare sotto la soglia di allarme. La fame urgente può accettare l'esposizione al freddo, ma le scelte automatiche Guidate evitano i predatori visibili lungo il percorso. Un bersaglio scelto esplicitamente mantiene il rischio; il cibo va comunque raccolto e preparato dal giocatore. [PLAYTEST-WORK-LEARNING.md](PLAYTEST-WORK-LEARNING.md) descrive la prudenza e la continuità degli incarichi.
 
 ## Un Falò con scelte leggibili
 
-Ogni lezione continua a costare **10 Attenzione** e forma **un custode reale per una parola**. Il nuovo budget stagionale è:
+Ogni racconto continua a costare **10 Attenzione**. Con un solo custode impara una persona; in Guidata più custodi già presenti possono formare fino a tre allievi distinti vicino allo stesso Falò. Memoria e investimento crescono una sola volta per racconto. La Classica mantiene l'allievo singolo. Il budget stagionale è:
 
 `base + 2 × legno bruciato + 5 × anziani equivalenti + contributo dei templi − 2 × max(0, fame media − 70)`
 
@@ -57,11 +57,11 @@ Le nuove Guidate spostano di due stagioni la curva senile, mantenendo età adult
 
 ## Compatibilità e verifica
 
-I salvataggi esistenti, privi del profilo, mantengono calendario e regole precedenti. Non vengono rigenerati mondi o inventate risorse. La validazione rifiuta versioni sconosciute, profili incoerenti e contatori impossibili; i registri del lavoro vengono verificati rispetto alla durata della propria stagione.
+I salvataggi esistenti, privi del profilo, mantengono calendario e sostegni iniziali precedenti. Le migliorie Guidate agli incarichi e ai racconti condivisi si applicano anche alle storie già salvate. Non vengono rigenerati mondi o inventate risorse. La validazione rifiuta versioni sconosciute, profili incoerenti e contatori impossibili; i registri del lavoro vengono verificati rispetto alla durata della propria stagione.
 
 Le suite storiche dichiarano il profilo precedente quando verificano tempi o budget precedenti. Le nuove prove coprono calendario e confini, domanda alimentare, economie, clima, mortalità, memoria, consegne, custodia, scoperte contestuali e UI. Il nuovo replay ordinario è separato dagli stati preparati e dalla campagna storica: usa comandi, esperienze, risorse e lezioni reali.
 
-La verifica completa supera 1.197 prove del motore e dei componenti e 135 casi nel browser. Due ulteriori ripetizioni del primo consiglio verificano la prima azione visibile senza scorrimento su telefono e desktop, tre lezioni effettivamente pagate, memoria e contatore dei consigli persistenti.
+La verifica storica di questa calibrazione comprendeva 1.197 prove del motore e dei componenti e 135 casi nel browser. I risultati della versione corrente sono in [PLAYTEST-WORK-LEARNING.md](PLAYTEST-WORK-LEARNING.md). Le prove del primo consiglio verificano l'azione visibile senza scorrimento su telefono e desktop, lezioni effettivamente pagate, memoria e contatore dei consigli persistenti.
 
 Otto replay ordinari impiegano soltanto decisioni a multipli di dieci secondi: sei varianti sulla valle originaria e due geografie generate, comprese preparazioni ritardate. Nei casi esercitati il primo Fuoco arriva almeno una stagione prima dell’inverno, non si verificano morti, le capacità fondamentali vengono affidate ad altri custodi e si svolgono almeno due consigli utili nel primo anno. Il maltempo può rinviare un consiglio e richiedere una riaccensione pagata: non viene soppresso per far riuscire il percorso. Le varianti di approvvigionamento controllano anche fame dopo l’inverno e assenza di carichi perduti durante i cambi di fonte.
 

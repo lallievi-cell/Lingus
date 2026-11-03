@@ -243,6 +243,15 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
   }
   if (p.verb === 'V_04') {
     if (
+      target?.type === 'entity' &&
+      entity &&
+      ['deer', 'wolf', 'alpha', 'mammoth'].includes(entity.kind) &&
+      entity.hp > 0
+    )
+      return no(
+        'L’animale è vivo. Usa Colpire per cacciarlo; Portare raccoglie la carne dopo la caccia.',
+      );
+    if (
       !allArgs(a, [
         ...resourceTokens,
         'O_01',

@@ -12,6 +12,7 @@ import {
 } from '../../src/game/engine';
 import type { GameState, MapEntity, Target } from '../../src/game/types';
 import { canFitCraftOutput, canPayLocally } from '../../src/game/craftMaterials';
+import { getCalendar } from '../../src/game/calendar';
 
 export interface RandomOpeningOrder {
   at: number;
@@ -117,6 +118,7 @@ export function replayRandomOpening(seed: number) {
     };
   };
   const say = (tokens: string[], target?: Target) => {
+    if (tokens.includes('V_04') && getCalendar(state).isNight) return false;
     const { adults, anchor } = selectedGroup();
     if (!adults.length) return false;
     const compiled = compileSentence(state, tokens, target);
@@ -265,6 +267,7 @@ export function replayRandomFirstYear(seed: number, endTime: 360 | 390 = 360) {
         (a, b) => Math.hypot(a.x - HOME.x, a.y - HOME.y) - Math.hypot(b.x - HOME.x, b.y - HOME.y),
       )[0];
   const say = (tokens: string[], destination?: Target) => {
+    if (tokens.includes('V_04') && getCalendar(state).isNight) return;
     const bonfire = fire();
     if (!bonfire) return;
     const before = state.stats.commands;

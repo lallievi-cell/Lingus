@@ -1,5 +1,5 @@
 import { WORDS } from './content';
-import { forbiddenByDogma, getDogmaEffects } from './dogmas';
+import { forbiddenByDogma, getDogmaEffects, resourcePreservationFloor } from './dogmas';
 import { canFitCraftOutput, canPayLocally } from './craftMaterials';
 import {
   entityResource,
@@ -15,6 +15,7 @@ import type { GameState, Target, Unit } from './types';
 export const TASK_OUTCOME_REASONS = [
   'completed',
   'exhausted',
+  'preserved',
   'full',
   'hunger',
   'cold',
@@ -24,6 +25,7 @@ export const TASK_OUTCOME_REASONS = [
   'materials',
   'fire',
   'danger',
+  'unsafe-route',
   'ended',
 ] as const;
 export type TaskOutcomeReason = (typeof TASK_OUTCOME_REASONS)[number];
@@ -51,6 +53,11 @@ const messages: Record<TaskOutcomeReason, { title: string; detail: string }> = {
     detail:
       'La fonte di questo incarico non ha più risorse. Prepara la frase e scegli un nuovo bersaglio.',
   },
+  preserved: {
+    title: 'Fonte preservata',
+    detail:
+      'Il dogma impone di lasciare una parte delle risorse nella fonte. Scegli un’altra fonte utilizzabile oppure rivedi il dogma per continuare qui.',
+  },
   full: {
     title: 'Scorte piene',
     detail:
@@ -69,6 +76,11 @@ const messages: Record<TaskOutcomeReason, { title: string; detail: string }> = {
     title: 'Lavoro interrotto per un pericolo',
     detail:
       'Il compagno sta tornando al campo dopo uno scontro. Controlla le sue condizioni prima di affidargli un nuovo incarico.',
+  },
+  'unsafe-route': {
+    title: 'Percorso pericoloso',
+    detail:
+      'Un predatore visibile è vicino alla fonte o al tragitto. Scegli una fonte più sicura oppure metti in sicurezza la zona prima di riprendere.',
   },
   rest: {
     title: 'È tempo di riposare',
@@ -236,6 +248,13 @@ export function observeTaskOutcomes(previous: GameState, next: GameState): TaskO
     )
       reason = 'cold';
     else if ((suspended && outsideShift) || (endedDirectDayTask && night)) reason = 'rest';
+    else if (
+      source &&
+      source.amount > 0 &&
+      source.amount <= resourcePreservationFloor(next, source) &&
+      ['gathering', 'returning'].includes(before.action)
+    )
+      reason = 'preserved';
     else if (
       previousSource &&
       (!source || source.amount <= 0) &&

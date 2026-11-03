@@ -9,6 +9,7 @@ import {
   tick,
 } from '../../src/game/engine';
 import type { GameState, MapEntity, Target } from '../../src/game/types';
+import { getCalendar } from '../../src/game/calendar';
 
 /** Ordinary legacy Guided play on the seed-zero map: group orders at ten-second
  * decisions, actual discoveries, materials, exploration, meals and paid lessons.
@@ -48,6 +49,7 @@ export function replayGuidedFirstYear(seed = 6842, departureDelay = 0) {
       (a, b) => Math.hypot(a.x - stone.x, a.y - stone.y) - Math.hypot(b.x - stone.x, b.y - stone.y),
     )[0];
   const say = (tokens: string[], target?: Target) => {
+    if (tokens.includes('V_04') && getCalendar(state).isNight) return;
     const adults = own().filter((unit) => unit.age >= 4);
     if (!adults.length) return;
     const center: Target = {

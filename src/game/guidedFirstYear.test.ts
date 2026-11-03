@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { replayGuidedFirstYear } from '../../tests/scenarios/guidedFirstYear';
 import { HOME } from './content';
 import { hasWord, parseGame, serializeGame } from './engine';
+import { getCalendar } from './calendar';
 
 describe('ordinary legacy Guided first year', () => {
   it.each([6842, 1, 42, 12])(
@@ -70,7 +71,14 @@ describe('ordinary legacy Guided first year', () => {
       result.orders.some((order) => order.at === 210 && order.tokens.join('|') === 'S_01|V_01'),
     ).toBe(true);
     expect(
-      result.orders.some((order) => order.at === 240 && order.tokens.join('|') === 'S_01|V_04'),
+      result.orders.some((order) => order.at === 230 && order.tokens.join('|') === 'S_01|V_02'),
+    ).toBe(true);
+    // The delayed meal happens before nightfall. A collection order at 240
+    // used to be accepted and immediately cancelled; it is now refused up front.
+    expect(
+      result.orders
+        .filter((order) => order.tokens.includes('V_04'))
+        .every((order) => !getCalendar(result.state, order.at).isNight),
     ).toBe(true);
     expect(result.state.stats.taught).toBeGreaterThanOrEqual(3);
     // Real routes alter the sampling of the ordinary RNG. Uma can die of old
