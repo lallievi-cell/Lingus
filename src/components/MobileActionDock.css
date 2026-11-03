@@ -29,10 +29,10 @@
     gap: 6px;
     min-height: 44px;
     padding: 0 10px;
-    border: 1px solid var(--ui-frame, #97a389);
-    border-radius: 9px;
-    background: var(--ui-panel, #f7f5e9);
-    color: #2a4935;
+    border: 1px solid #a49a8077;
+    border-radius: var(--control-radius, 8px);
+    background: #fffcf044;
+    color: var(--surface-ink, #2a4935);
     font: 650 12px var(--sans, sans-serif);
   }
   .mobile-words-toggle .is-open {
@@ -82,11 +82,11 @@
     height: min(44dvh, 350px, var(--word-sheet-available, 350px));
     min-height: 0;
     padding: 0;
-    border: 1px solid var(--ui-frame, #9da78c);
+    border: 1px solid var(--surface-edge, #9da78c);
     border-radius: 16px;
     color: #304b36;
     background: var(--ui-panel, #f8f5e9);
-    box-shadow: 0 -8px 28px #20342530;
+    box-shadow: 0 -8px 28px #20342538;
     overflow: hidden;
     outline: none;
   }
@@ -102,6 +102,8 @@
     padding: 0 6px 0 12px;
     min-height: 44px;
     border-bottom: 1px solid color-mix(in srgb, var(--ui-frame, #9da78c) 35%, transparent);
+    background: var(--hud-surface);
+    color: var(--hud-ink);
   }
   .mobile-word-sheet-heading > div {
     display: flex;
@@ -123,7 +125,7 @@
     justify-content: center;
     flex: 0 0 44px;
     min-height: 44px;
-    color: #425e42;
+    color: var(--hud-ink);
     background: transparent;
     border: 0;
     border-radius: 8px;

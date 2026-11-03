@@ -66,7 +66,7 @@
   }
   .app .tribe-tools {
     margin: 0;
-    border: 1px solid var(--ui-frame, #bbc7ac);
+    border: 1px solid #a49a8060;
     border-radius: 9px;
     padding: 0 10px;
   }
@@ -94,14 +94,15 @@
     height: auto !important;
     padding: 10px !important;
     gap: 10px !important;
-    border: 1px solid #b8c6aa !important;
-    border-left: 3px solid #9eb28e !important;
-    border-radius: 10px !important;
-    background: var(--ui-panel, #fcfaf1);
+    border: 1px solid #a49a804d !important;
+    border-left: 3px solid #9d9b79 !important;
+    border-radius: var(--control-radius) !important;
+    background: linear-gradient(120deg, #fffdf4, var(--ui-panel)) !important;
+    box-shadow: 0 2px 5px #352e1b08 !important;
   }
   .app .unit-list .readable-person.person-at-risk {
     border-left-color: #a95a36 !important;
-    background: #fff1e0;
+    background: #fff1e0 !important;
   }
   .app .unit-list .readable-person.selected {
     border-color: #4f7151 !important;
@@ -244,7 +245,7 @@
     max-width: 100%;
     max-height: calc(var(--lingus-viewport-height, 100dvh) - 16px) !important;
     padding: 0 16px 20px !important;
-    border-radius: 14px !important;
+    border-radius: var(--panel-radius) !important;
     text-align: left;
     scroll-padding-top: 68px;
     overscroll-behavior: contain;
@@ -263,15 +264,16 @@
     margin: 0 -16px 14px;
     padding: 4px 8px 4px 16px;
     min-height: 52px;
-    border-bottom: 1px solid #b6c2ab;
-    background: var(--ui-panel, #f6f4e9);
+    border-bottom: 1px solid var(--hud-line);
+    background: var(--hud-surface);
+    color: var(--hud-ink);
   }
   .app .modal-toolbar > span {
     display: block;
     min-width: 0;
     font-size: 13px;
     font-weight: 650;
-    color: #2b4533;
+    color: var(--hud-ink);
   }
   .app .modal-toolbar-actions {
     display: flex;
@@ -286,8 +288,8 @@
     width: 44px;
     height: 44px;
     border-radius: 8px;
-    background: #dce5d3;
-    color: #294331;
+    background: var(--hud-raised);
+    color: var(--hud-ink);
   }
   .app .council-finish {
     position: static;

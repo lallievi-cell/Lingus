@@ -668,9 +668,7 @@ function App() {
   function chooseAllAdults() {
     setGroupAnchor(allAdultsAnchor(game));
     setSelectingGroup(false);
-    notify(
-      'Selezionati tutti gli adulti disponibili, anche lontani dal campo. Bambini, visitatori e persone in missione sono esclusi.',
-    );
+    notify('Selezionati gli adulti disponibili, anche lontani.');
   }
 
   function gatherAtCamp() {
@@ -1270,6 +1268,7 @@ function App() {
         <button
           type="button"
           className={`mobile-nav-btn ${mobileSection === 'map' ? 'active' : ''}`}
+          aria-current={mobileSection === 'map' ? 'page' : undefined}
           onClick={() => setMobileSection('map')}
         >
           <Compass size={15} />
@@ -1278,6 +1277,7 @@ function App() {
         <button
           type="button"
           className={`mobile-nav-btn ${mobileSection === 'tribe' ? 'active' : ''}`}
+          aria-current={mobileSection === 'tribe' ? 'page' : undefined}
           onClick={() => setMobileSection('tribe')}
         >
           <Users size={15} />
@@ -1286,6 +1286,7 @@ function App() {
         <button
           type="button"
           className={`mobile-nav-btn ${mobileSection === 'discovery' ? 'active' : ''}`}
+          aria-current={mobileSection === 'discovery' ? 'page' : undefined}
           onClick={() => setMobileSection('discovery')}
         >
           <Sparkles size={15} />
@@ -2244,7 +2245,7 @@ function App() {
                   {sentence[i] ? (
                     <>
                       <Glyph id={sentence[i]} size={23} />
-                      <strong>{WORDS[sentence[i]].label}</strong>
+                      <strong key={sentence[i]}>{WORDS[sentence[i]].label}</strong>
                       {mobile ? (
                         <Pencil size={11} className="slot-edit" />
                       ) : (

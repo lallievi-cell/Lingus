@@ -1,7 +1,7 @@
 @import './components/TierMaterials.css';
 
 :root {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'DM Sans Variable', sans-serif;
   color: #1a2c20;
   background: #f5f2e9;
   font-synthesis: none;
@@ -16,6 +16,8 @@
   --line: #cdd2be;
   --gold: #7d6022;
   --serif: 'Libre Caslon Display', Georgia, serif;
+  --sans: 'DM Sans Variable', sans-serif;
+  --font-body: var(--sans);
 }
 * {
   box-sizing: border-box;
@@ -134,21 +136,23 @@ button:not(:disabled):hover {
 .text-button:hover {
   color: #2c4934;
 }
-.topbar {
+.app .topbar {
   height: 40px;
   padding: 0 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--hud-line, #566451);
   gap: 16px;
   flex-shrink: 0;
+  background: var(--hud-surface, #202f2b);
+  color: var(--hud-ink, #f4ecd9);
 }
 .brand {
   display: flex;
   gap: 10px;
   align-items: center;
-  color: #263c29;
+  color: var(--hud-ink, #f4ecd9);
 }
 .brand > span {
   display: flex;
@@ -164,8 +168,8 @@ button:not(:disabled):hover {
 .brand small {
   font-size: 9px;
   letter-spacing: 1.2px;
-  color: #2e4333;
-  font-weight: 700;
+  color: var(--hud-muted, #c5cbb9);
+  font-weight: 600;
 }
 .era-heading {
   display: flex;
@@ -177,19 +181,19 @@ button:not(:disabled):hover {
 .era-heading > span:last-child {
   font-family: var(--serif);
   font-size: 15px;
-  color: #1b2d21;
+  color: var(--hud-ink, #f4ecd9);
 }
 .era-heading .eyebrow {
   font-size: 10px;
   letter-spacing: 1.2px;
-  color: #2d4433;
-  font-weight: 700;
+  color: var(--hud-muted, #c5cbb9);
+  font-weight: 600;
 }
 .era-heading i {
   display: inline-block;
   width: 3px;
   height: 3px;
-  background: #90937a;
+  background: var(--material-accent, #c39361);
   vertical-align: middle;
   margin: 0 6px;
   border-radius: 50%;
@@ -203,24 +207,32 @@ button:not(:disabled):hover {
   gap: 6px;
   font-size: 11px;
   font-weight: 600;
-  color: #2a3e2e;
+  color: var(--hud-muted, #c5cbb9);
+}
+.header-actions .icon-button {
+  color: var(--hud-muted, #c5cbb9);
+}
+.header-actions :is(.icon-button, .text-button):hover {
+  background: var(--hud-raised, #2e4138);
+  color: var(--hud-ink, #f4ecd9);
 }
 .header-divider {
   height: 18px;
   width: 1px;
-  background: var(--line);
+  background: var(--hud-line, #566451);
   margin: 0 4px;
 }
-.world-strip {
+.app .world-strip {
   display: flex;
   height: 24px;
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--hud-line, #566451);
   gap: 15px;
   flex-shrink: 0;
-  background: #eeebd655;
+  color: var(--hud-muted, #c5cbb9);
+  background: var(--hud-surface, #202f2b);
 }
 .world-location {
   display: flex;
@@ -233,10 +245,10 @@ button:not(:disabled):hover {
   font-size: 11px;
   letter-spacing: 1px;
   font-weight: 700;
-  color: #263c2c;
+  color: var(--hud-muted, #c5cbb9);
 }
 .world-location > span:last-child {
-  color: #445949;
+  color: var(--hud-muted, #c5cbb9);
   font-weight: 500;
 }
 .strip-divider {
@@ -258,7 +270,7 @@ button:not(:disabled):hover {
   align-items: center;
   font-size: 12px;
   font-weight: 600;
-  color: #1f3223;
+  color: var(--hud-ink, #f4ecd9);
 }
 .world-resources > span {
   display: flex;
@@ -267,20 +279,20 @@ button:not(:disabled):hover {
 }
 .world-resources small {
   font-size: 11px;
-  color: #425846;
-  font-weight: 600;
+  color: var(--hud-muted, #c5cbb9);
+  font-weight: 500;
 }
 .world-resources .season-chip {
   font-size: 11px;
-  color: #1f3223;
-  font-weight: 700;
+  color: var(--hud-ink, #f4ecd9);
+  font-weight: 650;
   gap: 6px;
 }
 .prototype-label {
   font-size: 10px;
   letter-spacing: 1px;
-  color: #556c59;
-  font-weight: 600;
+  color: var(--hud-muted, #c5cbb9);
+  font-weight: 500;
 }
 .game-layout {
   display: grid;
@@ -320,7 +332,7 @@ button:not(:disabled):hover {
 }
 .side-tabs button.active {
   color: #1a2f1e;
-  border-bottom-color: #2e4933;
+  border-bottom-color: var(--material-accent, #c39361);
   font-weight: 700;
 }
 .side-tabs button span {
@@ -346,7 +358,7 @@ button:not(:disabled):hover {
 }
 .tribe-heading h2 {
   font-family: var(--serif);
-  font-size: 24px;
+  font-size: 28px;
   font-weight: 400;
   margin-top: 4px;
   letter-spacing: -0.4px;
@@ -396,26 +408,27 @@ button:not(:disabled):hover {
 }
 .unit-list {
   display: grid;
-  gap: 3px;
+  gap: 6px;
   padding-top: 9px;
 }
 .unit-card {
   display: flex;
   gap: 10px;
   width: 100%;
-  background: transparent;
+  background: color-mix(in srgb, var(--ui-panel) 75%, white);
   align-items: center;
-  padding: 4px 5px;
-  border-radius: 5px;
+  padding: 6px;
+  border-radius: 9px;
   text-align: left;
-  border: 1px solid transparent;
+  border: 1px solid color-mix(in srgb, var(--ui-frame) 20%, transparent);
 }
 .unit-card:hover {
   background: #eaece0;
 }
 .unit-card.selected {
-  background: #e8ecdd;
-  border-color: #bec9ac;
+  background: #e5eadc;
+  border-color: #667d63;
+  box-shadow: inset 3px 0 0 #667d63;
 }
 .custodian-notice {
   margin-top: 13px;
@@ -948,7 +961,7 @@ button:not(:disabled):hover {
 }
 .quiet-card {
   text-align: center;
-  padding: 10px 0 12px;
+  padding: 14px 0 16px;
   border-bottom: 1px solid var(--line);
 }
 .quiet-illustration {
@@ -993,9 +1006,9 @@ button:not(:disabled):hover {
   margin-top: 8px;
   padding: 10px 10px 8px;
   text-align: center;
-  border: 1px solid #c7b98d;
-  background: radial-gradient(ellipse at 50% 20%, #f4ebcb, #ede7d5);
-  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--material-accent, #c39361) 60%, var(--ui-panel));
+  background: radial-gradient(ellipse at 50% 0, #fff8df, var(--ui-panel) 75%);
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1684,8 +1697,8 @@ kbd {
 .modal-scrim {
   position: fixed;
   inset: 0;
-  background: #25392ba3;
-  backdrop-filter: blur(5px);
+  background: #101d18b8;
+  backdrop-filter: blur(4px);
   z-index: 30;
   display: flex;
   align-items: center;
@@ -1701,19 +1714,72 @@ kbd {
   max-height: calc(100dvh - 56px);
   overflow: auto;
   overscroll-behavior: contain;
-  background: radial-gradient(ellipse at 50% 0, #fcf9ed, #f4f2e6);
-  border: 1px solid #dbdec9;
-  border-radius: 9px;
-  box-shadow: 0 15px 80px #192c2940;
-  padding: 40px;
   outline: none;
   scrollbar-width: thin;
   scrollbar-color: #c9d2b6 transparent;
 }
-.modal-close {
-  position: absolute;
-  right: 13px;
-  top: 13px;
+.app .modal {
+  color: var(--surface-ink, #25372e);
+  background-color: var(--ui-panel);
+  background-image: var(--ui-grain);
+  border: 1px solid var(--ui-frame);
+  border-radius: 16px;
+  box-shadow:
+    0 24px 80px #101d1866,
+    inset 0 0 0 1px #fff6e344;
+  padding: 32px;
+}
+/* One familiar header follows the player through every game panel. */
+.app .modal::before {
+  display: none;
+}
+.app .modal-toolbar {
+  position: sticky;
+  top: -32px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  margin: -32px -32px 24px;
+  padding: 4px 12px 4px 24px;
+  border-bottom: 1px solid var(--material-accent, #c39361);
+  background: var(--hud-surface, #202f2b);
+  color: var(--hud-ink, #f4ecd9);
+}
+.app .modal-toolbar > span {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+.app .modal-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.app .modal-toolbar .modal-close {
+  position: static;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border: 1px solid var(--hud-line, #566451);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--hud-ink, #f4ecd9);
+}
+.app .modal-toolbar .modal-close:hover {
+  background: var(--hud-raised, #2e4138);
+}
+.app .modal-toolbar .council-finish {
+  position: static;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--hud-raised, #2e4138);
+  color: var(--hud-ink, #f4ecd9);
 }
 .modal h2 {
   font-family: var(--serif);
@@ -1727,37 +1793,42 @@ kbd {
   color: var(--gold);
 }
 .modal p {
-  font-size: 12px;
-  color: #859074;
-  line-height: 1.8;
+  font-size: 13px;
+  color: var(--surface-muted, #586454);
+  line-height: 1.7;
 }
 .modal .eyebrow {
-  font-size: 8px;
-  letter-spacing: 1.6px;
+  font-size: 10px;
+  letter-spacing: 1.4px;
 }
 .modal-intro {
   margin-bottom: 24px !important;
 }
-.primary-button {
+.app .primary-button {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 18px;
-  background: #3d563b;
-  color: #f7f6e9;
+  background: linear-gradient(180deg, #365344, #243c30);
+  color: #fff8e8;
   min-height: 45px;
   padding: 13px 22px;
   font-size: 12px;
-  font-weight: 500;
-  border-radius: 4px;
-  box-shadow: 0 3px 6px #25432e13;
+  font-weight: 650;
+  border: 1px solid #506748;
+  border-radius: 9px;
+  box-shadow:
+    inset 0 1px 0 #fff7d926,
+    0 3px 8px #15261c26;
 }
-.primary-button:hover {
-  background: #314b30;
+.app .primary-button:hover {
+  background: #365542;
 }
-.primary-button:disabled {
-  background: #b1b99f;
-  opacity: 0.6;
+.app .primary-button:disabled {
+  background: #e0e1d4;
+  color: #596351;
+  border-color: #c0c5b1;
+  opacity: 1;
   box-shadow: none;
 }
 .welcome-modal {
@@ -2134,18 +2205,18 @@ kbd {
 .attention-counter > span {
   font-size: 8px;
   letter-spacing: 1.4px;
-  color: #a59a73;
+  color: #63573c;
 }
 .attention-counter > strong {
   font-family: var(--serif);
   font-size: 30px;
   font-weight: 400;
-  color: #a28b50;
+  color: #6b512c;
 }
 .attention-counter small {
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--sans);
   font-size: 10px;
-  color: #b7b098;
+  color: #625b46;
   margin-left: 5px;
 }
 .teaching-list {
@@ -2160,7 +2231,7 @@ kbd {
   gap: 13px;
   padding: 13px 0;
   border-bottom: 1px solid var(--line);
-  color: #8a9d76;
+  color: var(--surface-ink);
 }
 .teaching-row > div {
   flex: 1;
@@ -2169,13 +2240,14 @@ kbd {
   gap: 5px;
 }
 .teaching-row strong {
-  font-size: 12px;
-  color: #5a7150;
-  font-weight: 500;
+  font-size: 15px;
+  color: var(--surface-ink);
+  font-weight: 650;
 }
 .teaching-row div > span:not(.meter) {
-  font-size: 9px;
-  color: #9ba78c;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--surface-muted);
 }
 .teaching-row.last-custodian-word {
   border-left: 2px solid #c4ac78;
@@ -2185,34 +2257,41 @@ kbd {
   display: flex;
   gap: 4px;
   align-items: center;
-  color: #8c986e;
+  color: #4f6447;
 }
 .teaching-row div > .teaching-custodian.ageing {
-  color: #ad8951;
+  color: #805923;
 }
 .teaching-row div > .teaching-custodian.critical {
-  color: #b67555;
+  color: #923f29;
 }
 .teaching-row .meter {
   max-width: 200px;
 }
 .teach-button {
-  border: 1px solid #d1dcc0;
-  background: #e9efde;
-  border-radius: 4px;
+  border: 1px solid #365a43;
+  background: #365a43;
+  border-radius: var(--control-radius);
+  min-height: 44px;
   padding: 7px 13px;
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 10px;
-  color: #799461;
+  font-size: 13px;
+  color: #fff9e9;
+}
+.teach-button:disabled {
+  opacity: 1;
+  color: #5c6759;
+  background: #e1e4d5;
+  border-color: #bec4b1;
 }
 .teach-button > small {
   display: flex;
   align-items: center;
   gap: 3px;
-  color: #a3ac8c;
-  font-size: 9px;
+  color: inherit;
+  font-size: 11px;
 }
 .campfire-explanation {
   font-size: 10px !important;
@@ -2329,7 +2408,7 @@ kbd {
   border-top: 1px solid var(--line);
   padding: 19px 4px;
   text-align: left;
-  color: #80956d;
+  color: #52664c;
 }
 .settings-actions > button:hover {
   background: #e9eddd;
@@ -2342,12 +2421,12 @@ kbd {
 }
 .settings-actions strong {
   font-size: 12px;
-  color: #5b7350;
-  font-weight: 500;
+  color: var(--surface-ink, #25372e);
+  font-weight: 650;
 }
 .settings-actions small {
-  font-size: 9px;
-  color: #a0aa91;
+  font-size: 11px;
+  color: var(--surface-muted, #586454);
 }
 .settings-actions .restart-action {
   color: #b0936e;
@@ -2375,7 +2454,7 @@ kbd {
   text-align: center;
 }
 .save-stats small {
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--sans);
   font-size: 8px;
   letter-spacing: 0.3px;
   color: #a9b098;
@@ -3723,7 +3802,7 @@ kbd {
   margin-bottom: 12px;
 }
 .city-vocations h3 small {
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--sans);
   font-size: 9px;
   color: #a1ad91;
   margin-left: 12px;

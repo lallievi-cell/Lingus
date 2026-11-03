@@ -4,6 +4,8 @@ Questa pagina non tratta più Bronzo e Ferro come semplici etichette future del 
 
 [PRODUCT-CONSOLIDATION.md](PRODUCT-CONSOLIDATION.md) registra gli interventi della versione 0.3 nei dieci ambiti del prodotto, con prove e limiti separati dalle verifiche di conformità.
 
+[UI-VISUAL-REFRESH.md](UI-VISUAL-REFRESH.md) documenta la revisione grafica 0.3.2 di navigazione, comandi e pannelli, con audit delle schermate e vincoli di leggibilità mobile.
+
 ## 1. Consolidare i requisiti risolti
 
 [CONFORMANCE.md](CONFORMANCE.md) collega le regole del documento a formule, cataloghi, transizioni e prove. Ogni correzione deve conservare il riferimento alla fonte e aggiornare il test che può rilevarne una violazione.

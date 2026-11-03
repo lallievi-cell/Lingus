@@ -111,9 +111,10 @@ async function expectPlayableMap(page: Page, viewport: { width: number; height: 
       'the map needs a usable exposed area while choosing words',
     ).toBeGreaterThanOrEqual(viewport.height * 0.25);
   }
+  // Sample terrain below the map tools, including the shortest 320px viewport.
   const point = {
     x: m.width * 0.22,
-    y: landscape ? m.height * 0.32 : Math.min(m.height * 0.32, p.y - m.y - 18),
+    y: landscape ? m.height * 0.32 : Math.min(m.height * 0.5, p.y - m.y - 18),
   };
   expect(point.y).toBeGreaterThan(8);
   expect(
@@ -128,6 +129,7 @@ async function expectPlayableMap(page: Page, viewport: { width: number; height: 
 }
 
 for (const viewport of [
+  { width: 320, height: 568 },
   { width: 360, height: 640 },
   { width: 390, height: 744 },
   { width: 844, height: 390 },
@@ -136,6 +138,13 @@ for (const viewport of [
     page,
   }) => {
     await page.setViewportSize(viewport);
+    if (viewport.width === 320)
+      await page.addInitScript(() =>
+        localStorage.setItem(
+          'lingus.interface.v1',
+          JSON.stringify({ textSize: 'large', contrast: 'high' }),
+        ),
+      );
     await scene(page);
     await page.getByRole('button', { name: 'Spazio 1: chi?', exact: true }).tap();
     const point = await expectPlayableMap(page, viewport);
@@ -158,6 +167,13 @@ for (const viewport of [
     page,
   }) => {
     await page.setViewportSize(viewport);
+    if (viewport.width === 320)
+      await page.addInitScript(() =>
+        localStorage.setItem(
+          'lingus.interface.v1',
+          JSON.stringify({ textSize: 'large', contrast: 'high' }),
+        ),
+      );
     await scene(page);
     const before = await saved(page);
     await page.getByRole('button', { name: 'Tutti gli adulti', exact: true }).tap();
@@ -171,7 +187,8 @@ for (const viewport of [
     expect(composed.voice).toBe(before.voice);
     const canvas = map(page),
       bounds = (await canvas.boundingBox())!;
-    await canvas.tap({ position: { x: bounds.width * 0.2, y: bounds.height * 0.3 } });
+    // These destinations stay on terrain rather than the floating tool row.
+    await canvas.tap({ position: { x: bounds.width * 0.2, y: bounds.height * 0.6 } });
     await page.getByRole('button', { name: 'Pronuncia', exact: true }).tap();
     const first = await saved(page);
     expect(first.stats.commands).toBe(before.stats.commands + 1);
@@ -179,7 +196,7 @@ for (const viewport of [
     expect(
       first.units.filter((u: { command?: string[] }) => u.command?.join('|') === 'S_01|V_01'),
     ).toHaveLength(6);
-    await canvas.tap({ position: { x: bounds.width * 0.33, y: bounds.height * 0.25 } });
+    await canvas.tap({ position: { x: bounds.width * 0.33, y: bounds.height * 0.6 } });
     await page.getByRole('button', { name: 'Pronuncia', exact: true }).tap();
     const second = await saved(page);
     expect(second.stats.commands).toBe(before.stats.commands + 2);

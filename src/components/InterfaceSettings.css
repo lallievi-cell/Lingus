@@ -218,6 +218,31 @@
 .app[data-contrast='high'] .person-at-risk {
   border-color: #8d3d29 !important;
 }
+.app[data-contrast='high'] .mobile-ergonomic .sentence-slot {
+  background: #fffdf2 !important;
+  color: #173523 !important;
+  border-color: #637c5d !important;
+}
+.app[data-contrast='high'] .mobile-ergonomic .sentence-slot.editing,
+.app[data-contrast='high'] .mobile-ergonomic .sentence-slot[data-active='true'] {
+  background: #fff0bf !important;
+  outline: 3px solid #85520a;
+}
+.app[data-contrast='high']
+  :is(.modal-toolbar, .mobile-word-sheet-heading)
+  :is(span, small, p, button) {
+  color: var(--hud-ink) !important;
+}
+.app[data-contrast='high'] .modal-toolbar .text-button {
+  background: var(--hud-raised) !important;
+  color: var(--hud-ink) !important;
+  border-color: var(--hud-line) !important;
+}
+.app[data-contrast='high'] .teach-button:not(:disabled),
+.app[data-contrast='high'] .teach-button:not(:disabled) small {
+  color: #fffbea !important;
+  background: #21452e !important;
+}
 .app[data-contrast='high'] :is(button, a, input, select, summary):focus-visible {
   outline: 3px solid #85520a !important;
   outline-offset: 3px;

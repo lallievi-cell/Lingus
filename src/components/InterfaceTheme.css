@@ -1,0 +1,78 @@
+/* Shared pigments. Geometry belongs to each component; the six eras retain
+   their own material, grain and accent rather than becoming separate skins. */
+.app {
+  --hud-surface: #202f2b;
+  --hud-raised: #2e4138;
+  --hud-ink: #f4ecd9;
+  --hud-muted: #c5cbb9;
+  --hud-line: #566451;
+  --material-accent: #c39361;
+  --surface-paper: #f7f0df;
+  --surface-ink: #25372e;
+  --surface-muted: #586454;
+  --surface-edge: #a49a80;
+  --surface-shadow: 0 8px 24px #17251f24;
+  --control-radius: 8px;
+  --panel-radius: 16px;
+}
+.app.tier-1 {
+  --material-accent: #c6b583;
+}
+.app.tier-2 {
+  --material-accent: #c99573;
+}
+.app.tier-3 {
+  --hud-surface: #352d28;
+  --hud-raised: #483b30;
+  --hud-line: #75614c;
+  --material-accent: #d2a078;
+}
+.app.tier-4 {
+  --hud-surface: #2b3029;
+  --hud-raised: #3d4435;
+  --hud-line: #6f7456;
+  --material-accent: #d2b471;
+}
+.app.tier-5 {
+  --hud-surface: #253034;
+  --hud-raised: #344349;
+  --hud-line: #627579;
+  --material-accent: #c1d1c9;
+}
+.app[data-contrast='high'] {
+  --hud-surface: #101e18;
+  --hud-raised: #1d3427;
+  --hud-ink: #fffbea;
+  --hud-muted: #e3e9d8;
+  --hud-line: #a7ba99;
+  --material-accent: #f1ca8e;
+  --surface-paper: #fff9e9;
+  --surface-ink: #122a1d;
+  --surface-muted: #2b4433;
+}
+
+/* Dark surfaces need a light focus ring in both contrast modes. */
+.app
+  :is(
+    .topbar,
+    .mobile-nav-bar,
+    .map-toolbar,
+    .modal-toolbar,
+    .phrasebook-heading,
+    .mobile-word-sheet-heading
+  )
+  :is(a, button):focus-visible,
+.app
+  .lingus-world
+  :is(.lingus-world__stocks, .lingus-world__elements, .lingus-world__minimap):focus-visible,
+.app .lingus-world__control-stack button:focus-visible {
+  outline: 2px solid var(--hud-ink) !important;
+  outline-offset: -4px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app :is(button, .sentence-slot, .mobile-nav-btn, .phrasebook, .modal) {
+    animation: none !important;
+    transition: none !important;
+  }
+}

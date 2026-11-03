@@ -22,6 +22,11 @@
     max-height: none !important;
     padding: 5px 8px max(5px, env(safe-area-inset-bottom)) !important;
     overflow: visible !important;
+    background-color: var(--ui-panel) !important;
+    border-top: 1px solid var(--material-accent) !important;
+    box-shadow:
+      inset 0 1px 0 #fff9e8,
+      0 -3px 16px #17251f20 !important;
   }
   .app .language-workbench.mobile-hidden {
     display: none !important;
@@ -55,10 +60,22 @@
     height: 44px !important;
     justify-content: center;
     padding: 4px 8px !important;
-    border-radius: 9px !important;
+    border-radius: 6px !important;
     font-size: 12px !important;
     gap: 6px !important;
     overflow: hidden;
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    color: var(--surface-ink) !important;
+    box-shadow: none !important;
+  }
+  .app .language-workbench.mobile-ergonomic .executor-selection > .text-button.active {
+    background: #36553c0c !important;
+    border-color: #73836255 !important;
+  }
+  .app .language-workbench.mobile-ergonomic .executor-selection > .text-button:disabled {
+    opacity: 1 !important;
+    color: #737667 !important;
   }
   .app .mobile-ergonomic .executor-selection > button > svg {
     width: 17px;
@@ -72,10 +89,11 @@
     line-height: 1.15;
   }
   .app .mobile-ergonomic .recall-label small {
-    display: block;
-    margin: 2px 0 0;
+    display: inline;
+    margin: 0 0 0 5px;
     font-size: 10px;
-    opacity: 0.75;
+    color: var(--surface-muted);
+    opacity: 1;
   }
   .app .mobile-ergonomic .composer-row {
     display: flex !important;
@@ -113,9 +131,39 @@
     height: 44px !important;
     min-height: 44px !important;
     padding: 5px 7px !important;
-    gap: 5px !important;
+    gap: 4px !important;
     font-size: 12px !important;
-    border-radius: 8px !important;
+    border-radius: 6px !important;
+    border: 1px solid #a3977966 !important;
+    background: #fffaf066 !important;
+    box-shadow: inset 0 1px 3px #4b3b2810 !important;
+    color: var(--surface-muted) !important;
+  }
+  .app .mobile-ergonomic .sentence-slot.filled {
+    color: var(--surface-ink) !important;
+    background: linear-gradient(150deg, #fffdf3, var(--ui-panel)) !important;
+    border-color: #a99a7d !important;
+    box-shadow:
+      inset 0 1px 0 #fffdf3,
+      inset 0 -2px 0 #6e5a3e24,
+      0 2px 3px #302c2114 !important;
+  }
+  .app .mobile-ergonomic .sentence-slot:disabled {
+    opacity: 1;
+    background: #ded8c944 !important;
+  }
+  .app .mobile-ergonomic .sentence-slot.filled.word-S {
+    border-bottom-color: #4d725d !important;
+  }
+  .app .mobile-ergonomic .sentence-slot.filled.word-V {
+    border-bottom-color: #926639 !important;
+  }
+  .app .mobile-ergonomic .sentence-slot.filled.word-O {
+    border-bottom-color: #687d89 !important;
+  }
+  .app .mobile-ergonomic .sentence-slot.filled.word-M,
+  .app .mobile-ergonomic .sentence-slot.filled.word-C {
+    border-bottom-color: #88709c !important;
   }
   .app .mobile-ergonomic .sentence-slot strong {
     min-width: 0;
@@ -126,7 +174,7 @@
   .app .mobile-ergonomic .sentence-slot.editing {
     outline: 2px solid #8c671f;
     outline-offset: -2px;
-    background: #fff3d2;
+    background: #fff3d2 !important;
   }
   .app .mobile-ergonomic .sentence-slot > svg:first-child {
     width: 19px !important;
@@ -134,12 +182,24 @@
     flex: 0 0 19px;
   }
   .app .mobile-ergonomic .sentence-slot.filled > svg:first-child {
-    display: none;
+    display: block;
+    color: var(--ui-accent);
+  }
+  .app .mobile-ergonomic .sentence-slot.word-S > svg:first-child {
+    color: #4d725d;
+  }
+  .app .mobile-ergonomic .sentence-slot.word-O > svg:first-child {
+    color: #526c7c;
+  }
+  .app .mobile-ergonomic .sentence-slot.word-M > svg:first-child,
+  .app .mobile-ergonomic .sentence-slot.word-C > svg:first-child {
+    color: #79608b;
   }
   .app .mobile-ergonomic .slot-edit {
     width: 12px !important;
     height: 12px !important;
     flex: 0 0 12px;
+    display: none;
   }
   .app .mobile-ergonomic .composer-actions {
     display: flex !important;
@@ -150,6 +210,10 @@
     width: 44px !important;
     min-width: 44px !important;
     height: 44px !important;
+    background: transparent !important;
+    color: var(--surface-muted) !important;
+    border: 0 !important;
+    box-shadow: none !important;
   }
   .app .mobile-ergonomic .pronounce-button {
     width: 96px !important;
@@ -159,6 +223,21 @@
     padding: 0 8px !important;
     gap: 5px !important;
     font-size: 12px !important;
+    color: var(--hud-ink) !important;
+    background: linear-gradient(150deg, var(--hud-raised), var(--hud-surface)) !important;
+    border: 1px solid var(--hud-line) !important;
+    border-radius: var(--control-radius) !important;
+    box-shadow:
+      inset 0 1px 0 #ffffff20,
+      0 2px 0 #12231e,
+      0 3px 8px #16251a24 !important;
+  }
+  .app .mobile-ergonomic .pronounce-button:disabled {
+    opacity: 1 !important;
+    color: #657060 !important;
+    background: #e1dfd0 !important;
+    border-color: #c3c5b2 !important;
+    box-shadow: none !important;
   }
   .app .mobile-ergonomic .mobile-dock-header {
     min-height: 44px;
@@ -174,7 +253,7 @@
     align-items: center;
     gap: 3px;
     font-size: 11px;
-    color: #445d46;
+    color: var(--surface-ink);
     white-space: nowrap;
   }
   .app .mobile-ergonomic .order-preview {
@@ -197,8 +276,8 @@
     justify-content: center;
     flex-direction: column;
     gap: 2px;
-    border: 1px solid #aab69b;
-    background: var(--ui-panel, #f4f5e9);
+    border: 1px solid #a49a8060;
+    background: #fffaf066;
     border-radius: 8px;
   }
   .app .mobile-ergonomic .order-preview.blocked summary {
@@ -283,6 +362,38 @@
   }
   .app.is-mobile-keyboard .order-preview summary {
     display: none;
+  }
+}
+
+/* Glyphs belong to the words, not to a second edit command. Small opening
+   slots keep the full label when two tokens share the available width. */
+@media (max-width: 360px) {
+  .app
+    .mobile-ergonomic
+    .sentence-slots:not(:has(.slot-group:nth-child(3)))
+    .sentence-slot.filled
+    > svg:first-child {
+    display: none;
+  }
+  .app .mobile-ergonomic .recall-label small {
+    display: block;
+    margin: 1px 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .app .sentence-slot.filled > strong {
+    animation: word-inscription 150ms ease-out;
+  }
+  @keyframes word-inscription {
+    from {
+      opacity: 0.4;
+      transform: translateY(2px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }
 

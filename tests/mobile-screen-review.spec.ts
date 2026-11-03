@@ -150,21 +150,61 @@ test('reviewed dialogs retain a reachable close control after reading long conte
     await close.tap();
   }
 });
-test('the seasonal council can conclude from its persistent header with actual memory erosion', async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 390, height: 744 });
-  await scene(page, true);
-  const dialog = page.getByRole('dialog', { name: 'Attorno al falò' });
-  await expect(dialog.getByRole('button', { name: 'Chiudi finestra' })).toHaveCount(0);
-  await dialog.getByRole('button', { name: 'Concludi consiglio', exact: true }).tap();
-  await expect(dialog).not.toBeVisible();
-  const after = await saved(page);
-  expect(after.campfirePending).toBe(false);
-  expect(after.words.O_03.retention).toBeLessThan(80);
-  expect(after.stats.taught).toBe(0);
-  expect(after.resources.wood).toBe(2);
-});
+for (const contrast of ['standard', 'high'] as const)
+  test(`the seasonal council remains readable and concludes with actual memory erosion in ${contrast} contrast`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: contrast === 'high' ? 320 : 390, height: 744 });
+    await page.addInitScript((contrast) => {
+      localStorage.setItem(
+        'lingus.interface.v1',
+        JSON.stringify({
+          textSize: contrast === 'high' ? 'large' : 'standard',
+          contrast,
+        }),
+      );
+    }, contrast);
+    await scene(page, true);
+    const dialog = page.getByRole('dialog', { name: 'Attorno al falò' });
+    await expect(dialog.getByRole('button', { name: 'Chiudi finestra' })).toHaveCount(0);
+    const finish = dialog.getByRole('button', { name: 'Concludi consiglio', exact: true });
+    // Regression: the high-contrast light button inherited the dark header's
+    // white text. Check the rendered pigments, then actually finish the council.
+    const contrastRatio = await finish.evaluate((button) => {
+      const style = getComputedStyle(button);
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 1;
+      const context = canvas.getContext('2d')!;
+      const luminance = (color: string) => {
+        context.clearRect(0, 0, 1, 1);
+        context.fillStyle = color;
+        context.fillRect(0, 0, 1, 1);
+        const rgba = context.getImageData(0, 0, 1, 1).data;
+        if (rgba[3] !== 255) throw new Error('Check the effective surface for translucent colors');
+        const rgb = Array.from(rgba)
+          .slice(0, 3)
+          .map((value) => {
+            const channel = value / 255;
+            return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+          });
+        return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+      };
+      const text = luminance(style.color);
+      const background = luminance(style.backgroundColor);
+      return (Math.max(text, background) + 0.05) / (Math.min(text, background) + 0.05);
+    });
+    expect(
+      contrastRatio,
+      'the council action must remain legible on its actual surface',
+    ).toBeGreaterThanOrEqual(4.5);
+    await finish.tap();
+    await expect(dialog).not.toBeVisible();
+    const after = await saved(page);
+    expect(after.campfirePending).toBe(false);
+    expect(after.words.O_03.retention).toBeLessThan(80);
+    expect(after.stats.taught).toBe(0);
+    expect(after.resources.wood).toBe(2);
+  });
 test('an invalid order explains itself without consuming Voice, and one replacement repairs it', async ({
   page,
 }) => {

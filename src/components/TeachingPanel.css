@@ -74,7 +74,7 @@
   display: block;
   margin: 3px 0 6px;
   color: #53604c;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.45;
 }
 .teaching-panel .teaching-row {
@@ -91,7 +91,7 @@
   gap: 4px;
   margin-top: 7px;
   color: #53604c;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.45;
 }
 .teaching-panel .lesson-people > span {
@@ -105,8 +105,8 @@
   vertical-align: middle;
   padding: 3px;
   margin-left: 4px;
-  min-width: 25px;
-  min-height: 25px;
+  min-width: 44px;
+  min-height: 44px;
 }
 .teaching-panel .teach-button {
   margin-top: 3px;
@@ -114,7 +114,7 @@
 .teaching-panel .teach-button small {
   display: block;
   white-space: normal;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.35;
 }
 .teaching-note,

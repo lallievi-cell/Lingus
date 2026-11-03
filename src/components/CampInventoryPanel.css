@@ -16,10 +16,10 @@
   place-items: center;
   flex: 0 0 48px;
   height: 48px;
-  border: 1px solid #c2c8af;
+  border: 1px solid var(--material-accent, #c39361);
   border-radius: 50%;
-  background: #e5e9d9;
-  color: #425b3c;
+  background: var(--hud-surface, #202f2b);
+  color: var(--hud-ink, #f4ecd9);
 }
 
 .camp-inventory h2 {
@@ -82,9 +82,9 @@
   gap: 10px;
   min-width: 0;
   padding: 12px;
-  border: 1px solid #ced3bf;
-  border-radius: 10px;
-  background: #f5f5ea;
+  border: 1px solid color-mix(in srgb, var(--ui-frame) 30%, var(--ui-panel));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--ui-panel) 45%, #fffdf5);
 }
 
 .camp-inventory-row dt {
@@ -183,9 +183,9 @@
 
 .camp-inventory-capacity {
   padding: 16px;
-  border: 1px solid #cec9b5;
+  border: 1px solid color-mix(in srgb, var(--ui-frame) 40%, var(--ui-panel));
   border-radius: 12px;
-  background: #eeebdd;
+  background: color-mix(in srgb, var(--ui-panel) 88%, var(--ui-frame));
 }
 
 .camp-inventory-capacity-pool {

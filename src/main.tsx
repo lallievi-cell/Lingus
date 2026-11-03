@@ -4,6 +4,7 @@ import '@fontsource-variable/dm-sans';
 import '@fontsource/libre-caslon-display';
 import App from './App';
 import './styles.css';
+import './components/InterfaceTheme.css';
 import './components/MobileLayout.css';
 import './components/MobileComposer.css';
 import './components/MobileVisual.css';
