@@ -60,7 +60,9 @@ export function LessonPlanner({
                 <strong>{WORDS[lesson.wordId]?.label ?? 'Parola non disponibile'}</strong>
                 <span>
                   {lesson.allowed && lesson.pupil
-                    ? `Imparerà: ${visibleUnitName(state, lesson.pupil)}`
+                    ? lesson.pupils.length > 1
+                      ? `Impareranno: ${lesson.pupils.map((pupil) => visibleUnitName(state, pupil)).join(', ')}`
+                      : `Imparerà: ${visibleUnitName(state, lesson.pupil)}`
                     : lessonIssueText(lesson.issue)}
                 </span>
               </li>

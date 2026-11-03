@@ -278,7 +278,7 @@ function* runNeolithicTransition(seed = 6842, until = 3600, initialState?: GameS
     });
   snapshot();
   while (state.time < until && !state.gameOver && !state.urbanized) {
-    for (const spark of [...state.sparks]) {
+    for (const spark of state.sparks.filter((entry) => !entry.deferred)) {
       if (spark.wordId === 'S_07') continue;
       discoveries.push({
         at: state.time,

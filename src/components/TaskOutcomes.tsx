@@ -26,10 +26,8 @@ export function TaskOutcomes({
       <details>
         <summary>
           <Check size={13} />
-          <strong>Gli incarichi della tribù</strong>
-          <span>
-            {hasWord(state, 'O_08') ? `${outcomes.length} aggiornamenti` : 'Novità sul lavoro'}
-          </span>
+          <strong>{outcomes[0].title}</strong>
+          <span>{hasWord(state, 'O_08') ? `${outcomes.length} aggiornamenti` : 'Incarichi'}</span>
         </summary>
         <div className="task-outcome-list">
           {outcomes.map((outcome) => {

@@ -10,6 +10,7 @@ import {
   isPlayerBuilding,
 } from './runtime';
 import type { Building, GameState, Target, Unit } from './types';
+import { taskOutcomeMessage } from './taskOutcomes';
 
 export type WorkCategory = 'idle' | 'working' | 'recovering' | 'young' | 'dead';
 export interface WorkStatus {
@@ -91,6 +92,16 @@ export function getUnitWorkStatus(state: GameState, unit: Unit): WorkStatus {
       unit.temp <= 20 ? 'danger' : 'neutral',
       building ? atBuilding(building) : undefined,
     );
+  if (unit.action === 'idle' && unit.lastTaskResult) {
+    const reason = taskOutcomeMessage(unit.lastTaskResult.reason);
+    return result(
+      'idle',
+      reason.title,
+      reason.detail,
+      unit.lastTaskResult.reason === 'completed' ? 'neutral' : 'warning',
+      unit.lastTaskResult.target,
+    );
+  }
   if (unit.action === 'idle')
     return result(
       'idle',

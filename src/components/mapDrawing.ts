@@ -2,7 +2,12 @@ import type { GameState, Resource, WorldTarget } from '../game/types';
 import { hasBuilding, isPlayerBuilding } from '../game/runtime';
 import { FIRE_HEAT } from '../game/thermal';
 import { getCalendar } from '../game/calendar';
-import { isAllAdultsAnchor, selectableTribeAdults } from '../game/tribeSelection';
+import {
+  customGroupMembers,
+  isCustomGroupAnchor,
+  isAllAdultsAnchor,
+  selectableTribeAdults,
+} from '../game/tribeSelection';
 import { getCustodianStatuses, type CustodianStatus } from '../game/custodianStatus';
 import { getLifeStage } from '../game/demography';
 import { visibleUnitEquipment, type VisibleUnitEquipment } from '../game/unitEquipment';
@@ -1169,12 +1174,20 @@ export function drawWorld(
         ? (state.units.find((u) => u.id === groupAnchor.id && u.hp > 0) ?? groupAnchor)
         : groupAnchor
       : null;
+  const explicitGroup = isCustomGroupAnchor(groupAnchor)
+    ? customGroupMembers(state, groupAnchor)
+    : isAllAdultsAnchor(groupAnchor)
+      ? selectableTribeAdults(state)
+      : undefined;
+  const explicitGroupIds = explicitGroup
+    ? new Set(explicitGroup.map((unit) => unit.id))
+    : undefined;
 
-  if (isGroupActive && isAllAdultsAnchor(groupAnchor)) {
+  if (isGroupActive && (isAllAdultsAnchor(groupAnchor) || isCustomGroupAnchor(groupAnchor))) {
     ctx.save();
     ctx.strokeStyle = '#b98839cc';
     ctx.lineWidth = 1.25 / lineScale;
-    for (const person of selectableTribeAdults(state)) {
+    for (const person of explicitGroup ?? []) {
       if (!isVisibleAt(state, person.x, person.y)) continue;
       const p = worldPoint(person.x, person.y);
       ctx.beginPath();
@@ -1363,8 +1376,11 @@ export function drawWorld(
           () => {
             const isGroupMember = !!(
               isGroupActive &&
-              liveAnchor &&
-              Math.hypot(unit.x - liveAnchor.x, unit.y - liveAnchor.y) <= 15
+              (explicitGroupIds
+                ? explicitGroupIds.has(unit.id)
+                : liveAnchor &&
+                  unit.age >= 4 &&
+                  Math.hypot(unit.x - liveAnchor.x, unit.y - liveAnchor.y) <= 15)
             );
             const actual = state.units.find((u) => u.id === unit.id)!;
             const target =
@@ -1606,6 +1622,7 @@ export function drawWorld(
   objects.sort((a, b) => a.y - b.y).forEach((o) => o.draw());
   drawRegionalSieges(ctx, state, time, { ...atmosphereOptions, viewport });
   for (const spark of state.sparks) {
+    if (spark.deferred) continue;
     const u = renderUnits.get(spark.unitId);
     if (!u || u.hp <= 0 || !inView(u)) continue;
     sprite(

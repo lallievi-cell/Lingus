@@ -10,6 +10,7 @@ import {
 import { allAdultsAnchor } from '../../src/game/tribeControl';
 import { getCalendar } from '../../src/game/calendar';
 import { isPlayerBuilding } from '../../src/game/runtime';
+import { canIgnite } from '../../src/game/simulation';
 import type { GameState, MapEntity, MapMode, Target } from '../../src/game/types';
 
 /** Public, coarse group decisions in a chosen valley. No material,
@@ -107,6 +108,7 @@ export function replayPatientOpening(
   };
   const guard = () => {
     if (!hasWord(state, 'S_02') || !hasWord(state, 'V_05') || !hasWord(state, 'O_05')) return;
+    if (!canIgnite(state)) return;
     const adult = own()
       .filter((u) => u.age >= 4 && !u.carry && u.action !== 'building')
       .sort(
@@ -161,7 +163,8 @@ export function replayPatientOpening(
 
   for (let step = 0; step <= Math.ceil(until * 4) && !state.gameOver; step++) {
     if (step % 40 === 0) {
-      for (const spark of [...state.sparks]) state = solveSpark(state, spark.id, spark.recipe);
+      for (const spark of state.sparks.filter((entry) => !entry.deferred))
+        state = solveSpark(state, spark.id, spark.recipe);
       if (state.campfirePending) {
         councilSnapshots.push({ at: state.time, state });
         const council = { at: state.time, attention: state.attention, taught: [] as string[] };

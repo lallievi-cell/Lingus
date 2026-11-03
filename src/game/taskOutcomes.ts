@@ -12,18 +12,21 @@ import { freeCapacity, hasBuilding, hasWord } from './runtime';
 import { COLD_RESCUE } from './thermal';
 import type { GameState, Target, Unit } from './types';
 
-export type TaskOutcomeReason =
-  | 'completed'
-  | 'exhausted'
-  | 'full'
-  | 'hunger'
-  | 'cold'
-  | 'rest'
-  | 'forgotten'
-  | 'rule'
-  | 'materials'
-  | 'fire'
-  | 'ended';
+export const TASK_OUTCOME_REASONS = [
+  'completed',
+  'exhausted',
+  'full',
+  'hunger',
+  'cold',
+  'rest',
+  'forgotten',
+  'rule',
+  'materials',
+  'fire',
+  'danger',
+  'ended',
+] as const;
+export type TaskOutcomeReason = (typeof TASK_OUTCOME_REASONS)[number];
 export interface TaskOutcome {
   id: string;
   time: number;
@@ -62,6 +65,11 @@ const messages: Record<TaskOutcomeReason, { title: string; detail: string }> = {
     title: 'Lavoro sospeso per freddo',
     detail: 'Il compagno cerca calore. Mettilo al riparo prima di riprendere il compito.',
   },
+  danger: {
+    title: 'Lavoro interrotto per un pericolo',
+    detail:
+      'Il compagno sta tornando al campo dopo uno scontro. Controlla le sue condizioni prima di affidargli un nuovo incarico.',
+  },
   rest: {
     title: 'È tempo di riposare',
     detail:
@@ -92,6 +100,10 @@ const messages: Record<TaskOutcomeReason, { title: string; detail: string }> = {
       'Questo compito diretto non è più in esecuzione. Puoi rivedere la frase e il bersaglio prima di inviare un nuovo ordine.',
   },
 };
+
+export function taskOutcomeMessage(reason: TaskOutcomeReason) {
+  return messages[reason];
+}
 
 function workTarget(state: GameState, unit: Unit): Target | undefined {
   const entity = state.entities.find((entry) => entry.id === unit.targetId);
@@ -165,12 +177,36 @@ export function observeTaskOutcomes(previous: GameState, next: GameState): TaskO
       continue;
     const after = next.units.find((unit) => unit.id === before.id);
     if (!after || after.hp <= 0 || (after.factionId && after.factionId !== 'player')) continue;
+    const recorded = after.lastTaskResult;
+    if (
+      recorded &&
+      recorded.time > previous.time &&
+      recorded.time <= next.time &&
+      recorded.time !== before.lastTaskResult?.time
+    ) {
+      const key = `${recorded.time.toFixed(3)}:${recorded.tokens.join('|')}:${recorded.reason}:${recorded.target?.id ?? ''}`;
+      const existing = grouped.get(key);
+      if (existing) existing.unitIds.push(after.id);
+      else
+        grouped.set(key, {
+          id: `task:${key}:${after.id}`,
+          time: recorded.time,
+          unitIds: [after.id],
+          tokens: [...recorded.tokens],
+          reason: recorded.reason,
+          ...messages[recorded.reason],
+          target: recorded.target,
+          suspended: recorded.suspended,
+        });
+      continue;
+    }
     const signature = before.command.join('|');
     if (after.command?.join('|') === signature) continue;
     // A resumed/changed autonomous command is not an event about the old job.
     if (after.command?.length) continue;
     const suspended = after.suspendedJob?.command.join('|') === signature;
     const target = workTarget(previous, before);
+    const previousSource = previous.entities.find((entity) => entity.id === before.targetId);
     const source = next.entities.find((entity) => entity.id === before.targetId);
     const endedDirectDayTask =
       previous.playMode === 'guided' &&
@@ -187,21 +223,22 @@ export function observeTaskOutcomes(previous: GameState, next: GameState): TaskO
     let reason: TaskOutcomeReason = 'ended';
     if (before.command.some((id) => !hasWord(next, id))) reason = 'forgotten';
     else if (forbiddenByDogma(next, before.command, target, after)) reason = 'rule';
+    else if (after.action === 'fleeing') reason = 'danger';
     else if (
       (suspended || endedDirectDayTask || ['eating', 'resting'].includes(after.action)) &&
-      after.hunger >= 75
+      Math.max(before.hunger, after.hunger) >= 75
     )
       reason = 'hunger';
     else if (
       (suspended || endedDirectDayTask || ['resting', 'fleeing'].includes(after.action)) &&
-      after.temp <=
+      Math.min(before.temp, after.temp) <=
         (next.playMode === 'guided' ? COLD_RESCUE.guidedWarning : COLD_RESCUE.classicWarning)
     )
       reason = 'cold';
     else if ((suspended && outsideShift) || (endedDirectDayTask && night)) reason = 'rest';
     else if (
-      source &&
-      source.amount <= 0 &&
+      previousSource &&
+      (!source || source.amount <= 0) &&
       ['gathering', 'returning', 'hunting', 'domesticating'].includes(before.action)
     )
       reason = 'exhausted';

@@ -70,6 +70,7 @@ import {
 } from './delegateIdentity';
 import { resolveInteractionPosition, type InteractionKind } from './interactionPositions';
 import { warmShelterDestination } from './shelterSeeking';
+import { moveWildlifeToward, wanderDestination } from './wildlifeMovement';
 import {
   PERSONAL_DISCOVERY,
   personalExperienceEligible,
@@ -88,6 +89,7 @@ import {
 import { getOldAgeProbability } from './founderCare';
 import { openingFoodSpoilageMultiplier } from './foodPreservation';
 import { safeInstinctiveFood } from './safeForaging';
+import { promoteDeferredSparks, queueEarnedSpark } from './discoveryPacing';
 import type {
   Building,
   BuildingKind,
@@ -191,7 +193,12 @@ function recordPersonalExperience(s: GameState, u: Unit, experience: PersonalExp
   recordEvent(s, u, tag, 0, ['S_02']);
 }
 export function evaluateDiscoveries(s: GameState, u: Unit) {
-  if (u.hp <= 0 || u.caste === 'slave') return;
+  if (
+    u.hp <= 0 ||
+    u.caste === 'slave' ||
+    (s.playMode === 'guided' && u.factionId && u.factionId !== 'player')
+  )
+    return;
   initializeUnit(u);
   u.eventMemory = u.eventMemory!.filter((e) => s.time - e.time <= 60);
   const effects = getDogmaEffects(s, { unit: u }),
@@ -202,7 +209,8 @@ export function evaluateDiscoveries(s: GameState, u: Unit) {
       word.tier === 0 ||
       hasWord(s, wordId) ||
       s.sparks.some((p) => p.wordId === wordId) ||
-      (u.cooldowns![wordId] ?? 0) > s.time
+      (u.cooldowns![wordId] ?? 0) > s.time ||
+      (s.playMode === 'guided' && (s.cooldowns[wordId] ?? 0) > s.time)
     )
       continue;
     const funeralRecipe =
@@ -229,7 +237,7 @@ export function evaluateDiscoveries(s: GameState, u: Unit) {
     const craftedFire = wordId === 'O_05' && event.tag === 'ENV_CRAFT';
     const personalSelf =
       wordId === 'S_02' && ['ENV_PERSONAL_MEAL', 'ENV_PERSONAL_WORK'].includes(event.tag);
-    s.sparks.push({
+    queueEarnedSpark(s, {
       id: nextId(s, 'spark'),
       wordId,
       unitId: u.id,
@@ -258,8 +266,10 @@ export function evaluateDiscoveries(s: GameState, u: Unit) {
               ? 'Il luogo del commiato unisce Morte e Qui.'
               : word.hint,
     });
-    log(s, `${u.name} cerca un nome per un’esperienza nuova.`, 'discovery');
+    if (s.playMode !== 'guided')
+      log(s, `${u.name} cerca un nome per un’esperienza nuova.`, 'discovery');
   }
+  promoteDeferredSparks(s);
 }
 export function advanceTier(s: GameState) {
   const stable = availableWords(s).filter((w) => s.words[w].retention >= 50),
@@ -510,6 +520,7 @@ export function resetUnit(u: Unit) {
   u.paidConstruction = undefined;
   u.buildingKind = undefined;
   u.craftNeedsPayment = undefined;
+  u.workOrigin = undefined;
 }
 function resetKeepingJob(u: Unit) {
   const job = u.suspendedJob;
@@ -746,7 +757,8 @@ export function matchingEntities(s: GameState, tokens: string[], u?: Unit) {
     );
   let kinds: MapEntity['kind'][] = [];
   if (tokens.includes('O_02')) kinds.push('stone');
-  if (tokens.includes('O_03')) kinds.push('tree');
+  if (tokens.includes('O_03') || (tokens.includes('O_05') && tokens.includes('V_04')))
+    kinds.push('tree');
   if (tokens.includes('O_07')) kinds.push('ore');
   if (tokens.includes('O_04'))
     kinds.push(
@@ -1146,10 +1158,32 @@ export function guidedRepeatTransport(s: GameState, tokens: string[]) {
   return (
     s.playMode === 'guided' &&
     tokens.includes('V_04') &&
-    (tokens.some((id) => ['O_02', 'O_03', 'O_07'].includes(id)) ||
-      (tokens.includes('O_04') && hasWord(s, 'V_05'))) &&
+    tokens.some((id) => ['O_02', 'O_03', 'O_07', 'O_04', 'O_05'].includes(id)) &&
     !['C_01', 'C_02'].includes(tokens[0])
   );
+}
+/** A day task may move to another known source in its original local area.
+ * It never seeks food across the region or extracts before the return is paid. */
+function nextGuidedGatherSource(s: GameState, u: Unit, tokens: string[], source?: MapEntity) {
+  if (!guidedRepeatTransport(s, tokens) || !guidedDirectTask(s, u, tokens)) return undefined;
+  const origin =
+    u.workOrigin ?? source ?? (u.tx !== undefined && u.ty !== undefined ? { x: u.tx, y: u.ty } : u);
+  u.workOrigin ??= { x: origin.x, y: origin.y, groundOnly: source?.kind === 'ground' };
+  const candidates = matchingEntities(s, tokens, u).filter(
+    (entry) =>
+      distance(entry, origin) <= 20 &&
+      (!u.workOrigin?.groundOnly || entry.kind === 'ground') &&
+      entry.amount > resourcePreservationFloor(s, entry) &&
+      freeCapacity(s, entityResource(entry)) > 0 &&
+      s.sectors.some(
+        (sector) =>
+          sector.explored &&
+          sector.x === Math.min(4, Math.floor(entry.x / 100)) &&
+          sector.y === Math.min(4, Math.floor(entry.y / 100)),
+      ) &&
+      !forbiddenByDogma(s, tokens, { type: 'entity', id: entry.id, x: entry.x, y: entry.y }, u),
+  );
+  return closest(candidates, source ?? origin);
 }
 export function plainToolCraft(tokens: string[]) {
   return tokens.includes('V_06') && tokens.length === 3 && tokens[2] === 'O_02';
@@ -1167,6 +1201,20 @@ export function processWork(s: GameState, u: Unit, dt: number) {
   let e = s.entities.find((e) => e.id === u.targetId);
   const tokens = u.command ?? [],
     verb = tokens.find((t) => WORDS[t]?.kind === 'V');
+  if (
+    u.action === 'gathering' &&
+    guidedRepeatTransport(s, tokens) &&
+    (!e || e.amount <= resourcePreservationFloor(s, e))
+  ) {
+    const next = nextGuidedGatherSource(s, u, tokens, e);
+    if (next) {
+      e = next;
+      u.targetId = next.id;
+      u.tx = next.x;
+      u.ty = next.y;
+      u.progress = 0;
+    }
+  }
   // A visible material pile may contain many extraction fragments. Another
   // carrier taking the selected fragment does not exhaust the physical pile.
   if (
@@ -1353,8 +1401,16 @@ export function processWork(s: GameState, u: Unit, dt: number) {
         }
       }
     }
-    // Guided direct orders are a day task, not a permanent tradition. A return
-    // always completes physically; only the next trip is conditional.
+    // Deliver before choosing a new trip; the source may have been exhausted
+    // or removed while this person was carrying the final physical load.
+    if (
+      verb === 'V_04' &&
+      guidedRepeatTransport(s, tokens) &&
+      (!e || e.amount <= resourcePreservationFloor(s, e))
+    ) {
+      e = nextGuidedGatherSource(s, u, tokens, e);
+      if (e) u.targetId = e.id;
+    }
     if (
       verb === 'V_04' &&
       guidedRepeatTransport(s, tokens) &&
@@ -1786,7 +1842,10 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       );
       drop(s, u, resource, n, e);
       if (gatherTool) s.resources.tool = Math.max(0, s.resources.tool - 0.1);
-      if (s.sparks.some((p) => p.unitId === u.id && ['O_02', 'O_03'].includes(p.wordId)))
+      if (
+        s.playMode !== 'guided' &&
+        s.sparks.some((p) => p.unitId === u.id && ['O_02', 'O_03'].includes(p.wordId))
+      )
         resetUnit(u);
     }
     onDogmaticUse(s, tokens, u);
@@ -2276,11 +2335,22 @@ export function updateUnits(s: GameState, dt: number) {
   applyEducation(s);
 }
 export function updateAnimals(s: GameState, dt: number) {
+  if (!Number.isFinite(dt) || dt <= 0) return;
+  const humans = activeUnits(s),
+    hunted = new Set(
+      humans
+        .filter((u) => ['hunting', 'combat'].includes(u.action) && u.command?.includes('V_03'))
+        .map((u) => u.targetId),
+    );
   for (const e of s.entities.filter(
     (e) => e.hp > 0 && ['deer', 'wolf', 'alpha', 'mammoth'].includes(e.kind) && !e.domesticated,
   )) {
-    const human = closest(activeUnits(s), e);
+    const human = closest(humans, e);
     if (!human) continue;
+    // Old saves and temporary fauna may lack an origin. Establish it once,
+    // rather than adding each idle oscillation to the previous position.
+    e.originX ??= e.x;
+    e.originY ??= e.y;
     const fa = FAUNA_SPECS[e.kind as keyof typeof FAUNA_SPECS];
     const predator = ['wolf', 'alpha'].includes(e.kind),
       attack =
@@ -2308,22 +2378,15 @@ export function updateAnimals(s: GameState, dt: number) {
         }
         if (human.hp <= 0) killUnit(s, human, 'V_03');
       }
-    } else if (e.kind === 'deer' && distance(e, human) <= 15 && !e.attacked) {
-      const d = distance(e, human) || 1;
-      e.x = clamp(
-        e.x + ((e.x - human.x) / d) * fa.speed * dt,
-        Math.floor((e.originX ?? e.x) / 100) * 100 + 2,
-        Math.floor((e.originX ?? e.x) / 100) * 100 + 98,
-      );
-      e.y = clamp(
-        e.y + ((e.y - human.y) / d) * fa.speed * dt,
-        Math.floor((e.originY ?? e.y) / 100) * 100 + 2,
-        Math.floor((e.originY ?? e.y) / 100) * 100 + 98,
-      );
-    } else if (!e.attacked) {
-      const phase = s.time * 0.05 + Number(e.id.split('-').at(-1));
-      e.x = clamp((e.originX ?? e.x) + Math.sin(phase) * 2, 0, 500);
-      e.y = clamp((e.originY ?? e.y) + Math.cos(phase) * 2, 0, 500);
+    } else if (e.kind === 'deer' && distance(e, human) <= 15 && !hunted.has(e.id)) {
+      const d = distance(e, human) || 1,
+        sectorX = Math.min(4, Math.max(0, Math.floor(e.originX / 100))) * 100,
+        sectorY = Math.min(4, Math.max(0, Math.floor(e.originY / 100))) * 100;
+      const x = clamp(e.x + ((e.x - human.x) / d) * fa.speed * dt, sectorX + 2, sectorX + 98);
+      const y = clamp(e.y + ((e.y - human.y) / d) * fa.speed * dt, sectorY + 2, sectorY + 98);
+      moveWildlifeToward(e, { x, y }, fa.speed * dt);
+    } else if (!hunted.has(e.id)) {
+      moveWildlifeToward(e, wanderDestination(e, s.time), fa.speed * dt);
     }
   }
 }
@@ -2761,7 +2824,10 @@ export function simulationStep(s: GameState, dt: number) {
     s.cohesion - ((corpseCount * 2) / 60) * effectiveElapsed(s, s.time - dt, s.time),
   );
   for (const spark of [...s.sparks])
-    if (spark.expiresAt < s.time || !s.units.some((u) => u.id === spark.unitId && u.hp > 0)) {
+    if (
+      (!spark.deferred && spark.expiresAt < s.time) ||
+      !s.units.some((u) => u.id === spark.unitId && u.hp > 0)
+    ) {
       s.sparks = s.sparks.filter((p) => p.id !== spark.id);
       const u = s.units.find((u) => u.id === spark.unitId);
       if (u) {

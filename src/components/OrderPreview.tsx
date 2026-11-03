@@ -34,6 +34,7 @@ export function OrderPreview({
   const named = hasWord(state, 'S_02'),
     numbered = hasWord(state, 'O_08');
   const people = preview.unitIds.map((id) => state.units.find((u) => u.id === id)!).filter(Boolean);
+  const oneArtisan = people.length === 1 && sentence.some((id) => id === 'V_06' || id === 'V_07');
   const destinations = [
     ...new Set(
       preview.destinations.map((destination) => {
@@ -63,7 +64,13 @@ export function OrderPreview({
         <span className="preview-mobile-label" aria-hidden="true">
           Dettagli
         </span>
-        <strong>{preview.accepted ? 'Ordine pronto' : 'Ordine da verificare'}</strong>
+        <strong>
+          {preview.accepted
+            ? oneArtisan
+              ? 'Lavora un artigiano'
+              : 'Ordine pronto'
+            : 'Ordine da verificare'}
+        </strong>
         <span>
           {preview.accepted
             ? people.length
@@ -73,6 +80,12 @@ export function OrderPreview({
         </span>
       </summary>
       <div className="order-preview-body">
+        {preview.accepted && oneArtisan && (
+          <p>
+            <b>Un solo artigiano:</b> {visibleUnitName(state, people[0])}. Gli altri compagni
+            mantengono i propri incarichi.
+          </p>
+        )}
         {!preview.accepted && (
           <p>{numbered ? preview.message : preview.message.replace(/\b\d+(?:[.,]\d+)?\s/g, '')}</p>
         )}

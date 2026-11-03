@@ -38,11 +38,14 @@ describe('chosen lesson plans', () => {
 
   it('executes exactly the individual public lessons with real costs and random ordering', () => {
     const state = council();
+    const preview = previewLessonPlan(state, ['O_03', 'V_04']);
     const expected = teachWord(teachWord(state, 'O_03'), 'V_04');
     const actual = executeLessonPlan(state, ['O_03', 'V_04']);
     expect(actual).toEqual(expected);
     expect(actual.attention).toBe(0);
-    expect(actual.stats.taught).toBe(state.stats.taught + 2);
+    expect(actual.stats.taught).toBe(
+      state.stats.taught + preview.lessons.reduce((sum, lesson) => sum + lesson.pupils.length, 0),
+    );
     expect(actual.resources).toEqual(state.resources);
   });
 

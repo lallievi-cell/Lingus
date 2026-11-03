@@ -1,7 +1,7 @@
 import { ADULT_AGE, LEARNING_AGE_LIMIT, WORDS } from './content';
 import { getDogmaEffects } from './dogmas';
 import { GUIDED_PROGRESSION } from './guidedProgression';
-import { activeUnits, hasBuilding } from './runtime';
+import { activeUnits, distance, hasBuilding, isPlayerBuilding } from './runtime';
 import { teachingMemoryGain } from './learningBalance';
 import type { GameState, Unit } from './types';
 
@@ -19,12 +19,29 @@ export interface LessonPreview {
   issue?: LessonIssue;
   teacher?: Unit;
   pupil?: Unit;
+  /** Simultaneous, distinct teacher/pupil pairs. Singular aliases expose pair zero. */
+  teachers: Unit[];
+  pupils: Unit[];
+  attentionCost: number;
+  pupilCap: number;
   memoryGain: number;
   retentionGain: number;
   livingCustodians: number;
 }
 
-/** Pure preview: uses exactly the pupil ordering and seed sample of teachWord. */
+export const GUIDED_LESSON_PUPIL_LIMIT = 3;
+export const LESSON_ATTENTION_COST = 10;
+
+const nextLessonSeed = (seed: number) => (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+function choosePupil(pool: Unit[], seed: number) {
+  const children = pool.filter((unit) => unit.age < ADULT_AGE);
+  const pupils = children.length ? children : pool;
+  return pupils[Math.min(Math.floor((seed / 4294967296) * pupils.length), pupils.length - 1)];
+}
+
+/** Pure preview: reproduces every pupil draw, without spending seed or Attention.
+ * Guided can share a paid round among existing custodians gathered at a fire;
+ * each extra teacher helps one distinct pupil, with no cascading in that round. */
 export function getLessonPreview(state: GameState, wordId: string): LessonPreview {
   const memory = state.words[wordId];
   const people = activeUnits(state);
@@ -39,10 +56,42 @@ export function getLessonPreview(state: GameState, wordId: string): LessonPrevie
           !memory.custodians.includes(unit.id),
       )
     : [];
-  const children = eligible.filter((unit) => unit.age < ADULT_AGE);
-  const pupils = children.length ? children : eligible;
-  const pupil =
-    pupils[Math.min(Math.floor((state.seed / 4294967296) * pupils.length), pupils.length - 1)];
+  const teacher = teachers[0];
+  const pupil = choosePupil(eligible, state.seed);
+  const roundTeachers = teacher && pupil ? [teacher] : [];
+  const roundPupils = teacher && pupil ? [pupil] : [];
+  const fires = state.buildings.filter(
+    (fire) =>
+      isPlayerBuilding(state, fire) &&
+      fire.kind === 'campfire' &&
+      fire.hp > 0 &&
+      fire.active &&
+      fire.completed !== false,
+  );
+  const extraTeachers =
+    state.playMode === 'guided'
+      ? teachers
+          .slice(1)
+          .filter(
+            (unit) =>
+              unit.knows.includes(wordId) && fires.some((fire) => distance(unit, fire) <= 15),
+          )
+      : [];
+  const pupilCap = teacher ? Math.min(GUIDED_LESSON_PUPIL_LIMIT, 1 + extraTeachers.length) : 0;
+  let seed = nextLessonSeed(state.seed);
+  for (const extraTeacher of extraTeachers) {
+    if (roundPupils.length >= pupilCap || !pupil) break;
+    const candidates = eligible.filter(
+      (unit) =>
+        !roundPupils.some((chosen) => chosen.id === unit.id) &&
+        fires.some((fire) => distance(extraTeacher, fire) <= 15 && distance(unit, fire) <= 15),
+    );
+    const nextPupil = choosePupil(candidates, seed);
+    if (!nextPupil) continue;
+    roundTeachers.push(extraTeacher);
+    roundPupils.push(nextPupil);
+    seed = nextLessonSeed(seed);
+  }
   const memoryGain = teachingMemoryGain(
     state,
     wordId,
@@ -65,14 +114,18 @@ export function getLessonPreview(state: GameState, wordId: string): LessonPrevie
                 ? 'no-teacher'
                 : !pupil
                   ? 'no-pupil'
-                  : state.attention < 10
+                  : state.attention < LESSON_ATTENTION_COST
                     ? 'no-attention'
                     : undefined;
   return {
     allowed: !issue,
     issue,
-    teacher: teachers[0],
+    teacher,
     pupil,
+    teachers: roundTeachers,
+    pupils: roundPupils,
+    attentionCost: LESSON_ATTENTION_COST,
+    pupilCap,
     memoryGain,
     retentionGain: memory
       ? Math.max(0, Math.min(100, memory.retention + memoryGain) - memory.retention)

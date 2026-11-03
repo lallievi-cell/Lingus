@@ -137,7 +137,7 @@ export function replayRandomOpening(seed: number) {
   };
 
   for (let step = 0; step <= 840 && !state.gameOver; step++) {
-    for (const spark of [...state.sparks]) {
+    for (const spark of state.sparks.filter((entry) => !entry.deferred)) {
       const learned = hasWord(state, spark.wordId);
       state = solveSpark(state, spark.id, spark.recipe);
       if (!learned && hasWord(state, spark.wordId))
@@ -161,12 +161,12 @@ export function replayRandomOpening(seed: number) {
       if (time === 0 && pair) say(['S_01', 'V_03'], entityTarget(pair.tree));
       if (time === 20 && pair) say(['S_01', 'V_03'], entityTarget(pair.stone));
       if (time === 60) say(['S_01', 'V_01'], home);
-      // If lightning already supplied Fire, an artisan can use the real stone
-      // chips beside the extraction site instead of waiting for another haul.
+      // Work real local chips once fuel is ready, rather than paying for a
+      // night-time stone haul that cannot start. The artisan still pays each cycle.
       if (
-        fire &&
+        (fire || state.resources.wood >= 5) &&
         !craftedOnOrder &&
-        (stage === 'craft-site' || (stage === 'stone' && time % 90 >= 60)) &&
+        stage !== 'meal' &&
         hasWord(state, 'V_06') &&
         canFitCraftOutput(state, { stone: 1 }, 'tool') &&
         selectedGroup().adults.some((unit) => canPayLocally(state, { stone: 1 }, unit))
@@ -288,7 +288,7 @@ export function replayRandomFirstYear(seed: number, endTime: 360 | 390 = 360) {
   const depotAt = Math.ceil(state.time / 10) * 10;
 
   while (!state.gameOver) {
-    for (const spark of [...state.sparks]) {
+    for (const spark of state.sparks.filter((entry) => !entry.deferred)) {
       const learned = hasWord(state, spark.wordId);
       state = solveSpark(state, spark.id, spark.recipe);
       if (!learned && hasWord(state, spark.wordId))

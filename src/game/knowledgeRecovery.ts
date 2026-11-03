@@ -55,6 +55,7 @@ export function canRecallSpark(state: GameState, id: string): boolean {
     state.gameOver ||
     state.victory ||
     !spark ||
+    spark.deferred ||
     spark.expiresAt < state.time ||
     hasWord(state, spark.wordId)
   )

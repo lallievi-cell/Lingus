@@ -55,7 +55,7 @@ export function replayGuidedOpening(seed = 6842) {
   };
 
   for (let step = 0; step < 840 && !state.gameOver; step++) {
-    for (const spark of [...state.sparks]) {
+    for (const spark of state.sparks.filter((entry) => !entry.deferred)) {
       const known = hasWord(state, spark.wordId);
       state = solveSpark(state, spark.id, spark.recipe);
       if (!known && hasWord(state, spark.wordId))

@@ -1,3 +1,5 @@
+import type { RecordedTaskResult } from './taskResults';
+
 export type Tier = 0 | 1 | 2 | 3 | 4 | 5;
 export type WordKind = 'S' | 'V' | 'O' | 'M' | 'C';
 export interface Word {
@@ -212,6 +214,9 @@ export interface Unit {
   jobBuildingId?: string;
   suspendedJob?: { buildingId: string; command: string[] };
   craftNeedsPayment?: boolean;
+  /** Original local area of a direct resource task, retained across deliveries. */
+  workOrigin?: { x: number; y: number; groundOnly?: boolean };
+  lastTaskResult?: RecordedTaskResult;
 }
 export interface Spark {
   id: string;
@@ -222,6 +227,8 @@ export interface Spark {
   recipe: string[];
   hint: string;
   correctTokens?: string[];
+  deferred?: boolean;
+  earnedAt?: number;
 }
 export type DogmaVector =
   | 'prohibition'
@@ -286,6 +293,8 @@ export interface Target {
   id?: string;
   x: number;
   y: number;
+  /** Ephemeral player selection scope, never an extra subject word. */
+  unitIds?: string[];
 }
 export type WorldTarget = Target;
 export interface Compilation {

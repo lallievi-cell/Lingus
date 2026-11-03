@@ -46,7 +46,7 @@ jobs:
         run: npm run test:production
 
       - name: Verify mobile play, session safety, accessibility and illustrated world
-        run: npm run test:e2e -- tests/mobile-playtest.spec.ts tests/mobile-composer-flow.spec.ts tests/mobile-screen-review.spec.ts tests/map-touch.spec.ts tests/art-direction.spec.ts tests/visual-map.spec.ts tests/motion-selection.spec.ts tests/session-safety.spec.ts tests/consolidation-settings.spec.ts tests/knowledge-planning.spec.ts tests/paid-construction.spec.ts tests/phrasebook.spec.ts tests/accessible-world.spec.ts --workers=1
+        run: npm run test:e2e -- tests/mobile-playtest.spec.ts tests/mobile-composer-flow.spec.ts tests/mobile-screen-review.spec.ts tests/map-touch.spec.ts tests/art-direction.spec.ts tests/visual-map.spec.ts tests/motion-selection.spec.ts tests/session-safety.spec.ts tests/consolidation-settings.spec.ts tests/knowledge-planning.spec.ts tests/paid-construction.spec.ts tests/phrasebook.spec.ts tests/accessible-world.spec.ts tests/work-teams.spec.ts tests/task-feedback.spec.ts tests/teaching-access.spec.ts --workers=1
 
       - name: Keep browser screenshots and traces when a check fails
         if: failure()

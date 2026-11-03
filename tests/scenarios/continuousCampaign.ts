@@ -157,6 +157,7 @@ export function replayContinuousCampaign(
     !u.jobBuildingId &&
     !u.suspendedJob &&
     !u.carry &&
+    !(u.action === 'guarding' && u.command?.includes('O_05')) &&
     ['idle', 'sleeping', 'resting', 'guarding'].includes(u.action);
   const say = (tokens: string[], target?: Target, executorId?: string) => {
     if (state.voice < 1 || !tokens.every((id) => hasWord(state, id))) return false;
@@ -206,7 +207,7 @@ export function replayContinuousCampaign(
     });
   record();
   while (state.time < until && !state.gameOver && !state.victory) {
-    for (const spark of [...state.sparks]) {
+    for (const spark of state.sparks.filter((entry) => !entry.deferred)) {
       // Naming a king immediately installs a monarchy. A tiny village does not
       // need to crown an elderly founder and incur a succession crisis.
       if (spark.wordId === 'S_07' && own().length < 35) continue;
@@ -339,33 +340,28 @@ export function replayContinuousCampaign(
         .sort((a, b) => a.age - b.age || a.hunger - b.hunger);
       // Reassign surplus haulers through public individual orders instead of
       // waiting forever for a repeating delivery to become idle.
-      const surplusHauler =
-        profile === 'patient'
-          ? adults().find(
-              (u) =>
-                !u.carry &&
-                !u.jobBuildingId &&
-                !u.suspendedJob &&
-                u.hunger < 70 &&
-                u.command?.includes('V_04') &&
-                ((u.command.includes('O_03') && state.resources.wood >= 20) ||
-                  (u.command.includes('O_02') &&
-                    state.resources.stone >=
-                      (profile === 'patient' && corpses && !hasBuilding('grave')
-                        ? 31
-                        : profile === 'patient'
-                          ? 23
-                          : 35)) ||
-                  (u.command.includes('O_04') && foodNutrition() >= own().length * 90) ||
-                  (!hasBuilding('hut') &&
-                    state.resources.pelt >= 5 &&
-                    state.resources.wood >= 10) ||
-                  (villageHousing(state) < own().length * 3 &&
-                    !(corpses && !hasBuilding('grave')) &&
-                    state.resources.stone >= 20 &&
-                    state.resources.wood >= 10)),
-            )
-          : undefined;
+      const surplusHauler = adults().find(
+        (u) =>
+          !u.carry &&
+          !u.jobBuildingId &&
+          !u.suspendedJob &&
+          u.hunger < 70 &&
+          u.command?.includes('V_04') &&
+          ((u.command.includes('O_03') && state.resources.wood >= 20) ||
+            (u.command.includes('O_02') &&
+              state.resources.stone >=
+                (profile === 'patient' && corpses && !hasBuilding('grave')
+                  ? 31
+                  : profile === 'patient'
+                    ? 23
+                    : 35)) ||
+            (u.command.includes('O_04') && foodNutrition() >= own().length * 90) ||
+            (!hasBuilding('hut') && state.resources.pelt >= 5 && state.resources.wood >= 10) ||
+            (villageHousing(state) < own().length * 3 &&
+              !(corpses && !hasBuilding('grave')) &&
+              state.resources.stone >= 20 &&
+              state.resources.wood >= 10)),
+      );
       const inactiveHerder =
         profile === 'patient'
           ? adults().find(
@@ -493,6 +489,23 @@ export function replayContinuousCampaign(
           )
         );
       };
+      // Relighting is the first emergency, before ordinary jobs spend Voice or
+      // overwrite the chosen caretaker. The next loop still advances real time.
+      const fire = villageBuildings().find((b) => b.kind === 'campfire');
+      if (fire && !fire.active && state.resources.wood >= 1 && state.voice >= 1) {
+        const guardian =
+          available.find((u) => u.age >= 14) ??
+          person ??
+          adults()
+            .filter((u) => !u.isKing && !u.carry && u.action !== 'building')
+            .sort(
+              (a, b) =>
+                Number(!!a.jobBuildingId || !!a.suspendedJob) -
+                  Number(!!b.jobBuildingId || !!b.suspendedJob) ||
+                homeDistance(a) - homeDistance(b),
+            )[0];
+        if (guardian && say(['S_02', 'V_05', 'O_05'], undefined, guardian.id)) continue;
+      }
       phase = day ? 'ruoli individuali' : 'riposo';
       if (day && person && state.voice >= 1) {
         const closed = villageBuildings().find((b) => b.kind === 'pen' && !b.active);
@@ -783,11 +796,6 @@ export function replayContinuousCampaign(
           .sort((a, b) => b.hunger - a.hunger)[0];
         if (hungry && say(['S_02', 'V_02', 'O_04'], undefined, hungry.id))
           fedParents.add(`${seasonId}:${hungry.id}`);
-      }
-      const fire = villageBuildings().find((b) => b.kind === 'campfire');
-      if (fire && !fire.active && state.resources.wood >= 1 && state.voice >= 1) {
-        const guardian = available.find((u) => u.age >= 14) ?? person;
-        if (guardian) say(['S_02', 'V_05', 'O_05'], undefined, guardian.id);
       }
       for (const kind of ['pen', 'grave', 'farm'] as const) {
         if (!day || state.voice < 1) break;

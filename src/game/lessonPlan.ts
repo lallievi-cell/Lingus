@@ -18,7 +18,7 @@ function evaluatePlan(state: GameState, words: readonly string[]) {
   }
   return {
     lessons,
-    cost: unique.length * 10,
+    cost: lessons.reduce((total, lesson) => total + lesson.attentionCost, 0),
     allowed: lessons.length > 0 && lessons.every((lesson) => lesson.allowed),
     next,
   };

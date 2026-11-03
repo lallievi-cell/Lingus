@@ -30,7 +30,7 @@ export class GameAudioEvents {
       commands: state.stats.commands,
       institutions: institutionIds(state),
       births: state.stats.births,
-      sparks: new Set(state.sparks.map((spark) => spark.id)),
+      sparks: new Set(state.sparks.filter((spark) => !spark.deferred).map((spark) => spark.id)),
       contextualDiscoveries: new Map(
         CONTEXTUAL_WORDS.flatMap((id) => {
           const at = state.eventTimes[contextualDiscoveryKey(id)];
@@ -73,7 +73,8 @@ export class GameAudioEvents {
       cues.add('command');
     // Urban cohorts also have real births, without individual tribe-event identities.
     if (state.stats.births > previous.births) cues.add('birth');
-    if (state.sparks.some((spark) => !previous.sparks.has(spark.id))) cues.add('spark');
+    if (state.sparks.some((spark) => !spark.deferred && !previous.sparks.has(spark.id)))
+      cues.add('spark');
     if (
       [...current.contextualDiscoveries].some(
         ([id, at]) =>

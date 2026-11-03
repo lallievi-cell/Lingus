@@ -1028,6 +1028,7 @@ export function WorldMap({
           const p = toWorld(event.clientX, event.clientY),
             t = getTransform();
           const spark = stateRef.current.sparks.find((s) => {
+            if (s.deferred) return false;
             const unit = stateRef.current.units.find((u) => u.id === s.unitId && u.hp > 0);
             return (
               unit &&

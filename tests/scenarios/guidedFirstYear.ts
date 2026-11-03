@@ -66,7 +66,7 @@ export function replayGuidedFirstYear(seed = 6842, departureDelay = 0) {
   };
 
   for (let step = 0; step <= 1560 && !state.gameOver; step++) {
-    for (const spark of [...state.sparks]) {
+    for (const spark of state.sparks.filter((entry) => !entry.deferred)) {
       const known = hasWord(state, spark.wordId);
       state = solveSpark(state, spark.id, spark.recipe);
       if (!known && hasWord(state, spark.wordId))

@@ -26,6 +26,7 @@ export function contextualSparkWitness(state: GameState, spark: Spark) {
     state.gameOver ||
     state.victory ||
     !(CONTEXTUAL_WORDS as readonly string[]).includes(spark.wordId) ||
+    spark.deferred ||
     spark.expiresAt < state.time ||
     hasWord(state, spark.wordId) ||
     !state.sparks.some((entry) => entry.id === spark.id) ||

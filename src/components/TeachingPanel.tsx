@@ -46,11 +46,12 @@ export function TeachingPanel({
   const [search, setSearch] = useState('');
   const [outcome, setOutcome] = useState<{
     wordId: string;
-    pupilId?: string;
+    pupilIds?: string[];
     rehearsal?: boolean;
   } | null>(null);
   const numbered = hasWord(state, 'O_08');
   const balanced = hasLearningBalance(state);
+  const sharedRound = state.playMode === 'guided';
   const fundedLessons = Math.floor(state.attention / 10);
   const custodians = new Map(
     getCustodianStatuses(state).flatMap((status) =>
@@ -80,9 +81,14 @@ export function TeachingPanel({
     x: unit.x,
     y: unit.y,
   });
-  const completedPupil = outcome?.pupilId
-    ? state.units.find((u) => u.id === outcome.pupilId)
-    : undefined;
+  const participants = (people: Unit[]) =>
+    people.length === 1
+      ? person(people[0])
+      : people.map((unit) => visibleUnitName(state, unit)).join(', ');
+  const completedPupils = (outcome?.pupilIds ?? []).flatMap((id) => {
+    const unit = state.units.find((person) => person.id === id);
+    return unit ? [unit] : [];
+  });
   const shown = known.filter((id) => {
     if (!WORDS[id].label.toLocaleLowerCase('it').includes(search.trim().toLocaleLowerCase('it')))
       return false;
@@ -103,7 +109,9 @@ export function TeachingPanel({
               <strong>
                 {state.stats.taught === 0
                   ? 'La prima parola da affidare'
-                  : 'Ogni lezione aggiunge un custode'}
+                  : sharedRound
+                    ? 'I custodi insegnano insieme'
+                    : 'Ogni lezione aggiunge un custode'}
               </strong>
             </summary>
             <p>
@@ -111,6 +119,14 @@ export function TeachingPanel({
                 ? 'Scegli una parola custodita da una sola persona. Controlla chi la racconta e chi la imparerà, poi premi Tramanda. La nuova voce continuerà a custodirla anche dopo il maestro.'
                 : 'Proteggi prima gli ultimi custodi. La memoria piena non sostituisce un secondo custode: puoi insegnare anche una parola già salda.'}
             </p>
+            {sharedRound && (
+              <p>
+                I custodi che conoscono già la parola possono seguire più allievi nello stesso
+                racconto, consumando la stessa Attenzione di una lezione. Per partecipare insieme, i
+                maestri aggiuntivi e i loro allievi devono essere vicini a un Falò acceso. I nuovi
+                custodi potranno insegnare dal racconto successivo.
+              </p>
+            )}
             {balanced && (
               <p>
                 Nel primo anno, tramandare una parola fondamentale dal suo ultimo custode rafforza
@@ -147,7 +163,7 @@ export function TeachingPanel({
         <p className="teaching-outcome" role="status">
           {outcome.rehearsal
             ? `«${WORDS[outcome.wordId].label}»: il ripasso ha rafforzato la memoria dei custodi.`
-            : `«${WORDS[outcome.wordId].label}» è ora custodita anche da ${completedPupil ? person(completedPupil) : 'una nuova voce'}.`}
+            : `«${WORDS[outcome.wordId].label}» è ora custodita anche da ${completedPupils.length ? participants(completedPupils) : 'una nuova voce'}.`}
         </p>
       )}
       {!known.length && (
@@ -195,12 +211,18 @@ export function TeachingPanel({
             custodian = custodians.get(id),
             rehearse = canRehearseWord(state, id);
           const reasonId = `lesson-reason-${id}`;
+          const newCustodians =
+            preview.pupils.length > 1
+              ? numbered
+                ? `${preview.pupils.length} nuovi custodi`
+                : 'nuovi custodi'
+              : 'un nuovo custode';
           const reason = preview.allowed
             ? preview.retentionGain > 0
               ? numbered
-                ? `Forma un nuovo custode e recupera fino a ${Math.round(preview.retentionGain * 10) / 10} punti di memoria.`
-                : 'Forma un nuovo custode e rafforza la memoria.'
-              : 'La memoria è già salda, ma la lezione la affida a un nuovo custode.'
+                ? `Forma ${newCustodians} e recupera fino a ${Math.round(preview.retentionGain * 10) / 10} punti di memoria.`
+                : `Forma ${newCustodians} e rafforza la memoria.`
+              : `La memoria è già salda, ma la lezione la affida a ${newCustodians}.`
             : rehearse
               ? 'Non ci sono nuovi allievi disponibili. Puoi spendere Attenzione per ripassare la parola e rafforzarne la memoria.'
               : preview.issue === 'no-pupil' && memory.retention >= 100
@@ -248,7 +270,10 @@ export function TeachingPanel({
                 </span>
                 <div className="lesson-people">
                   <span>
-                    <b>Racconta:</b> {person(preview.teacher)}
+                    <b>{preview.teachers.length > 1 ? 'Raccontano:' : 'Racconta:'}</b>{' '}
+                    {preview.teachers.length
+                      ? participants(preview.teachers)
+                      : person(preview.teacher)}
                     {preview.teacher && onFocus && (
                       <button
                         className="text-button lesson-person-focus"
@@ -260,7 +285,8 @@ export function TeachingPanel({
                     )}
                   </span>
                   <span>
-                    <b>Imparerà:</b> {person(preview.pupil)}
+                    <b>{preview.pupils.length > 1 ? 'Impareranno:' : 'Imparerà:'}</b>{' '}
+                    {preview.pupils.length ? participants(preview.pupils) : person(preview.pupil)}
                   </span>
                 </div>
                 <small
@@ -277,14 +303,16 @@ export function TeachingPanel({
                 onClick={() => {
                   const next = preview.allowed ? teachWord(state, id) : rehearseWord(state, id);
                   if (next.stats.taught > state.stats.taught)
-                    setOutcome({ wordId: id, pupilId: preview.pupil?.id });
+                    setOutcome({ wordId: id, pupilIds: preview.pupils.map((pupil) => pupil.id) });
                   else if (next.attention < state.attention)
                     setOutcome({ wordId: id, rehearsal: true });
                   onChange(next);
                 }}
               >
                 {preview.allowed || !rehearse ? 'Tramanda' : 'Ripassa'}
-                <small>{numbered ? '10 Attenzione' : 'Consuma Attenzione'}</small>
+                <small>
+                  {numbered ? `${preview.attentionCost} Attenzione` : 'Consuma Attenzione'}
+                </small>
               </button>
             </div>
           );

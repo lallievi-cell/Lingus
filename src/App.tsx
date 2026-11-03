@@ -54,6 +54,7 @@ import { browserSaves, useSessionSafety } from './session/useSessionSafety';
 import { CampInventoryPanel } from './components/CampInventoryPanel';
 import { describeStockQuantity } from './components/campInventory';
 import { TribeMemberCard } from './components/TribeMemberCard';
+import { WorkTeamPicker } from './components/WorkTeamPicker';
 import {
   lastCustodianLabel,
   lifeStageLabel,
@@ -93,6 +94,7 @@ import {
   selectableTribeAdults,
   tribeRecallDestination,
 } from './game/tribeControl';
+import { customGroupMembers, isCustomGroupAnchor } from './game/tribeSelection';
 import { canRecallSpark } from './game/knowledgeRecovery';
 import { canPrepareBriefLesson } from './game/teaching';
 import { ForeignPressure } from './components/ForeignPressure';
@@ -170,6 +172,7 @@ type Panel =
   | 'readiness'
   | 'stocks'
   | 'recovery'
+  | 'work-team'
   | CivilizationMode
   | null;
 const KIND_NAMES: Record<WordKind, string> = {
@@ -255,7 +258,9 @@ function App() {
   const [dismissedEvents, setDismissedEvents] = useState<Set<string>>(() => new Set());
   const [focusRequest, setFocusRequest] = useState<{ x: number; y: number; nonce: number }>();
   const eventSnapshot = useRef(new Set((game.tribeEvents ?? []).map((event) => event.id)));
-  const sparkSnapshot = useRef(new Set(game.sparks.map((spark) => spark.id)));
+  const sparkSnapshot = useRef(
+    new Set(game.sparks.filter((spark) => !spark.deferred).map((spark) => spark.id)),
+  );
   const { audioPreferences, setAudioPreferences, sound, setSound } = useAudioPreferences();
   const [lexiconSearch, setLexiconSearch] = useState('');
   const [hasSeenMilestone, setHasSeenMilestone] = useState(!!game.victory);
@@ -306,8 +311,9 @@ function App() {
     ? recentPhrases
     : STARTER_PHRASES.filter((phrase) => !phraseRecallIssue(game, phrase));
   const ownedBuildings = game.buildings.filter((b) => isPlayerBuilding(game, b));
-  const currentSpark = game.sparks.find((s) => s.id === sparkId);
-  const nextSpark = game.sparks[0];
+  const currentSpark = game.sparks.find((s) => !s.deferred && s.id === sparkId);
+  const nextSpark = game.sparks.find((spark) => !spark.deferred);
+  const queuedIntuitions = game.sparks.filter((spark) => spark.deferred).length;
   const suggestedWordIds = useMemo(() => {
     const set = new Set<string>();
     if (!target) return set;
@@ -504,9 +510,13 @@ function App() {
   useEffect(() => {
     const events = game.tribeEvents ?? [];
     const fresh = events.some((event) => !eventSnapshot.current.has(event.id));
-    const idea = game.sparks.some((spark) => !sparkSnapshot.current.has(spark.id));
+    const idea = game.sparks.some(
+      (spark) => !spark.deferred && !sparkSnapshot.current.has(spark.id),
+    );
     eventSnapshot.current = new Set(events.map((event) => event.id));
-    sparkSnapshot.current = new Set(game.sparks.map((spark) => spark.id));
+    sparkSnapshot.current = new Set(
+      game.sparks.filter((spark) => !spark.deferred).map((spark) => spark.id),
+    );
     if (pauseOnEvents && game.started && (fresh || idea))
       setGame((current) => (current.paused ? current : { ...current, paused: true }));
   }, [game.tribeEvents, game.sparks, game.started, pauseOnEvents]);
@@ -858,9 +868,11 @@ function App() {
             .filter(
               (u) =>
                 u.hp > 0 &&
-                (isAllAdultsAnchor(groupAnchor)
-                  ? selectableTribeAdults(game).some((person) => person.id === u.id)
-                  : Math.hypot(u.x - groupAnchor.x, u.y - groupAnchor.y) <= 15),
+                (isCustomGroupAnchor(groupAnchor)
+                  ? customGroupMembers(game, groupAnchor).some((person) => person.id === u.id)
+                  : isAllAdultsAnchor(groupAnchor)
+                    ? selectableTribeAdults(game).some((person) => person.id === u.id)
+                    : Math.hypot(u.x - groupAnchor.x, u.y - groupAnchor.y) <= 15),
             )
             .map((u) => ({ x: u.x, y: u.y }));
         } else if (executorId) {
@@ -885,6 +897,7 @@ function App() {
   }
 
   function openSpark(spark: Spark) {
+    if (spark.deferred) return;
     setSparkId(spark.id);
     setPuzzle([]);
     setPuzzleFeedback(null);
@@ -986,7 +999,9 @@ function App() {
     setDismissedEvents(new Set());
     dismissBackgroundPause();
     eventSnapshot.current = new Set((next.tribeEvents ?? []).map((event) => event.id));
-    sparkSnapshot.current = new Set(next.sparks.map((spark) => spark.id));
+    sparkSnapshot.current = new Set(
+      next.sparks.filter((spark) => !spark.deferred).map((spark) => spark.id),
+    );
   }
 
   function preserveCurrentStory() {
@@ -1359,6 +1374,17 @@ function App() {
                   </button>
                 )}
               </div>
+              {!game.urbanized && individuality && (
+                <button
+                  type="button"
+                  className="work-team-entry"
+                  onClick={() => setPanel('work-team')}
+                >
+                  <Users size={17} />
+                  <span>Dividi i compiti</span>
+                  <ChevronRight size={15} />
+                </button>
+              )}
               {game.urbanized && (
                 <button className="urban-summary-card" onClick={() => setPanel('settlement')}>
                   <Glyph id="S_09" size={30} />
@@ -1559,7 +1585,7 @@ function App() {
               <div className="unit-list" aria-label="Membri della tribù">
                 {!game.urbanized &&
                   filteredUnits.map((unit) => {
-                    const spark = game.sparks.find((s) => s.unitId === unit.id);
+                    const spark = game.sparks.find((s) => !s.deferred && s.unitId === unit.id);
                     return (
                       <TribeMemberCard
                         key={unit.id}
@@ -1727,7 +1753,7 @@ function App() {
               <OpeningGuide
                 state={game}
                 onSpark={(id) => {
-                  const spark = game.sparks.find((entry) => entry.id === id);
+                  const spark = game.sparks.find((entry) => !entry.deferred && entry.id === id);
                   if (spark) openSpark(spark);
                 }}
                 onTeach={() => setPanel('campfire')}
@@ -1845,7 +1871,7 @@ function App() {
               commandReady={compilation.valid && sentence.length >= 2}
               selectingGroup={selectingGroup}
               onSpark={(id) => {
-                const spark = game.sparks.find((s) => s.id === id);
+                const spark = game.sparks.find((s) => !s.deferred && s.id === id);
                 if (spark) openSpark(spark);
               }}
             />
@@ -1987,6 +2013,15 @@ function App() {
                 Lavora, esplora e segui le Scintille.
               </p>
               <span className="tiny-divider" />
+            </div>
+          )}
+          {queuedIntuitions > 0 && (
+            <div className="queued-intuitions" role="status">
+              <strong>Intuizioni da approfondire{numbered ? ` · ${queuedIntuitions}` : ''}</strong>
+              <span>
+                Le esperienze restano in attesa. Puoi seguire le Scintille visibili e tramandare le
+                parole già scoperte con calma.
+              </span>
             </div>
           )}
           <div className="objective-card">
@@ -2137,12 +2172,19 @@ function App() {
           <div className="executor-selection">
             {!game.urbanized && (
               <button
-                className={`text-button all-adults-button ${isAllAdultsAnchor(groupAnchor) ? 'active' : ''}`}
+                className={`text-button all-adults-button ${isAllAdultsAnchor(groupAnchor) || (individuality && isCustomGroupAnchor(groupAnchor)) ? 'active' : ''}`}
                 aria-pressed={isAllAdultsAnchor(groupAnchor)}
-                onClick={chooseAllAdults}
+                onClick={() =>
+                  individuality && isCustomGroupAnchor(groupAnchor)
+                    ? setPanel('work-team')
+                    : chooseAllAdults()
+                }
                 title="Seleziona tutti gli adulti disponibili, anche lontani dal campo. La selezione è gratuita e non impartisce ordini."
               >
-                <Users size={13} /> Tutti gli adulti
+                <Users size={13} />{' '}
+                {individuality && isCustomGroupAnchor(groupAnchor)
+                  ? 'Gruppo scelto'
+                  : 'Tutti gli adulti'}
               </button>
             )}
             {!game.urbanized && (
@@ -2507,6 +2549,26 @@ function App() {
             <X size={14} />
           </button>
         </div>
+      )}
+
+      {panel === 'work-team' && (
+        <WorkTeamPicker
+          state={game}
+          selection={groupAnchor}
+          sentence={sentence}
+          target={target ?? undefined}
+          onClose={closePanel}
+          onApply={(anchor, tokens) => {
+            setGroupAnchor(anchor);
+            setSelectingGroup(false);
+            setSentence(tokens);
+            setEditingSlot(null);
+            setMobileSection('map');
+            closeWordBank();
+            closePanel();
+            notify('Gruppo scelto. Scegli il compito e il bersaglio, poi Pronuncia.');
+          }}
+        />
       )}
 
       {panel === 'word-help' && helpWordId && WORDS[helpWordId] && (

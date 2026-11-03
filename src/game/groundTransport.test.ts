@@ -78,7 +78,7 @@ describe('carrying a physical pile of extracted materials', () => {
   });
 
   it.each(['classic', 'guided'] as const)(
-    'keeps %s trips bounded to the selected material pile',
+    'keeps %s collection on loose material without silently mining the rock',
     (mode) => {
       let s = camp(mode, 1);
       s.entities.push(
@@ -92,6 +92,13 @@ describe('carrying a physical pile of extracted materials', () => {
       expect(s.entities.find((e) => e.id === 'remote')?.amount).toBe(1);
       expect(s.entities.find((e) => e.id === 'other-material')?.amount).toBe(1);
       expect(amount(s)).toBe(39);
+      if (mode === 'guided') {
+        s = advance(s, 15);
+        expect(s.resources.stone).toBe(9);
+        expect(s.entities[0].amount).toBe(30);
+        expect(s.entities.find((e) => e.id === 'remote')?.amount).toBe(0);
+        expect(amount(s)).toBe(39);
+      }
       expect(s.units[0].command).toBeUndefined();
     },
   );

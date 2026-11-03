@@ -32,7 +32,7 @@ export function personalExperienceEligible(
 
 export function getPersonalDiscoveryProgress(state: GameState) {
   if (state.playMode !== 'guided' || state.urbanized || hasWord(state, 'S_02')) return null;
-  const spark = state.sparks.find((entry) => entry.wordId === 'S_02');
+  const spark = state.sparks.find((entry) => !entry.deferred && entry.wordId === 'S_02');
   const contribution = Math.max(0, ...activeUnits(state).map((unit) => unit.tension?.S_02 ?? 0));
   return {
     ready: !!spark,

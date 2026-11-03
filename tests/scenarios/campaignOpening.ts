@@ -55,6 +55,20 @@ export function replayCampaignOpening(seed = 6842, until = 270) {
     .sort(
       (a, b) => Math.hypot(a.x - stone.x, a.y - stone.y) - Math.hypot(b.x - stone.x, b.y - stone.y),
     )[0];
+  // Extraction leaves a visible pile even after the original node is empty.
+  // Select that pile explicitly instead of asking an exhausted node to guess.
+  const materialSource = (kind: 'stone' | 'wood') => {
+    const origin = kind === 'stone' ? stone : tree;
+    return (
+      state.entities.find(
+        (entity) =>
+          entity.kind === 'ground' &&
+          entity.resource === kind &&
+          entity.amount > 0 &&
+          Math.hypot(entity.x - origin.x, entity.y - origin.y) < 2,
+      ) ?? nearest(kind === 'stone' ? 'stone' : 'tree')
+    );
+  };
   const say = (tokens: string[], target?: Target, selection?: Target, executorId?: string) => {
     const adults = own().filter(
       (unit) => unit.age >= 4 && (state.time >= 60 || unit.id !== scoutId),
@@ -83,7 +97,7 @@ export function replayCampaignOpening(seed = 6842, until = 270) {
   };
 
   for (let step = 0; step <= 1560 && !state.gameOver; step++) {
-    for (const spark of [...state.sparks]) {
+    for (const spark of state.sparks.filter((entry) => !entry.deferred)) {
       const known = hasWord(state, spark.wordId);
       state = solveSpark(state, spark.id, spark.recipe);
       if (!known && hasWord(state, spark.wordId))
@@ -191,7 +205,8 @@ export function replayCampaignOpening(seed = 6842, until = 270) {
         const miner = own().find(
           (u) => u.age >= 4 && u.name !== 'Oru' && u.action !== 'crafting' && u.name !== 'Uma',
         )!;
-        say(['S_02', 'V_04', 'O_02'], entityTarget(stone), undefined, miner.id);
+        const source = materialSource('stone');
+        if (source) say(['S_02', 'V_04', 'O_02'], entityTarget(source), undefined, miner.id);
         const hunter = own().find((u) => u.name === 'Oru')!;
         const prey = nearest('deer');
         if (prey) say(['S_02', 'V_03'], entityTarget(prey), undefined, hunter.id);
@@ -221,7 +236,8 @@ export function replayCampaignOpening(seed = 6842, until = 270) {
         );
       }
       if (
-        [185, 190, 195, 200, 205].includes(time) &&
+        time >= 185 &&
+        time < until &&
         state.voice >= 1 &&
         !own().some((u) => u.action === 'building') &&
         !state.buildings.some((b) => !b.cityId && b.kind === 'pen') &&
@@ -250,14 +266,14 @@ export function replayCampaignOpening(seed = 6842, until = 270) {
           );
       }
       if ([200, 205, 210, 215].includes(time)) {
-        const slots =
+        const slots: ('stone' | 'wood')[] =
           time === 200
             ? ['stone']
             : time === 205
               ? ['stone', 'wood']
               : time === 210
                 ? ['wood']
-                : [];
+                : ['wood'];
         for (const kind of slots) {
           const people = own().filter(
             (u) =>
@@ -272,11 +288,12 @@ export function replayCampaignOpening(seed = 6842, until = 270) {
           const preferred = ['Nara', 'Oru', 'Tala', 'Uma', 'Ayla', 'Ilo', 'Korg'];
           people.sort((a, b) => preferred.indexOf(a.name) - preferred.indexOf(b.name));
           const u = people[0];
-          if (u && state.voice >= 1) {
+          const source = materialSource(kind);
+          if (u && source && state.voice >= 1) {
             const prior = state.stats.commands;
             say(
               ['S_02', 'V_04', kind === 'stone' ? 'O_02' : 'O_03'],
-              entityTarget(kind === 'stone' ? stone : nearest('tree', 5)!),
+              entityTarget(source),
               undefined,
               u.id,
             );

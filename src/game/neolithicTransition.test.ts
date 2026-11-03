@@ -69,7 +69,9 @@ describe('continuous legacy growth from an explicitly prepared Neolithic settlem
     // Flush Vitest's start notification before the CPU-bound campaign, and its
     // completion before reporting assertions. No simulated time is skipped.
     await yieldToRunner();
-    const result = await replayNeolithicTransitionAsync(6842, 1710);
+    // A birth at the last boundary needs a subsequent real observation and
+    // coarse decision to name the city; no word or population is injected.
+    const result = await replayNeolithicTransitionAsync(6842, 1720);
     await yieldToRunner();
     const state = result.state;
     expect(state.gameOver).toBeNull();

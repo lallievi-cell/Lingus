@@ -114,7 +114,7 @@ describe('guided material transport remains physical and bounded', () => {
     },
   );
 
-  it('preserves the single-trip rule for Classic and repeats Guided food only after Conservare', () => {
+  it('preserves Classic single trips and repeats Guided food even before Conservare', () => {
     let classic = village('classic');
     classic = advance(issueCommand(classic, ['S_01', 'V_04', 'O_03'], source(classic)), 15);
     expect(classic.resources.wood).toBe(3);
@@ -122,16 +122,12 @@ describe('guided material transport remains physical and bounded', () => {
     let food = village();
     food.words.V_05.retention = 0;
     Object.assign(food.entities[0], { kind: 'berries', amount: 7, hp: 1, maxHp: 1 });
-    food = advance(issueCommand(food, ['S_01', 'V_04', 'O_04'], source(food)), 10);
-    expect(food.resources.food).toBe(1);
-    expect(food.entities[0].amount).toBe(6);
-    learn(food, 'V_05');
     food = until(
       issueCommand(food, ['S_01', 'V_04', 'O_04'], source(food)),
       (state) => state.resources.food === 7 && !state.units[0].carry,
     );
     expect(food.entities[0].amount).toBe(0);
-    expect(food.stats.commands).toBe(2);
+    expect(food.stats.commands).toBe(1);
     expect(food.units[0].command).toBeUndefined();
     let classicFood = village('classic');
     Object.assign(classicFood.entities[0], { kind: 'berries', amount: 20, hp: 1, maxHp: 1 });
@@ -141,6 +137,49 @@ describe('guided material transport remains physical and bounded', () => {
     );
     expect(classicFood.resources.food).toBe(3);
     expect(classicFood.entities[0].amount).toBe(17);
+  });
+
+  it('continues to nearby known sources in the original area and leaves remote material alone', () => {
+    let s = village();
+    s.entities[0].amount = 1;
+    s.entities.push(
+      { ...s.entities[0], id: 'nearby', x: 260, amount: 2 },
+      { ...s.entities[0], id: 'remote', x: 280, amount: 10 },
+    );
+    s = until(
+      issueCommand(s, ['S_01', 'V_04', 'O_03'], source(s)),
+      (state) => state.resources.wood === 3 && !state.units[0].carry && !state.units[0].command,
+    );
+    expect(s.entities.find((e) => e.id === 'remote')!.amount).toBe(10);
+    expect(total(s, 'wood')).toBe(13);
+    expect(s.stats.commands).toBe(1);
+    expect(s.units[0].lastTaskResult?.reason).toBe('exhausted');
+    expect(parseGame(serializeGame(s))).not.toBeNull();
+  });
+
+  it('initializes the fixed local area on an older in-progress save', () => {
+    let s = village();
+    s.entities[0].amount = 1;
+    s.entities.push(
+      { ...s.entities[0], id: 'nearby', x: 269, amount: 1 },
+      { ...s.entities[0], id: 'remote', x: 284, amount: 10 },
+    );
+    s = issueCommand(s, ['S_01', 'V_04', 'O_03'], source(s));
+    delete s.units[0].workOrigin;
+    s = until(s, (state) => state.resources.wood === 2 && !state.units[0].command);
+    expect(s.entities.find((e) => e.id === 'remote')!.amount).toBe(10);
+  });
+
+  it('repeats real fuel deliveries from trees and accounts for burnt wood', () => {
+    let s = village();
+    learn(s, 'O_05');
+    s.entities[0].amount = 6;
+    s = until(
+      issueCommand(s, ['S_01', 'V_04', 'O_05'], source(s)),
+      (state) => state.entities[0].amount === 0 && !state.units[0].carry && !state.units[0].command,
+    );
+    expect(s.resources.wood + s.burntWood).toBe(6);
+    expect(s.stats.commands).toBe(1);
   });
 
   it('reserves shared capacity across carriers and leaves the uncollected materials in place', () => {

@@ -31,7 +31,7 @@ export function TribeMemberCard({ state, unit, index, selected, custodian, onAct
   const stage = getLifeStage(unit);
   const young = stage === 'newborn' || stage === 'child';
   const warnings = physicalWarnings(unit);
-  const spark = state.sparks.some((s) => s.unitId === unit.id);
+  const spark = state.sparks.some((s) => !s.deferred && s.unitId === unit.id);
   const metadataId = `unit-metadata-${unit.id}`;
   return (
     <button

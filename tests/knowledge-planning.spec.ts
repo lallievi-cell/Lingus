@@ -31,7 +31,7 @@ test('a chosen lesson plan previews real pupils on mobile and pays the actual le
   state.words.V_04.custodians.push(state.units[6].id);
   state.units[6].knows.push('V_04');
   const expected = dismissCampfire(executeLessonPlan(state, ['O_03', 'V_04']));
-  expect(expected.stats.taught).toBe(2);
+  expect(expected.stats.taught).toBe(3);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(
     (raw) => localStorage.setItem('lingus.save.v2', raw),

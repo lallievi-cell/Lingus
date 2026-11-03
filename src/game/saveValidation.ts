@@ -5,6 +5,7 @@ import { validLearnedRecipe } from './knowledgeRecovery';
 import { seasonLength } from './calendar';
 import { validKnowledgeHistory } from './knowledgeHistory';
 import { validPhrasebook } from './phrasebook';
+import { TASK_OUTCOME_REASONS } from './taskOutcomes';
 import {
   REGIONAL_ROUTE_GRID,
   REGIONAL_ROUTE_LIMIT,
@@ -64,7 +65,8 @@ const target = (v: unknown) =>
   ['point', 'entity', 'unit', 'building', 'city', 'battalion', 'caravan'].includes(
     v.type as string,
   ) &&
-  optional(v.id, text);
+  optional(v.id, text) &&
+  optional(v.unitIds, ids);
 const dogma = (v: unknown) =>
   named(v) &&
   word(v.targetId) &&
@@ -132,6 +134,23 @@ const unit = (v: unknown) =>
   optional(v.pendingCombatDamage, flag) &&
   optional(v.lastCombatSource, combatSource) &&
   optional(v.craftNeedsPayment, flag) &&
+  optional(
+    v.workOrigin,
+    (origin) => point(origin) && record(origin) && optional(origin.groundOnly, flag),
+  ) &&
+  optional(
+    v.lastTaskResult,
+    (result) =>
+      record(result) &&
+      number(result.time) &&
+      words(result.tokens) &&
+      Array.isArray(result.tokens) &&
+      result.tokens.length >= 2 &&
+      result.tokens.length <= 6 &&
+      TASK_OUTCOME_REASONS.includes(result.reason as (typeof TASK_OUTCOME_REASONS)[number]) &&
+      flag(result.suspended) &&
+      optional(result.target, target),
+  ) &&
   optional(v.suspendedJob, (x) => record(x) && text(x.buildingId) && words(x.command)) &&
   optional(v.eventMemory, (x) => list(x, event)) &&
   optional(v.tension, numericMap) &&
@@ -362,6 +381,14 @@ export function validSave(value: unknown): value is GameState {
   )
     return false;
   if (
+    (s.units as RecordValue[]).some(
+      (person) =>
+        record(person.lastTaskResult) &&
+        (person.lastTaskResult.time as number) > (s.time as number),
+    )
+  )
+    return false;
+  if (
     !record(s.words) ||
     INNATE_WORDS.some((w) => !Object.hasOwn(s.words as RecordValue, w)) ||
     Object.entries(s.words).some(
@@ -476,7 +503,9 @@ export function validSave(value: unknown): value is GameState {
         words(v.recipe) &&
         text(v.hint) &&
         text(v.eventLabel) &&
-        number(v.expiresAt),
+        number(v.expiresAt) &&
+        optional(v.deferred, flag) &&
+        optional(v.earnedAt, (at) => number(at, 0, s.time as number)),
     )
   )
     return false;

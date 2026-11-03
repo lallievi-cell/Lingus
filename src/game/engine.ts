@@ -23,6 +23,8 @@ import { settlementObjective } from './settlementObjectives';
 import { recordLawWork } from './imperialLawPolicy';
 import { isAllAdultsAnchor, selectableTribeAdults } from './tribeSelection';
 import { canPrepareBriefLesson, getLessonPreview } from './teaching';
+import { captureObservedTaskResults, snapshotTaskResultInputs } from './taskResults';
+import { promoteDeferredSparks } from './discoveryPacing';
 import {
   activeUnits,
   adult,
@@ -120,6 +122,10 @@ function chooseSubjects(
     );
   const anchor = selectionCenter ?? { ...s.home, type: 'point' as const };
   if (subject === 'S_01' && isAllAdultsAnchor(anchor)) return selectableTribeAdults(s);
+  if (subject === 'S_01' && anchor.type === 'point' && anchor.id === 'selection:custom')
+    return hasWord(s, 'S_02')
+      ? selectableTribeAdults(s).filter((unit) => anchor.unitIds?.includes(unit.id))
+      : [];
   if (
     anchor.type === 'building' &&
     s.buildings.some(
@@ -176,6 +182,7 @@ function assignBuildingJob(
   for (const old of s.buildings) old.workerIds = old.workerIds?.filter((id) => id !== u.id);
   dropCarriedLoad(s, u);
   resetUnit(u);
+  u.lastTaskResult = undefined;
   u.action = 'working';
   u.jobBuildingId = b.id;
   u.targetId = b.id;
@@ -411,6 +418,7 @@ export function issueCommand(
     trace?.assignedUnitIds.push(builder.id);
     droppedCargo = dropCarriedLoad(s, builder);
     resetUnit(builder);
+    builder.lastTaskResult = undefined;
     builder.action = 'building';
     builder.command = [...tokens];
     builder.buildingKind = kind;
@@ -453,6 +461,7 @@ export function issueCommand(
       assigned++;
       trace?.assignedUnitIds.push(u.id);
       resetUnit(u);
+      u.lastTaskResult = undefined;
       u.command = [...tokens];
       u.lastOrderAt = s.time;
       if (verb === 'V_01') {
@@ -501,6 +510,7 @@ export function issueCommand(
             u,
           );
         u.action = 'gathering';
+        u.workOrigin = e ? { x: e.x, y: e.y, groundOnly: e.kind === 'ground' } : undefined;
         u.targetId = e?.id;
         u.tx = e?.x;
         u.ty = e?.y;
@@ -544,6 +554,14 @@ export function issueCommand(
   s.stats.commands++;
   for (const id of tokens) s.words[id].uses++;
   if (droppedCargo) log(s, 'Il carico è rimasto a terra dopo il nuovo ordine.', 'warning');
+  if (assigned < workers.length)
+    log(
+      s,
+      kind
+        ? 'La costruzione è affidata a un costruttore. Gli altri selezionati mantengono il proprio incarico.'
+        : 'La lavorazione è affidata a un artigiano. Gli altri selezionati mantengono il proprio incarico.',
+      'info',
+    );
   log(
     s,
     `«${tokens.map((w) => WORDS[w].label).join(' · ')}»: ${workers.length === 1 ? workers[0].name : 'il gruppo'} ha compreso.`,
@@ -555,7 +573,7 @@ export function solveSpark(state: GameState, id: string, chosen: string[]): Game
   const s = copy(state),
     spark = s.sparks.find((p) => p.id === id),
     u = s.units.find((u) => u.id === spark?.unitId && u.hp > 0);
-  if (!spark || !u || spark.expiresAt < s.time) return s;
+  if (!spark || spark.deferred || !u || spark.expiresAt < s.time) return s;
   initializeUnit(u);
   s.sparks = s.sparks.filter((p) => p.id !== id);
   const expected = [...spark.recipe].sort(),
@@ -652,33 +670,36 @@ export function recallSpark(state: GameState, id: string): GameState {
 }
 export function teachWord(state: GameState, id: string): GameState {
   const preview = getLessonPreview(state, id);
-  if (!preview.allowed || !preview.pupil) return state;
+  if (!preview.allowed || !preview.pupils.length) return state;
   const s = copy(state),
-    m = s.words[id],
-    pupil = s.units.find((unit) => unit.id === preview.pupil!.id)!;
-  s.seed = (Math.imul(s.seed, 1664525) + 1013904223) >>> 0;
-  s.attention -= 10;
+    m = s.words[id];
+  s.attention -= preview.attentionCost;
   const efficacy =
     getDogmaEffects(s).teaching *
     (s.playMode === 'guided' ? GUIDED_PROGRESSION.teachingMultiplier : 1);
+  // One shared story reinforces memory once; each real mentor teaches one pupil.
   m.retention = clamp(m.retention + preview.memoryGain);
   m.investment = (m.investment ?? 0) + efficacy;
-  s.stats.taught++;
-  m.custodians.push(pupil.id);
-  pupil.knows.push(id);
-  if (preview.teacher) recordKnowledgeTeaching(s, id, preview.teacher.id, pupil.id);
-  pupil.intelligence = clamp(pupil.intelligence + 0.2, 1, 10);
+  for (const [index, chosen] of preview.pupils.entries()) {
+    const pupil = s.units.find((unit) => unit.id === chosen.id)!;
+    s.seed = (Math.imul(s.seed, 1664525) + 1013904223) >>> 0;
+    m.custodians.push(pupil.id);
+    pupil.knows.push(id);
+    pupil.intelligence = clamp(pupil.intelligence + 0.2, 1, 10);
+    s.stats.taught++;
+    recordKnowledgeTeaching(s, id, preview.teachers[index].id, pupil.id);
+    if (id === 'O_09') recordLawWork(s, pupil.id, ['S_01', 'V_05', 'O_09', 'M_02']);
+  }
   if (hasWord(s, 'S_02') && hasWord(s, 'C_02') && hasWord(s, 'M_03') && !hasWord(s, 'S_07')) {
     const teacher = activeUnits(s).find(
       (unit) =>
-        m.custodians.includes(unit.id) && unit.id !== pupil.id && distance(unit, s.home) <= 15,
+        preview.teachers.some((mentor) => mentor.id === unit.id) && distance(unit, s.home) <= 15,
     );
     if (teacher) recordEvent(s, teacher, 'ENV_AUTHORITY', 100, ['S_07']);
   }
-  if (id === 'O_09') recordLawWork(s, pupil.id, ['S_01', 'V_05', 'O_09', 'M_02']);
   log(
     s,
-    `«${WORDS[id].label}» viene tramandata a ${pupil.name}: ${Math.round(preview.retentionGain * 10) / 10} memoria e un nuovo custode.`,
+    `«${WORDS[id].label}» viene tramandata a ${preview.pupils.map((pupil) => pupil.name).join(', ')}: ${Math.round(preview.retentionGain * 10) / 10} memoria e ${preview.pupils.length === 1 ? 'un nuovo custode' : 'nuovi custodi'}.`,
     'good',
   );
   advanceTier(s);
@@ -795,6 +816,7 @@ export function tick(state: GameState, dt: number): GameState {
   const s = copy(state);
   let remaining = Math.min(60, dt) * s.speed;
   while (remaining > 1e-8 && !s.gameOver && !s.campfirePending && !s.victory) {
+    const taskResultInputs = snapshotTaskResultInputs(s);
     const calendar = getCalendar(s),
       d = Math.min(0.25, remaining, hasOpeningBalance(s) ? calendar.seasonEnd - s.time : Infinity),
       previous = calendar.seasonIndex,
@@ -811,7 +833,9 @@ export function tick(state: GameState, dt: number): GameState {
       s.voiceProgress -= 10;
     }
     simulationStep(s, d);
+    promoteDeferredSparks(s);
     resolveContextualDiscoveries(s);
+    promoteDeferredSparks(s);
     updateForeignPolicy(s, d);
     updateImperial(s, d);
     if (getCalendar(s).seasonIndex > previous) {
@@ -837,6 +861,7 @@ export function tick(state: GameState, dt: number): GameState {
       hasBuilding(s, 'storage')
     )
       s.milestone = true;
+    if (taskResultInputs) captureObservedTaskResults(taskResultInputs, s);
   }
   return s;
 }
