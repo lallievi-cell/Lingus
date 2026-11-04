@@ -49,7 +49,10 @@ async function word(page: Page, label: string, mobile: boolean) {
     await page.getByRole('button', { name: 'Mostra parole', exact: true }).click();
   await page.getByRole('button', { name: new RegExp(`^${label}:`) }).click();
 }
-const book = (page: Page) => page.getByRole('region', { name: 'Frasario', exact: true });
+const book = (page: Page) =>
+  page
+    .getByRole('region', { name: 'Frasario', exact: true })
+    .or(page.getByRole('dialog', { name: 'Frasario', exact: true }));
 
 for (const viewport of [
   { width: 320, height: 568 },
@@ -290,4 +293,179 @@ test('switching libraries starts with a complete row and details open without pr
   expect(after.stats.commands).toBe(0);
   expect(after.resources).toEqual(state.resources);
   expect(after.phrasebook).toBeUndefined();
+});
+
+for (const viewport of [
+  { width: 320, height: 568 },
+  { width: 390, height: 844 },
+  { width: 844, height: 390 },
+]) {
+  test(`the library expands into a useful catalogue and prepares freely at ${viewport.width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    if (viewport.width === 320)
+      await page.addInitScript(() =>
+        localStorage.setItem(
+          'lingus.interface.v1',
+          JSON.stringify({ textSize: 'large', contrast: 'high' }),
+        ),
+      );
+    const state = camp();
+    await load(page, state);
+    await page.getByRole('button', { name: 'Apri frasario', exact: true }).click();
+    const library = book(page);
+    const results = library.getByRole('tabpanel');
+    const compactHeight = (await results.boundingBox())!.height;
+    await library.getByRole('button', { name: 'Espandi frasario', exact: true }).click();
+    await expect(library).toHaveAttribute('data-expanded', 'true');
+    const readingHeight = (await results.boundingBox())!.height;
+    expect(readingHeight - compactHeight).toBeGreaterThanOrEqual(80);
+    const completeRows = await results.getByRole('article').evaluateAll((rows) => {
+      const frame = rows[0].parentElement!.getBoundingClientRect();
+      return rows.filter((row) => {
+        const box = row.getBoundingClientRect();
+        return box.top >= frame.top - 1 && box.bottom <= frame.bottom + 1;
+      }).length;
+    });
+    expect(completeRows).toBeGreaterThanOrEqual(viewport.width === 390 ? 4 : 2);
+    await page.screenshot({ path: test.info().outputPath('expanded-reading-catalogue.png') });
+    const search = library.getByRole('searchbox', { name: 'Cerca nel frasario', exact: true });
+    await search.fill('Casa');
+    const house = library.getByRole('article', { name: 'Casa in muratura', exact: true });
+    const details = house.getByRole('button', {
+      name: 'Dettagli della frase: Casa in muratura',
+      exact: true,
+    });
+    await details.click();
+    await library.getByRole('button', { name: 'Riduci frasario', exact: true }).click();
+    await expect(search).toHaveValue('Casa');
+    await expect(details).toHaveAttribute('aria-expanded', 'true');
+    await library.getByRole('button', { name: 'Espandi frasario', exact: true }).click();
+    const row = (await house.boundingBox())!;
+    const body = (await results.boundingBox())!;
+    expect(row.y).toBeGreaterThanOrEqual(body.y - 1);
+    await house
+      .getByRole('button', { name: 'Prepara la frase: Casa in muratura', exact: true })
+      .click();
+    await expect(library).toHaveCount(0);
+    await expect(page.locator('.sentence-slot.filled')).toHaveCount(4);
+    const after = await saved(page);
+    expect(after.stats.commands).toBe(state.stats.commands);
+    expect(after.voice).toBe(state.voice);
+    expect(after.resources).toEqual(state.resources);
+    expect(after.time).toBe(state.time);
+  });
+}
+
+test('the expanded catalogue keeps its controls and first result readable through keyboard resize and rotation', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await load(page, camp());
+  await page.getByRole('button', { name: 'Apri frasario', exact: true }).click();
+  const library = book(page);
+  await library.getByRole('button', { name: 'Espandi frasario', exact: true }).click();
+  const search = library.getByRole('searchbox', { name: 'Cerca nel frasario', exact: true });
+  await search.fill('Casa');
+  for (const viewport of [
+    { width: 390, height: 420 },
+    { width: 844, height: 390 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect(search).toBeInViewport({ ratio: 1 });
+    await expect(
+      library.getByRole('button', { name: 'Chiudi frasario', exact: true }),
+    ).toBeInViewport({ ratio: 1 });
+    await expect(
+      library.getByRole('button', { name: 'Riduci frasario', exact: true }),
+    ).toBeInViewport({ ratio: 1 });
+    await expect(search).toHaveValue('Casa');
+    const first = (await library.getByRole('article').first().boundingBox())!;
+    const results = (await library.getByRole('tabpanel').boundingBox())!;
+    expect(first.y).toBeGreaterThanOrEqual(results.y - 1);
+    expect(first.y + first.height).toBeLessThanOrEqual(results.y + results.height + 1);
+    expect(await library.evaluate((element) => element.scrollTop)).toBe(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+  }
+  await library.getByRole('button', { name: 'Chiudi frasario', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Pronuncia', exact: true })).toBeInViewport();
+});
+
+test('a phone with browser bars retains a useful compact list and a clear map strip', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 744 });
+  await load(page, camp());
+  await page.getByRole('button', { name: 'Apri frasario', exact: true }).click();
+  const library = book(page);
+  const results = (await library.getByRole('tabpanel').boundingBox())!;
+  expect(results.height).toBeGreaterThanOrEqual(230);
+  const map = (await page.getByRole('img', { name: /Mappa della valle/ }).boundingBox())!;
+  const sheet = (await library.boundingBox())!;
+  expect(Math.min(map.y + map.height, sheet.y) - map.y).toBeGreaterThanOrEqual(70);
+  const first = (await library.getByRole('article').first().boundingBox())!;
+  expect(first.y).toBeGreaterThanOrEqual(results.y - 1);
+  await page.screenshot({ path: test.info().outputPath('compact-with-browser-bars.png') });
+  await library.getByRole('button', { name: 'Chiudi frasario', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Apri frasario', exact: true })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Pronuncia', exact: true })).toBeInViewport();
+});
+
+test('expanded reading contains keyboard focus and Escape returns through the compact catalogue', async ({
+  page,
+}) => {
+  await load(page, camp());
+  for (const viewport of [
+    { width: 390, height: 744 },
+    { width: 1440, height: 1050 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const trigger = page.getByRole('button', { name: 'Apri frasario', exact: true });
+    await trigger.click();
+    await book(page).getByRole('button', { name: 'Espandi frasario', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Frasario', exact: true });
+    await expect(dialog).toHaveAttribute('aria-modal', 'true');
+    if (viewport.width === 1440) {
+      const audio = page.getByRole('button', { name: /^(Attiva|Disattiva) suoni$/ });
+      const wasMuted = await audio.getAttribute('aria-pressed');
+      const settings = page.getByRole('button', { name: 'Impostazioni e salvataggi' });
+      for (const backgroundControl of [audio, settings]) {
+        const bounds = (await backgroundControl.boundingBox())!;
+        expect(
+          await backgroundControl.evaluate((element) => {
+            const rect = element.getBoundingClientRect();
+            return document
+              .elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)
+              ?.classList.contains('phrasebook-scrim');
+          }),
+          'expanded reading must intercept clicks on controls outside the centered catalogue',
+        ).toBe(true);
+        await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+        await expect(dialog).toBeVisible();
+      }
+      await expect(audio).toHaveAttribute('aria-pressed', wasMuted!);
+      await expect(page.getByRole('dialog', { name: 'Impostazioni e salvataggi' })).toHaveCount(0);
+      await page.screenshot({ path: test.info().outputPath('expanded-desktop-with-scrim.png') });
+    }
+    const reduce = dialog.getByRole('button', { name: 'Riduci frasario', exact: true });
+    const last = dialog.getByRole('button').last();
+    await last.focus();
+    await page.keyboard.press('Tab');
+    await expect(reduce).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(last).toBeFocused();
+    await page.keyboard.press('Escape');
+    const compact = page.getByRole('region', { name: 'Frasario', exact: true });
+    await expect(compact).not.toHaveAttribute('aria-modal');
+    await expect(page.locator('.phrasebook-scrim')).toHaveCount(0);
+    await expect(
+      compact.getByRole('button', { name: 'Espandi frasario', exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(compact).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+  }
 });

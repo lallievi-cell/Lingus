@@ -22,6 +22,29 @@
 .app button:disabled {
   cursor: not-allowed;
 }
+/* Pause belongs to its time control, outside the map's information cards. */
+.app .map-toolbar .time-controls > .icon-button.time-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: auto;
+  min-width: 76px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 6px;
+}
+.app .map-toolbar .time-controls > .icon-button.time-toggle[data-paused='true'] {
+  color: var(--hud-ink);
+  background: var(--hud-raised);
+  box-shadow: inset 0 -2px 0 var(--ui-accent, #c39361);
+}
+.app .time-toggle-label {
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.1;
+  white-space: nowrap;
+}
 .app .modal-scrim {
   padding: 24px;
   background: #0b191bd1;
@@ -495,6 +518,19 @@
 }
 
 @media (max-width: 860px) {
+  .app .map-toolbar .time-controls > .icon-button.time-toggle {
+    flex-direction: column;
+    gap: 1px;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    border-radius: 0;
+  }
+  .app .time-toggle-label {
+    font-size: 10px;
+  }
   .app .spark-modal .puzzle-label {
     font-size: 13px !important;
     color: var(--surface-muted) !important;

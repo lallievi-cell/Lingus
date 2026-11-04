@@ -368,7 +368,10 @@ for (const viewport of [
         'large tool labels must fit without clipping',
       ).toBe(true);
     }
-    const pause = (await page.locator('.paused-badge').boundingBox())!;
+    const pauseControl = page.getByRole('button', { name: 'Riprendi il tempo', exact: true });
+    await expectTappable(pauseControl);
+    await expect(pauseControl).toContainText('In pausa');
+    const pause = (await pauseControl.boundingBox())!;
     const daylight = (await page.locator('.day-cycle').boundingBox())!;
     const minimap = (await page.locator('.lingus-world__minimap').boundingBox())!;
     expect(overlaps(pause, daylight)).toBe(false);
@@ -376,7 +379,10 @@ for (const viewport of [
     expect(overlaps(daylight, minimap)).toBe(false);
     for (const box of boxes) expect(overlaps(pause, box)).toBe(false);
     const canvas = (await map(page).boundingBox())!;
-    for (const box of [...boxes, pause, daylight, minimap]) {
+    expect(pause.y).toBeGreaterThanOrEqual(canvas.y + canvas.height - 1);
+    const toolbar = (await page.locator('.map-toolbar').boundingBox())!;
+    expect(pause.y + pause.height).toBeLessThanOrEqual(toolbar.y + toolbar.height + 1);
+    for (const box of [...boxes, daylight, minimap]) {
       expect(box.x).toBeGreaterThanOrEqual(canvas.x - 2);
       expect(box.y).toBeGreaterThanOrEqual(canvas.y - 2);
       expect(box.x + box.width).toBeLessThanOrEqual(canvas.x + canvas.width + 2);

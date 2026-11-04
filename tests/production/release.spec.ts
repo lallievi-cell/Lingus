@@ -28,8 +28,17 @@ test('the built release loads its real assets under the Pages subpath and expose
   expect(asset.headers()['content-type']).toContain('image/png');
   await page.goto('./');
   await expect(page.getByRole('img', { name: /Mappa della valle/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Riprendi il tempo', exact: true })).toContainText(
+    'In pausa',
+  );
   await page.getByRole('button', { name: 'Apri frasario', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Frasario', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Espandi frasario', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Frasario', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('searchbox', { name: 'Cerca nel frasario', exact: true }),
+  ).toBeInViewport();
+  await page.getByRole('button', { name: 'Riduci frasario', exact: true }).click();
   await page.getByRole('button', { name: 'Chiudi frasario', exact: true }).click();
   await page
     .getByRole('button', { name: 'Costruisci: apri le frasi degli edifici', exact: true })

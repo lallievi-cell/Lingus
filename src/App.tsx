@@ -1926,11 +1926,6 @@ function App() {
                 if (spark) openSpark(spark);
               }}
             />
-            {game.paused && game.started && !panel && (
-              <div className="paused-badge">
-                <Pause size={13} /> Il tempo riposa
-              </div>
-            )}
             {hasWord(game, 'C_01') && (
               <div className="day-cycle">
                 <div className="cycle-track">
@@ -1978,15 +1973,22 @@ function App() {
                 <span>Preparazione</span>
               </button>
               <button
-                className="icon-button"
+                className="icon-button time-toggle"
                 onClick={() => setGame((g) => ({ ...g, paused: !g.paused }))}
                 aria-label={game.paused ? 'Riprendi il tempo' : 'Metti in pausa'}
+                aria-description={game.paused ? 'Il gioco è in pausa.' : 'Il tempo sta scorrendo.'}
+                data-paused={game.started && game.paused}
                 disabled={!game.started}
               >
                 {game.paused ? (
                   <Play size={15} fill="currentColor" />
                 ) : (
                   <Pause size={15} fill="currentColor" />
+                )}
+                {game.started && game.paused && (
+                  <span className="time-toggle-label" aria-hidden="true">
+                    In pausa
+                  </span>
                 )}
               </button>
               <div className="speed-controls">

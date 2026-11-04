@@ -6,6 +6,8 @@ import {
   Building2,
   ChevronDown,
   History,
+  Maximize2,
+  Minimize2,
   Search,
   SlidersHorizontal,
   Star,
@@ -131,9 +133,11 @@ export function Phrasebook({
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<PhraseCategory | 'all'>('all');
   const [showTypes, setShowTypes] = useState(false);
+  const [catalogExpanded, setCatalogExpanded] = useState(false);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [message, setMessage] = useState('');
   const heading = useRef<HTMLHeadingElement>(null);
+  const resizeButton = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLElement>(null);
   const resultsPanel = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
@@ -148,36 +152,101 @@ export function Phrasebook({
   }, [tab, query, category]);
   useLayoutEffect(() => {
     const workbench = document.querySelector<HTMLElement>('.language-workbench');
+    const world = document.querySelector<HTMLElement>('.lingus-world');
     const measure = () => {
-      const top = workbench?.getBoundingClientRect().top ?? window.innerHeight * 0.7;
+      const viewport = window.visualViewport;
+      const viewTop = viewport?.offsetTop ?? 0;
+      const viewBottom = Math.min(
+        window.innerHeight,
+        viewTop + (viewport?.height ?? window.innerHeight),
+      );
+      const viewHeight = viewBottom - viewTop;
+      const mobile = window.matchMedia('(max-width: 860px)').matches;
+      const wide = mobile && window.innerWidth >= 600 && window.innerWidth > viewHeight;
+      const workbenchTop = workbench?.getBoundingClientRect().top ?? viewBottom * 0.7;
+      const mapTop = world?.getBoundingClientRect().top ?? viewTop + 100;
+      const compactTop = wide ? viewTop + 8 : Math.max(viewTop + 8, mapTop + 70);
+      // Browsing on a phone temporarily covers the composer. Docking above it
+      // would leave less room than the old catalogue when browser bars show.
+      let bottom = mobile && !wide ? viewBottom - 8 : Math.min(viewBottom - 8, workbenchTop - 8);
+      let room = bottom - compactTop;
+      // On short phones the fixed controls alone would consume the whole
+      // library. Cover the composer while choosing, then onUse/onClose returns
+      // to it; keep a real strip of terrain above the compact catalogue.
+      if (mobile && room < 260) {
+        bottom = viewBottom - 8;
+        room = bottom - compactTop;
+      }
+      const editing =
+        panel.current?.contains(document.activeElement) &&
+        document.activeElement?.matches('input, select');
+      const reading = catalogExpanded || (mobile && !wide && viewHeight < 500 && editing);
+      if (reading) {
+        bottom = viewBottom - 8;
+        room = bottom - viewTop - 8;
+      }
       panel.current?.style.setProperty(
         '--phrasebook-dock-bottom',
-        `${Math.max(8, window.innerHeight - top + 8)}px`,
+        `${Math.max(8, window.innerHeight - bottom)}px`,
       );
-      panel.current?.style.setProperty('--phrasebook-room', `${Math.max(100, top - 16)}px`);
+      panel.current?.style.setProperty('--phrasebook-room', `${Math.max(100, room)}px`);
+      panel.current?.toggleAttribute('data-keyboard-reading', !!reading && !catalogExpanded);
     };
     const observer = new ResizeObserver(measure);
     if (workbench) observer.observe(workbench);
+    if (world) observer.observe(world);
     window.addEventListener('resize', measure);
     window.visualViewport?.addEventListener('resize', measure);
+    window.visualViewport?.addEventListener('scroll', measure);
+    window.addEventListener('focusin', measure);
+    window.addEventListener('focusout', measure);
     measure();
     return () => {
       observer.disconnect();
       window.removeEventListener('resize', measure);
       window.visualViewport?.removeEventListener('resize', measure);
+      window.visualViewport?.removeEventListener('scroll', measure);
+      window.removeEventListener('focusin', measure);
+      window.removeEventListener('focusout', measure);
     };
-  }, []);
+  }, [catalogExpanded]);
   useEffect(() => {
     heading.current?.focus({ preventScroll: true });
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      event.stopPropagation();
-      closeRef.current();
-    };
-    document.addEventListener('keydown', escape, true);
-    return () => document.removeEventListener('keydown', escape, true);
   }, []);
+  useEffect(() => {
+    const navigate = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        if (catalogExpanded) {
+          setCatalogExpanded(false);
+          resizeButton.current?.focus({ preventScroll: true });
+        } else closeRef.current();
+        return;
+      }
+      if (event.key !== 'Tab' || !catalogExpanded) return;
+      const focusable = Array.from(
+        panel.current?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]',
+        ) ?? [],
+      ).filter((element) => element.tabIndex >= 0 && element.getClientRects().length > 0);
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || active === heading.current)) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && (active === last || active === heading.current)) {
+        event.preventDefault();
+        first?.focus();
+      } else if (!panel.current?.contains(active)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first)?.focus();
+      }
+    };
+    document.addEventListener('keydown', navigate, true);
+    return () => document.removeEventListener('keydown', navigate, true);
+  }, [catalogExpanded]);
   const entries = useMemo(() => getPhrasebook(state), [state]);
   const draftFavorite = draft?.length
     ? state.phrasebook?.some(
@@ -240,6 +309,9 @@ export function Phrasebook({
       ref={panel}
       id="game-phrasebook"
       className="phrasebook"
+      data-expanded={catalogExpanded}
+      role={catalogExpanded ? 'dialog' : undefined}
+      aria-modal={catalogExpanded ? true : undefined}
       aria-label="Frasario"
       aria-describedby={`${id}-hint`}
       onKeyDown={(event) => event.stopPropagation()}
@@ -248,14 +320,32 @@ export function Phrasebook({
         <h2 ref={heading} tabIndex={-1}>
           <BookOpen size={19} aria-hidden="true" /> Frasario
         </h2>
-        <button
-          type="button"
-          className="icon-button"
-          onClick={onClose}
-          aria-label="Chiudi frasario"
-        >
-          <X size={19} />
-        </button>
+        <div className="phrasebook-window-actions">
+          <button
+            ref={resizeButton}
+            type="button"
+            className="phrasebook-resize"
+            aria-label={catalogExpanded ? 'Riduci frasario' : 'Espandi frasario'}
+            aria-expanded={catalogExpanded}
+            aria-controls={`${id}-results`}
+            onClick={() => setCatalogExpanded((value) => !value)}
+          >
+            {catalogExpanded ? (
+              <Minimize2 size={16} aria-hidden="true" />
+            ) : (
+              <Maximize2 size={16} aria-hidden="true" />
+            )}
+            <span>{catalogExpanded ? 'Riduci' : 'Espandi'}</span>
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={onClose}
+            aria-label="Chiudi frasario"
+          >
+            <X size={19} />
+          </button>
+        </div>
       </header>
       <p id={`${id}-hint`} className="phrasebook-visually-hidden">
         Richiama una frase senza eseguirla. Poi scegli il bersaglio sulla mappa e premi Pronuncia.
@@ -461,7 +551,7 @@ export function Phrasebook({
                   : tab === 'recent'
                     ? 'Le frasi già pronunciate compariranno qui.'
                     : tab === 'construction'
-                      ? 'Le nuove parole riveleranno le prime costruzioni. Qui troverai la loro utilità e la frase per prepararle.'
+                      ? 'Le prime costruzioni si riveleranno con nuove parole. Qui troverai le frasi per prepararle.'
                       : 'Le nuove parole e gli ordini della tribù arricchiranno questo frasario.'}
             </p>
             {(search || category !== 'all') && (
@@ -475,6 +565,11 @@ export function Phrasebook({
                 Azzera la ricerca
               </button>
             )}
+            {!search && category === 'all' && tab === 'construction' && (
+              <button type="button" onClick={() => chooseTab('all')}>
+                Mostra le frasi note
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -485,7 +580,13 @@ export function Phrasebook({
   );
   // A separate layer avoids clipping by the composer or its material effects.
   // It remains under .app so era, text-size and contrast preferences apply.
+  const layer = (
+    <>
+      {catalogExpanded && <div className="phrasebook-scrim" aria-hidden="true" />}
+      {content}
+    </>
+  );
   return typeof document === 'undefined'
-    ? content
-    : createPortal(content, document.querySelector('.app') ?? document.body);
+    ? layer
+    : createPortal(layer, document.querySelector('.app') ?? document.body);
 }

@@ -828,23 +828,6 @@ button:not(:disabled):hover {
   position: absolute;
   inset: 0;
 }
-.paused-badge {
-  position: absolute;
-  top: 15px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  background: #f6f4e7e8;
-  padding: 7px 12px;
-  border: 1px solid #d7d9c2;
-  border-radius: 25px;
-  font-size: 9px;
-  color: #6a7756;
-  box-shadow: 0 3px 8px #3142230b;
-  pointer-events: none;
-}
 .day-cycle {
   position: absolute;
   left: 50%;
@@ -3656,10 +3639,6 @@ kbd {
   .day-cycle {
     padding: 6px 10px;
     bottom: 10px;
-  }
-  .paused-badge {
-    font-size: 8px;
-    padding: 6px 10px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

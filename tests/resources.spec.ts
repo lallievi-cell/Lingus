@@ -319,6 +319,18 @@ test('the resource explanation remains readable and selectable on a narrow scree
   expect(coversSelectedResource, 'the explanation must leave the selected pile visible').toBe(
     false,
   );
+  const resume = page.getByRole('button', { name: 'Riprendi il tempo', exact: true });
+  await expect(resume).toContainText('In pausa');
+  await expect(resume).toBeInViewport({ ratio: 1 });
+  const pause = (await resume.boundingBox())!;
+  expect(pause.height).toBeGreaterThanOrEqual(44 - 1 / 64);
+  expect(pause.y).toBeGreaterThanOrEqual(map!.y + map!.height - 1);
+  const coversExplanation =
+    pause.x < card!.x + card!.width &&
+    pause.x + pause.width > card!.x &&
+    pause.y < card!.y + card!.height &&
+    pause.y + pause.height > card!.y;
+  expect(coversExplanation, 'the pause state must not cover the resource explanation').toBe(false);
   const width = await page.evaluate(() => ({
     page: document.documentElement.scrollWidth,
     view: window.innerWidth,
