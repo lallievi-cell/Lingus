@@ -170,7 +170,7 @@ test('the tribe and its transmission action stay reachable inside a narrow viewp
   }));
   expect(bounds.document).toBe(bounds.viewport);
   await page.screenshot({
-    path: '/workspace/artifacts/lingus-custodians-mobile.png',
+    path: test.info().outputPath('lingus-custodians-mobile.png'),
     fullPage: true,
   });
 });

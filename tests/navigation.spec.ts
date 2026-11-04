@@ -58,10 +58,13 @@ test.describe('mobile touch navigation', () => {
       true,
     );
     await expect(page.locator('.toast')).toBeHidden();
-    await page.screenshot({ path: '/workspace/artifacts/lingus-mobile-map.png', fullPage: true });
+    await page.screenshot({
+      path: test.info().outputPath('lingus-mobile-map.png'),
+      fullPage: true,
+    });
     await nav.getByRole('button', { name: 'Pensiero', exact: true }).tap();
     await page.screenshot({
-      path: '/workspace/artifacts/lingus-mobile-thought.png',
+      path: test.info().outputPath('lingus-mobile-thought.png'),
       fullPage: true,
     });
   });
@@ -153,7 +156,7 @@ test('quick group selection, echoes and keyboard controls affect real orders', a
   expect((await readSave(page)).stats.commands).toBe(2);
   await expect(page.locator('.toast')).toBeHidden();
   await page.screenshot({
-    path: '/workspace/artifacts/lingus-interface-desktop.png',
+    path: test.info().outputPath('lingus-interface-desktop.png'),
     fullPage: true,
   });
 });

@@ -288,13 +288,17 @@ for (const viewport of [
       }),
     ).toBe(true);
     await page.screenshot({
-      path: `/tmp/lingus-qol-mobile${viewport.width === 844 ? '-landscape' : ''}-open.png`,
+      path: test
+        .info()
+        .outputPath(`lingus-qol-mobile${viewport.width === 844 ? '-landscape' : ''}-open.png`),
       fullPage: true,
     });
     await page.getByRole('button', { name: 'Nascondi parole', exact: true }).click();
     await expect(page.locator('.mobile-word-sheet')).not.toBeVisible();
     await page.screenshot({
-      path: `/tmp/lingus-qol-mobile${viewport.width === 844 ? '-landscape' : ''}-closed.png`,
+      path: test
+        .info()
+        .outputPath(`lingus-qol-mobile${viewport.width === 844 ? '-landscape' : ''}-closed.png`),
       fullPage: true,
     });
     const collapsed = (await map.boundingBox())!;

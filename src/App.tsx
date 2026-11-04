@@ -83,6 +83,7 @@ import {
 import { GrowthReadiness, IndividualGrowthReadiness } from './components/GrowthReadiness';
 import { GuidedCouncil, CouncilRules } from './components/GuidedCouncil';
 import { getCalendar, hasOpeningBalance, seasonStart } from './game/calendar';
+import { resolveUnitSex } from './game/demography';
 import { TeachingPanel } from './components/TeachingPanel';
 import { MobileActionDock } from './components/MobileActionDock';
 import { MobileWordPalette } from './components/MobileWordPalette';
@@ -1575,8 +1576,9 @@ function App() {
                     <span>
                       <Heart size={15} /> {describeHealth(selectedUnit.hp, numbered)}
                     </span>
-                    <span>
-                      <AppleIcon /> {describeHunger(selectedUnit.hunger, numbered)}
+                    <span title="La fame aumenta senza cibo e diminuisce dopo un pasto.">
+                      <AppleIcon />{' '}
+                      {describeHunger(selectedUnit.hunger, numbered, resolveUnitSex(selectedUnit))}
                     </span>
                   </div>
                   <UnitWorkStatus state={game} unit={selectedUnit} onFocus={focusTarget} />

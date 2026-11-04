@@ -3,6 +3,7 @@ import { getLifeStage, resolveUnitSex } from '../game/demography';
 import { hasWord } from '../game/runtime';
 import { areFactionsHostile } from '../game/foreignPolicy';
 import type { GameState, Unit } from '../game/types';
+import { describeHunger } from './semanticReadability';
 
 export function lifeStageLabel(unit: Unit): string {
   const female = resolveUnitSex(unit) === 'F';
@@ -65,8 +66,11 @@ export function physicalWarnings(unit: Unit): PhysicalWarning[] {
   const warnings: PhysicalWarning[] = [];
   if (unit.hp <= 0) return warnings;
   if (unit.temp <= 20) warnings.push({ kind: 'cold', label: 'Freddo intenso' });
-  if (unit.hunger >= 95) warnings.push({ kind: 'hunger', label: 'Fame estrema' });
-  else if (unit.hunger >= 75) warnings.push({ kind: 'hunger', label: 'Ha fame' });
+  if (unit.hunger >= 75)
+    warnings.push({
+      kind: 'hunger',
+      label: describeHunger(unit.hunger, false, resolveUnitSex(unit)),
+    });
   if (unit.hp <= 30) warnings.push({ kind: 'health', label: 'Salute critica' });
   return warnings;
 }

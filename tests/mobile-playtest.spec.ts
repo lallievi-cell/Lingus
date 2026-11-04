@@ -138,7 +138,7 @@ for (const viewport of [
     await loadPhone(page);
     await expectMapFirst(page, viewport);
     await page.screenshot({
-      path: `/tmp/lingus-mobile-audit-after-${viewport.width}.png`,
+      path: test.info().outputPath(`lingus-mobile-audit-after-${viewport.width}.png`),
       fullPage: true,
     });
     if (viewport.width > viewport.height) {

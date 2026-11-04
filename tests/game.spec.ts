@@ -264,7 +264,10 @@ test('a real Guided order understands Legno without a puzzle and the save surviv
   await expect(page.locator('.sentence-slot')).toHaveCount(2);
   await expect(page.locator('.day-cycle')).toHaveCount(0);
   await expect(page.locator('.world-resources')).not.toContainText('Cibo');
-  await page.screenshot({ path: '/tmp/lingus-fidelity-initial.png', fullPage: true });
+  await page.screenshot({
+    path: test.info().outputPath('lingus-fidelity-initial.png'),
+    fullPage: true,
+  });
   await page.getByRole('button', { name: 'Velocità 4x' }).click();
   await page.getByRole('button', { name: /^Gruppo:/ }).click();
   await expect(page.locator('.word-shelf .word-tile')).toHaveCount(3);
@@ -363,7 +366,10 @@ test('a failed two-token intuition preserves gold feedback and pays the exact te
   await expect(puzzle.locator('.puzzle-slot.is-correct')).toContainText('Colpire');
   await expect(puzzle.locator('.puzzle-slot.is-incorrect')).toContainText('Andare');
   await expect(puzzle).toContainText('quindici secondi');
-  await page.screenshot({ path: '/tmp/lingus-fidelity-spark-feedback.png', fullPage: true });
+  await page.screenshot({
+    path: test.info().outputPath('lingus-fidelity-spark-feedback.png'),
+    fullPage: true,
+  });
   await expect(puzzle).not.toBeVisible({ timeout: 6000 });
   const saved = await saveAndRead(page);
   expect(saved.words.O_04).toBeUndefined();
@@ -450,7 +456,10 @@ test('the six-slot Iron Age exposes all45 words,20 recipes, city cohorts, tradit
     .getByRole('button', { name: 'Tutte', exact: true })
     .click();
   await expect(page.locator('.word-shelf .word-tile')).toHaveCount(45);
-  await page.screenshot({ path: '/tmp/lingus-fidelity-iron.png', fullPage: true });
+  await page.screenshot({
+    path: test.info().outputPath('lingus-fidelity-iron.png'),
+    fullPage: true,
+  });
   await page.getByRole('button', { name: /Le frasi della materia/ }).click();
   const institutions = page.getByRole('dialog', { name: 'La civiltà delle parole' });
   await expect(institutions.locator('.building-codex article')).toHaveCount(20);
@@ -522,7 +531,10 @@ test('mobile layout preserves map interactions and six-slot composition without 
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
     .toBe(true);
-  await page.screenshot({ path: '/tmp/lingus-fidelity-mobile.png', fullPage: true });
+  await page.screenshot({
+    path: test.info().outputPath('lingus-fidelity-mobile.png'),
+    fullPage: true,
+  });
 });
 
 test('cognitive panels hide unknown recipes and exact memory before Numero', async ({ page }) => {

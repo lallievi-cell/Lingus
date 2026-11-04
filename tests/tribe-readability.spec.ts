@@ -147,5 +147,8 @@ test('life-stage labels and child details stay readable in the mobile tribe tab'
     document: document.documentElement.scrollWidth,
   }));
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.view);
-  await page.screenshot({ path: '/workspace/artifacts/lingus-people-mobile.png', fullPage: true });
+  await page.screenshot({
+    path: test.info().outputPath('lingus-people-mobile.png'),
+    fullPage: true,
+  });
 });

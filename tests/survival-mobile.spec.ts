@@ -106,7 +106,7 @@ for (const viewport of [
       })),
     ).toEqual({ horizontal: true, vertical: true });
     await page.screenshot({
-      path: `/tmp/lingus-qol-cold-${viewport.width}.png`,
+      path: test.info().outputPath(`lingus-qol-cold-${viewport.width}.png`),
       fullPage: true,
     });
     await rescue.click();

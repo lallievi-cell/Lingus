@@ -109,9 +109,9 @@ test('all six materials preserve composing, lost-word cues and accessible civili
     });
     expect(focus.style).not.toBe('none');
     expect(focus.width).toBeGreaterThanOrEqual(2);
-    await page.screenshot({ path: `/workspace/artifacts/lingus-ui-tier-${tier}.png` });
+    await page.screenshot({ path: test.info().outputPath(`lingus-ui-tier-${tier}.png`) });
     await workbench.screenshot({
-      path: `/workspace/artifacts/lingus-ui-tier-${tier}-language.png`,
+      path: test.info().outputPath(`lingus-ui-tier-${tier}-language.png`),
     });
 
     const recipes = page.getByRole('button', { name: /Le frasi della materia/ });
@@ -130,7 +130,9 @@ test('all six materials preserve composing, lost-word cues and accessible civili
       }),
     );
     await expect(dialog.getByRole('button', { name: 'Chiudi finestra' })).toBeVisible();
-    await page.screenshot({ path: `/workspace/artifacts/lingus-ui-tier-${tier}-civilization.png` });
+    await page.screenshot({
+      path: test.info().outputPath(`lingus-ui-tier-${tier}-civilization.png`),
+    });
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
     await expect(recipes).toBeFocused();

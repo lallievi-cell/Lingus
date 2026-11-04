@@ -31,14 +31,21 @@ export function describeHealth(value: number, numbered: boolean) {
   return value < 70 ? 'Salute fragile' : 'In buona salute';
 }
 
-export function describeHunger(value: number, numbered: boolean) {
+export function describeHunger(value: number, numbered: boolean, sex: 'M' | 'F' = 'M') {
   if (!Number.isFinite(value)) return 'Fame non disponibile';
-  if (numbered) return `Fame ${formatVisibleNumber(value)}`;
-  if (value <= 0) return 'Nessuna fame';
-  if (value < 20) return 'Poca fame';
-  if (value < 60) return 'Fame moderata';
-  if (value < 75) return 'Ha fame';
-  return value < 95 ? 'Molta fame' : 'Fame estrema';
+  const condition =
+    value < 20
+      ? sex === 'F'
+        ? 'Sazia'
+        : 'Sazio'
+      : value < 75
+        ? 'Ha fame'
+        : value < 95
+          ? sex === 'F'
+            ? 'Affamata'
+            : 'Affamato'
+          : 'Fame estrema';
+  return numbered ? `${condition} · Fame ${formatVisibleNumber(value)}/100` : condition;
 }
 
 /** Forza and Intelligenza share a feminine noun and a real one-to-ten scale. */

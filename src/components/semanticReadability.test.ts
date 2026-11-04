@@ -17,10 +17,13 @@ describe('semantic Italian conditions and quantities', () => {
     expect(describeHealth(60, false)).toBe('Salute fragile');
     expect(describeHealth(30, false)).toBe('Salute critica');
     expect(describeHealth(0, false)).toBe('Vita conclusa');
-    expect(describeHunger(0, false)).toBe('Nessuna fame');
-    expect(describeHunger(10, false)).toBe('Poca fame');
+    expect(describeHunger(0, false)).toBe('Sazio');
+    expect(describeHunger(19.9, false)).toBe('Sazio');
+    expect(describeHunger(20, false)).toBe('Ha fame');
     expect(describeHunger(60, false)).toBe('Ha fame');
-    expect(describeHunger(75, false)).toBe('Molta fame');
+    expect(describeHunger(74.9, false)).toBe('Ha fame');
+    expect(describeHunger(75, false)).toBe('Affamato');
+    expect(describeHunger(94.9, false)).toBe('Affamato');
     expect(describeHunger(95, false)).toBe('Fame estrema');
   });
 
@@ -42,6 +45,8 @@ describe('semantic Italian conditions and quantities', () => {
     expect(describePeople(3, false, 'people')).toBe('Poche persone');
     expect(describePeople(3, false, 'warriors')).toBe('Pochi guerrieri');
     expect(describePeople(1, true, 'sages')).toBe('1 saggio');
+    expect(describeHunger(0, false, 'F')).toBe('Sazia');
+    expect(describeHunger(80, false, 'F')).toBe('Affamata');
     expect(describeResourceAmount('stone', 3, false)).toBe('Poca pietra');
     expect(describeResourceAmount('pelt', 3, false)).toBe('Poche pelli');
     expect(describeResourceAmount('seed', 7, false)).toBe('Alcuni semi');
@@ -55,11 +60,12 @@ describe('semantic Italian conditions and quantities', () => {
       for (const resource of RESOURCE_ORDER)
         expect(describeResourceAmount(resource, value, false)).not.toMatch(/\d/);
       expect(describeAttention(value, false)).not.toMatch(/\d/);
+      expect(describeHunger(value, false)).not.toMatch(/\d/);
       expect(describePeople(value, false)).not.toMatch(/\d/);
     }
     expect(describeAttention(12.5, true)).toBe('12,5');
     expect(describeHealth(67.5, true)).toBe('Salute 67,5');
-    expect(describeHunger(87.5, true)).toBe('Fame 87,5');
+    expect(describeHunger(87.5, true)).toBe('Affamato · Fame 87,5/100');
     expect(describeResourceAmount('wood', 0.01, true)).toBe('<0,1 legno');
     expect(formatVisibleNumber(1200.5)).toBe('1.200,5');
   });

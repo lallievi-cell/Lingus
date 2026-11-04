@@ -211,7 +211,7 @@ test('an unknown material and exact pile counts stay hidden until the relevant c
   await expect(details(page)).toContainText(/Legno/i);
   await expect(details(page)).not.toContainText(/\b7\b/);
   await page.screenshot({
-    path: '/workspace/artifacts/lingus-resource-readability-desktop.png',
+    path: test.info().outputPath('lingus-resource-readability-desktop.png'),
     fullPage: true,
   });
 });
@@ -325,7 +325,7 @@ test('the resource explanation remains readable and selectable on a narrow scree
   }));
   expect(width.page).toBeLessThanOrEqual(width.view);
   await page.screenshot({
-    path: '/workspace/artifacts/lingus-resource-readability-mobile.png',
+    path: test.info().outputPath('lingus-resource-readability-mobile.png'),
     fullPage: true,
   });
 });
@@ -362,7 +362,10 @@ test('a fire explains its actual heat coverage and distinguishes a cold hearth w
   await expect(details(page)).toContainText(
     'Una parte del giaciglio della tribù è fuori dal calore',
   );
-  await page.screenshot({ path: '/workspace/artifacts/lingus-fire-coverage.png', fullPage: true });
+  await page.screenshot({
+    path: test.info().outputPath('lingus-fire-coverage.png'),
+    fullPage: true,
+  });
   await showFire(250, false);
   await expect(details(page)).toContainText('Spento');
   await expect(details(page)).not.toContainText(/\d/);
