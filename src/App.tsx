@@ -284,14 +284,17 @@ function App() {
   const sentenceSlotsRef = useRef<HTMLDivElement>(null);
   const previousSentenceLength = useRef(0);
   const personDetailsRef = useRef<HTMLDivElement>(null);
+  // Reading replaces the map only on phones. Suspend the timer without changing
+  // the player's pause choice, including pauses raised by session safety.
+  const simulationSuspended = !!panel || (mobile && mobileSection !== 'map');
   const { unlockFromGesture } = useGameAudio(game, sound, {
-    ambience: !panel,
+    ambience: !simulationSuspended,
     sessionKey: mapSession,
     levels: audioPreferences,
   });
   const { saveStatus, saveNow, recordSaveResult, backgroundPause, dismissBackgroundPause } =
-    useSessionSafety(game, setGame, initialSave, !!panel);
-  const playtest = usePlaytestRecord(game, mapSession, { paused: !!panel });
+    useSessionSafety(game, setGame, initialSave, simulationSuspended);
+  const playtest = usePlaytestRecord(game, mapSession, { paused: simulationSuspended });
   const season = getSeason(game);
   const slots = cognitiveSlots(game);
   const numbered = hasWord(game, 'O_08');
@@ -526,7 +529,10 @@ function App() {
   }, [sentence, slots, mobile, editingSlot]);
 
   useEffect(() => {
-    if (target?.type === 'unit') personDetailsRef.current?.scrollIntoView({ block: 'nearest' });
+    if (target?.type === 'unit')
+      (
+        personDetailsRef.current?.closest('.tribe-member') ?? personDetailsRef.current
+      )?.scrollIntoView({ block: 'nearest' });
   }, [target?.type, target?.id, mobileSection]);
 
   useEffect(() => {
@@ -1202,6 +1208,104 @@ function App() {
     </>
   );
 
+  const selectedPersonDetails = selectedUnit ? (
+    <div
+      className="individual-card person-details"
+      ref={personDetailsRef}
+      id={`person-details-${selectedUnit.id}`}
+      role="region"
+      aria-label={`Dettagli di ${visibleUnitName(game, selectedUnit)}`}
+    >
+      <div>
+        <strong className="selected-person-name">
+          {game.urbanized ? visibleUnitName(game, selectedUnit) : 'Incarico e dettagli'}
+        </strong>
+        <button
+          className="icon-button small"
+          aria-label="Deseleziona individuo"
+          onClick={() => {
+            personDetailsRef.current
+              ?.closest('.tribe-member')
+              ?.querySelector<HTMLButtonElement>('.unit-card')
+              ?.focus({ preventScroll: true });
+            setTarget(null);
+          }}
+        >
+          <X size={13} />
+        </button>
+      </div>
+      <p className="person-demographics">
+        {sexLabel(selectedUnit)} · {lifeStageLabel(selectedUnit)}
+        {numbered &&
+          ` · ${Math.floor(selectedUnit.age)} ${Math.floor(selectedUnit.age) === 1 ? 'stagione' : 'stagioni'}`}
+        {individuality && selectedUnit.parentIds && (
+          <>
+            {' '}
+            · Genitori:{' '}
+            {selectedUnit.parentIds
+              .map((id) => game.units.find((unit) => unit.id === id)?.name ?? 'un compagno')
+              .join(' e ')}
+          </>
+        )}
+      </p>
+      {game.urbanized && (
+        <div className="person-vitals">
+          <span>
+            <Heart size={15} /> {describeHealth(selectedUnit.hp, numbered)}
+          </span>
+          <span title="La fame aumenta senza cibo e diminuisce dopo un pasto.">
+            <AppleIcon />{' '}
+            {describeHunger(selectedUnit.hunger, numbered, resolveUnitSex(selectedUnit))}
+          </span>
+        </div>
+      )}
+      <UnitWorkStatus state={game} unit={selectedUnit} onFocus={focusTarget} />
+      <button
+        className="text-button"
+        onClick={() =>
+          focusTarget({
+            type: 'unit',
+            id: selectedUnit.id,
+            x: selectedUnit.x,
+            y: selectedUnit.y,
+          })
+        }
+      >
+        <MapPin size={12} /> Inquadra sulla mappa
+      </button>
+      {physicalWarnings(selectedUnit).some((warning) => warning.kind === 'cold') && (
+        <p className="person-danger">
+          {physicalWarnings(selectedUnit)
+            .filter((warning) => warning.kind === 'cold')
+            .map((warning) => warning.label)
+            .join(' · ')}
+        </p>
+      )}
+      <details className="person-more">
+        <summary>Caratteristiche e crescita</summary>
+        <p className="person-abilities">
+          <span>Forza: {describeAbility(selectedUnit.strength, numbered)}</span>
+          <span>Intelligenza: {describeAbility(selectedUnit.intelligence, numbered)}</span>
+        </p>
+        <p className="person-life-hint">{unitLifeHint(selectedUnit)}</p>
+        <IndividualGrowthReadiness state={game} unit={selectedUnit} />
+      </details>
+      {selectedCustodian && (
+        <div className={`individual-custody ${selectedCustodian.risk}`}>
+          <strong>
+            <MessageCircle size={13} /> {lastCustodianLabel(selectedUnit)}
+          </strong>
+          <p>{selectedCustodian.wordIds.map((id) => `«${WORDS[id].label}»`).join(' · ')}</p>
+          {selectedCustodian.reasons.length > 0 && (
+            <span className="custodian-reasons">
+              {selectedCustodian.reasons.map((reason) => CUSTODIAN_RISK_LABELS[reason]).join(' · ')}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  ) : null;
+
   return (
     <div
       className={`app tier-${game.tier} ${season.isNight && game.started ? 'night-mode' : ''} ${keyboardOpen ? 'is-mobile-keyboard' : ''} ${wordBankOpen ? `word-bank-open word-bank-${wordBankMode}` : ''}`}
@@ -1541,98 +1645,7 @@ function App() {
                   </label>
                 </details>
               )}
-              {selectedUnit && (
-                <div className="individual-card person-details" ref={personDetailsRef}>
-                  <div>
-                    <strong className="selected-person-name">
-                      {visibleUnitName(game, selectedUnit)}
-                    </strong>
-                    <button
-                      className="icon-button small"
-                      aria-label="Deseleziona individuo"
-                      onClick={() => setTarget(null)}
-                    >
-                      <X size={13} />
-                    </button>
-                  </div>
-                  <p className="person-demographics">
-                    {sexLabel(selectedUnit)} · {lifeStageLabel(selectedUnit)}
-                    {numbered &&
-                      ` · ${Math.floor(selectedUnit.age)} ${Math.floor(selectedUnit.age) === 1 ? 'stagione' : 'stagioni'}`}
-                    {individuality && selectedUnit.parentIds && (
-                      <>
-                        {' '}
-                        · Genitori:{' '}
-                        {selectedUnit.parentIds
-                          .map(
-                            (id) =>
-                              game.units.find((unit) => unit.id === id)?.name ?? 'un compagno',
-                          )
-                          .join(' e ')}
-                      </>
-                    )}
-                  </p>
-                  <div className="person-vitals">
-                    <span>
-                      <Heart size={15} /> {describeHealth(selectedUnit.hp, numbered)}
-                    </span>
-                    <span title="La fame aumenta senza cibo e diminuisce dopo un pasto.">
-                      <AppleIcon />{' '}
-                      {describeHunger(selectedUnit.hunger, numbered, resolveUnitSex(selectedUnit))}
-                    </span>
-                  </div>
-                  <UnitWorkStatus state={game} unit={selectedUnit} onFocus={focusTarget} />
-                  <button
-                    className="text-button"
-                    onClick={() =>
-                      focusTarget({
-                        type: 'unit',
-                        id: selectedUnit.id,
-                        x: selectedUnit.x,
-                        y: selectedUnit.y,
-                      })
-                    }
-                  >
-                    <MapPin size={12} /> Inquadra sulla mappa
-                  </button>
-                  {physicalWarnings(selectedUnit).some((warning) => warning.kind === 'cold') && (
-                    <p className="person-danger">
-                      {physicalWarnings(selectedUnit)
-                        .filter((warning) => warning.kind === 'cold')
-                        .map((warning) => warning.label)
-                        .join(' · ')}
-                    </p>
-                  )}
-                  <details className="person-more">
-                    <summary>Caratteristiche e crescita</summary>
-                    <p className="person-abilities">
-                      <span>Forza: {describeAbility(selectedUnit.strength, numbered)}</span>
-                      <span>
-                        Intelligenza: {describeAbility(selectedUnit.intelligence, numbered)}
-                      </span>
-                    </p>
-                    <p className="person-life-hint">{unitLifeHint(selectedUnit)}</p>
-                    <IndividualGrowthReadiness state={game} unit={selectedUnit} />
-                  </details>
-                  {selectedCustodian && (
-                    <div className={`individual-custody ${selectedCustodian.risk}`}>
-                      <strong>
-                        <MessageCircle size={13} /> {lastCustodianLabel(selectedUnit)}
-                      </strong>
-                      <p>
-                        {selectedCustodian.wordIds.map((id) => `«${WORDS[id].label}»`).join(' · ')}
-                      </p>
-                      {selectedCustodian.reasons.length > 0 && (
-                        <span className="custodian-reasons">
-                          {selectedCustodian.reasons
-                            .map((reason) => CUSTODIAN_RISK_LABELS[reason])
-                            .join(' · ')}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
+              {game.urbanized && selectedPersonDetails}
               <div className="unit-list" aria-label="Membri della tribù">
                 {!game.urbanized &&
                   filteredUnits.map((unit) => {
@@ -1647,11 +1660,14 @@ function App() {
                         custodian={custodianByUnit.get(unit.id)}
                         onActivate={() => {
                           if (spark) openSpark(spark);
+                          else if (target?.id === unit.id) setTarget(null);
                           else {
                             focusTarget({ type: 'unit', id: unit.id, x: unit.x, y: unit.y }, true);
                           }
                         }}
-                      />
+                      >
+                        {selectedUnit?.id === unit.id && selectedPersonDetails}
+                      </TribeMemberCard>
                     );
                   })}
                 {!game.urbanized && !filteredUnits.length && (

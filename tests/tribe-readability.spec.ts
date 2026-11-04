@@ -2,6 +2,58 @@ import { expect, test, type Page } from '@playwright/test';
 
 const SAVE_KEY = 'lingus.save.v2';
 
+for (const width of [320, 390, 1440]) {
+  test(`member vitals remain visible and details expand in their own card at ${width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    if (width === 320)
+      await page.addInitScript(() =>
+        localStorage.setItem(
+          'lingus.interface.v1',
+          JSON.stringify({ textSize: 'large', contrast: 'high' }),
+        ),
+      );
+    await seedPeople(page);
+    if (width < 860)
+      await page
+        .getByRole('navigation', { name: 'Sezioni di gioco' })
+        .getByRole('button', { name: /^Tribù/ })
+        .click();
+    const roster = page.getByLabel('Membri della tribù');
+    const rows = roster.locator('.tribe-member');
+    await expect(rows).toHaveCount(8);
+    for (const row of await rows.all()) {
+      await expect(row.locator('.member-vitals')).toBeVisible();
+      await expect(row.locator('.member-vitals')).toContainText(/salute|Salute/);
+      await expect(row.locator('.member-vitals')).toContainText(/fame|Fame/);
+      await expect(row.locator('.member-vitals')).not.toContainText(/\d/);
+    }
+    await rows.nth(0).locator('.unit-card').click();
+    await expect(rows.nth(0).locator('.person-details')).toBeVisible();
+    await expect(rows.nth(0).locator('.unit-card')).toHaveAttribute('aria-expanded', 'true');
+    await rows.nth(1).locator('.unit-card').click();
+    await expect(rows.nth(0).locator('.person-details')).toHaveCount(0);
+    await expect(rows.nth(1).locator('.person-details')).toBeVisible();
+    await expect(page.locator('.person-details')).toHaveCount(1);
+    expect(
+      await page
+        .locator('.person-details')
+        .evaluate((node) => !!node.closest('.tribe-member') && !node.closest('button')),
+    ).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`member-expanded-${width}.png`) });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await rows.nth(1).getByRole('button', { name: 'Deseleziona individuo', exact: true }).click();
+    await expect(rows.nth(1).locator('.unit-card')).toBeFocused();
+    await expect(page.locator('.person-details')).toHaveCount(0);
+    await rows.nth(1).locator('.unit-card').click();
+    await rows.nth(1).locator('.unit-card').click();
+    await expect(page.locator('.person-details')).toHaveCount(0);
+  });
+}
+
 /** Prepared people isolate visual traits; this is not a gameplay campaign. */
 async function seedPeople(page: Page) {
   await page.goto('/');

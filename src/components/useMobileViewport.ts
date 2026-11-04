@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 /** Use the space the player can actually see, including browser chrome and the
- * on-screen keyboard. This changes interface geometry, never simulation time. */
+ * on-screen keyboard. Keyboard changes only affect interface geometry. */
 export function useMobileViewport() {
   const [mobile, setMobile] = useState(() => window.matchMedia('(max-width: 860px)').matches);
   const [keyboardOpen, setKeyboardOpen] = useState(false);

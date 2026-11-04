@@ -24,7 +24,7 @@ export function useSessionSafety(
   game: GameState,
   setGame: Dispatch<SetStateAction<GameState>>,
   initial: SaveLoadResult,
-  modalOpen: boolean,
+  simulationSuspended: boolean,
 ) {
   const current = useRef(game);
   current.current = game;
@@ -137,7 +137,7 @@ export function useSessionSafety(
   }, [game.paused]);
 
   useEffect(() => {
-    if (modalOpen) return;
+    if (simulationSuspended) return;
     let previous = performance.now();
     const timer = window.setInterval(() => {
       const now = performance.now();
@@ -148,7 +148,7 @@ export function useSessionSafety(
       setGame((state) => tick(state, elapsed));
     }, 250);
     return () => window.clearInterval(timer);
-  }, [modalOpen, setGame]);
+  }, [simulationSuspended, setGame]);
 
   return {
     saveStatus,

@@ -464,6 +464,56 @@
 .app .unit-list {
   gap: 8px;
 }
+.app .tribe-member {
+  min-width: 0;
+  flex-shrink: 0;
+  scroll-margin-block: 8px;
+}
+.app .tribe-member[data-expanded='true'] {
+  overflow: hidden;
+  border: 1px solid #4f7151;
+  border-radius: var(--control-radius, 12px);
+  background: var(--ui-panel);
+  box-shadow: inset 3px 0 0 #4f7151;
+}
+.app .tribe-member[data-expanded='true'] > .unit-card {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.app .tribe-member > .individual-card.person-details {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--line, #c5ccb8);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.app .unit-list .unit-info > .member-vitals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 5px;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: normal;
+}
+.app .member-vitals > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.app .member-vitals svg,
+.app .member-expand-icon {
+  flex-shrink: 0;
+}
+.app .member-vitals .is-urgent {
+  color: #9a5038;
+  font-weight: 700;
+}
+.app .tribe-member[data-expanded='true'] .member-expand-icon {
+  transform: rotate(180deg);
+}
 .app .unit-card {
   border-radius: 12px;
   padding: 11px 12px;
