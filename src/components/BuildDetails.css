@@ -1,13 +1,43 @@
 .build-details {
   display: grid;
-  gap: 12px;
-  padding: 16px;
+  gap: 10px;
+  padding: 14px;
   margin: 18px 0;
   border: 1px solid #c5cbb8;
-  border-radius: 12px;
-  background: #f1f0e3;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ui-panel, #f7f0df) 60%, #e5eada);
   color: var(--ink, #19271e);
   min-width: 0;
+}
+.build-details-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+.build-details-version {
+  padding: 4px 8px;
+  border: 1px solid #b8c3aa;
+  border-radius: 6px;
+  color: #34513a;
+  font: 700 13px/1.4 var(--font-body, sans-serif);
+  font-variant-numeric: tabular-nums;
+}
+.build-details-technical {
+  border-top: 1px solid #c5cbb8;
+  color: var(--surface-muted, #586454);
+}
+.build-details-technical > summary {
+  display: list-item;
+  align-content: center;
+  min-height: 44px;
+  cursor: pointer;
+  font: 550 12px/1.4 var(--font-body, sans-serif);
+}
+.build-details-technical > summary:focus-visible {
+  outline: 3px solid #5c774f;
+  outline-offset: 2px;
 }
 .build-details h3 {
   display: flex;
@@ -89,6 +119,14 @@
 .build-details button:focus-visible {
   outline: 3px solid #5c774f;
   outline-offset: 3px;
+}
+.app[data-contrast='high'] .build-details {
+  border-color: #71876b;
+  background: #fffdf0;
+  color: #173522;
+}
+.app[data-text-size='large'] .build-details :is(button, p, summary, dt, dd, strong) {
+  font-size: 14px;
 }
 @media (max-width: 600px) {
   .build-details {

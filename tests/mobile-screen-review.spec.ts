@@ -140,7 +140,9 @@ test('reviewed dialogs retain a reachable close control after reading long conte
         return element.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
       }),
     ).toBe(true);
-    expect((await close.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    // Composited motion can report 44 CSS pixels as 43.999998. Allow one
+    // layout subpixel while preserving the actual touch-size and hit checks.
+    expect((await close.boundingBox())!.height).toBeGreaterThanOrEqual(44 - 1 / 64);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );

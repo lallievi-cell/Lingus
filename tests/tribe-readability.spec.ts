@@ -79,7 +79,7 @@ test('sex, life stages and physical danger are visible before Io and Numero, whi
   const child = roster.locator('.unit-card').nth(6);
   await expect(child).toContainText('Può imparare · non lavora');
   await child.click();
-  await expect(page.locator('.individual-card')).toContainText('BAMBINO');
+  await expect(page.locator('.individual-card')).toContainText('Bambino');
   await expect(page.locator('.individual-card')).toContainText('Troppo giovane per lavorare');
   const details = page.getByRole('status', { name: 'Dettagli del bersaglio' });
   await expect(details).toContainText('Bambino');

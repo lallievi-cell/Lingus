@@ -1,4 +1,4 @@
-import { Flame, MapPin, Moon, Sparkles } from 'lucide-react';
+import { ChevronRight, Flame, MapPin, Moon } from 'lucide-react';
 import { useState } from 'react';
 import { hasBuilding, hasWord } from '../game/runtime';
 import { getPersonalDiscoveryProgress } from '../game/personalDiscovery';
@@ -121,11 +121,19 @@ export function OpeningGuide({
     title = 'Scorte prima del gelo';
     text =
       'Porta cibo prima che il gelo blocchi le bacche; esplora altre pianure se quelle vicine finiscono. Tieni legna per alimentare il Falò e assegna una guardia con Conservare · Fuoco contro le tempeste. Ripari e pelli proteggono dal freddo.' +
-      (guided && hasWord(state, 'V_05')
-        ? ' In Guidata, dopo aver scoperto Conservare, Portare · Preda ripete i viaggi dalla stessa fonte di cibo durante il giorno.'
+      (guided
+        ? ' In Guidata Portare ripete i viaggi durante il giorno, finché ci sono risorse e spazio.'
         : '');
   }
   const autumn = calendar.season === 2 && !fire;
+  const nextAction =
+    action === 'spark' && personal?.sparkId && onSpark
+      ? { label: 'Scopri Io', run: () => onSpark(personal.sparkId!) }
+      : action === 'teach' && onTeach
+        ? { label: 'Tramanda', run: onTeach }
+        : action === 'growth' && onGrowth
+          ? { label: 'Crescita della tribù', run: onGrowth }
+          : undefined;
   return (
     <aside
       className={`opening-guide ${autumn || cold || starving ? 'urgent' : ''} ${expanded ? 'expanded' : ''}`}
@@ -133,7 +141,22 @@ export function OpeningGuide({
     >
       {fire ? <Flame size={19} /> : <Moon size={19} />}
       <div>
-        <strong>{title}</strong>
+        <strong>
+          {nextAction ? (
+            <button
+              type="button"
+              className="guide-next"
+              aria-label={nextAction.label}
+              title={nextAction.label}
+              onClick={nextAction.run}
+            >
+              <span>{title}</span>
+              <ChevronRight size={14} />
+            </button>
+          ) : (
+            title
+          )}
+        </strong>
         <p>{text}</p>
         <span>
           {calendar.season < 3
@@ -153,25 +176,15 @@ export function OpeningGuide({
       >
         Come?
       </button>
-      <button className="text-button" onClick={onHome}>
+      <button
+        className="text-button guide-home"
+        onClick={onHome}
+        aria-label="Giaciglio"
+        title="Mostra il giaciglio"
+      >
         <MapPin size={14} />
-        Giaciglio
+        <span>Giaciglio</span>
       </button>
-      {action === 'spark' && personal?.sparkId && onSpark && (
-        <button className="text-button" onClick={() => onSpark(personal.sparkId!)}>
-          <Sparkles size={14} /> Scopri Io
-        </button>
-      )}
-      {action === 'teach' && onTeach && (
-        <button className="text-button" onClick={onTeach}>
-          <Flame size={14} /> Tramanda
-        </button>
-      )}
-      {action === 'growth' && onGrowth && (
-        <button className="text-button" onClick={onGrowth}>
-          Crescita della tribù
-        </button>
-      )}
     </aside>
   );
 }

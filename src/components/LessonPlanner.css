@@ -1,75 +1,111 @@
-.lesson-planner {
-  border: 1px solid #bac4ac;
-  border-radius: 10px;
-  padding: 12px;
-  margin-top: 14px;
-  background: #f0f1e4;
+.app .teaching-panel .lesson-planner {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line, #cfd3bd);
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
 }
-.lesson-planner > summary {
+.app .teaching-panel .lesson-planner > summary {
   display: flex;
   align-items: center;
   gap: 9px;
   min-height: 44px;
+  padding: 10px 0;
+  color: var(--surface-ink, #203b2d);
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 650;
+  font: 600 13px/1.4 var(--sans);
 }
-.lesson-planner p {
-  font-size: 13px;
-  line-height: 1.5;
-  margin: 9px 0;
+.app .teaching-panel .lesson-planner > summary > svg {
+  color: #8c713f;
 }
-.lesson-planner-words {
+.app .teaching-panel .lesson-planner p {
+  margin: 0 0 12px;
+  color: var(--surface-muted, #596a5c);
+  font: 400 13px/1.5 var(--sans);
+}
+.app .teaching-panel .lesson-planner-words {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 5px;
-  max-height: 250px;
+  gap: 6px;
+  max-height: 240px;
   overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
   padding: 3px;
 }
-.lesson-planner-words label {
+.app .teaching-panel .lesson-planner-words label {
   display: flex;
   align-items: center;
-  gap: 7px;
-  min-height: 44px;
-  padding: 6px 8px;
-  background: #faf8ee;
-  border: 1px solid #d1d4be;
-  border-radius: 6px;
-  font-size: 13px;
+  gap: 8px;
+  min-width: 0;
+  min-height: 46px;
+  margin: 0;
+  padding: 8px 9px;
+  background: var(--ui-input, #fffdf4);
+  border: 1px solid var(--line, #cfd3bd);
+  border-radius: 7px;
+  color: var(--surface-ink, #203b2d);
+  font: 500 13px/1.4 var(--sans);
   cursor: pointer;
 }
-.lesson-planner-words label > span {
+.app .teaching-panel .lesson-planner-words label:has(input:checked) {
+  border-color: #71885d;
+  background: #e9efdc;
+}
+.app .teaching-panel .lesson-planner-words label:focus-within {
+  outline: 2px solid #8d723f;
+  outline-offset: 1px;
+}
+.app .teaching-panel .lesson-planner-words label > span {
   flex: 1;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
-.lesson-planner-words input {
+.app .teaching-panel .lesson-planner-words label > svg {
+  flex-shrink: 0;
+  color: #687d50;
+}
+.app .teaching-panel .lesson-planner-words input {
   accent-color: #395c42;
   width: 18px;
   height: 18px;
+  margin: 0;
   flex-shrink: 0;
 }
-.lesson-plan-preview {
+.app .teaching-panel .lesson-plan-preview {
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 6px;
-  margin: 12px 0;
+  gap: 7px;
+  margin: 14px 0;
 }
-.lesson-plan-preview li {
+.app .teaching-panel .lesson-plan-preview li {
   display: grid;
   gap: 3px;
-  border-left: 3px solid #899b70;
-  padding: 5px 9px;
-  font-size: 13px;
-  line-height: 1.4;
+  border-left: 2px solid #9a8251;
+  padding: 3px 10px;
+  color: var(--surface-muted, #596a5c);
+  font: 400 13px/1.45 var(--sans);
 }
-.lesson-planner > button {
+.app .teaching-panel .lesson-plan-preview strong {
+  color: var(--surface-ink, #203b2d);
+  font-weight: 650;
+}
+.app .teaching-panel .lesson-planner > button {
   min-height: 44px;
-  margin: 5px 5px 0 0;
+  margin: 0 8px 12px 0;
 }
-@media (max-width: 420px) {
-  .lesson-planner-words {
+.app .teaching-panel .lesson-plan-outcome {
+  padding: 10px 12px;
+  border-left: 3px solid #698857;
+  border-radius: 4px;
+  background: #edf2e1;
+  color: #31553f;
+}
+@media (max-width: 360px) {
+  .app .teaching-panel .lesson-planner-words {
     grid-template-columns: minmax(0, 1fr);
   }
 }

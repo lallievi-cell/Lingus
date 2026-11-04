@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpen, MapPin, MessageCircle, Search } from 'lucide-react';
+import { ArrowRight, BookOpen, MapPin, Search, ShieldAlert } from 'lucide-react';
 import { INNATE_WORDS, WORD_ORDER, WORDS } from '../game/content';
 import { canRehearseWord } from '../game/guidedProgression';
 import { hasLearningBalance } from '../game/learningBalance';
@@ -10,7 +10,7 @@ import { hasWord } from '../game/runtime';
 import type { GameState, Target, Unit } from '../game/types';
 import { Glyph } from './Glyph';
 import { LessonPlanner } from './LessonPlanner';
-import { lastCustodianLabel, lifeStageLabel, visibleUnitName } from './unitReadability';
+import { lifeStageLabel, visibleUnitName } from './unitReadability';
 import './TeachingPanel.css';
 
 const PRACTICAL_KNOWLEDGE: Record<string, string> = {
@@ -37,13 +37,15 @@ export function TeachingPanel({
   state,
   onChange,
   onFocus,
+  initialWordId,
 }: {
   state: GameState;
   onChange: (next: GameState) => void;
   onFocus?: (target: Target) => void;
+  initialWordId?: string;
 }) {
   const [filter, setFilter] = useState<'all' | 'risk' | 'pupils'>('all');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialWordId ? (WORDS[initialWordId]?.label ?? '') : '');
   const [outcome, setOutcome] = useState<{
     wordId: string;
     pupilIds?: string[];
@@ -84,7 +86,9 @@ export function TeachingPanel({
   const participants = (people: Unit[]) =>
     people.length === 1
       ? person(people[0])
-      : people.map((unit) => visibleUnitName(state, unit)).join(', ');
+      : people
+          .map((unit) => (hasWord(state, 'S_02') ? visibleUnitName(state, unit) : person(unit)))
+          .join(', ');
   const completedPupils = (outcome?.pupilIds ?? []).flatMap((id) => {
     const unit = state.units.find((person) => person.id === id);
     return unit ? [unit] : [];
@@ -101,63 +105,19 @@ export function TeachingPanel({
   });
   return (
     <section className="teaching-panel" aria-label="Trasmettere le parole">
-      <div className="first-lesson-help">
-        <BookOpen size={17} />
+      <div className="lesson-section-heading">
         <div>
-          <details className="lesson-explanation">
-            <summary>
-              <strong>
-                {state.stats.taught === 0
-                  ? 'La prima parola da affidare'
-                  : sharedRound
-                    ? 'I custodi insegnano insieme'
-                    : 'Ogni lezione aggiunge un custode'}
-              </strong>
-            </summary>
-            <p>
-              {state.stats.taught === 0
-                ? 'Scegli una parola custodita da una sola persona. Controlla chi la racconta e chi la imparerà, poi premi Tramanda. La nuova voce continuerà a custodirla anche dopo il maestro.'
-                : 'Proteggi prima gli ultimi custodi. La memoria piena non sostituisce un secondo custode: puoi insegnare anche una parola già salda.'}
-            </p>
-            {sharedRound && (
-              <p>
-                I custodi che conoscono già la parola possono seguire più allievi nello stesso
-                racconto, consumando la stessa Attenzione di una lezione. Per partecipare insieme, i
-                maestri aggiuntivi e i loro allievi devono essere vicini a un Falò acceso. I nuovi
-                custodi potranno insegnare dal racconto successivo.
-              </p>
-            )}
-            {balanced && (
-              <p>
-                Nel primo anno, tramandare una parola fondamentale dal suo ultimo custode rafforza
-                la memoria e aggiunge una nuova voce. Scegli quali capacità conservare per il futuro
-                della tribù.
-              </p>
-            )}
-            {balanced && hasWord(state, 'O_05') && (
-              <p>
-                Quando un custode beneficia davvero del calore, la memoria del Fuoco si rafforza. Le
-                parole vissute ogni giorno sono più facili da conservare.
-              </p>
-            )}
-          </details>
-          <small>
-            {numbered
-              ? 'Ogni lezione costa 10 punti Attenzione. I bambini hanno la precedenza.'
-              : 'Ogni lezione consuma Attenzione. I bambini hanno la precedenza.'}
-          </small>
-          {balanced && (
-            <p className="lesson-budget" role="status" aria-live="polite">
-              {fundedLessons === 0
-                ? 'Serve altra Attenzione per una lezione.'
-                : fundedLessons === 1
-                  ? 'Attenzione per una lezione.'
-                  : numbered
-                    ? `Attenzione per ${fundedLessons} lezioni.`
-                    : 'Attenzione per più lezioni.'}
-            </p>
-          )}
+          <h3>{known.length ? 'Quale parola proteggiamo?' : 'Le prime storie'}</h3>
         </div>
+        <p className="lesson-budget" role="status" aria-live="polite">
+          {fundedLessons === 0
+            ? 'Serve Attenzione'
+            : fundedLessons === 1
+              ? 'Un racconto disponibile'
+              : numbered
+                ? `${fundedLessons} racconti disponibili`
+                : 'Spazio per più racconti'}
+        </p>
       </div>
       {outcome && (
         <p className="teaching-outcome" role="status">
@@ -172,7 +132,7 @@ export function TeachingPanel({
           altre voci.
         </p>
       )}
-      {known.length > 0 && (
+      {(known.length > 5 || search.length > 0) && (
         <div className="lesson-tools">
           <div role="group" aria-label="Filtra le lezioni">
             {(
@@ -197,7 +157,7 @@ export function TeachingPanel({
             <input
               type="search"
               aria-label="Cerca una parola da tramandare"
-              placeholder="Quale parola vuoi proteggere?"
+              placeholder="Trova una parola"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
@@ -231,90 +191,84 @@ export function TeachingPanel({
                   ? 'Manca Attenzione per una lezione. Si rinnova al consiglio grazie al legno bruciato e agli anziani presenti. La fame la riduce.'
                   : lessonIssueText(preview.issue);
           return (
-            <div
-              className={`teaching-row ${custodian ? 'last-custodian-word' : ''}`}
+            <article
+              className={`teaching-row lesson-card ${custodian ? 'last-custodian-word' : ''} ${custodian?.risk === 'critical' ? 'lesson-critical' : ''}`}
               key={id}
               aria-label={`Parola da tramandare: ${WORDS[id].label}`}
             >
-              <Glyph id={id} size={23} />
-              <div className="teaching-word-details">
-                <strong>{WORDS[id].label}</strong>
-                {balanced && PRACTICAL_KNOWLEDGE[id] && (
-                  <span className="lesson-purpose">{PRACTICAL_KNOWLEDGE[id]}</span>
-                )}
-                {custodian && (
-                  <span className={`teaching-custodian ${custodian.risk}`}>
-                    <MessageCircle size={10} />
-                    {lastCustodianLabel(
-                      state.units.find((unit) => unit.id === custodian.unitId),
-                    )}: {custodian.displayName}
-                  </span>
-                )}
-                <span>
-                  {numbered
-                    ? preview.livingCustodians
-                    : preview.livingCustodians > 3
-                      ? 'Molti'
-                      : 'Pochi'}{' '}
-                  {numbered && preview.livingCustodians === 1 ? 'custode' : 'custodi'} · Memoria{' '}
-                  {numbered
-                    ? `${Math.round(memory.retention)}%`
-                    : memory.retention > 70
-                      ? 'Salda'
-                      : memory.retention >= 30
-                        ? 'Fragile'
-                        : 'In pericolo'}
+              <div className="lesson-card-heading">
+                <span className="lesson-glyph">
+                  <Glyph id={id} size={24} />
                 </span>
-                <span className="meter">
-                  <span style={{ width: `${memory.retention}%` }} />
-                </span>
-                <div className="lesson-people">
-                  <span>
-                    <b>{preview.teachers.length > 1 ? 'Raccontano:' : 'Racconta:'}</b>{' '}
-                    {preview.teachers.length
-                      ? participants(preview.teachers)
-                      : person(preview.teacher)}
-                    {preview.teacher && onFocus && (
-                      <button
-                        className="text-button lesson-person-focus"
-                        onClick={() => onFocus(personTarget(preview.teacher!))}
-                        aria-label={`Mostra custode di ${WORDS[id].label}`}
-                      >
-                        <MapPin size={11} />
-                      </button>
-                    )}
-                  </span>
-                  <span>
-                    <b>{preview.pupils.length > 1 ? 'Impareranno:' : 'Imparerà:'}</b>{' '}
-                    {preview.pupils.length ? participants(preview.pupils) : person(preview.pupil)}
+                <div>
+                  <h4>{WORDS[id].label}</h4>
+                  <span className="lesson-memory-label">
+                    {numbered
+                      ? `${preview.livingCustodians} ${preview.livingCustodians === 1 ? 'custode' : 'custodi'} · ${Math.round(memory.retention)}% di memoria`
+                      : `${custodian ? 'Unica voce' : preview.livingCustodians > 3 ? 'Molti custodi' : 'Pochi custodi'} · ${memory.retention > 70 ? 'memoria salda' : memory.retention >= 30 ? 'memoria fragile' : 'memoria in pericolo'}`}
                   </span>
                 </div>
+                {custodian && (
+                  <ShieldAlert
+                    size={17}
+                    className={`lesson-risk-icon ${custodian.risk}`}
+                    aria-label="Ultimo custode"
+                  />
+                )}
+              </div>
+
+              <div className="lesson-people">
+                <span>
+                  <b>{preview.teachers.length > 1 ? 'Raccontano:' : 'Racconta:'}</b>{' '}
+                  {preview.teachers.length
+                    ? participants(preview.teachers)
+                    : person(preview.teacher)}
+                  {preview.teacher && onFocus && (
+                    <button
+                      className="text-button lesson-person-focus"
+                      onClick={() => onFocus(personTarget(preview.teacher!))}
+                      aria-label={`Mostra custode di ${WORDS[id].label}`}
+                    >
+                      <MapPin size={15} />
+                    </button>
+                  )}
+                </span>
+                <ArrowRight size={15} aria-hidden="true" className="lesson-transfer-arrow" />
+                <span>
+                  <b>{preview.pupils.length > 1 ? 'Impareranno:' : 'Imparerà:'}</b>{' '}
+                  {preview.pupils.length ? participants(preview.pupils) : person(preview.pupil)}
+                </span>
+              </div>
+              <div className="lesson-card-action">
                 <small
                   className={preview.allowed || rehearse ? 'teaching-note' : 'teaching-blocker'}
                   id={reasonId}
                 >
                   {reason}
                 </small>
+                <button
+                  className="teach-button"
+                  disabled={!preview.allowed && !rehearse}
+                  aria-describedby={reasonId}
+                  onClick={() => {
+                    const next = preview.allowed ? teachWord(state, id) : rehearseWord(state, id);
+                    if (next.stats.taught > state.stats.taught)
+                      setOutcome({ wordId: id, pupilIds: preview.pupils.map((pupil) => pupil.id) });
+                    else if (next.attention < state.attention)
+                      setOutcome({ wordId: id, rehearsal: true });
+                    onChange(next);
+                  }}
+                >
+                  <span>{preview.allowed || !rehearse ? 'Tramanda' : 'Ripassa'}</span>
+                  <small>
+                    {numbered ? `${preview.attentionCost} Attenzione` : 'Consuma Attenzione'}
+                  </small>
+                </button>
               </div>
-              <button
-                className="teach-button"
-                disabled={!preview.allowed && !rehearse}
-                aria-describedby={reasonId}
-                onClick={() => {
-                  const next = preview.allowed ? teachWord(state, id) : rehearseWord(state, id);
-                  if (next.stats.taught > state.stats.taught)
-                    setOutcome({ wordId: id, pupilIds: preview.pupils.map((pupil) => pupil.id) });
-                  else if (next.attention < state.attention)
-                    setOutcome({ wordId: id, rehearsal: true });
-                  onChange(next);
-                }}
-              >
-                {preview.allowed || !rehearse ? 'Tramanda' : 'Ripassa'}
-                <small>
-                  {numbered ? `${preview.attentionCost} Attenzione` : 'Consuma Attenzione'}
-                </small>
-              </button>
-            </div>
+              {balanced && PRACTICAL_KNOWLEDGE[id] && (
+                <p className="lesson-purpose">{PRACTICAL_KNOWLEDGE[id]}</p>
+              )}
+            </article>
           );
         })}
       </div>
@@ -333,6 +287,32 @@ export function TeachingPanel({
         </p>
       )}
       <LessonPlanner state={state} onChange={onChange} />
+      <details className="lesson-explanation lesson-rules">
+        <summary>
+          <BookOpen size={16} /> Come tramandare una parola
+        </summary>
+        <p>
+          Scegli una parola e controlla chi la racconta e chi la imparerà. Tramanda crea una nuova
+          voce capace di custodirla anche dopo il maestro.
+        </p>
+        <p>
+          {sharedRound
+            ? 'Più custodi già presenti possono insegnare insieme, fino a tre nuovi allievi per racconto. Le coppie aggiuntive devono essere vicine allo stesso Falò acceso. I nuovi custodi insegneranno dal racconto successivo.'
+            : 'Ogni lezione affida la parola a un nuovo custode.'}{' '}
+          I bambini hanno la precedenza.
+        </p>
+        {balanced && (
+          <p>
+            Nel primo anno, tramandare una parola fondamentale dal suo ultimo custode ne rafforza
+            anche la memoria. Una parola salda può ancora aver bisogno di un secondo custode.
+          </p>
+        )}
+        {balanced && hasWord(state, 'O_05') && (
+          <p>
+            Il calore di un Falò vissuto dai suoi custodi aiuta a conservare la memoria del Fuoco.
+          </p>
+        )}
+      </details>
     </section>
   );
 }

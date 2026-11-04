@@ -141,6 +141,53 @@ export function TribeEvents({
 }) {
   const shown = distinctTribeEvents(events).slice(0, summary ? 6 : 3);
   if (!shown.length) return null;
+  const highlight =
+    shown.find((event) => event.kind === 'birth' || event.kind === 'death') ?? shown[0];
+  const cards = shown.map((event) => {
+    const message = tribeEventText(state, event);
+    const Icon = event.kind === 'birth' ? Baby : event.kind === 'death' ? HeartCrack : BookOpen;
+    return (
+      <article key={event.id} className={`tribe-event event-${event.kind}`}>
+        <Icon size={19} aria-hidden="true" />
+        <div>
+          <strong>{message.title}</strong>
+          <p>{message.text}</p>
+        </div>
+        <div className="event-actions">
+          {onFocus && event.unitId && (
+            <button
+              className="text-button"
+              onClick={() => onFocus(event.unitId!)}
+              aria-label={`Mostra sulla mappa: ${message.title}`}
+            >
+              <MapPin size={14} />
+              <span>Mostra</span>
+            </button>
+          )}
+          {onInspect &&
+            event.unitId &&
+            state.units.some((unit) => unit.id === event.unitId && unit.hp > 0) && (
+              <button className="text-button" onClick={() => onInspect(event.unitId!)}>
+                Scheda
+              </button>
+            )}
+          {onWord &&
+            [...new Set(event.kind === 'word-lost' ? [event.wordId!] : (event.lostWordIds ?? []))]
+              .filter((id) => WORDS[id])
+              .map((id) => (
+                <button
+                  className="text-button"
+                  key={id}
+                  onClick={() => onWord(id)}
+                  aria-label={`Come riscoprire ${WORDS[id].label}`}
+                >
+                  Riscopri {WORDS[id].label}
+                </button>
+              ))}
+        </div>
+      </article>
+    );
+  });
   return (
     <div
       className={`tribe-events ${summary ? 'season-events' : ''}`}
@@ -148,56 +195,19 @@ export function TribeEvents({
       role="status"
       aria-live="polite"
     >
-      {summary && <strong>La vita della tribù</strong>}
-      {shown.map((event) => {
-        const message = tribeEventText(state, event);
-        const Icon = event.kind === 'birth' ? Baby : event.kind === 'death' ? HeartCrack : BookOpen;
-        return (
-          <article key={event.id} className={`tribe-event event-${event.kind}`}>
-            <Icon size={19} aria-hidden="true" />
-            <div>
-              <strong>{message.title}</strong>
-              <p>{message.text}</p>
-            </div>
-            <div className="event-actions">
-              {onFocus && event.unitId && (
-                <button
-                  className="text-button"
-                  onClick={() => onFocus(event.unitId!)}
-                  aria-label={`Mostra sulla mappa: ${message.title}`}
-                >
-                  <MapPin size={14} />
-                  <span>Mostra</span>
-                </button>
-              )}
-              {onInspect &&
-                event.unitId &&
-                state.units.some((unit) => unit.id === event.unitId && unit.hp > 0) && (
-                  <button className="text-button" onClick={() => onInspect(event.unitId!)}>
-                    Scheda
-                  </button>
-                )}
-              {onWord &&
-                [
-                  ...new Set(
-                    event.kind === 'word-lost' ? [event.wordId!] : (event.lostWordIds ?? []),
-                  ),
-                ]
-                  .filter((id) => WORDS[id])
-                  .map((id) => (
-                    <button
-                      className="text-button"
-                      key={id}
-                      onClick={() => onWord(id)}
-                      aria-label={`Come riscoprire ${WORDS[id].label}`}
-                    >
-                      Riscopri {WORDS[id].label}
-                    </button>
-                  ))}
-            </div>
-          </article>
-        );
-      })}
+      {summary ? (
+        <>
+          <div className="council-life-preview">{cards[shown.indexOf(highlight)]}</div>
+          {shown.length > 1 && (
+            <details className="council-life-history">
+              <summary>Mostra tutti gli eventi</summary>
+              {cards.filter((_, index) => shown[index].id !== highlight.id)}
+            </details>
+          )}
+        </>
+      ) : (
+        cards
+      )}
     </div>
   );
 }

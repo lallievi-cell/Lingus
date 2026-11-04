@@ -14,6 +14,7 @@ import {
 } from './unitReadability';
 import './TribeReadability.css';
 import { UnitWorkStatus } from './WorkStatus';
+import { describeHealth } from './semanticReadability';
 
 interface Props {
   state: GameState;
@@ -105,15 +106,7 @@ export function TribeMemberCard({ state, unit, index, selected, custodian, onAct
       ) : (
         <span
           className="unit-health"
-          title={
-            numbered
-              ? `Salute ${Math.round(unit.hp)}`
-              : unit.hp <= 30
-                ? 'Salute in pericolo'
-                : unit.hp < 70
-                  ? 'Salute fragile'
-                  : 'In salute'
-          }
+          title={describeHealth(unit.hp, numbered)}
           style={{ '--health': `${unit.hp}%` } as React.CSSProperties}
         />
       )}

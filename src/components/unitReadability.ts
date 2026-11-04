@@ -67,6 +67,6 @@ export function physicalWarnings(unit: Unit): PhysicalWarning[] {
   if (unit.temp <= 20) warnings.push({ kind: 'cold', label: 'Freddo intenso' });
   if (unit.hunger >= 95) warnings.push({ kind: 'hunger', label: 'Fame estrema' });
   else if (unit.hunger >= 75) warnings.push({ kind: 'hunger', label: 'Ha fame' });
-  if (unit.hp <= 30) warnings.push({ kind: 'health', label: 'Ferite gravi' });
+  if (unit.hp <= 30) warnings.push({ kind: 'health', label: 'Salute critica' });
   return warnings;
 }

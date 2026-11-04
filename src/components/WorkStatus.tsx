@@ -25,9 +25,9 @@ export function UnitWorkStatus({
       </span>
     );
   return (
-    <div className={`work-status status-${status.tone}`} aria-label="Dove e perché lavora">
+    <div className={`work-status status-${status.tone}`} aria-label="Stato dell’incarico">
       <strong>{status.title}</strong>
-      <p>{status.detail}</p>
+      {(status.category !== 'idle' || unit.lastTaskResult) && <p>{status.detail}</p>}
       {status.assignment && (
         <span>
           Incarico {status.assignment.state === 'suspended' ? 'sospeso' : 'assegnato'}:{' '}
@@ -74,7 +74,7 @@ export function BuildingWorkStatus({
           Il lavoro è affidato ai gruppi sociali della città.{' '}
           {status.observedEfficiency !== undefined
             ? `Rendimento dell’ultima stagione: ${numbered ? `${Math.round(status.observedEfficiency * 100)}%` : status.observedEfficiency >= 1 ? 'pieno' : status.observedEfficiency > 0 ? 'parziale' : 'nessuno'}.`
-            : 'Il rendimento sarà visibile dopo il primo lavoro stagionale.'}
+            : 'Nessuna stagione di lavoro ancora registrata.'}
         </p>
       ) : (
         status.required > 0 && (

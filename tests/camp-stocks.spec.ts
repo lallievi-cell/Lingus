@@ -167,9 +167,10 @@ test('the qualitative stock summary stays compact after Domani on a narrow phone
   const summary = page.locator('.world-resources');
   const resources = summary.locator('> span[title]');
   await expect(resources).toHaveCount(3);
-  for (const chip of await resources.all()) {
+  const labels = ['CiboDiscreto', 'LegnoDiscreto', 'PietraDiscreta'];
+  for (const [index, chip] of (await resources.all()).entries()) {
     await expect(chip).toBeVisible();
-    await expect(chip).toContainText('Discreta');
+    await expect(chip).toHaveText(labels[index]);
     await expect(chip).not.toContainText(/\d|Quanto basta|Una discreta scorta/);
   }
   await expect(summary.locator('.season-chip')).toBeVisible();

@@ -1,6 +1,16 @@
 import { useEffect, useLayoutEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowRight, BookOpen, Building2, History, Search, Star, X } from 'lucide-react';
+import {
+  ArrowRight,
+  BookOpen,
+  Building2,
+  ChevronDown,
+  History,
+  Search,
+  SlidersHorizontal,
+  Star,
+  X,
+} from 'lucide-react';
 import { BUILDING_SPECS, RESOURCE_SPECS, WORDS } from '../game/content';
 import {
   getPhrasebook,
@@ -62,8 +72,8 @@ function BuildingDetails({ state, item }: { state: GameState; item: PhrasebookIt
       ? null
       : ['primavera', 'estate', 'autunno', 'inverno'][spec.upkeepSeason];
   return (
-    <details className="phrasebook-building-details">
-      <summary>Materiali e gestione</summary>
+    <section className="phrasebook-building-details" aria-label="Materiali e gestione">
+      <h4>Materiali e gestione</h4>
       <dl>
         <div>
           <dt>
@@ -98,7 +108,7 @@ function BuildingDetails({ state, item }: { state: GameState; item: PhrasebookIt
         Controlla l’anteprima prima di Pronuncia: bersaglio e regole della tribù possono cambiare
         ciò che serve.
       </p>
-    </details>
+    </section>
   );
 }
 
@@ -120,13 +130,22 @@ export function Phrasebook({
   const [tab, setTab] = useState<PhrasebookTab>(initialTab);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<PhraseCategory | 'all'>('all');
+  const [showTypes, setShowTypes] = useState(false);
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [message, setMessage] = useState('');
   const heading = useRef<HTMLHeadingElement>(null);
   const panel = useRef<HTMLElement>(null);
+  const resultsPanel = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   const tabRefs = useRef<Partial<Record<PhrasebookTab, HTMLButtonElement | null>>>({});
   const id = useId();
+  useLayoutEffect(() => {
+    // A new view starts with its first complete row. Retaining another tab's
+    // scroll offset used to leave a clipped, unrelated card below the filters.
+    if (resultsPanel.current) resultsPanel.current.scrollTop = 0;
+    if (panel.current) panel.current.scrollTop = 0;
+  }, [tab, query, category]);
   useLayoutEffect(() => {
     const workbench = document.querySelector<HTMLElement>('.language-workbench');
     const measure = () => {
@@ -197,6 +216,7 @@ export function Phrasebook({
   function chooseTab(next: PhrasebookTab, focus = false) {
     setTab(next);
     setCategory('all');
+    setShowTypes(false);
     if (focus) tabRefs.current[next]?.focus();
   }
   function toggleFavorite(item: PhrasebookItem) {
@@ -288,6 +308,22 @@ export function Phrasebook({
           />
         </label>
         {tab !== 'construction' && categories.length > 1 && (
+          <button
+            type="button"
+            className={`phrasebook-type-toggle ${category !== 'all' ? 'is-filtered' : ''}`}
+            aria-label="Filtra per tipo di frase"
+            aria-expanded={showTypes}
+            aria-controls={`${id}-type-filter`}
+            title="Filtra per tipo di frase"
+            onClick={() => setShowTypes((value) => !value)}
+          >
+            <SlidersHorizontal size={17} aria-hidden="true" />
+          </button>
+        )}
+      </div>
+      {tab !== 'construction' && categories.length > 1 && (
+        <label className="phrasebook-type-filter" id={`${id}-type-filter`} hidden={!showTypes}>
+          <span>Tipo di frase</span>
           <select
             aria-label="Tipo di frase"
             value={category}
@@ -300,8 +336,8 @@ export function Phrasebook({
               </option>
             ))}
           </select>
-        )}
-      </div>
+        </label>
+      )}
       {draft && !draftFavorite && (
         <button
           type="button"
@@ -322,6 +358,7 @@ export function Phrasebook({
         </button>
       )}
       <div
+        ref={resultsPanel}
         className="phrasebook-results"
         role="tabpanel"
         id={`${id}-results`}
@@ -364,21 +401,53 @@ export function Phrasebook({
                   aria-label={`Prepara la frase: ${item.title}`}
                   onClick={() => onUse([...item.tokens])}
                 >
-                  Usa <ArrowRight size={15} aria-hidden="true" />
+                  Prepara <ArrowRight size={15} aria-hidden="true" />
                 </button>
               </div>
             </div>
-            <p className="phrasebook-description">{item.description}</p>
-            <div className="phrasebook-tokens" aria-label="Parole della frase">
-              {item.tokens.map((token, index) => (
-                <span key={`${token}-${index}`} className={hasWord(state, token) ? '' : 'is-lost'}>
-                  {index > 0 && <i aria-hidden="true">·</i>}
-                  {WORDS[token]?.label}
-                </span>
-              ))}
+            <div className="phrasebook-entry-overview">
+              <p className="phrasebook-description">{item.description}</p>
+              <button
+                type="button"
+                className="phrasebook-details-toggle"
+                aria-label={`Dettagli della frase: ${item.title}`}
+                aria-expanded={expanded.has(item.id)}
+                aria-controls={`${id}-detail-${item.id}`}
+                onClick={() =>
+                  setExpanded((current) => {
+                    const next = new Set(current);
+                    if (next.has(item.id)) next.delete(item.id);
+                    else next.add(item.id);
+                    return next;
+                  })
+                }
+              >
+                <ChevronDown size={18} aria-hidden="true" />
+              </button>
             </div>
             {!item.available && <p className="phrasebook-issue">{item.issue}</p>}
-            <BuildingDetails state={state} item={item} />
+            <div
+              className="phrasebook-entry-details"
+              id={`${id}-detail-${item.id}`}
+              hidden={!expanded.has(item.id)}
+            >
+              <p>{item.description}</p>
+              <div className="phrasebook-tokens" aria-label="Parole della frase">
+                {item.tokens.map((token, index) => (
+                  <span
+                    key={`${token}-${index}`}
+                    className={hasWord(state, token) ? '' : 'is-lost'}
+                  >
+                    {index > 0 && <i aria-hidden="true">·</i>}
+                    {WORDS[token]?.label}
+                  </span>
+                ))}
+              </div>
+              <BuildingDetails state={state} item={item} />
+              <p className="phrasebook-preparation-note">
+                Prepara la frase, poi scegli il bersaglio. La Voce si spende soltanto con Pronuncia.
+              </p>
+            </div>
           </article>
         ))}
         {!results.length && (

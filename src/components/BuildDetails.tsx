@@ -75,31 +75,12 @@ export function BuildDetails({ onBeforeReload }: { onBeforeReload: () => boolean
       aria-label="Versione del gioco"
       data-build-commit={BUILD_INFO.commit}
     >
-      <h3>
-        <GitCommitHorizontal size={18} aria-hidden="true" /> Versione del gioco
-      </h3>
-      <dl className="build-details-data">
-        <div>
-          <dt>Versione</dt>
-          <dd>{BUILD_INFO.version}</dd>
-        </div>
-        <div>
-          <dt>Build</dt>
-          <dd>
-            <code title={BUILD_INFO.commit}>
-              {BUILD_INFO.commit === 'development' ? 'sviluppo' : BUILD_INFO.commit.slice(0, 7)}
-            </code>
-          </dd>
-        </div>
-        <div>
-          <dt>Preparata il</dt>
-          <dd>{buildDate(BUILD_INFO.builtAt)}</dd>
-        </div>
-      </dl>
-      <p className="build-details-help">
-        Questa è la versione che stai usando. Puoi confrontarla con quella disponibile sul sito
-        senza interrompere la partita.
-      </p>
+      <div className="build-details-heading">
+        <h3>
+          <GitCommitHorizontal size={18} aria-hidden="true" /> Versione del gioco
+        </h3>
+        <strong className="build-details-version">{BUILD_INFO.version}</strong>
+      </div>
       <div className="build-details-actions">
         <button type="button" onClick={() => void check()} disabled={status === 'checking'}>
           <RefreshCw size={16} aria-hidden="true" />
@@ -139,6 +120,23 @@ export function BuildDetails({ onBeforeReload }: { onBeforeReload: () => boolean
           </p>
         )}
       </div>
+      <details className="build-details-technical">
+        <summary>Dettagli della versione</summary>
+        <dl className="build-details-data">
+          <div>
+            <dt>Build</dt>
+            <dd>
+              <code title={BUILD_INFO.commit}>
+                {BUILD_INFO.commit === 'development' ? 'sviluppo' : BUILD_INFO.commit.slice(0, 7)}
+              </code>
+            </dd>
+          </div>
+          <div>
+            <dt>Preparata il</dt>
+            <dd>{buildDate(BUILD_INFO.builtAt)}</dd>
+          </div>
+        </dl>
+      </details>
     </section>
   );
 }

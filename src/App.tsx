@@ -52,7 +52,13 @@ import { usePlaytestRecord } from './components/usePlaytestRecord';
 import { BUILD_INFO } from './buildInfo';
 import { browserSaves, useSessionSafety } from './session/useSessionSafety';
 import { CampInventoryPanel } from './components/CampInventoryPanel';
-import { describeStockQuantity } from './components/campInventory';
+import {
+  describeAbility,
+  formatVisibleNumber,
+  describeHealth,
+  describeHunger,
+  describePeople,
+} from './components/semanticReadability';
 import { TribeMemberCard } from './components/TribeMemberCard';
 import { WorkTeamPicker } from './components/WorkTeamPicker';
 import {
@@ -66,6 +72,7 @@ import {
 import { entityTargetPresentation } from './components/targetPresentation';
 import { BrandMark, Glyph } from './components/Glyph';
 import { Modal } from './components/Modal';
+import { LexiconPanel } from './components/LexiconPanel';
 import {
   MapPicker,
   freshMapSeed,
@@ -74,7 +81,7 @@ import {
   type MapChoice,
 } from './components/MapPicker';
 import { GrowthReadiness, IndividualGrowthReadiness } from './components/GrowthReadiness';
-import { GuidedCouncil } from './components/GuidedCouncil';
+import { GuidedCouncil, CouncilRules } from './components/GuidedCouncil';
 import { getCalendar, hasOpeningBalance, seasonStart } from './game/calendar';
 import { TeachingPanel } from './components/TeachingPanel';
 import { MobileActionDock } from './components/MobileActionDock';
@@ -117,11 +124,7 @@ import {
 import './components/Onboarding.css';
 import './components/QualityOfLife.css';
 import './components/SyntaxAssistant.css';
-import {
-  CivilizationPanel,
-  describeQuantity,
-  type CivilizationMode,
-} from './components/CivilizationPanel';
+import { CivilizationPanel, type CivilizationMode } from './components/CivilizationPanel';
 import { playerPopulation } from './game/imperial';
 import { orderAcknowledged } from './game/commandAcknowledgement';
 import { hasBuilding, isPlayerBuilding } from './game/runtime';
@@ -263,6 +266,7 @@ function App() {
   );
   const { audioPreferences, setAudioPreferences, sound, setSound } = useAudioPreferences();
   const [lexiconSearch, setLexiconSearch] = useState('');
+  const [selectedTeachingWord, setSelectedTeachingWord] = useState<string>();
   const [hasSeenMilestone, setHasSeenMilestone] = useState(!!game.victory);
   const [phrasebookTab, setPhrasebookTab] = useState<
     'all' | 'construction' | 'recent' | 'favorites' | null
@@ -291,8 +295,22 @@ function App() {
   const slots = cognitiveSlots(game);
   const numbered = hasWord(game, 'O_08');
   const individuality = hasWord(game, 'S_02');
-  const quantity = (value: number) => describeQuantity(value, numbered);
-  const stockQuantity = (value: number) => describeStockQuantity(value, numbered, true);
+  const stockQuantity = (value: number, feminine = false) =>
+    numbered
+      ? formatVisibleNumber(value)
+      : value <= 0
+        ? feminine
+          ? 'Esaurita'
+          : 'Esaurito'
+        : value < 5
+          ? feminine
+            ? 'Scarsa'
+            : 'Scarso'
+          : value < 20
+            ? feminine
+              ? 'Discreta'
+              : 'Discreto'
+            : 'Abbondante';
   const voiceMax = hasWord(game, 'S_07') ? 5 : 3;
   const known = WORD_ORDER.filter((id) => hasWord(game, id));
   const unreadEvents = (game.tribeEvents ?? []).filter((event) => !dismissedEvents.has(event.id));
@@ -419,19 +437,21 @@ function App() {
     ? livingUnits.reduce((n, u) => n + u.hunger, 0) / livingUnits.length
     : 0;
   const tribeInDanger = livingUnits.some(
-    (unit) => unit.temp <= 20 || unit.hunger >= 95 || unit.hp <= 30,
+    (unit) => unit.temp <= 20 || unit.hunger >= 75 || unit.hp <= 30,
   );
   const tribeCondition = livingUnits.some((unit) => unit.temp <= 20)
     ? 'Freddo intenso'
     : livingUnits.some((unit) => unit.hunger >= 95)
       ? 'Fame estrema'
       : livingUnits.some((unit) => unit.hp <= 30)
-        ? 'Ferite gravi'
+        ? 'Salute critica'
         : avgHunger > 75
           ? 'Affamata'
-          : avgHunger > 45
-            ? 'In cerca di cibo'
-            : 'Al sicuro';
+          : livingUnits.some((unit) => unit.hunger >= 75)
+            ? 'Qualcuno ha fame'
+            : avgHunger > 45
+              ? 'In cerca di cibo'
+              : 'Al sicuro';
   const sacredTargets = known.filter((id) => getDogmaVectors(id).some((v) => hasWord(game, v)));
   const activeDogmaTarget = sacredTargets.includes(dogmaTarget)
     ? dogmaTarget
@@ -444,6 +464,7 @@ function App() {
 
   const notify = useCallback((message: string) => setToast(message), []);
   const closePanel = useCallback(() => {
+    setSelectedTeachingWord(undefined);
     setPanel(null);
     setPuzzle([]);
   }, []);
@@ -1076,6 +1097,19 @@ function App() {
     setPanel('restart');
   }
 
+  function beginStory() {
+    if (!newMapValid) return;
+    const begun = { ...game, started: true, paused: false };
+    const saved = saveNow(begun, { reason: 'new-story', allowReplaceInvalid: true });
+    if (saved.issue?.kind === 'conflict') {
+      openRecovery();
+      notify('Un’altra scheda ha cambiato la partita. Scegli quale storia riprendere.');
+      return;
+    }
+    setGame(begun);
+    closePanel();
+  }
+
   function restart() {
     if (!newMapValid) return;
     const seed =
@@ -1236,20 +1270,22 @@ function App() {
         <div className="world-resources">
           {hasWord(game, 'M_02') && (
             <>
-              <span title="Scorte alimentari">
+              <span title="Scorte alimentari" className="stock-summary">
                 <AppleIcon />
-                {stockQuantity(game.resources.food + game.resources.meat + game.resources.cooked)}
                 <small>Cibo</small>
+                <span className="stock-value">
+                  {stockQuantity(game.resources.food + game.resources.meat + game.resources.cooked)}
+                </span>
               </span>
-              <span title="Legno disponibile">
+              <span title="Legno disponibile" className="stock-summary">
                 <TreePine size={15} />
-                {stockQuantity(game.resources.wood)}
                 <small>Legno</small>
+                <span className="stock-value">{stockQuantity(game.resources.wood)}</span>
               </span>
-              <span title="Pietra disponibile">
+              <span title="Pietra disponibile" className="stock-summary">
                 <Glyph id="O_02" size={15} />
-                {stockQuantity(game.resources.stone)}
                 <small>Pietra</small>
+                <span className="stock-value">{stockQuantity(game.resources.stone, true)}</span>
               </span>
             </>
           )}
@@ -1391,7 +1427,9 @@ function App() {
                   <strong>
                     {game.cities.filter((c) => c.factionId === 'player').length} città
                   </strong>
-                  <span>{quantity(peopleCount)} abitanti divisi tra quattro gruppi sociali</span>
+                  <span>
+                    {describePeople(peopleCount, numbered, 'population')} · quattro gruppi sociali
+                  </span>
                   <span>
                     Osserva la capitale <ChevronRight size={13} />
                   </span>
@@ -1401,6 +1439,7 @@ function App() {
                 <div
                   className={`custodian-notice ${endangeredCustodian.risk}`}
                   aria-label="Ultimi custodi a rischio"
+                  aria-description={transmissionHint(endangeredCustodian)}
                 >
                   <div className="custodian-notice-heading">
                     <MessageCircle size={16} />
@@ -1419,6 +1458,7 @@ function App() {
                       .map((reason) => CUSTODIAN_RISK_LABELS[reason])
                       .join(' · ')}
                   </span>
+
                   <details className="custodian-explanation">
                     <summary>Come proteggere questa memoria</summary>
                     <p className="custodian-help">
@@ -1503,12 +1543,9 @@ function App() {
               {selectedUnit && (
                 <div className="individual-card person-details" ref={personDetailsRef}>
                   <div>
-                    <span className="eyebrow">
-                      {visibleUnitName(game, selectedUnit).toUpperCase()} ·{' '}
-                      {numbered
-                        ? `${Math.floor(selectedUnit.age)} STAGIONI`
-                        : lifeStageLabel(selectedUnit).toUpperCase()}
-                    </span>
+                    <strong className="selected-person-name">
+                      {visibleUnitName(game, selectedUnit)}
+                    </strong>
                     <button
                       className="icon-button small"
                       aria-label="Deseleziona individuo"
@@ -1519,6 +1556,8 @@ function App() {
                   </div>
                   <p className="person-demographics">
                     {sexLabel(selectedUnit)} · {lifeStageLabel(selectedUnit)}
+                    {numbered &&
+                      ` · ${Math.floor(selectedUnit.age)} ${Math.floor(selectedUnit.age) === 1 ? 'stagione' : 'stagioni'}`}
                     {individuality && selectedUnit.parentIds && (
                       <>
                         {' '}
@@ -1532,7 +1571,14 @@ function App() {
                       </>
                     )}
                   </p>
-                  <p className="person-life-hint">{unitLifeHint(selectedUnit)}</p>
+                  <div className="person-vitals">
+                    <span>
+                      <Heart size={15} /> {describeHealth(selectedUnit.hp, numbered)}
+                    </span>
+                    <span>
+                      <AppleIcon /> {describeHunger(selectedUnit.hunger, numbered)}
+                    </span>
+                  </div>
                   <UnitWorkStatus state={game} unit={selectedUnit} onFocus={focusTarget} />
                   <button
                     className="text-button"
@@ -1547,22 +1593,25 @@ function App() {
                   >
                     <MapPin size={12} /> Inquadra sulla mappa
                   </button>
-                  <IndividualGrowthReadiness state={game} unit={selectedUnit} />
-                  {physicalWarnings(selectedUnit).length > 0 && (
+                  {physicalWarnings(selectedUnit).some((warning) => warning.kind === 'cold') && (
                     <p className="person-danger">
                       {physicalWarnings(selectedUnit)
+                        .filter((warning) => warning.kind === 'cold')
                         .map((warning) => warning.label)
                         .join(' · ')}
                     </p>
                   )}
-                  <p>
-                    <Heart size={13} /> {quantity(selectedUnit.hp)} salute <AppleIcon />{' '}
-                    {quantity(selectedUnit.hunger)} fame
-                  </p>
-                  <p>
-                    Forza {quantity(selectedUnit.strength)} <span>·</span> Intelligenza{' '}
-                    {quantity(selectedUnit.intelligence)}
-                  </p>
+                  <details className="person-more">
+                    <summary>Caratteristiche e crescita</summary>
+                    <p className="person-abilities">
+                      <span>Forza: {describeAbility(selectedUnit.strength, numbered)}</span>
+                      <span>
+                        Intelligenza: {describeAbility(selectedUnit.intelligence, numbered)}
+                      </span>
+                    </p>
+                    <p className="person-life-hint">{unitLifeHint(selectedUnit)}</p>
+                    <IndividualGrowthReadiness state={game} unit={selectedUnit} />
+                  </details>
                   {selectedCustodian && (
                     <div className={`individual-custody ${selectedCustodian.risk}`}>
                       <strong>
@@ -1722,7 +1771,7 @@ function App() {
           aria-label="Mappa e ordini"
         >
           <div className="map-notices" role="region" aria-label="Avvisi della valle" tabIndex={0}>
-            {contextualNotices[0] && (
+            {!survivalAdvice && contextualNotices[0] && (
               <ContextualDiscoveryNotice
                 wordId={contextualNotices[0]}
                 rediscovered={
@@ -1749,7 +1798,7 @@ function App() {
                   preparePhrase(words, destination);
                 }}
               />
-            ) : (
+            ) : !nextSpark && !contextualNotices[0] ? (
               <OpeningGuide
                 state={game}
                 onSpark={(id) => {
@@ -1766,8 +1815,8 @@ function App() {
                   setTarget({ type: 'point', ...game.home });
                 }}
               />
-            )}
-            {!survivalAdvice && (
+            ) : null}
+            {!survivalAdvice && !nextSpark && !contextualNotices[0] && (
               <TaskOutcomes
                 state={game}
                 outcomes={taskOutcomes}
@@ -2584,8 +2633,6 @@ function App() {
           onClose={closePanel}
           className="word-help-modal"
         >
-          <span className="eyebrow">UNA MEMORIA DA RITROVARE</span>
-          <h2>{WORDS[helpWordId].label}</h2>
           <p className="modal-intro">{forgottenWordHint(game, helpWordId)}</p>
           <div className="recovery-experience">
             <strong>Ricrea l’esperienza</strong>
@@ -2677,7 +2724,6 @@ function App() {
           onClose={closePanel}
           className="readiness-modal"
         >
-          <h2>Prepariamo il domani.</h2>
           <SeasonReadiness
             expanded
             state={game}
@@ -2692,7 +2738,20 @@ function App() {
       )}
 
       {panel === 'welcome' && (
-        <Modal title="Benvenuto in Lingus" className="welcome-modal">
+        <Modal
+          title="Benvenuto in Lingus"
+          className="welcome-modal"
+          headerAction={
+            <button
+              className="text-button welcome-start"
+              aria-label="Dai inizio alla storia"
+              disabled={!newMapValid}
+              onClick={beginStory}
+            >
+              Inizia <ArrowRight size={16} aria-hidden="true" />
+            </button>
+          }
+        >
           <div className="welcome-emblem">
             <BrandMark size={74} />
           </div>
@@ -2746,24 +2805,6 @@ function App() {
               </small>
             </span>
           </label>
-          <button
-            className="primary-button"
-            disabled={!newMapValid}
-            onClick={() => {
-              if (!newMapValid) return;
-              const begun = { ...game, started: true, paused: false };
-              const saved = saveNow(begun, { reason: 'new-story', allowReplaceInvalid: true });
-              if (saved.issue?.kind === 'conflict') {
-                openRecovery();
-                notify('Un’altra scheda ha cambiato la partita. Scegli quale storia riprendere.');
-                return;
-              }
-              setGame(begun);
-              closePanel();
-            }}
-          >
-            Dai inizio alla storia <ArrowRight size={18} />
-          </button>
           <button className="text-button welcome-help" onClick={openGuide}>
             Come si gioca <CircleHelp size={15} />
           </button>
@@ -2964,98 +3005,23 @@ function App() {
 
       {panel === 'lexicon' && (
         <Modal title="Il lessico della tribù" onClose={closePanel} className="lexicon-modal">
-          <span className="eyebrow">IL MONDO CHE SAPPIAMO DIRE</span>
-          <h2>
-            Il lessico della tribù<span>.</span>
-          </h2>
-          <div className="lexicon-modal-meta">
-            <span>{known.length} / 45 parole vive</span>
-            <span>{slots} spazi di pensiero</span>
-            <span>Capitolo {game.tier + 1} / 6</span>
-          </div>
-          <label className="search-field">
-            <BookOpen size={17} />
-            <input
-              aria-label="Cerca nel lessico"
-              placeholder="Cerca una parola o un’esperienza…"
-              value={lexiconSearch}
-              onChange={(e) => setLexiconSearch(e.target.value)}
-            />
-          </label>
-          <div className="dictionary-list">
-            {WORD_ORDER.filter((id) =>
-              `${WORDS[id].label} ${WORDS[id].description} ${WORDS[id].event}`
-                .toLowerCase()
-                .includes(lexiconSearch.toLowerCase()),
-            ).map((id) => {
-              const word = WORDS[id],
-                memory = game.words[id],
-                unlocked = hasWord(game, id);
-              return (
-                <article key={id} className={`dictionary-entry ${unlocked ? '' : 'unlearned'}`}>
-                  <div className={`dictionary-glyph word-${word.kind}`}>
-                    {unlocked ? <Glyph id={id} size={24} /> : <LockKeyhole size={20} />}
-                  </div>
-                  <div>
-                    <div className="dictionary-word">
-                      <h3>{unlocked ? word.label : 'Un’idea da scoprire'}</h3>
-                      <span>
-                        {KIND_NAMES[word.kind]} · {word.tier === 0 ? 'Innato' : `Tier ${word.tier}`}
-                      </span>
-                    </div>
-                    <p>{unlocked ? word.description : word.event}</p>
-                    {unlocked && memory && (
-                      <div className="dictionary-memory">
-                        <span className="meter">
-                          <span style={{ width: `${memory.retention}%` }} />
-                        </span>
-                        <span>
-                          {numbered
-                            ? `${Math.round(memory.retention)}% memoria`
-                            : memory.retention > 70
-                              ? 'Memoria salda'
-                              : memory.retention >= 30
-                                ? 'Memoria fragile'
-                                : 'Memoria in pericolo'}
-                        </span>
-                        <span>
-                          {numbered
-                            ? memory.custodians.length
-                            : memory.custodians.length > 3
-                              ? 'Molti'
-                              : 'Pochi'}{' '}
-                          {numbered && memory.custodians.length === 1 ? 'custode' : 'custodi'}
-                        </span>
-                      </div>
-                    )}
-                    {!unlocked && <small>{word.hint}</small>}
-                    {unlocked &&
-                      hasWord(game, 'O_09') &&
-                      hasWord(game, 'V_06') &&
-                      !INNATE_WORDS.includes(id) && (
-                        <button
-                          className="text-button"
-                          onClick={() => {
-                            setSentence(['S_01', 'V_06', 'O_02', 'O_09']);
-                            setTarget({ type: 'point', id: `word:${id}`, ...game.home });
-                            closePanel();
-                          }}
-                        >
-                          Prepara una stele per questa parola <ArrowRight size={12} />
-                        </button>
-                      )}
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-          <div className="guide-note">
-            <Leaf size={17} />
-            <p>
-              Ogni parola nasce da un’esperienza. Condividila con nuovi custodi o affidala alla
-              scrittura per conservarla nel tempo.
-            </p>
-          </div>
+          <LexiconPanel
+            state={game}
+            initialSearch={lexiconSearch}
+            onPrepareStele={(id) => {
+              setSentence(['S_01', 'V_06', 'O_02', 'O_09']);
+              setTarget({ type: 'point', id: `word:${id}`, ...game.home });
+              closePanel();
+            }}
+            onOpenCampfire={(id) => {
+              setSelectedTeachingWord(id);
+              setPanel('campfire');
+            }}
+            onFocusUnit={(id) => {
+              closePanel();
+              inspectPerson(id);
+            }}
+          />
         </Modal>
       )}
 
@@ -3078,28 +3044,6 @@ function App() {
             ) : undefined
           }
         >
-          <div className="modal-symbol">
-            <Flame size={37} />
-          </div>
-          <span className="eyebrow">
-            {hasOpeningBalance(game)
-              ? 'IL SAPERE TROVA NUOVE VOCI'
-              : 'CIÒ CHE NON TRAMANDI PUÒ SCOMPARIRE'}
-          </span>
-          <h2>Attorno al falò.</h2>
-          <p className="modal-intro">Scegli una parola e affidala a una nuova voce.</p>
-          <div className="attention-counter">
-            <span>ATTENZIONE DISPONIBILE</span>
-            <strong>
-              {quantity(game.attention)}
-              <small> attenzione</small>
-            </strong>
-          </div>
-          <GuidedCouncil
-            state={game}
-            onPrepare={() => setGame((current) => prepareCampfireCouncil(current))}
-            onPrepareBrief={() => setGame((current) => prepareBriefLesson(current))}
-          />
           <TribeEvents
             state={game}
             events={(game.tribeEvents ?? []).filter(
@@ -3126,7 +3070,14 @@ function App() {
             }}
             onWord={showWordHelp}
           />
+          <GuidedCouncil
+            state={game}
+            onPrepare={() => setGame((current) => prepareCampfireCouncil(current))}
+            onPrepareBrief={() => setGame((current) => prepareBriefLesson(current))}
+          />
+
           <TeachingPanel
+            initialWordId={selectedTeachingWord}
             state={game}
             onChange={setGame}
             onFocus={(destination) => {
@@ -3135,24 +3086,19 @@ function App() {
               focusTarget(destination);
             }}
           />
-          <KnowledgeLineage
-            state={game}
-            onFocusUnit={(id) => {
-              setCouncilInspection(game.campfirePending);
-              closePanel();
-              inspectPerson(id);
-            }}
-          />
-          <p className="campfire-explanation">
-            Ogni lezione costa 10 punti Attenzione e forma un nuovo custode. Il recupero base è di{' '}
-            {game.playMode === 'guided' ? 20 : 10} punti di memoria e può aumentare con i dogmi. Al
-            cambio di stagione,{' '}
-            {hasOpeningBalance(game)
-              ? 'il consiglio dispone di una base di Attenzione. Legno bruciato e anziani la aumentano; solo la fame grave la riduce.'
-              : 'il legno bruciato e gli anziani generano Attenzione.'}{' '}
-            {game.playMode === 'guided' &&
-              'Durante il consiglio puoi ripassare una parola già nota a tutti gli allievi: costa 10 punti Attenzione e rafforza la memoria dei custodi.'}
-          </p>
+
+          <details className="secondary-section">
+            <summary>Le voci che hanno custodito il sapere</summary>
+            <KnowledgeLineage
+              state={game}
+              onFocusUnit={(id) => {
+                setCouncilInspection(game.campfirePending);
+                closePanel();
+                inspectPerson(id);
+              }}
+            />
+          </details>
+          <CouncilRules state={game} />
           <button
             className="primary-button"
             onClick={() => {
@@ -3167,11 +3113,6 @@ function App() {
 
       {panel === 'dogma' && (
         <Modal title="La Pietra Sacra" onClose={closePanel} className="dogma-modal">
-          <div className="modal-symbol">
-            <Shield size={33} />
-          </div>
-          <span className="eyebrow">DALLA PAURA NASCE UNA REGOLA</span>
-          <h2>La Pietra Sacra.</h2>
           <p className="modal-intro">
             Un dogma nato da un trauma recente restituisce 40 punti Coesione. La sua regola
             vincolerà la tribù finché non verrà abolita.
@@ -3258,7 +3199,7 @@ function App() {
                   <h3>{d.name}</h3>
                   <span>
                     {numbered
-                      ? `${d.age} ${d.age === 1 ? 'stagione' : 'stagioni'} · Peso culturale ${d.weight.toFixed(1)}`
+                      ? `${d.age} ${d.age === 1 ? 'stagione' : 'stagioni'} · Peso culturale ${formatVisibleNumber(d.weight)}`
                       : `Radicamento ${d.weight >= 30 ? 'profondo' : d.weight >= 15 ? 'forte' : 'recente'}`}
                   </span>
                   <p>{d.description}</p>
@@ -3285,11 +3226,9 @@ function App() {
 
       {panel === 'settings' && (
         <Modal title="Impostazioni e salvataggi" onClose={closePanel} className="settings-modal">
-          <span className="eyebrow">IL TEMPO È NELLE TUE MANI</span>
-          <h2>Custodisci la storia.</h2>
           <p className="modal-intro">
-            La partita si salva automaticamente in questo browser ogni cinque secondi. Esportala per
-            conservarne una copia o continuare su un altro dispositivo.
+            Salvataggio automatico attivo in questo browser. Esporta una copia per conservarla o
+            continuare su un altro dispositivo.
           </p>
           <SessionStatus
             details
@@ -3301,39 +3240,6 @@ function App() {
               setGame((current) => ({ ...current, paused: false }));
             }}
           />
-          <p className="mode-label">
-            Partita {game.playMode === 'guided' ? 'Guidata' : 'Classica'}. La modalità si sceglie
-            all’inizio di una nuova storia.
-            {game.playMode === 'guided' &&
-              (hasOpeningBalance(game)
-                ? ' Questa storia usa il primo anno disteso e il nuovo equilibrio del Falò.'
-                : ' Questa storia conserva il ritmo precedente. Le nuove Guidate usano il primo anno disteso.')}
-          </p>
-          <p className="current-map-info" aria-label="Mappa attuale">
-            {game.mapGeneration ? (
-              <>
-                {game.mapGeneration.mode === 'random' ? 'Mappa casuale' : 'Seed Zero'}
-                {' · Seed '}
-                <code>{game.mapGeneration.seed}</code>
-              </>
-            ) : (
-              'Mappa di una versione precedente · seed originale non disponibile'
-            )}
-          </p>
-          <label className="event-pause-setting">
-            <input
-              type="checkbox"
-              checked={pauseOnEvents}
-              onChange={(event) => setPauseOnEvents(event.target.checked)}
-            />
-            <span>
-              Pausa automatica sugli eventi importanti
-              <small>
-                Ferma il tempo quando appare una Scintilla, nasce o muore un compagno, oppure si
-                perde una parola. Riprendi quando sei pronto.
-              </small>
-            </span>
-          </label>
           <div className="settings-actions">
             <button onClick={saveGame}>
               <Save size={19} />
@@ -3368,6 +3274,40 @@ function App() {
               <ChevronRight size={17} />
             </button>
           </div>
+          <p className="mode-label">
+            Partita {game.playMode === 'guided' ? 'Guidata' : 'Classica'}
+            {game.playMode === 'guided'
+              ? hasOpeningBalance(game)
+                ? ' · Primo anno disteso'
+                : ' · Calendario precedente'
+              : ''}
+            . Si sceglie all’inizio di una nuova storia.
+          </p>
+          <p className="current-map-info" aria-label="Mappa attuale">
+            {game.mapGeneration ? (
+              <>
+                {game.mapGeneration.mode === 'random' ? 'Mappa casuale' : 'Seed Zero'}
+                {' · Seed '}
+                <code>{game.mapGeneration.seed}</code>
+              </>
+            ) : (
+              'Mappa di una versione precedente · seed originale non disponibile'
+            )}
+          </p>
+          <label className="event-pause-setting">
+            <input
+              type="checkbox"
+              checked={pauseOnEvents}
+              onChange={(event) => setPauseOnEvents(event.target.checked)}
+            />
+            <span>
+              Pausa automatica sugli eventi importanti
+              <small>
+                Ferma il tempo quando appare una Scintilla, nasce o muore un compagno, oppure si
+                perde una parola. Riprendi quando sei pronto.
+              </small>
+            </span>
+          </label>
           <details className="settings-preferences">
             <summary>Suoni, musica e leggibilità</summary>
             <AudioSettings
@@ -3407,14 +3347,12 @@ function App() {
           onClose={() => setPanel('settings')}
           className="confirm-modal"
         >
-          <div className="modal-symbol">
-            <RotateCcw size={29} />
+          <div className="restart-context">
+            <p>
+              La storia attuale verrà archiviata nel recupero. Esportala per conservarne anche una
+              copia personale.
+            </p>
           </div>
-          <h2>Un nuovo inizio?</h2>
-          <p>
-            Prima del nuovo inizio proveremo a conservare questa storia nel recupero. Esportala per
-            tenerne una copia indipendente dal browser.
-          </p>
           <ModePicker value={newMode} onChange={setNewMode} />
           <MapPicker
             value={newMap}
@@ -3530,21 +3468,31 @@ function ModePicker({
     <div className="mode-picker" role="group" aria-label="Modalità di gioco">
       <button type="button" aria-pressed={value === 'guided'} onClick={() => onChange('guided')}>
         <strong>Guidata</strong>
-        <small>
-          Fondatori adulti più giovani e un primo anno più disteso, con stagioni da 150 secondi,
-          prime materie comprese vivendo e più spazio per tramandare. Il primo inverno è senza
-          tormente. Dal secondo anno le stagioni durano 90 secondi. Trasporti, utensili e cottura
-          dei pasti possono proseguire durante il giorno.
-        </small>
+        <span className="choice-mark">Consigliata</span>
+        <small>Più tempo per imparare, preparare il primo inverno e tramandare il sapere.</small>
       </button>
       <button type="button" aria-pressed={value === 'classic'} onClick={() => onChange('classic')}>
         <strong>Classica</strong>
-        <small>
-          Un inizio più impegnativo: scoperta di Qui dopo due notti, anziana iniziale di quattordici
-          stagioni e rischio di tormenta già dal primo inverno. Gli ordini diretti coprono un solo
-          trasporto o manufatto.
-        </small>
+        <small>Stagioni più rapide e sopravvivenza più impegnativa, con le regole originali.</small>
       </button>
+      <details className="mode-rules">
+        <summary>Confronta le regole</summary>
+        {value === 'guided' ? (
+          <ul>
+            <li>Primo anno con stagioni da 150 secondi; dal secondo anno durano 90 secondi.</li>
+            <li>Fondatori più giovani e primo inverno senza tormente.</li>
+            <li>Trasporti, utensili e pasti possono proseguire durante il giorno.</li>
+            <li>Più custodi possono insegnare insieme al Falò.</li>
+          </ul>
+        ) : (
+          <ul>
+            <li>Stagioni da 90 secondi e tormente possibili dal primo inverno.</li>
+            <li>Qui si scopre dopo due notti; l’anziana iniziale ha quattordici stagioni.</li>
+            <li>Ogni ordine diretto completa un trasporto o manufatto.</li>
+            <li>Ogni lezione forma un nuovo custode.</li>
+          </ul>
+        )}
+      </details>
     </div>
   );
 }

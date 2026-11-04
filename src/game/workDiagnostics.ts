@@ -63,10 +63,11 @@ export function getUnitWorkStatus(state: GameState, unit: Unit): WorkStatus {
         ? 'i posti sono occupati'
         : undefined,
     ].filter(Boolean);
+    const explanation = reasons.length ? reasons.join('; ') : 'attende di riprendere';
     return result(
       'recovering',
       'Incarico in pausa',
-      `${assignment!.label}: ${reasons.length ? reasons.join('; ') : 'attende di riprendere'}. Riprenderà se è in forze, il turno lo permette e c’è un posto libero. Leggi e dogmi possono impedirlo.`,
+      `${explanation.charAt(0).toLocaleUpperCase('it')}${explanation.slice(1)}. Riprende quando bisogni, turno, regole e posti lo permettono.`,
       reasons.some((r) => r === 'deve mangiare' || r === 'deve scaldarsi') ? 'warning' : 'neutral',
       atBuilding(building),
     );
@@ -106,7 +107,7 @@ export function getUnitWorkStatus(state: GameState, unit: Unit): WorkStatus {
     return result(
       'idle',
       'Senza incarico',
-      'Non sta eseguendo ordini. Cerca cibo o riposo secondo i propri bisogni. Per ripetere un compito concluso serve un nuovo ordine.',
+      'Può ricevere un incarico. Cerca da sé cibo e riposo quando ne ha bisogno.',
     );
   if (unit.action === 'returning')
     return result(
@@ -131,7 +132,7 @@ export function getUnitWorkStatus(state: GameState, unit: Unit): WorkStatus {
       return result(
         'working',
         'Raggiunge la postazione',
-        `${assignment!.label}: è assegnato, ma deve ancora arrivare prima di contribuire.`,
+        'Raggiunge la postazione prima di iniziare il lavoro.',
         'neutral',
         atBuilding(building),
       );
@@ -146,7 +147,7 @@ export function getUnitWorkStatus(state: GameState, unit: Unit): WorkStatus {
     return result(
       'working',
       'Al lavoro',
-      `${assignment!.label}: contribuisce quando esegue il lavoro vicino alla postazione.`,
+      'Lavora alla postazione assegnata.',
       'neutral',
       atBuilding(building),
     );
@@ -179,12 +180,16 @@ export function getUnitWorkStatus(state: GameState, unit: Unit): WorkStatus {
       { type: 'entity', id: source.id, x: source.x, y: source.y },
     );
   }
-  if (unit.craftNeedsPayment)
+  if (unit.craftNeedsPayment) {
+    const cooking = unit.action === 'cooking' && unit.command?.includes('O_04');
     return result(
       'working',
-      'Prepara il prossimo manufatto',
-      'Il prossimo ciclo richiede altra pietra utilizzabile e spazio nelle scorte; altrimenti il compito si conclude.',
+      cooking ? 'Prepara il prossimo pasto' : 'Prepara il prossimo manufatto',
+      cooking
+        ? 'Per continuare servono carne, un Falò acceso e spazio nelle scorte.'
+        : 'Per continuare servono altra pietra utilizzabile e spazio nelle scorte.',
     );
+  }
   const guardingHome =
     unit.action === 'guarding' && unit.command?.includes('O_01') && !unit.command.includes('O_05');
   return result(

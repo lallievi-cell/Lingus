@@ -346,7 +346,7 @@ test('controls, cognitive HUD, and rejection of malformed imports preserve the s
   await closePanel(page);
   await expect(page.locator('.unit-card')).toHaveCount(7);
   await seed(page, 'qualitative');
-  await expect(page.locator('.world-resources')).toContainText('Molto');
+  await expect(page.locator('.world-resources')).toContainText('Abbondante');
   await expect(page.locator('.world-resources')).not.toContainText('20');
   await expect(page.locator('.world-resources')).not.toContainText('12');
 });
@@ -380,11 +380,11 @@ test('teaching uses real Attention and seasonal erosion is applied on leaving th
   const campfire = page.getByRole('dialog', { name: 'Attorno al falò' });
   await expect(campfire).toBeVisible();
   const wood = campfire.locator('.teaching-row').filter({ hasText: 'Legno' });
-  await expect(wood).toContainText('Memoria 40%');
+  await expect(wood).toContainText('40% di memoria');
   await wood.getByRole('button', { name: /Tramanda/ }).click();
-  await expect(wood).toContainText('Memoria 50%');
+  await expect(wood).toContainText('50% di memoria');
   await expect(wood).toContainText('2 custodi');
-  await expect(campfire.locator('.attention-counter')).toContainText('20');
+  await expect(campfire.locator('.council-resource-heading')).toContainText('20');
   await campfire.getByRole('button', { name: 'Custodiamo queste parole' }).click();
   const saved = await saveAndRead(page);
   // +10 from teaching, then -3*K (Legno complexity1). No grace period or second teaching bonus.
@@ -407,7 +407,7 @@ test('a trauma-linked night taboo restores cohesion, blocks commands, and exact 
   await stone.getByLabel('Una regola').selectOption('M_01');
   await expect(stone.locator('.dogma-preview')).toContainText('notte');
   await stone.getByRole('button', { name: 'Scolpisci il dogma' }).click();
-  await expect(stone.locator('.dogma-list')).toContainText('Peso culturale 10.0');
+  await expect(stone.locator('.dogma-list')).toContainText('Peso culturale 10');
   await closePanel(page);
   const healed = await saveAndRead(page);
   expect(healed.cohesion).toBe(80);
@@ -534,13 +534,13 @@ test('cognitive panels hide unknown recipes and exact memory before Numero', asy
   await expect(codex).not.toContainText('Metallo');
   await closePanel(page);
   await page.getByRole('button', { name: /Il lessico della tribù/ }).click();
-  const memory = page
-    .locator('.dictionary-entry')
-    .filter({ hasText: 'Legno' })
-    .locator('.dictionary-memory');
-  await expect(memory).toContainText('Memoria fragile');
+  const lexicon = page.getByRole('dialog', { name: 'Il lessico della tribù' });
+  await lexicon.locator('.lexicon-panel-word').filter({ hasText: 'Legno' }).click();
+  const memory = lexicon.locator('.lexicon-panel-retention');
+  await expect(memory).toContainText('Fragile');
   await expect(memory).not.toContainText('%');
-  await expect(memory).toContainText('Pochi custodi');
+  await expect(lexicon.locator('.lexicon-panel-custodians')).toContainText('custodisce');
+  await expect(lexicon.locator('.lexicon-panel-custodians')).not.toContainText(/\d/);
   await closePanel(page);
   await worldClick(page, 238, 233);
   await expect(page.locator('.map-toolbar')).toContainText('Un ostacolo senza nome');

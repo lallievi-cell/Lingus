@@ -100,13 +100,13 @@ test('the existing lesson creates a real new custodian and pays attention withou
     'È l’unica memoria di queste parole: Scheggiare',
   );
   await expect(page.locator('.individual-custody')).toContainText('«Scheggiare»');
-  await expect(page.locator('.individual-card')).toContainText('ANZIANA');
+  await expect(page.locator('.individual-card')).toContainText('Anziana');
   await expect(page.locator('.individual-card')).not.toContainText('14 STAGIONI');
   await notice.getByRole('button', { name: /Tramanda al falò/ }).click();
   const word = page.getByLabel('Parola da tramandare: Scheggiare', { exact: true });
-  await expect(word).toContainText('Ultima custode: Uma');
+  await expect(word).toContainText('Unica voce');
   await word.getByRole('button', { name: /Tramanda/ }).click();
-  await expect(word).not.toContainText('Ultima custode');
+  await expect(word).not.toContainText('Unica voce');
   await page.getByRole('button', { name: /Custodiamo queste parole/ }).click();
   await expect(notice).toHaveCount(0);
   const saved = await savedState(page);

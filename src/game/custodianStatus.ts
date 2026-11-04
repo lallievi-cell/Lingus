@@ -14,7 +14,7 @@ export interface CustodianStatus {
 
 export const CUSTODIAN_RISK_LABELS: Record<CustodianRisk, string> = {
   elder: 'Età avanzata',
-  health: 'Ferite gravi',
+  health: 'Salute critica',
   hunger: 'Fame estrema',
   cold: 'Freddo intenso',
   danger: 'Esposto allo scontro',

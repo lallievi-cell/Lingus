@@ -1,4 +1,4 @@
-import { Check, MapPin, RotateCcw, X } from 'lucide-react';
+import { Check, CirclePause, MapPin, RotateCcw, TriangleAlert, X } from 'lucide-react';
 import { hasWord } from '../game/runtime';
 import { phraseRecallIssue } from '../game/syntaxAssistant';
 import { taskPhraseLabel, type TaskOutcome } from '../game/taskOutcomes';
@@ -22,10 +22,19 @@ export function TaskOutcomes({
 }) {
   if (!outcomes.length) return null;
   return (
-    <section className="task-outcomes" aria-label="Esito degli incarichi">
+    <section
+      className={`task-outcomes reason-${outcomes[0].reason}`}
+      aria-label="Esito degli incarichi"
+    >
       <details>
         <summary>
-          <Check size={13} />
+          {outcomes[0].reason === 'completed' ? (
+            <Check size={14} />
+          ) : ['cold', 'hunger', 'danger', 'unsafe-route'].includes(outcomes[0].reason) ? (
+            <TriangleAlert size={14} />
+          ) : (
+            <CirclePause size={14} />
+          )}
           <strong>{outcomes[0].title}</strong>
           <span>{hasWord(state, 'O_08') ? `${outcomes.length} aggiornamenti` : 'Incarichi'}</span>
         </summary>

@@ -90,8 +90,16 @@ test.describe('mobile touch navigation', () => {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await expect(page.locator('.lingus-world__control-stack')).toContainText('1600');
     await expect(page.getByRole('button', { name: 'Deseleziona bersaglio' })).toHaveCount(0);
+    const overlaps = page.getByRole('group', { name: 'Scegli tra gli elementi sovrapposti' });
+    await expect(overlaps).toHaveCount(0);
     await map.tap({ position: { x: bounds.width * 0.8, y: bounds.height * 0.35 } });
-    await expect(page.getByRole('button', { name: 'Deseleziona bersaglio' })).toBeVisible();
+    // A random valley can put people under this touch. Disambiguating them is
+    // the real selection flow, rather than evidence that pinch blocked the tap.
+    const selected = page.getByRole('button', { name: 'Deseleziona bersaglio' });
+    await expect(selected.or(overlaps)).toBeVisible();
+    if (await overlaps.isVisible())
+      await overlaps.getByRole('button', { name: 'Punto sul terreno', exact: true }).tap();
+    await expect(selected).toBeVisible();
   });
 });
 

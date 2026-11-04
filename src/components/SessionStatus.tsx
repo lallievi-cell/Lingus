@@ -28,7 +28,7 @@ export function SessionStatus({
     : null;
   return (
     <section
-      className={`session-status ${status.issue ? 'has-issue' : ''} ${details ? 'is-detailed' : ''}`}
+      className={`session-status ${status.issue ? 'has-issue' : ''} ${status.warning ? 'has-warning' : ''} ${details ? 'is-detailed' : ''}`}
       role={status.issue ? 'alert' : backgroundPause ? 'status' : undefined}
       aria-label="Stato della partita"
     >

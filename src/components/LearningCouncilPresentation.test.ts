@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { createGame, teachWord } from '../game/engine';
 import type { GameState } from '../game/types';
-import { GuidedCouncil } from './GuidedCouncil';
+import { GuidedCouncil, CouncilRules } from './GuidedCouncil';
 import { TeachingPanel } from './TeachingPanel';
 
 function lessonScene() {
@@ -36,45 +36,47 @@ const panel = (state: GameState) =>
   renderToStaticMarkup(createElement(TeachingPanel, { state, onChange: () => {} }));
 const council = (state: GameState) =>
   renderToStaticMarkup(
-    createElement(GuidedCouncil, {
-      state,
-      onPrepare: () => {},
-      onPrepareBrief: () => {},
-    }),
+    createElement(
+      'div',
+      null,
+      createElement(GuidedCouncil, { state, onPrepare: () => {}, onPrepareBrief: () => {} }),
+      createElement(CouncilRules, { state }),
+    ),
   );
 
 describe('the new council explains choices without exposing hidden knowledge', () => {
   it('keeps the lesson budget consistent with an actual paid transmission', () => {
     const state = lessonScene();
     words(state, 'O_08');
-    expect(visibleText(panel(state))).toContain('Attenzione per 3 lezioni.');
+    expect(visibleText(panel(state))).toContain('3 racconti disponibili');
     const after = teachWord(state, 'O_05');
     expect(after.stats.taught).toBe(state.stats.taught + 1);
     expect(after.attention).toBe(25);
-    expect(visibleText(panel(after))).toContain('Attenzione per 2 lezioni.');
+    expect(visibleText(panel(after))).toContain('2 racconti disponibili');
     after.attention = 9;
-    expect(visibleText(panel(after))).toContain('Serve altra Attenzione per una lezione.');
+    expect(visibleText(panel(after))).toContain('Serve Attenzione');
   });
 
   it('shows a practical consequence while keeping identities and quantities unknown', () => {
     const state = lessonScene();
     const html = panel(state);
     const text = visibleText(html);
-    expect(text).toContain('Attenzione per più lezioni.');
+    expect(text).toContain('Spazio per più racconti');
     expect(text).toContain('Scaldare la comunità e condividere il sapere.');
     expect(text).not.toMatch(/Uma|Ilo|Korg|\d|%/);
     expect(text).not.toContain('Rifornire il campo con cibo e materiali.');
     state.attention = 10;
-    expect(visibleText(panel(state))).toContain('Attenzione per una lezione.');
+    expect(visibleText(panel(state))).toContain('Un racconto disponibile');
   });
 
-  it('keeps the previous council presentation for legacy Guided saves', () => {
+  it('keeps the previous council mathematics for legacy Guided saves', () => {
     const state = lessonScene();
     delete state.openingBalanceVersion;
     delete state.openingCouncilsCompleted;
     words(state, 'O_08');
     const text = visibleText(panel(state));
-    expect(text).not.toContain('Attenzione per 3 lezioni.');
+    expect(text).toContain('3 racconti disponibili');
+    expect(teachWord(state, 'O_05').words.O_05.retention).toBe(70);
     expect(text).not.toContain('Scaldare la comunità e condividere il sapere.');
     expect(visibleText(council(state))).not.toContain('Il consiglio stagionale parte da');
   });

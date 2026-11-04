@@ -59,7 +59,7 @@ describe('observable people before names and arithmetic', () => {
     expect(physicalWarnings(person).map((warning) => warning.label)).toEqual([
       'Freddo intenso',
       'Fame estrema',
-      'Ferite gravi',
+      'Salute critica',
     ]);
     const details = targetPresentation(state, {
       type: 'unit',
@@ -104,7 +104,7 @@ describe('observable people before names and arithmetic', () => {
     expect(details.stage).toContain('Deceduta');
     expect(details.description).toContain('vita si è spenta');
     expect(physicalWarnings(person)).toEqual([]);
-    expect(details.description).not.toContain('Ferite gravi');
+    expect(details.description).not.toContain('Salute critica');
   });
 
   it('retains custodian warnings without leaking names, exact ages or the undiscovered death word', () => {

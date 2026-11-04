@@ -28,8 +28,12 @@ export function ContextualDiscoveryNotice({
           La tribù {rediscovered ? 'ritrova' : 'comprende'} «{WORDS[wordId].label}»
         </strong>
         <p>{consequences[wordId]}</p>
-        <button className="text-button" onClick={() => onInspect(wordId)}>
-          <BookOpen size={13} /> Che cosa cambia?
+        <button
+          className="text-button"
+          aria-label="Che cosa cambia?"
+          onClick={() => onInspect(wordId)}
+        >
+          <BookOpen size={13} /> Dettagli
         </button>
       </div>
       <button

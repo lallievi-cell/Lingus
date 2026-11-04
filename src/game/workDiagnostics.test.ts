@@ -130,4 +130,18 @@ describe('work diagnostics observe actual assignment and needs', () => {
     expect(matchesTribeTask(unit, 'assigned')).toBe(true);
     expect(matchesTribeTask(unit, 'transport')).toBe(false);
   });
+  it('asks a repeating cook for actual meat instead of describing a stone craft', () => {
+    const state = fixture();
+    const unit = state.units[0];
+    unit.action = 'cooking';
+    unit.command = ['S_01', 'V_07', 'O_04', 'O_05'];
+    unit.craftNeedsPayment = true;
+    const before = structuredClone(state);
+    const status = getUnitWorkStatus(state, unit);
+    expect(status.title).toBe('Prepara il prossimo pasto');
+    expect(status.detail).toContain('carne');
+    expect(status.detail).toContain('Falò acceso');
+    expect(status.detail).not.toContain('pietra');
+    expect(state).toEqual(before);
+  });
 });

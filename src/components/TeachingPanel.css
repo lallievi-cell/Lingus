@@ -1,242 +1,397 @@
-.first-lesson-help {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  padding: 11px 13px;
-  background: var(--ui-panel, #f2f3e9);
-  border: 1px solid #cad3bb;
-  border-radius: 8px;
-  color: #4d6046;
-  margin: 14px 0;
-  font-size: 12px;
-  line-height: 1.5;
-}
-.opening-council > .modal-symbol {
-  display: none;
-}
-.opening-council > h2 {
-  font-size: 32px;
-  margin: 6px 0 8px;
-}
-.opening-council > .modal-intro {
-  margin-bottom: 10px !important;
-}
-.opening-council .attention-counter {
-  margin: 10px 0;
-  padding: 8px 12px;
-}
-.opening-council .attention-counter > strong {
-  font-size: 24px;
-}
-.opening-council .guided-council {
-  padding: 8px 10px;
-  margin: 8px 0;
-}
-.opening-council .guided-council > div > strong {
-  display: none;
-}
-.opening-council .first-lesson-help {
-  margin: 8px 0;
-  padding: 8px 10px;
-}
-.opening-council .first-lesson-help small {
-  font-size: 12px;
-  line-height: 1.45;
-}
-@media (max-width: 760px) {
-  .opening-council > h2 {
-    display: none;
-  }
-  .opening-council > .eyebrow {
-    display: block;
-    margin-top: 8px;
-  }
-}
-.first-lesson-help > svg {
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-.first-lesson-help p {
-  margin: 5px 0;
-}
-.first-lesson-help small {
-  display: block;
-  font-size: 11px;
-  color: #65715c;
-}
-.first-lesson-help .lesson-budget {
-  margin: 6px 0 0;
-  color: #365d3d;
-  font-size: 12px;
-  font-weight: 650;
-}
-.teaching-panel .lesson-purpose {
-  display: block;
-  margin: 3px 0 6px;
-  color: #53604c;
-  font-size: 12px;
-  line-height: 1.45;
-}
-.teaching-panel .teaching-row {
-  align-items: start;
-}
-.teaching-panel .teaching-row > svg {
-  margin-top: 3px;
-}
-.teaching-panel .teaching-word-details {
-  min-width: 0;
-}
-.teaching-panel .lesson-people {
-  display: grid;
-  gap: 4px;
-  margin-top: 7px;
-  color: #53604c;
-  font-size: 12px;
-  line-height: 1.45;
-}
-.teaching-panel .lesson-people > span {
-  display: block;
-}
-.teaching-panel .lesson-people b {
-  font-weight: 650;
-}
-.teaching-panel .lesson-person-focus {
-  display: inline-flex;
-  vertical-align: middle;
-  padding: 3px;
-  margin-left: 4px;
-  min-width: 44px;
-  min-height: 44px;
-}
-.teaching-panel .teach-button {
-  margin-top: 3px;
-}
-.teaching-panel .teach-button small {
-  display: block;
-  white-space: normal;
-  font-size: 11px;
-  line-height: 1.35;
-}
-.teaching-note,
-.teaching-blocker {
-  display: block;
-  font-size: 11px;
-  line-height: 1.5;
-  margin-top: 6px;
-}
-.teaching-note {
-  color: #627353;
-}
-.teaching-blocker {
-  color: #8d5a38;
-}
-.teaching-outcome {
-  color: #365d3d;
-  padding: 9px 12px;
-  border-left: 3px solid #7d9a66;
-  background: #eaf0df;
-  font-size: 12px;
-  line-height: 1.5;
-}
-.teaching-empty {
-  font-size: 12px;
-  line-height: 1.6;
-  color: #68715d;
-}
-.lesson-tools {
-  margin: 14px 0;
+/* The council has one scroll surface: its words never live in a nested viewport. */
+.app .teaching-panel {
+  color: var(--surface-ink, #203b2d);
   text-align: left;
 }
-.lesson-tools > div {
+.app .teaching-panel .lesson-section-heading {
   display: flex;
-  gap: 6px;
   flex-wrap: wrap;
-  margin-bottom: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 5px 12px;
+  margin: 20px 0 12px;
 }
-.lesson-tools button {
-  min-height: 40px;
-  padding: 6px 12px;
-  border: 1px solid #abb99d;
-  border-radius: 8px;
+.app .teaching-panel .lesson-section-heading h3 {
+  margin: 0;
+  font: 600 17px/1.3 var(--sans);
+  letter-spacing: -0.25px;
 }
-.lesson-tools button[aria-pressed='true'] {
-  color: #fff;
-  background: #355a43;
-  border-color: #355a43;
+.app .teaching-panel .lesson-budget {
+  margin: 0;
+  font: 500 12px/1.4 var(--sans);
+  color: var(--surface-muted, #596a5c);
 }
-.lesson-search {
+.app .teaching-panel .lesson-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+.app .teaching-panel .lesson-tools > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  border-bottom: 1px solid var(--line, #cfd3bd);
+}
+.app .teaching-panel .lesson-tools button {
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 5px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--surface-muted, #596a5c);
+  font: 600 13px/1.25 var(--sans);
+  text-align: center;
+  justify-content: center;
+  white-space: normal;
+}
+.app .teaching-panel .lesson-tools button[aria-pressed='true'] {
+  color: var(--surface-ink, #203b2d);
+  border-bottom-color: var(--accent, #a87b44);
+  background: var(--ui-panel, #eef0e4);
+}
+.app .teaching-panel .lesson-search {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 10px;
-  border: 1px solid #a9b69d;
-  border-radius: 8px;
-  background: #fffdf5;
-  color: #435a42;
+  gap: 10px;
+  margin: 0;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--line, #cfd3bd);
+  border-radius: 9px;
+  background: var(--ui-input, #fffdf4);
+  color: var(--surface-muted, #596a5c);
 }
-.lesson-search input {
-  width: 100%;
+.app .teaching-panel .lesson-search:focus-within {
+  outline: 2px solid var(--accent, #8a693a);
+  outline-offset: 2px;
+}
+.app .teaching-panel .lesson-search input {
   min-width: 0;
+  width: 100%;
   min-height: 44px;
   border: 0;
   outline: 0;
   background: transparent;
-  font: 14px var(--sans);
-  color: #253d2c;
+  color: var(--surface-ink, #203b2d);
+  font: 400 16px/1.3 var(--sans);
 }
-.lesson-search:focus-within {
-  outline: 2px solid #5e7c4c;
-  outline-offset: 1px;
+.app .teaching-panel .teaching-list {
+  max-height: none;
+  overflow: visible;
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
 }
-.lesson-explanation summary,
-.story-explanation summary {
-  cursor: pointer;
+.app .teaching-panel .teaching-row.lesson-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 9px;
+  margin: 0;
+  padding: 15px;
+  border: 1px solid var(--line, #cfd3bd);
+  border-radius: 12px;
+  background: var(--ui-input, #fffdf4);
+  text-align: left;
+  box-shadow: 0 2px 0 rgb(35 51 35 / 3%);
+}
+.app .teaching-panel .teaching-row.lesson-card.last-custodian-word {
+  border-inline-start: 3px solid #aa8045;
+}
+.app .teaching-panel .teaching-row.lesson-card.lesson-critical {
+  border-inline-start-color: #a25035;
+}
+.app .teaching-panel .lesson-card .lesson-card-heading {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+.app .teaching-panel .lesson-glyph {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--ui-panel, #eef0e4);
+  color: #647c4f;
+}
+.app .teaching-panel .lesson-card-heading h4 {
+  margin: 0 0 3px;
+  color: var(--surface-ink, #203b2d);
+  font: 650 18px/1.2 var(--sans);
+}
+.app .teaching-panel .lesson-card .lesson-memory-label {
+  color: var(--surface-muted, #596a5c);
+  font: 400 12px/1.45 var(--sans);
+}
+.app .teaching-panel .lesson-risk-icon {
+  color: #987133;
+}
+.app .teaching-panel .lesson-risk-icon.critical {
+  color: #a25035;
+}
+.app .teaching-panel .teaching-custodian {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #805c2a;
+  font: 600 12px/1.4 var(--sans);
+}
+.app .teaching-panel .teaching-custodian.critical {
+  color: #994b32;
+}
+.app .teaching-panel .lesson-card .lesson-people {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 15px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  flex-direction: row;
+  margin: 0;
   padding-block: 8px;
-  font-size: 12px;
-  line-height: 1.5;
+  border-block: 1px solid var(--line, #e1e2d1);
 }
-.modal-toolbar {
-  display: contents;
+.app .teaching-panel .lesson-people > span {
+  position: relative;
+  min-width: 0;
+  font: 400 12px/1.45 var(--sans);
+  color: var(--surface-ink, #203b2d);
+  overflow-wrap: anywhere;
 }
-.modal-toolbar > span {
-  display: none;
+.app .teaching-panel .lesson-people > span:first-child {
+  padding-inline-end: 35px;
 }
-.modal-toolbar-actions {
-  display: contents;
+.app .teaching-panel .lesson-people b {
+  display: block;
+  margin-bottom: 2px;
+  font-weight: 500;
+  color: var(--surface-muted, #596a5c);
 }
-.council-finish {
+.app .teaching-panel .lesson-transfer-arrow {
+  color: #9a8155;
+}
+.app .teaching-panel .lesson-person-focus {
   position: absolute;
-  top: 16px;
-  right: 20px;
+  inset-inline-end: -4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  margin: 0;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
   min-height: 44px;
+  background: transparent;
+  border: 0;
+  color: var(--surface-ink, #203b2d);
 }
-@media (max-width: 600px) {
-  .teaching-panel .teaching-row {
-    grid-template-columns: 25px minmax(0, 1fr);
-    gap: 8px;
-  }
-  .teaching-panel .teach-button {
-    grid-column: 2;
-    justify-self: start;
-    min-height: 40px;
-    display: flex;
-    gap: 9px;
-    align-items: center;
-    margin-top: 0;
-  }
-  .teaching-panel .lesson-person-focus {
-    min-height: 34px;
-    min-width: 34px;
-  }
+.app .teaching-panel .lesson-card .lesson-card-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
 }
-.fuel-preparation > summary {
+.app .teaching-panel .teaching-note,
+.app .teaching-panel .teaching-blocker {
+  display: block;
+  margin: 0;
+  font: 400 12px/1.5 var(--sans);
+}
+.app .teaching-panel .teaching-note {
+  color: var(--surface-muted, #596a5c);
+}
+.app .teaching-panel .teaching-blocker {
+  color: #875b33;
+}
+.app .teaching-panel .lesson-card .teach-button {
+  display: flex;
+  flex-direction: column;
+  grid-column: auto;
+  justify-self: stretch;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+  min-width: 108px;
+  min-height: 48px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #31553f;
+  background: #31553f;
+  color: #fffbee;
+  font: 650 14px/1.25 var(--sans);
+}
+.app .teaching-panel .lesson-card .teach-button:disabled {
+  color: #4f5c48;
+  background: #e8eadc;
+  border-color: #c4cbb6;
+  opacity: 1;
+}
+.app .teaching-panel .lesson-card .teach-button small {
+  display: block;
+  color: inherit;
+  font: 400 11px/1.35 var(--sans);
+}
+.app .teaching-panel .lesson-card .lesson-purpose {
+  margin: 0;
+  font: 400 12px/1.45 var(--sans);
+  color: var(--surface-muted, #596a5c);
+}
+.app .teaching-panel .teaching-outcome {
+  margin: 0 0 12px;
+  padding: 11px 13px;
+  border-left: 3px solid #698857;
+  border-radius: 4px;
+  background: #edf2e1;
+  color: #31553f;
+  font: 500 13px/1.5 var(--sans);
+}
+.app .teaching-panel .teaching-empty {
+  margin: 12px 0;
+  color: var(--surface-muted, #596a5c);
+  font: 400 13px/1.5 var(--sans);
+}
+.app .teaching-panel .lesson-rules {
+  margin-top: 14px;
+  border-top: 1px solid var(--line, #cfd3bd);
+}
+.app .teaching-panel .lesson-rules summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 0;
   cursor: pointer;
-  min-height: 44px;
-  padding-block: 10px;
-  font-size: 12px;
-  line-height: 1.5;
+  font: 500 13px/1.4 var(--sans);
+  color: var(--surface-muted, #596a5c);
 }
-.lesson-explanation > summary strong {
-  font: inherit;
-  font-weight: 650;
+.app .teaching-panel .lesson-rules p {
+  margin: 0 0 10px;
+  font: 400 13px/1.55 var(--sans);
+}
+/* This component is also used by Classic, where funding is read-only. */
+.app .campfire-modal .council-resource-card {
+  display: block;
+  margin: 0 0 15px;
+  padding: 14px;
+  border: 1px solid var(--line, #cfd3bd);
+  border-radius: 12px;
+  background: var(--ui-panel, #eef0e4);
+  text-align: left;
+}
+.app .campfire-modal .council-resource-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.app .campfire-modal .council-resource-heading > svg {
+  flex-shrink: 0;
+  color: #a1753d;
+}
+.app .campfire-modal .council-resource-heading > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+.app .campfire-modal .council-resource-label {
+  font: 500 11px/1.3 var(--sans);
+  color: var(--surface-muted, #596a5c);
+}
+.app .campfire-modal .council-resource-heading strong {
+  font: 650 20px/1.2 var(--sans);
+  color: var(--surface-ink, #203b2d);
+}
+.app .campfire-modal .council-capacity {
+  margin-inline-start: auto;
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: #e4e9d6;
+  color: #3a5b36;
+  font: 500 11px/1.35 var(--sans);
+}
+.app .campfire-modal .council-capacity.is-empty {
+  color: #775b35;
+  background: #eee5d0;
+}
+.app .campfire-modal .council-fuel-action {
+  margin-top: 11px;
+}
+.app .campfire-modal .council-fuel-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid #8c9d76;
+  border-radius: 7px;
+  background: #fffdf4;
+  color: #2e5039;
+  font: 600 13px/1.4 var(--sans);
+  text-align: center;
+  white-space: normal;
+}
+.app .campfire-modal .council-fuel-button:disabled {
+  color: #4f5c48;
+  background: #e2e5d6;
+  border-color: #c4cbb6;
+  opacity: 1;
+}
+.app .campfire-modal .council-fuel-action > small,
+.app .campfire-modal .council-classic-note {
+  display: block;
+  margin: 8px 0 0;
+  color: var(--surface-muted, #596a5c);
+  font: 400 12px/1.5 var(--sans);
+}
+.app .campfire-modal .council-resource-card .fuel-preparation,
+.app .campfire-modal .council-resource-card .council-rule-help {
+  margin: 8px 0 0;
+  padding-top: 4px;
+  border-top: 1px solid var(--line, #cfd3bd);
+}
+.app .campfire-modal .council-resource-card summary {
+  min-height: 44px;
+  padding: 10px 0;
+  color: var(--surface-muted, #596a5c);
+  font: 500 12px/1.5 var(--sans);
+  cursor: pointer;
+}
+.app .campfire-modal .council-resource-card .story-explanation p {
+  margin: 0 0 9px;
+  font: 400 12px/1.5 var(--sans);
+}
+@media (max-width: 420px) {
+  .app .teaching-panel .teaching-row.lesson-card {
+    padding: 12px;
+  }
+  .app .teaching-panel .lesson-card .lesson-card-action {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .app .teaching-panel .lesson-card .teach-button {
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+    min-width: 0;
+  }
+}
+.app[data-text-size='large']
+  .teaching-panel
+  :is(.lesson-memory-label, .lesson-people > span, .teaching-custodian, .lesson-purpose),
+.app[data-text-size='large']
+  .council-resource-card
+  :is(.council-resource-label, .council-capacity) {
+  font-size: 14px !important;
+  line-height: 1.45 !important;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 
 export function Modal({
@@ -15,6 +15,7 @@ export function Modal({
   headerAction?: ReactNode;
 }) {
   const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     dialog.current?.focus();
@@ -65,11 +66,14 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        aria-labelledby={titleId}
         tabIndex={-1}
         ref={dialog}
       >
         <div className="modal-toolbar">
-          <span>{title}</span>
+          <h2 id={titleId} className="modal-title">
+            {title}
+          </h2>
           <div className="modal-toolbar-actions">
             {headerAction}
             {onClose && (

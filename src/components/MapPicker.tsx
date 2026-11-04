@@ -42,10 +42,7 @@ export function MapPicker({
       <div className="map-picker-options">
         <button type="button" aria-pressed={value === 'random'} onClick={() => onChange('random')}>
           <strong>Casuale</strong>
-          <small>
-            Una valle diversa, con nuovi paesaggi e una nuova disposizione di risorse, animali e
-            villaggi.
-          </small>
+          <small>Nuovi paesaggi, risorse e popoli a ogni partita.</small>
         </button>
         <button
           type="button"
@@ -53,10 +50,7 @@ export function MapPicker({
           onClick={() => onChange('seed-zero')}
         >
           <strong>Seed Zero</strong>
-          <small>
-            La valle originaria: paesaggi, risorse e villaggi nelle posizioni dello scenario
-            iniziale.
-          </small>
+          <small>La valle originaria, con la stessa disposizione iniziale.</small>
         </button>
       </div>
       {value === 'random' && (
@@ -85,8 +79,7 @@ export function MapPicker({
             </small>
           ) : (
             <small id="map-seed-hint">
-              Il seed è il codice della valle: usa lo stesso numero per ritrovarla. Lascia il campo
-              vuoto per una nuova mappa.
+              Conserva questo codice per ritrovare la valle. Vuoto: una nuova mappa casuale.
             </small>
           )}
         </div>

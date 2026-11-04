@@ -9,7 +9,6 @@ import {
   MapPin,
   Mountain,
   MoveUpRight,
-  PackageCheck,
   Sprout,
   Swords,
   TreePine,
@@ -54,11 +53,7 @@ export function CampInventoryPanel({
   return (
     <div className="camp-inventory">
       <div className="camp-inventory-intro">
-        <span className="camp-inventory-seal" aria-hidden="true">
-          <PackageCheck size={24} />
-        </span>
         <div>
-          <h2>{state.urbanized ? 'Le scorte della capitale' : 'Le scorte della tribù'}</h2>
           <p>
             {delivered
               ? 'Queste risorse sono già consegnate e disponibili.'

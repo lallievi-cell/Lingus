@@ -34,7 +34,6 @@ export function SurvivalAdvisor({
       {advice.priority === 'danger' ? <TriangleAlert size={18} /> : <Flame size={18} />}
       <div>
         <strong>{advice.title}</strong>
-        <p>{advice.text}</p>
         <div className="advisor-actions">
           <button className="text-button" onClick={act} disabled={blocked}>
             {advice.actionLabel}
@@ -45,6 +44,10 @@ export function SurvivalAdvisor({
             </button>
           )}
         </div>
+        <details className="advisor-context">
+          <summary>Perché è importante</summary>
+          <p>{advice.text}</p>
+        </details>
         {blocked && (
           <small>
             {state.campfirePending

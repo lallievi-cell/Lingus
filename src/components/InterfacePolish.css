@@ -1,0 +1,956 @@
+/* The final shared interface layer: rhythm, surfaces and control hierarchy.
+   Screen-specific layouts live in their components; world art stays untouched. */
+.app {
+  --surface-paper: color-mix(in srgb, var(--ui-panel, #faf6eb) 72%, #fffdf7);
+  --surface-ink: #213a30;
+  --surface-muted: #5e6b60;
+  --surface-edge: #c7c8b5;
+  --control-radius: 10px;
+  --panel-radius: 18px;
+  --ui-body: 14px;
+  --ui-caption: 12px;
+}
+.app :is(button, input, select, summary) {
+  touch-action: manipulation;
+}
+.app :is(button, input, select, textarea) {
+  font-family: var(--sans, 'DM Sans Variable', sans-serif);
+}
+.app button {
+  -webkit-tap-highlight-color: transparent;
+}
+.app button:disabled {
+  cursor: not-allowed;
+}
+.app .modal-scrim {
+  padding: 24px;
+  background: #0b191bd1;
+  backdrop-filter: blur(7px);
+}
+.app .modal {
+  padding: 0 24px 24px;
+  max-height: calc(100dvh - 48px);
+  color: var(--surface-ink);
+  background-color: var(--surface-paper);
+  background-image: none;
+  border: 1px solid var(--ui-frame, #98a18a);
+  border-radius: var(--panel-radius);
+  box-shadow: 0 24px 90px #0007;
+  scrollbar-width: thin;
+  scrollbar-color: #a6b199 transparent;
+  overflow-x: hidden;
+  scroll-padding-top: 72px;
+}
+.app .modal::before {
+  display: none;
+}
+.app .modal .modal-toolbar {
+  position: sticky;
+  z-index: 12;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 62px;
+  margin: 0 -24px 20px;
+  padding: 8px 12px 8px 24px;
+  background: var(--hud-surface);
+  color: var(--hud-ink);
+  border: 0;
+  border-bottom: 1px solid #aab58b4d;
+  border-radius: 0;
+  box-shadow: 0 2px 8px #17271d12;
+}
+.app .modal .modal-toolbar .modal-title {
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  color: inherit;
+  font: 650 17px/1.3 var(--sans, sans-serif);
+  letter-spacing: -0.25px;
+  text-align: left;
+}
+.app .modal .modal-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.app .modal .modal-toolbar .text-button {
+  background: var(--hud-raised);
+  color: var(--hud-ink);
+  border-color: var(--hud-line);
+  min-height: 44px;
+}
+.app .modal .modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid #c5cbb938;
+  background: #ffffff08;
+  color: var(--hud-ink);
+}
+.app .modal .modal-toolbar .welcome-start {
+  background: #e7c486;
+  color: #172c21;
+  border-color: #f7dfa9;
+  font-weight: 700;
+}
+.app .modal .modal-toolbar .welcome-start:disabled {
+  opacity: 0.55;
+}
+.app .camp-inventory {
+  gap: 14px;
+}
+.app .camp-inventory-intro p {
+  margin: 0;
+  font-size: 13px;
+}
+.app .modal > h2:not(.modal-title) {
+  margin: 8px 0 16px;
+  font-size: clamp(26px, 4vw, 36px);
+  line-height: 1.15;
+}
+.app .modal > .modal-symbol {
+  margin: 12px 0;
+  width: auto;
+  height: auto;
+}
+.app .modal :is(p, label, li, dd) {
+  font-size: var(--ui-body);
+  line-height: 1.55;
+}
+.app .modal > .eyebrow {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  letter-spacing: 1.3px;
+}
+.app .modal .modal-intro {
+  margin: 0 0 20px;
+  color: var(--surface-muted);
+  font-size: 14px;
+}
+.app :is(.modal, .tribe-panel, .discovery-panel) .text-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 8px 12px;
+  max-width: 100%;
+  border: 1px solid #8b9c7938;
+  border-radius: 9px;
+  color: var(--surface-ink);
+  background: #ffffff70;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-decoration: none;
+}
+.app .modal .primary-button {
+  min-height: 48px;
+  padding: 12px 20px;
+  border-radius: 11px;
+  font: 650 14px/1.35 var(--sans, sans-serif);
+}
+.app .modal :is(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+  min-height: 44px;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid #b7c0ac;
+  border-radius: 10px;
+  background: #fffdf7;
+  color: var(--surface-ink);
+  padding: 10px 12px;
+  font-size: 14px;
+}
+.app .modal :is(details > summary) {
+  min-height: 44px;
+  padding-block: 10px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.app .modal .search-field {
+  min-height: 46px;
+  margin: 12px 0;
+  padding: 0 12px;
+  border-radius: 10px;
+}
+.app
+  .modal
+  :is(.search-field, .lesson-search, .lexicon-panel-search > label, .civ-search)
+  input:not([type='checkbox']):not([type='radio']) {
+  min-height: 44px;
+  border: 0;
+  padding: 8px;
+  background: transparent;
+}
+.app .modal .guide-note {
+  padding: 12px;
+  margin: 14px 0;
+  border-width: 1px;
+  box-shadow: none;
+}
+.app .modal .guide-note p {
+  margin: 0;
+  font-size: 13px;
+}
+.app .modal .secondary-section {
+  margin-top: 14px;
+  border-top: 1px solid #c5ccb7;
+}
+.app .modal .secondary-section > summary {
+  color: var(--surface-muted);
+  font-weight: 650;
+}
+.app .modal .secondary-section .knowledge-lineage {
+  margin-top: 0;
+}
+
+/* Start a story: the decision is readable before the optional rulebook. */
+.app .mode-picker {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin: 12px 0;
+}
+.app .mode-picker > button {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  padding: 14px 16px;
+  min-width: 0;
+  text-align: left;
+  border: 1px solid #bbc5b1;
+  border-radius: 12px;
+  color: var(--surface-ink);
+  background: #fffdf7;
+}
+.app .mode-picker > button[aria-pressed='true'] {
+  border-color: #4f7553;
+  background: #eaf0df;
+  box-shadow: inset 3px 0 #4f7553;
+}
+.app .mode-picker > button > strong {
+  font-size: 17px;
+  line-height: 1.3;
+}
+.app .mode-picker > button > small {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--surface-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.app .mode-picker .choice-mark {
+  align-self: center;
+  color: #4b6c43;
+  font-size: 11px;
+  font-weight: 650;
+}
+.app .mode-rules {
+  margin: 0 0 18px;
+  color: var(--surface-muted);
+}
+.app .mode-rules ul {
+  margin: 0 0 8px;
+  padding-left: 19px;
+}
+.app .mode-rules li {
+  margin-bottom: 5px;
+  font-size: 13px;
+}
+.app .map-picker {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  margin: 18px 0;
+}
+.app .map-picker-heading {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 650;
+}
+.app .map-picker-options {
+  gap: 8px;
+}
+.app .map-picker-options button {
+  padding: 12px;
+  border-radius: 11px;
+  min-height: 92px;
+}
+.app .map-picker-options strong {
+  font-size: 14px;
+}
+.app .map-picker-options small {
+  font-size: 12px;
+  line-height: 1.4;
+}
+.app .map-seed-control {
+  margin-top: 12px;
+}
+.app .map-seed-control label {
+  font-size: 12px;
+}
+.app .map-seed-control > small {
+  font-size: 12px;
+  color: var(--surface-muted);
+}
+.app .restart-context {
+  padding: 10px 12px;
+  margin: 0 0 16px;
+  border-left: 3px solid #b58d58;
+  background: #e9e7d54d;
+}
+.app .restart-context p {
+  margin: 0;
+  font-size: 13px;
+}
+.app .confirm-modal > .primary-button {
+  margin-top: 8px;
+  width: 100%;
+}
+
+/* Information in the roster reads like a character sheet, not a report. */
+.app .tribe-heading {
+  padding-bottom: 10px;
+}
+.app .tribe-heading .eyebrow,
+.app .tribe-heading > p {
+  display: none;
+}
+.app .tribe-heading h2 {
+  margin: 0;
+  font-size: 27px;
+}
+.app .individual-card.person-details {
+  padding: 14px;
+  border: 1px solid #b3c2a4;
+  border-left: 3px solid #5c7b4a;
+  border-radius: 12px;
+  background: #f1f2e5;
+  width: 100%;
+  min-width: 0;
+  align-self: stretch;
+  box-sizing: border-box;
+}
+.app .settings-modal .session-status:not(.has-issue) {
+  padding: 10px 12px;
+  gap: 8px;
+}
+.app .settings-modal .session-status:not(.has-issue):not(.has-warning) p {
+  display: none;
+}
+.app .settings-modal .session-status:not(.has-issue) strong {
+  font-size: 12px;
+}
+.app .campfire-modal .season-events {
+  margin: 0 0 12px;
+  padding: 12px;
+  background: #edf0e1;
+  border: 1px solid #b5c5a6;
+  border-radius: 10px;
+}
+.app .council-life-preview > .tribe-event {
+  padding: 0;
+  background: transparent;
+}
+.app .council-life-preview .event-actions {
+  max-height: none;
+  overflow: visible;
+}
+.app .council-life-preview strong {
+  font-size: 14px;
+}
+.app .council-life-preview p {
+  margin: 4px 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.app .council-life-history > summary {
+  min-height: 44px;
+  padding: 12px 0 4px;
+  font-size: 12px;
+}
+.app .person-details :is(p, .unit-work-status) {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.app .person-details .person-life-hint {
+  margin: 5px 0;
+}
+.app .person-details .person-demographics {
+  margin-bottom: 5px;
+}
+.app .person-details .selected-person-name {
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.2px;
+}
+.app .person-details .work-status {
+  padding: 9px 11px;
+  margin-block: 8px;
+}
+.app .person-details .work-status strong {
+  font-size: 13px;
+}
+.app .person-details .work-status p {
+  margin-bottom: 0;
+}
+.app .person-vitals {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 12px 0 4px;
+}
+.app .person-vitals > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 650;
+  font-size: 13px;
+}
+.app .person-abilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0;
+  color: var(--surface-muted);
+}
+.app .person-abilities > span {
+  font-size: 12px;
+}
+.app .person-details > .person-more {
+  border-top: 1px solid #c7cfbb;
+  margin-top: 10px;
+}
+.app .person-more summary {
+  min-height: 44px;
+  padding: 12px 0;
+  font-size: 12px;
+  font-weight: 650;
+}
+.app .unit-list {
+  gap: 8px;
+}
+.app .unit-card {
+  border-radius: 12px;
+  padding: 11px 12px;
+}
+.app .unit-card .unit-info > strong {
+  font-size: 15px;
+}
+.app .person-metadata {
+  font-size: 12px;
+}
+.app .community-outlook > .growth-readiness {
+  margin: 12px 0;
+}
+.app .settings-modal .settings-actions {
+  margin-top: 16px;
+  gap: 0;
+  border-block: 1px solid #d0d3c2;
+}
+.app .settings-modal .settings-actions > button {
+  min-height: 64px;
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid #d0d3c2;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.app .settings-modal .settings-actions > button:last-child {
+  border-bottom: 0;
+}
+.app .settings-modal .settings-actions strong {
+  font-size: 14px;
+}
+.app .settings-modal .settings-actions small {
+  margin-top: 3px;
+  font-size: 12px;
+}
+.app .settings-modal .mode-label {
+  margin-block: 8px;
+  font-size: 13px;
+}
+.app .settings-modal > .settings-preferences {
+  margin: 16px 0;
+  border-bottom: 1px solid #d0d3c2;
+}
+.app .settings-modal .save-stats {
+  margin-top: 18px;
+}
+.app .settings-modal .current-map-info {
+  font-size: 12px;
+  margin: 0 0 8px;
+}
+
+@media (max-width: 860px) {
+  .app .spark-modal .puzzle-label {
+    font-size: 13px !important;
+    color: var(--surface-muted) !important;
+    line-height: 1.5;
+  }
+  .app .spark-modal .puzzle-warning {
+    font-size: 12px;
+    line-height: 1.5;
+    text-align: left;
+  }
+  .app .spark-modal .puzzle-words {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-content: start;
+    gap: 6px;
+    padding: 4px;
+    max-height: min(36dvh, 260px);
+  }
+  .app[data-text-size='large'] .spark-modal .puzzle-words {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .app .spark-modal .puzzle-words .word-tile {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 80px !important;
+    max-height: none !important;
+    padding: 8px 6px !important;
+  }
+  .app .spark-modal .puzzle-words .word-label {
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    font-size: 13px !important;
+    line-height: 1.3;
+  }
+  .app .spark-modal .puzzle-words .word-kind {
+    font-size: 10px !important;
+    white-space: normal !important;
+  }
+  .app[data-text-size='large'] .spark-modal .puzzle-words .word-label {
+    font-size: 16px !important;
+  }
+  .app[data-text-size='large'] .spark-modal .puzzle-words .word-kind {
+    font-size: 14px !important;
+  }
+  .app .spark-modal .puzzle-slots {
+    flex-wrap: wrap;
+  }
+  .app .spark-modal .puzzle-slot {
+    flex: 0 1 110px;
+    max-width: calc(50% - 6px);
+    min-width: 0;
+    min-height: 56px;
+    padding: 8px;
+  }
+  .app .spark-modal .puzzle-slot > span {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .app .modal :is(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+    font-size: 16px;
+  }
+  .app[data-text-size='large']
+    .modal
+    :is(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+    font-size: 16px !important;
+  }
+  .app .teaching-panel .lesson-card-action .teach-button {
+    grid-row: 1;
+  }
+  .app .custodian-notice {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 8px;
+    padding: 10px;
+    margin-block: 10px;
+  }
+  .app .custodian-notice .custodian-notice-heading {
+    grid-column: 1;
+    margin: 0;
+    font-size: 12px;
+  }
+  .app .custodian-notice > p {
+    grid-column: 1 / -1;
+    margin: 2px 0;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .app .custodian-notice > .custodian-reasons {
+    grid-column: 1;
+    font-size: 11px;
+  }
+  .app .custodian-notice .custodian-explanation {
+    grid-column: 1 / -1;
+  }
+  .app .custodian-notice .custodian-explanation:not([open]) {
+    display: block;
+  }
+  .app .custodian-notice .custodian-transmit {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 44px;
+    width: auto;
+    margin: 0;
+    padding: 7px 9px;
+    font-size: 12px;
+  }
+  .app .modal-scrim {
+    padding: 8px;
+    padding-top: max(8px, env(safe-area-inset-top));
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+  .app .modal {
+    width: 100%;
+    max-height: calc(
+      var(--lingus-viewport-height, 100dvh) - 16px - env(safe-area-inset-top, 0px) -
+        env(safe-area-inset-bottom, 0px)
+    );
+    margin: 0;
+    padding: 0 16px 18px;
+    border-radius: 16px;
+  }
+  .app .modal .modal-toolbar {
+    margin: 0 -16px 16px;
+    min-height: 56px;
+    padding: 6px 8px 6px 16px;
+  }
+  .app .modal .modal-toolbar .modal-title {
+    font-size: 15px;
+  }
+  .app .modal > h2:not(.modal-title) {
+    font-size: 28px;
+  }
+  .app .modal :is(p, label, li, dd) {
+    font-size: 14px;
+  }
+  .app .modal .modal-intro {
+    font-size: 13px;
+    margin-bottom: 14px;
+  }
+  .app .world-strip:has(.stock-summary) {
+    flex-basis: 42px;
+    height: 42px !important;
+  }
+  .app .world-resources:has(.stock-summary) {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+    gap: 8px !important;
+    width: 100%;
+  }
+  .app .world-resources > .stock-summary {
+    display: grid;
+    grid-template-columns: 12px minmax(0, 1fr);
+    gap: 1px 4px;
+    min-width: 0;
+    line-height: 1.2;
+  }
+  .app .world-resources > .stock-summary > svg {
+    width: 12px;
+    height: 12px;
+  }
+  .app .world-resources > .stock-summary > small {
+    display: block;
+    font-size: 10px;
+  }
+  .app .world-resources .stock-value {
+    grid-column: 1 / -1;
+    font-size: 12px;
+    line-height: 1.2;
+  }
+  .app .world-resources:has(.stock-summary) .season-chip {
+    margin-left: 0;
+    max-width: 80px;
+    overflow: visible;
+    white-space: normal;
+  }
+  .app .map-notices {
+    max-height: min(23dvh, 138px);
+    box-shadow: none;
+    background: #faf6eb;
+  }
+  .app .map-notices:has(.foreign-pressure) {
+    max-height: min(28dvh, 184px);
+  }
+  .app .map-notices:has(.foreign-pressure) > :is(.opening-guide, .task-outcomes) {
+    display: none;
+  }
+  .app .opening-guide {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 0 4px;
+    padding: 4px 8px;
+  }
+  .app .opening-guide > svg {
+    display: none;
+  }
+  .app .opening-guide > div {
+    min-width: 0;
+  }
+  .app .opening-guide strong {
+    display: block;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    line-height: 1.3;
+    font-size: 12px;
+  }
+  .app .map-notices .opening-guide:not(.expanded) strong {
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+  }
+  .app .opening-guide .guide-next {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+    min-height: 44px;
+    padding: 4px 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    white-space: normal;
+  }
+  .app .opening-guide .guide-next > svg {
+    flex: 0 0 auto;
+  }
+  .app .opening-guide .guide-action {
+    grid-column: 1;
+    justify-self: start;
+  }
+  .app .opening-guide .guide-home {
+    width: 44px;
+    padding: 0;
+  }
+  .app .opening-guide .guide-home > span {
+    display: none;
+  }
+  .app .opening-guide .guide-toggle {
+    min-width: 44px;
+    padding-inline: 8px;
+  }
+  .app .opening-guide.expanded > div {
+    grid-column: 1 / -1;
+  }
+  .app .opening-guide.expanded > div > :is(p, span) {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .app .contextual-discovery-notice {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr) 44px;
+    gap: 8px;
+    align-items: start;
+    padding: 8px 10px;
+  }
+  .app .contextual-discovery-notice strong {
+    font-size: 12px;
+  }
+  .app .contextual-discovery-notice p {
+    display: none;
+  }
+  .app .contextual-discovery-notice > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .app .contextual-discovery-notice .text-button {
+    min-height: 44px;
+    flex: 0 0 auto;
+    padding: 0 4px;
+    border: 0;
+    background: transparent;
+    font-size: 12px;
+  }
+  .app .contextual-discovery-notice .text-button::after {
+    content: ' →';
+  }
+  .app .contextual-discovery-notice .text-button > svg {
+    display: none;
+  }
+  .app .task-outcomes > details > summary {
+    min-height: 44px;
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+  .app .task-outcomes > details > summary > span {
+    font-size: 10px;
+  }
+  .app .mobile-spark-pill {
+    max-width: calc(100% - 16px);
+    margin: 4px 8px;
+    min-height: 44px;
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 10px;
+  }
+  .app .mobile-ergonomic .language-footer .order-preview:not([open]) > summary {
+    width: 44px;
+    min-width: 44px;
+    padding: 0;
+  }
+  .app .mobile-ergonomic .order-preview:not([open]) .preview-mobile-label {
+    display: none;
+  }
+  .app .person-details .person-more .growth-readiness {
+    padding: 8px 0;
+    background: transparent;
+    border: 0;
+  }
+  .app .survival-advisor {
+    padding: 6px 10px;
+  }
+  .app .survival-advisor > div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0 8px;
+  }
+  .app .survival-advisor strong {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .app .survival-advisor .advisor-actions {
+    grid-column: 2;
+    grid-row: 1;
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+  .app .survival-advisor .advisor-actions button {
+    min-height: 44px;
+    padding: 6px;
+    font-size: 12px;
+  }
+  .app .survival-advisor .advisor-context {
+    grid-column: 1 / -1;
+  }
+  .app .survival-advisor .advisor-context summary {
+    min-height: 44px;
+    padding: 12px 0;
+    font-size: 12px;
+  }
+  .app .survival-advisor .advisor-context p {
+    max-height: none;
+    overflow: visible;
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 10px;
+  }
+  .app .survival-advisor small {
+    grid-column: 1 / -1;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .app
+    .task-outcomes:is(.reason-cold, .reason-hunger, .reason-danger, .reason-unsafe-route)
+    summary {
+    color: #8b442a;
+  }
+  .app .discovery-panel.mobile-visible .quiet-card {
+    min-height: 0;
+    padding: 10px 14px !important;
+    text-align: left !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+  .app .discovery-panel.mobile-visible .quiet-card :is(.quiet-illustration, h2, .tiny-divider) {
+    display: none !important;
+  }
+  .app .discovery-panel.mobile-visible .quiet-card p {
+    margin: 0;
+    text-align: left !important;
+    font-size: 13px !important;
+    line-height: 1.45 !important;
+  }
+  .app[data-text-size='large'] .discovery-panel.mobile-visible .quiet-card p {
+    font-size: 14px !important;
+  }
+  .app .discovery-panel .objective-card {
+    margin: 0 12px 10px;
+    padding: 12px;
+  }
+  .app .discovery-panel .objective-heading {
+    margin: 6px 0;
+    gap: 8px;
+  }
+  .app .discovery-panel .objective-heading h3 {
+    font-size: 16px;
+    line-height: 1.3;
+  }
+  .app .discovery-panel .objective-card > p {
+    font-size: 13px;
+    line-height: 1.45;
+    margin: 6px 0;
+  }
+  .app .discovery-panel .objective-count > span {
+    display: none;
+  }
+  .app .discovery-panel .objective-count {
+    justify-content: flex-end;
+    margin-top: 6px;
+  }
+}
+@media (max-width: 360px) {
+  .app .spark-modal .puzzle-words {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .app .map-picker-options {
+    grid-template-columns: 1fr;
+  }
+  .app .map-picker-options button {
+    min-height: 70px;
+  }
+  .app .world-resources:has(.stock-summary) {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) 52px;
+    gap: 4px !important;
+  }
+  .app .world-resources:has(.stock-summary) .season-chip > svg {
+    display: none;
+  }
+  .app .world-resources .season-chip {
+    max-width: 72px;
+  }
+  .app .modal .modal-toolbar .modal-title {
+    font-size: 14px;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .app .modal {
+    animation: interface-surface-in 160ms ease-out;
+  }
+  .app :is(.modal button, .unit-card) {
+    transition:
+      background-color 120ms,
+      border-color 120ms;
+  }
+  @keyframes interface-surface-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app .modal {
+    animation: none;
+  }
+}

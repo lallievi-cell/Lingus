@@ -254,3 +254,40 @@ test('an order refused by the real handler does not become a remembered success'
   expect(next.phrasebook).toBeUndefined();
   expect(next.voice).toBe(state.voice);
 });
+
+test('switching libraries starts with a complete row and details open without preparing or spending', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const state = camp();
+  await load(page, state);
+  await page.getByRole('button', { name: 'Apri frasario', exact: true }).click();
+  const library = book(page);
+  await library.locator('.phrasebook-results').evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  await library.getByRole('tab', { name: 'Costruzioni', exact: true }).click();
+  const results = library.getByRole('tabpanel');
+  await expect.poll(() => results.evaluate((element) => element.scrollTop)).toBe(0);
+  const first = library.getByRole('article').first();
+  const panelBounds = (await results.boundingBox())!;
+  const rowBounds = (await first.boundingBox())!;
+  expect(rowBounds.y).toBeGreaterThanOrEqual(panelBounds.y);
+  await page.screenshot({ path: test.info().outputPath('compact-construction-library.png') });
+  const toggle = first.getByRole('button', { name: /^Dettagli della frase:/ });
+  expect((await toggle.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await expect(first.getByRole('region', { name: 'Materiali e gestione' })).toBeHidden();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(first.getByRole('region', { name: 'Materiali e gestione' })).toBeVisible();
+  await expect(first.getByLabel('Parole della frase')).toBeVisible();
+  await library.screenshot({ path: test.info().outputPath('expanded-building-recipe.png') });
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await library.getByRole('button', { name: 'Chiudi frasario', exact: true }).click();
+  const after = await saved(page);
+  expect(after.voice).toBe(state.voice);
+  expect(after.stats.commands).toBe(0);
+  expect(after.resources).toEqual(state.resources);
+  expect(after.phrasebook).toBeUndefined();
+});

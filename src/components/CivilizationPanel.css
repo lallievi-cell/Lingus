@@ -1,0 +1,674 @@
+/* Strategy panels share one reading rhythm: current state, usable orders,
+   then the details needed to make a decision. */
+.app .civilization-panel {
+  color: var(--surface-ink, #25372e);
+  min-width: 0;
+}
+.app .civilization-panel .civ-heading {
+  margin: 0 0 18px;
+  padding: 0;
+}
+.app .civilization-panel .civ-heading h2 {
+  margin: 0;
+  font: 400 clamp(24px, 4vw, 32px) / 1.16 var(--serif, Georgia, serif);
+  color: var(--surface-ink, #25372e);
+  letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
+}
+.app .civilization-panel .civ-heading > p {
+  margin: 7px 0 0;
+  max-width: 55ch;
+  color: var(--surface-muted, #586454);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.app .civilization-panel :is(button, input, select, summary) {
+  min-height: 44px;
+  box-sizing: border-box;
+}
+.app .civilization-panel button {
+  font-size: 14px;
+  line-height: 1.3;
+}
+.app .civilization-panel :is(button, input, select, summary):focus-visible {
+  outline: 3px solid var(--surface-ink, #25372e);
+  outline-offset: 3px;
+}
+.app .civilization-panel :is(p, h3, small, strong, span) {
+  overflow-wrap: anywhere;
+}
+.app .civilization-panel .institution-count {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  align-items: center;
+  margin: 0 0 12px;
+  padding: 12px 0;
+  color: var(--surface-ink, #25372e);
+  border-block: 1px solid var(--line, #c8c7b2);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.app .civilization-panel .institution-count > svg {
+  flex: 0 0 auto;
+  color: var(--surface-muted, #586454);
+}
+.app .civilization-panel .institution-count > span {
+  margin-left: auto;
+  color: var(--surface-muted, #586454);
+  font-size: 12px;
+}
+.app .civilization-panel .civ-section {
+  margin-top: 22px;
+}
+.app .civilization-panel .civ-section-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 5px 12px;
+  margin: 0 0 10px;
+}
+.app .civilization-panel .civ-section-heading h3 {
+  margin: 0;
+  font: 700 15px/1.35 var(--sans, sans-serif);
+  color: var(--surface-ink, #25372e);
+}
+.app .civilization-panel .civ-section-heading small {
+  font-size: 12px;
+  color: var(--surface-muted, #586454);
+}
+.app .civilization-panel .institution-list {
+  margin: 0;
+}
+.app .civilization-panel .institution-list > article {
+  gap: 12px;
+  align-items: flex-start;
+  padding: 15px 0;
+}
+.app .civilization-panel .institution-list > article > div {
+  min-width: 0;
+}
+.app .civilization-panel .institution-list h3 {
+  margin: 0 0 5px;
+  font: 700 16px/1.35 var(--sans, sans-serif);
+}
+.app .civilization-panel .institution-list article p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--surface-muted, #586454);
+}
+.app .civilization-panel .institution-list article small {
+  display: block;
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--surface-muted, #586454);
+}
+.app .civilization-panel .civ-remove {
+  flex: 0 0 auto;
+  min-width: 44px;
+  margin: 0;
+  border: 1px solid var(--line, #c8c7b2);
+  border-radius: 8px;
+}
+.app .civilization-panel .token-sentence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+.app .civilization-panel .token-sentence > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--surface-muted, #586454) 9%, transparent);
+  color: var(--surface-ink, #25372e);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.app .civilization-panel .recipe-prompts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 245px), 1fr));
+  gap: 8px;
+  margin: 0;
+}
+.app .civilization-panel .recipe-prompts > button {
+  min-height: 62px;
+  padding: 12px;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line, #c8c7b2);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-paper, #f7f0df) 85%, white);
+  color: var(--surface-ink, #25372e);
+  text-align: left;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+.app .civilization-panel .recipe-prompts > button:hover {
+  border-color: var(--surface-muted, #586454);
+  background: color-mix(
+    in srgb,
+    var(--material-accent, #c39361) 12%,
+    var(--surface-paper, #f7f0df)
+  );
+}
+.app .civilization-panel .recipe-prompts > button > svg {
+  flex: 0 0 auto;
+}
+.app .civilization-panel .civ-prompt-label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  font-weight: 700;
+}
+.app .civilization-panel .civ-prompt-label small {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--surface-muted, #586454);
+  font-weight: 450;
+}
+.app .civilization-panel :is(.civ-help, .civ-disclosure) {
+  margin: 18px 0 0;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--line, #c8c7b2);
+  border-bottom: 1px solid var(--line, #c8c7b2);
+  border-radius: 0;
+  background: transparent;
+}
+.app
+  .civilization-panel
+  :is(.civ-help, .civ-disclosure, .civ-requirements, .civ-building-details)
+  > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  color: var(--surface-muted, #586454);
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.app .civilization-panel summary::-webkit-details-marker {
+  display: none;
+}
+.app .civilization-panel summary > svg {
+  flex: 0 0 auto;
+}
+.app .civilization-panel summary > svg:last-child {
+  margin-left: auto;
+  transition: transform 150ms ease;
+}
+.app .civilization-panel details[open] > summary > svg:last-child {
+  transform: rotate(180deg);
+}
+.app .civilization-panel .civ-help > p {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--surface-muted, #586454);
+  line-height: 1.65;
+  max-width: 65ch;
+}
+.app .civilization-panel .civ-empty {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  padding: 18px 0;
+  color: var(--surface-muted, #586454);
+}
+.app .civilization-panel .civ-empty > svg {
+  flex: 0 0 auto;
+  margin-top: 3px;
+  color: var(--surface-muted, #586454);
+}
+.app .civilization-panel .civ-empty strong {
+  color: var(--surface-ink, #25372e);
+  font-size: 15px;
+}
+.app .civilization-panel .civ-empty p {
+  margin: 5px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.app .civilization-panel :is(.civ-stage-note, .civ-empty-search) {
+  margin: 12px 0;
+  color: var(--surface-muted, #586454);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.app .civilization-panel .city-vocations {
+  padding: 15px 0;
+}
+.app .civilization-panel .city-vocations h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 7px 12px;
+  margin: 0 0 10px;
+  font: 700 15px/1.4 var(--sans, sans-serif);
+}
+.app .civilization-panel .city-vocations h3 small {
+  margin: 0 0 0 auto;
+  color: var(--surface-muted, #586454);
+  font-size: 12px;
+}
+.app .civilization-panel .city-vocations article {
+  gap: 10px;
+  color: var(--surface-ink, #25372e);
+  font-size: 14px;
+}
+.app .civilization-panel .city-vocations p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--surface-muted, #586454);
+}
+.app .civilization-panel .faction-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+.app .civilization-panel .faction-list > article {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 18px 0;
+  border-top: 1px solid var(--line, #c8c7b2);
+}
+.app .civilization-panel .faction-list > article:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.app .civilization-panel .faction-symbol {
+  width: 44px;
+  height: 44px;
+  color: var(--surface-ink, #25372e);
+  background: color-mix(in srgb, var(--surface-muted, #586454) 10%, transparent);
+  border: 1px solid var(--line, #c8c7b2);
+  border-radius: 12px;
+}
+.app .civilization-panel .civ-faction-heading,
+.app .civilization-panel .civ-path-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px 10px;
+}
+.app .civilization-panel .faction-list h3 {
+  margin: 0;
+  font: 700 16px/1.35 var(--sans, sans-serif);
+}
+.app .civilization-panel .civ-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 7px;
+  border-radius: 5px;
+  color: var(--surface-ink, #25372e);
+  background: color-mix(in srgb, var(--surface-muted, #586454) 11%, transparent);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+.app .civilization-panel .civ-status-warning {
+  color: #873f2c;
+  background: #eddcc9;
+}
+.app .civilization-panel .civ-understanding {
+  display: block;
+  margin-top: 9px;
+  color: var(--surface-muted, #586454);
+  font-size: 12px;
+}
+.app .civilization-panel .faction-list article .meter {
+  max-width: none;
+  margin-top: 7px;
+}
+.app .civilization-panel .faction-list article .faction-speech {
+  margin: 10px 0 0;
+  color: var(--surface-muted, #586454);
+  font: italic 400 17px/1.5 var(--serif, Georgia, serif);
+}
+.app .civilization-panel .civ-inline-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 7px 0;
+  color: var(--surface-ink, #25372e);
+}
+.app .civilization-panel .city-cohorts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  padding: 0;
+  margin: 0 0 18px;
+  border: 1px solid var(--line, #c8c7b2);
+  border-radius: 12px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--surface-muted, #586454) 6%, transparent);
+}
+.app .civilization-panel .city-cohorts > div {
+  min-width: 0;
+  gap: 8px;
+  padding: 15px 8px;
+  color: var(--surface-muted, #586454);
+  border-right: 1px solid var(--line, #c8c7b2);
+  text-align: center;
+}
+.app .civilization-panel .city-cohorts > div:last-child {
+  border-right: 0;
+}
+.app .civilization-panel .city-cohorts strong {
+  font: 650 14px/1.45 var(--sans, sans-serif);
+  color: var(--surface-ink, #25372e);
+}
+.app .civilization-panel .inventory-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  border: 1px solid var(--line, #c8c7b2);
+  border-radius: 10px;
+  background: transparent;
+}
+.app .civilization-panel .inventory-grid > div {
+  min-width: 0;
+  gap: 7px;
+  padding: 12px 10px;
+  background: transparent;
+  color: var(--surface-ink, #25372e);
+  font-size: 13px;
+  line-height: 1.4;
+  border-bottom: 1px solid var(--line, #c8c7b2);
+}
+.app .civilization-panel .inventory-grid > div > svg {
+  flex: 0 0 auto;
+  color: var(--surface-muted, #586454);
+}
+.app .civilization-panel .inventory-grid > div > b {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--surface-muted, #586454);
+}
+.app .civilization-panel .settlement-buildings {
+  gap: 0;
+  padding-bottom: 8px;
+}
+.app .civilization-panel .settlement-buildings > div {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 10px 0;
+  color: var(--surface-ink, #25372e);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.app .civilization-panel .settlement-buildings small {
+  max-width: 19ch;
+  text-align: right;
+  font-size: 12px;
+  color: var(--surface-muted, #586454);
+}
+.app .civilization-panel .civ-building-warning small {
+  color: #873f2c;
+}
+.app .civilization-panel .victory-paths {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+.app .civilization-panel .victory-paths > article {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 12px;
+  padding: 20px 0;
+  color: var(--surface-ink, #25372e);
+  border-top: 1px solid var(--line, #c8c7b2);
+}
+.app .civilization-panel .victory-paths > article:first-child {
+  border-top: 0;
+  padding-top: 10px;
+}
+.app .civilization-panel .civ-path-icon {
+  width: 38px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 2px solid var(--material-accent, #c39361);
+  color: var(--surface-ink, #25372e);
+}
+.app .civilization-panel .victory-paths h3 {
+  margin: 0;
+  font: 700 17px/1.4 var(--sans, sans-serif);
+}
+.app .civilization-panel .victory-paths p {
+  margin: 6px 0 0;
+  color: var(--surface-muted, #586454);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.app .civilization-panel .victory-paths small {
+  display: block;
+  margin-top: 5px;
+  color: var(--surface-muted, #586454);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.app .civilization-panel .victory-paths .meter {
+  margin: 12px 0 7px;
+}
+.app .civilization-panel .civ-progress-label {
+  display: block;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 650;
+}
+.app .civilization-panel .civ-requirements {
+  margin: 7px 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.app .civilization-panel .civ-requirements p {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+.app .civilization-panel .civ-path-milestones {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.app .civilization-panel .civ-path-milestones > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--surface-muted, #586454);
+  font-size: 13px;
+}
+.app .civilization-panel .civ-path-milestones .is-met {
+  color: var(--surface-ink, #25372e);
+  font-weight: 650;
+}
+.app .civilization-panel .civ-catalog-controls {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.app .civilization-panel .civ-search {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+  padding: 0 11px;
+  border: 1px solid var(--line, #c8c7b2);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--surface-paper, #f7f0df) 80%, white);
+  color: var(--surface-muted, #586454);
+}
+.app .civilization-panel .civ-search input {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 10px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--surface-ink, #25372e);
+  font: 400 16px/1.4 var(--sans, sans-serif);
+}
+.app .civilization-panel .civ-category-tabs {
+  display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+  gap: 4px;
+  padding: 0 0 2px;
+  scrollbar-width: thin;
+}
+.app .civilization-panel .civ-category-tabs > button {
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--surface-muted, #586454);
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.app .civilization-panel .civ-category-tabs > button[aria-pressed='true'] {
+  border-bottom-color: var(--material-accent, #c39361);
+  color: var(--surface-ink, #25372e);
+}
+.app .civilization-panel .building-codex {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  margin: 0;
+}
+.app .civilization-panel .building-codex > article {
+  padding: 16px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line, #c8c7b2);
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  min-width: 0;
+}
+.app .civilization-panel .civ-building-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.app .civilization-panel .building-codex-name {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 9px;
+  margin: 0;
+}
+.app .civilization-panel .civ-building-symbol {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 40px;
+  border: 1px solid var(--line, #c8c7b2);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-muted, #586454) 7%, transparent);
+  color: var(--surface-muted, #586454);
+}
+.app .civilization-panel .building-codex-name h3 {
+  margin: 0;
+  font: 700 16px/1.35 var(--sans, sans-serif);
+  color: var(--surface-ink, #25372e);
+}
+.app .civilization-panel .civ-primary-action {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--surface-ink, #25372e);
+  border-radius: 8px;
+  background: var(--surface-ink, #25372e);
+  color: var(--surface-paper, #f7f0df);
+  font-weight: 650;
+}
+.app .civilization-panel .building-codex > article > p {
+  margin: 9px 0 0;
+  color: var(--surface-muted, #586454);
+  font-size: 13px;
+  line-height: 1.55;
+  max-width: 68ch;
+}
+.app .civilization-panel .civ-building-details {
+  margin: 3px 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.app .civilization-panel .civ-building-details > p {
+  margin: 9px 0 0;
+  color: var(--surface-muted, #586454);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.app .civilization-panel .civ-costs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.app .civilization-panel .civ-costs > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 7px;
+  border: 1px solid var(--line, #c8c7b2);
+  border-radius: 6px;
+  color: var(--surface-ink, #25372e);
+  font-size: 12px;
+}
+@media (max-width: 540px) {
+  .app .civilization-panel .city-cohorts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .app .civilization-panel .city-cohorts > div {
+    padding: 12px 8px;
+    border-bottom: 1px solid var(--line, #c8c7b2);
+  }
+  .app .civilization-panel .city-cohorts > div:nth-child(even) {
+    border-right: 0;
+  }
+  .app .civilization-panel .city-cohorts > div:nth-last-child(-n + 2) {
+    border-bottom: 0;
+  }
+  .app .civilization-panel .civ-building-top {
+    gap: 8px;
+  }
+  .app .civilization-panel .civ-primary-action {
+    padding-inline: 9px;
+  }
+  .app .civilization-panel .inventory-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app .civilization-panel :is(button, summary > svg) {
+    transition: none;
+  }
+}
