@@ -1,5 +1,5 @@
 import type { GameState, Sector } from '../game/types';
-import { riverSegments } from '../game/worldGeneration';
+import { createRiverArtGeometry, sampleRiverArt, traceRiverArt } from './mapRiverGeometry';
 
 type World = Pick<GameState, 'mapGeneration' | 'sectors' | 'home'>;
 type Point = { x: number; y: number };
@@ -104,6 +104,26 @@ function paintGround(
   const cells = groundColors(sectors, season);
   const snow = season === 3;
   const earth: Color = snow ? [194, 190, 170] : [181, 152, 104];
+  // Low relief belongs to the cached surface, with no extra full-size canvas or
+  // per-frame lighting cost. Its gentle slopes remain visibly traversable.
+  const reliefWidth = Math.ceil(WIDTH / 8) + 2;
+  const reliefHeight = Math.ceil(HEIGHT / 8) + 2;
+  const heights = new Float32Array(reliefWidth * reliefHeight);
+  const relief = new Float32Array(reliefWidth * reliefHeight);
+  for (let y = 0; y < reliefHeight; y++) {
+    for (let x = 0; x < reliefWidth; x++) {
+      heights[y * reliefWidth + x] =
+        noise(x / 7.5, y / 6.2, seed + 281) * 0.7 + noise(x / 2.7, y / 2.1, seed + 1181) * 0.3;
+    }
+  }
+  for (let y = 0; y < reliefHeight - 1; y++) {
+    for (let x = 0; x < reliefWidth - 1; x++) {
+      const height = heights[y * reliefWidth + x];
+      relief[y * reliefWidth + x] =
+        (height - heights[y * reliefWidth + x + 1]) * 38 +
+        (height - heights[(y + 1) * reliefWidth + x]) * 27;
+    }
+  }
   for (let y = 0; y < HEIGHT; y++) {
     const gy = y / (SY * 100) - 0.5,
       iy = Math.floor(gy),
@@ -135,11 +155,27 @@ function paintGround(
           18.5 +
           Math.sin(angle * 3 + (seed % 17)) * 2.3 +
           Math.cos(angle * 5 + 1.8) * 1.1 +
-          (patches - 0.5) * 4;
-        trampled = clamp((edge - homeDistance) / 6.8) * 0.92;
+          (patches - 0.5) * 5.5 +
+          (clumps - 0.5) * 1.4;
+        trampled = clamp((edge - homeDistance) / 5.8) * 0.92;
       }
       const warmth = Math.max(soil, trampled);
-      const shade = (broad - 0.5) * 32 + (clumps - 0.5) * 6 + (grain - 0.5) * 2.5;
+      const rx = Math.floor(x / 8),
+        ry = Math.floor(y / 8);
+      const slope = blend(
+        blend(relief[ry * reliefWidth + rx], relief[ry * reliefWidth + rx + 1], (x % 8) / 8),
+        blend(
+          relief[(ry + 1) * reliefWidth + rx],
+          relief[(ry + 1) * reliefWidth + rx + 1],
+          (x % 8) / 8,
+        ),
+        (y % 8) / 8,
+      );
+      const shade =
+        (broad - 0.5) * 28 +
+        (clumps - 0.5) * 8 +
+        (grain - 0.5) * 2.5 +
+        slope * (1 - trampled * 0.65);
       const index = (y * WIDTH + x) * 4;
       for (let channel = 0; channel < 3; channel++) {
         const color = blend(
@@ -433,47 +469,11 @@ function paintSmallGrowth(
   }
 }
 
-function legacyRiver(ctx: CanvasRenderingContext2D) {
-  ctx.moveTo(1000 / SX, -80 / SY);
-  ctx.bezierCurveTo(870 / SX, 100 / SY, 1060 / SX, 140 / SY, 980 / SX, 255 / SY);
-  ctx.bezierCurveTo(920 / SX, 340 / SY, 820 / SX, 297 / SY, 850 / SX, 412 / SY);
-  ctx.bezierCurveTo(875 / SX, 502 / SY, 750 / SX, 510 / SY, 780 / SX, 598 / SY);
-  ctx.bezierCurveTo(810 / SX, 698 / SY, 660 / SX, 726 / SY, 610 / SX, 880 / SY);
-}
-
 function paintRiver(ctx: CanvasRenderingContext2D, seed: number, season: number, world?: World) {
   const random = randomStream(seed ^ 0x724e38a5),
     winter = season === 3;
-  const segments = world?.mapGeneration?.mode === 'random' ? riverSegments(world.sectors) : [];
-  const points = segments.length ? [segments[0][0], ...segments.map((segment) => segment[1])] : [];
-  const trace = () => {
-    ctx.beginPath();
-    if (!points.length) {
-      legacyRiver(ctx);
-      return;
-    }
-    ctx.moveTo(points[0].x, points[0].y);
-    for (let i = 1; i < points.length - 1; i++) {
-      const previous = points[i - 1],
-        corner = points[i],
-        next = points[i + 1];
-      const d1 = Math.hypot(corner.x - previous.x, corner.y - previous.y);
-      const d2 = Math.hypot(next.x - corner.x, next.y - corner.y);
-      if (!d1 || !d2) continue;
-      const radius = Math.min(5, d1 / 4, d2 / 4);
-      const enter = {
-        x: corner.x + ((previous.x - corner.x) / d1) * radius,
-        y: corner.y + ((previous.y - corner.y) / d1) * radius,
-      };
-      const leave = {
-        x: corner.x + ((next.x - corner.x) / d2) * radius,
-        y: corner.y + ((next.y - corner.y) / d2) * radius,
-      };
-      ctx.lineTo(enter.x, enter.y);
-      ctx.quadraticCurveTo(corner.x, corner.y, leave.x, leave.y);
-    }
-    ctx.lineTo(points.at(-1)!.x, points.at(-1)!.y);
-  };
+  const geometry = createRiverArtGeometry(world);
+  const trace = () => traceRiverArt(ctx, geometry);
   ctx.save();
   ctx.scale(SX, SY);
   ctx.lineCap = 'round';
@@ -485,6 +485,8 @@ function paintRiver(ctx: CanvasRenderingContext2D, seed: number, season: number,
   for (const [color, width] of [
     ['#65755520', 25],
     [winter ? '#d9decb70' : '#b2a47e80', 19],
+    ['#35534c44', 14.2],
+    [winter ? '#edf1dc55' : '#d6c59270', 13.1],
     [water, 12],
     [winter ? '#d2ded02a' : '#a3b49a18', 5],
   ] as const) {
@@ -493,46 +495,44 @@ function paintRiver(ctx: CanvasRenderingContext2D, seed: number, season: number,
     ctx.lineWidth = width;
     ctx.stroke();
   }
-  ctx.restore();
-  if (!segments.length) return;
-  ctx.save();
-  ctx.scale(SX, SY);
-  // Water marks align with the real stream. Rounded corners deviate <1.5m,
-  // inside the placement margin, so resources stay visibly above the banks.
-  for (const [a, b] of segments) {
-    const length = Math.hypot(b.x - a.x, b.y - a.y);
-    if (!length) continue;
-    const dx = (b.x - a.x) / length,
-      dy = (b.y - a.y) / length;
-    for (let i = 0; i < Math.ceil(length * 1.4); i++) {
-      const t = 0.06 + random() * 0.88,
-        offset = (random() - 0.5) * 7;
-      const x = blend(a.x, b.x, t) - dy * offset,
-        y = blend(a.y, b.y, t) + dx * offset;
-      ctx.strokeStyle = i % 4 ? '#d4dfc73a' : '#3f6c6640';
-      ctx.lineWidth = 0.12 + random() * 0.15;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.quadraticCurveTo(
-        x + dx * 0.8 - dy * 0.2,
-        y + dy * 0.8 + dx * 0.2,
-        x + dx * (0.8 + random() * 1.5),
-        y + dy * (0.8 + random() * 1.5),
-      );
-      ctx.stroke();
-    }
-    for (let i = 0; i < Math.ceil(length / 3); i++) {
-      const t = 0.07 + random() * 0.86,
-        bank = (random() > 0.5 ? 1 : -1) * (8.5 + random() * 2);
-      const x = blend(a.x, b.x, t) - dy * bank,
-        y = blend(a.y, b.y, t) + dx * bank;
-      ctx.strokeStyle = winter ? '#7b8c765c' : '#60745070';
-      ctx.lineWidth = 0.2;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.quadraticCurveTo(x - 0.15, y - 0.5, x + (random() - 0.5) * 0.5, y - 0.8 - random() * 0.4);
-      ctx.stroke();
-    }
+  // Layered strokes keep the banks joined even when the inside bend is
+  // tighter than the stream width; an offset outline would fold over itself.
+  // Samples follow the very same curve used by the paint, including Seed Zero.
+  for (let i = 0; i < Math.ceil(geometry.length * 1.4); i++) {
+    const sample = sampleRiverArt(geometry, random() * geometry.length);
+    const offset = (random() - 0.5) * 7;
+    const x = sample.x - sample.dy * offset,
+      y = sample.y + sample.dx * offset;
+    const span = 0.8 + random() * 1.5;
+    ctx.strokeStyle = i % 4 ? '#d4dfc73a' : '#3f6c6640';
+    ctx.lineWidth = 0.12 + random() * 0.15;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(
+      x + sample.dx * 0.8 - sample.dy * 0.2,
+      y + sample.dy * 0.8 + sample.dx * 0.2,
+      x + sample.dx * span,
+      y + sample.dy * span,
+    );
+    ctx.stroke();
+  }
+  for (let i = 0; i < Math.ceil(geometry.length / 2); i++) {
+    const distance = random() * geometry.length;
+    const sample = sampleRiverArt(geometry, distance);
+    const before = sampleRiverArt(geometry, distance - 12);
+    const after = sampleRiverArt(geometry, distance + 12);
+    // Do not put bank vegetation across the water at a tight inner bend.
+    if (before.dx * after.dx + before.dy * after.dy < 0.94) continue;
+    const bank = (random() > 0.5 ? 1 : -1) * (8.5 + random() * 2);
+    const x = sample.x - sample.dy * bank,
+      y = sample.y + sample.dx * bank;
+    dab(ctx, x, y + 0.2, 0.4 + random() * 0.5, 0.12, winter ? '#d8ddc84d' : '#d2c39a55');
+    ctx.strokeStyle = winter ? '#7b8c765c' : '#60745070';
+    ctx.lineWidth = 0.2;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x - 0.15, y - 0.5, x + (random() - 0.5) * 0.5, y - 0.8 - random() * 0.4);
+    ctx.stroke();
   }
   ctx.restore();
 }

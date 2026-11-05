@@ -27,6 +27,9 @@ import { getBattalionDisplayPoint } from './regionalLayout';
 import { foreignUnitDisposition } from './unitReadability';
 import { getCampStockSlots } from './campInventory';
 import { drawCampStock } from './mapCampStockArt';
+import { drawMapGroundShadows } from './mapLighting';
+import { drawMapWorkEffects } from './mapWorkEffects';
+import { drawMapSurfaceMotion } from './mapSurfaceMotion';
 
 const fallbackMotionSession = createMapMotionSession();
 
@@ -810,7 +813,7 @@ function drawUnit(
     newborn = stage === 'newborn';
   const bob = pose.bob;
   ctx.save();
-  ctx.translate(x, y + bob);
+  ctx.translate(x, y);
   if (newbornArrival) {
     const pulse = (1 + Math.sin(time * 4)) / 2;
     ctx.save();
@@ -856,6 +859,7 @@ function drawUnit(
   // Scaling only the body also keeps a child easy to select on a touch screen.
   ctx.save();
   const bodyScale = child ? 0.7 : elder ? 0.94 : newborn ? 0.82 : 1;
+  ctx.translate(0, bob);
   ctx.scale(bodyScale, bodyScale);
   drawPainterlyBody(ctx, unit, time, equipment, pose, foreign);
   if (!newborn && !child && !sleeping && equipment.held)
@@ -1069,10 +1073,12 @@ export function drawWorld(
 ) {
   const calendar = getCalendar(state);
   ctx.drawImage(terrain, 0, 0, MAP_WIDTH, MAP_HEIGHT);
+  drawMapSurfaceMotion(ctx, state, terrain, time, viewport, atmosphereOptions?.reducedMotion);
   drawRegionalRoutes(ctx, state, viewport);
   const nearHome = (target: WorldTarget | null) =>
     target?.type === 'point' && Math.hypot(target.x - state.home.x, target.y - state.home.y) <= 10;
   drawCampground(ctx, state, isGroupActive || nearHome(selected) || nearHome(hovered));
+  drawMapGroundShadows(ctx, state, viewport);
   // Artwork can extend above its anchor. Leave a margin so crowns and smoke never pop at edges.
   const inView = (point: { x: number; y: number }) =>
     !viewport ||
@@ -1454,6 +1460,21 @@ export function drawWorld(
               equipment,
               recentEvent,
             });
+            const workSource = target && 'amount' in target ? target : undefined;
+            drawMapWorkEffects(ctx, worldPoint(unit.x, unit.y), actual, pose, {
+              moving: motion?.moving ?? false,
+              ready,
+              source: workSource,
+              sourceVisible: !!workSource && isVisibleAt(state, workSource.x, workSource.y),
+              resourceKnown:
+                !!workSource &&
+                (workSource.kind === 'tree'
+                  ? hasConcept(state, 'O_03')
+                  : workSource.kind === 'ore'
+                    ? hasConcept(state, 'O_07')
+                    : hasConcept(state, 'O_02')),
+              reducedMotion: atmosphereOptions?.reducedMotion,
+            });
             drawUnit(
               ctx,
               unit,
@@ -1744,7 +1765,7 @@ export function drawWorld(
   // A few birds provide scale, never gameplay information.
   ctx.strokeStyle = '#546d534d';
   ctx.lineWidth = 1.1;
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < (atmosphereOptions?.reducedMotion ? 0 : 3); i++) {
     const x = ((time * 3 + 140 + i * 17) % 1400) - 100,
       y = 130 + Math.sin(time * 0.04 + i) * 15 + i * 9;
     ctx.beginPath();

@@ -8,9 +8,11 @@ import {
   distance,
   freeCapacity,
   isPlayerBuilding,
+  hasWord,
 } from './runtime';
-import type { Building, GameState, Target, Unit } from './types';
+import type { Building, GameState, MapEntity, Resource, Target, Unit } from './types';
 import { taskOutcomeMessage } from './taskOutcomes';
+import { resolveInteractionPosition } from './interactionPositions';
 
 export type WorkCategory = 'idle' | 'working' | 'recovering' | 'young' | 'dead';
 export interface WorkStatus {
@@ -22,6 +24,53 @@ export interface WorkStatus {
   assignment?: { buildingId: string; label: string; state: 'assigned' | 'suspended' };
 }
 const atBuilding = (b: Building): Target => ({ type: 'building', id: b.id, x: b.x, y: b.y });
+
+/** Resource identities follow the same knowledge rules as visible ground piles. */
+function observedResource(state: GameState, resource: Resource) {
+  const word = resource === 'food' ? 'O_04' : RESOURCE_SPECS[resource].wordId;
+  const metalUnknown = ['ore', 'ingot', 'metalArms'].includes(resource) && !hasWord(state, 'O_07');
+  return metalUnknown || (word && !hasWord(state, word))
+    ? 'materiale'
+    : RESOURCE_SPECS[resource].label.toLocaleLowerCase('it');
+}
+
+function sourceVisible(state: GameState, source: MapEntity) {
+  return (
+    state.tier >= 4 ||
+    state.sectors.some(
+      (sector) =>
+        sector.explored &&
+        sector.x === Math.min(4, Math.floor(source.x / 100)) &&
+        sector.y === Math.min(4, Math.floor(source.y / 100)),
+    )
+  );
+}
+
+function gatheringStage(state: GameState, unit: Unit, source: MapEntity) {
+  const resource = observedResource(state, entityResource(source));
+  const extraction =
+    unit.command?.includes('V_03') && ['tree', 'stone', 'ore'].includes(source.kind);
+  const kind =
+    source.kind === 'tree' ? 'tree' : ['stone', 'ore'].includes(source.kind) ? 'stone' : 'forage';
+  // Match moveToInteraction's destination, including each person's stable slot.
+  const position = resolveInteractionPosition(state, unit, source, {
+    kind,
+    key: `${kind}:${source.id}`,
+  });
+  const approaching = distance(unit, position) > 0.05;
+  return {
+    title: approaching
+      ? `Va a ${extraction ? 'estrarre' : 'raccogliere'} ${resource}`
+      : `${extraction ? 'Estrae' : 'Raccoglie'} ${resource}`,
+    detail: `${approaching ? 'Raggiunge il posto di lavoro presso la fonte. ' : ''}${
+      extraction
+        ? 'Il materiale estratto resta a terra; le scorte non aumentano durante questo lavoro.'
+        : unit.command?.includes('V_04')
+          ? 'Preleva dalla fonte, poi porta il carico al campo. Le scorte aumentano alla consegna.'
+          : 'Lavora sulla fonte selezionata. Un nuovo ordine può interrompere il compito.'
+    }`,
+  };
+}
 
 /** Observations of the current FSM, never guesses about the reason a past order ended. */
 export function getUnitWorkStatus(state: GameState, unit: Unit): WorkStatus {
@@ -109,16 +158,19 @@ export function getUnitWorkStatus(state: GameState, unit: Unit): WorkStatus {
       'Senza incarico',
       'Può ricevere un incarico. Cerca da sé cibo e riposo quando ne ha bisogno.',
     );
-  if (unit.action === 'returning')
+  if (unit.action === 'returning') {
+    const cargo =
+      unit.carry && unit.carry.amount > 0 ? observedResource(state, unit.carry.resource) : null;
     return result(
       'working',
-      'Consegna al campo',
-      unit.carry
-        ? `Carico in viaggio: ${RESOURCE_SPECS[unit.carry.resource].label.toLocaleLowerCase('it')}. Entrerà nelle scorte alla consegna.`
+      cargo ? `Porta ${cargo} al campo` : 'Torna al campo',
+      cargo
+        ? `Carico in viaggio: ${cargo}. Entrerà nelle scorte alla consegna.`
         : 'Sta completando il ritorno al campo.',
       'neutral',
       { type: 'point', ...state.home },
     );
+  }
   if (building && unit.jobBuildingId) {
     if (building.hp <= 0 || !building.active)
       return result(
@@ -154,6 +206,8 @@ export function getUnitWorkStatus(state: GameState, unit: Unit): WorkStatus {
   }
   const source = state.entities.find((e) => e.id === unit.targetId);
   if (source && ['gathering', 'hunting', 'eating', 'domesticating'].includes(unit.action)) {
+    if (!sourceVisible(state, source))
+      return result('working', 'Raggiunge una fonte', 'Destinazione nelle terre inesplorate.');
     if (
       unit.command?.includes('V_04') &&
       freeCapacity(state, entityResource(source)) <= 0 &&
@@ -172,10 +226,12 @@ export function getUnitWorkStatus(state: GameState, unit: Unit): WorkStatus {
         'Il compito non può proseguire su questa fonte. Scegli un nuovo bersaglio.',
         'warning',
       );
+    const gathering = unit.action === 'gathering' ? gatheringStage(state, unit, source) : null;
     return result(
       'working',
-      ACTION_NAMES[unit.action] ?? 'Al lavoro',
-      'Raggiunge il bersaglio, poi esegue l’azione. Un nuovo ordine può interromperla.',
+      gathering?.title ?? ACTION_NAMES[unit.action] ?? 'Al lavoro',
+      gathering?.detail ??
+        'Raggiunge il bersaglio, poi esegue l’azione. Un nuovo ordine può interromperla.',
       'neutral',
       { type: 'entity', id: source.id, x: source.x, y: source.y },
     );
