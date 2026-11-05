@@ -7,22 +7,30 @@ type GroundShadow = { id: string; x: number; y: number; width: number; height: n
 /** Ground light follows the simulation clock, including the slower opening year. */
 export function getGroundLight(state: GameState) {
   const phase = getCalendar(state).canonicalPhase;
-  const daylight =
-    phase < 54 ? 1 : phase < 65 ? (65 - phase) / 11 : phase < 84 ? 0 : (phase - 84) / 6;
+  // Day occupies the first two thirds of every season, in both calendars.
+  // Reset the sun behind a fully faded shadow so dawn never flips visibly.
+  const progress = Math.min(1, phase / 60);
+  const smooth = (value: number) => {
+    const t = Math.max(0, Math.min(1, value));
+    return t * t * (3 - 2 * t);
+  };
+  const daylight = smooth(phase / 6) * smooth((60 - phase) / 6);
   return {
     opacity: daylight * (state.disasters.storm || state.disasters.blizzard ? 0.1 : 0.22),
-    stretch: 1 + Math.abs(Math.min(60, phase) - 28) / 52,
-    angle: 0.4,
+    stretch: 0.45 + 1.35 * (1 - Math.sin(progress * Math.PI)),
+    // Sun east → south → west; casts west → north → east on the ground plane.
+    angle: -Math.PI + progress * Math.PI,
   };
 }
 
 export function getGroundShadows(state: GameState, viewport?: Viewport): GroundShadow[] {
+  // Leave room for a low sun's rotated cast even when its source is offscreen.
   const visible = (point: { x: number; y: number }) =>
     (!viewport ||
-      (point.x >= viewport.minX - 16 &&
-        point.x <= viewport.maxX + 16 &&
-        point.y >= viewport.minY - 16 &&
-        point.y <= viewport.maxY + 16)) &&
+      (point.x >= viewport.minX - 20 &&
+        point.x <= viewport.maxX + 20 &&
+        point.y >= viewport.minY - 20 &&
+        point.y <= viewport.maxY + 20)) &&
     (state.tier >= 4 ||
       state.sectors.some(
         (sector) =>

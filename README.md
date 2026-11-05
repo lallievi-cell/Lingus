@@ -42,6 +42,8 @@ Apri **Anteprima dell’ordine** per verificare esecutori, destinazioni, costi e
 
 Le schede della tribù mostrano la risorsa e la fase dell’attività, anche da chiuse: **Raccoglie legno**, **Estrae pietra**, **Porta legno al campo**. La [revisione 0.3.8](docs/RELEASE-038.md) aggiunge anche profondità al terreno, ombre coerenti, correnti nel fiume ed effetti sincronizzati con passi e colpi.
 
+Con il [ciclo delle ombre 0.3.9](docs/RELEASE-039.md), le ombre ruotano durante il giorno, si accorciano a mezzogiorno e svaniscono di notte. Seguono il calendario e si fermano con la simulazione.
+
 In Guidata, **Io** può nascere da un pasto autonomo o da manufatti personali: non occorre isolare un compagno. Le Scintille diverse dalle tre scoperte contestuali richiedono il primo puzzle; per una parola già compresa e poi perduta, una nuova esperienza e una nuova Scintilla permettono **Ricorda la parola**. Prima del consiglio puoi preparare una breve lezione al Falò con due unità di legno consegnate: ottieni fino a dieci punti Attenzione, poi paghi la lezione ordinaria. Il pannello mostra maestro, allievo, costo ed eventuali impedimenti. La Classica mantiene la risoluzione dei puzzle e la preparazione stagionale precedenti.
 
 **Raduna al campo** pronuncia un vero ordine di movimento: costa una Voce, raggiunge gli adulti disponibili e lascia a terra gli eventuali carichi interrotti. Il richiamo sceglie il miglior riparo reale vicino al campo. Il freddo viene affrontato prima e non annulla un ordine diretto verso un posto più protetto. In Guidata, il Falò ha un nucleo più caldo, visibile nel cerchio interno; in Classica il calore resta uniforme.
