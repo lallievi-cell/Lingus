@@ -38,11 +38,13 @@ export function MapPicker({
   const invalid = value === 'random' && !mapSeedValid(seed);
   return (
     <div className="map-picker" role="group" aria-label="Mappa della nuova partita">
-      <div className="map-picker-heading">La valle</div>
+      <div className="map-picker-heading">Il territorio</div>
       <div className="map-picker-options">
         <button type="button" aria-pressed={value === 'random'} onClick={() => onChange('random')}>
           <strong>Casuale</strong>
-          <small>Nuovi paesaggi, risorse e popoli a ogni partita.</small>
+          <small>
+            Una regione quattro volte più ampia, con spazio per esplorare e fondare città.
+          </small>
         </button>
         <button
           type="button"

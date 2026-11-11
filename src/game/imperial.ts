@@ -17,6 +17,7 @@ import {
 import { rememberCombatWound } from './damageAttribution';
 import { recordCaravanTravel } from './regionalHistory';
 import { isDryLandPoint, moveOnLand, planLandRoute } from './landNavigation';
+import { isWorldPoint, sectorIndex } from './worldDimensions';
 import { guidedBirthMultiplier } from './guidedProgression';
 import {
   foreignForgeCanWork,
@@ -1319,8 +1320,10 @@ export function handleImperialCommand(
     if (!source || !s.urbanized)
       return output(false, 'La fondazione di colonie richiede una capitale urbana.');
     if (!target) return output(false, 'Indica un settore libero.');
-    const sx = Math.floor(target.x / 100),
-      sy = Math.floor(target.y / 100);
+    if (!isWorldPoint(s, target))
+      return output(false, 'Scegli un settore entro i confini del mondo.');
+    const sx = sectorIndex(s, target.x),
+      sy = sectorIndex(s, target.y);
     if (s.cities.some((c) => c.sectorX === sx && c.sectorY === sy))
       return output(false, 'Questo settore ospita già una città.');
     const site = { type: 'point' as const, x: sx * 100 + 50, y: sy * 100 + 50 };

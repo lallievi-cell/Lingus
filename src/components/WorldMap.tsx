@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { GameState, WorldTarget } from '../game/types';
 import { getCalendar } from '../game/calendar';
+import { getWorldSize, getWorldSectorCount, sectorIndex } from '../game/worldDimensions';
 import {
   createTerrain,
   drawWorld,
@@ -72,21 +73,29 @@ const WORLD_X = MAP_WIDTH / WORLD_SIZE,
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
 function viewBounds(state: GameState) {
-  if (state.tier >= 4) return { minX: 0, minY: 0, maxX: WORLD_SIZE, maxY: WORLD_SIZE };
+  const worldSize = getWorldSize(state);
+  if (state.tier >= 4) return { minX: 0, minY: 0, maxX: worldSize, maxY: worldSize };
   const sectors = (state.sectors ?? []).filter((s) => s.explored);
   const points = [
     ...sectors.map((s) => ({ x: s.x * 100 + 50, y: s.y * 100 + 50 })),
     ...(state.explored ?? []),
-    state.home ?? { x: 250, y: 250 },
+    state.home ?? { x: worldSize / 2, y: worldSize / 2 },
   ];
-  const xs = points.map((p) => Math.floor(clamp(p.x, 0, 499.999) / 100));
-  const ys = points.map((p) => Math.floor(clamp(p.y, 0, 499.999) / 100));
+  const xs = points.map((p) => sectorIndex(state, p.x));
+  const ys = points.map((p) => sectorIndex(state, p.y));
   return {
     minX: Math.min(...xs) * 100,
     minY: Math.min(...ys) * 100,
     maxX: (Math.max(...xs) + 1) * 100,
     maxY: (Math.max(...ys) + 1) * 100,
   };
+}
+
+function minimumZoom(state: GameState) {
+  const bounds = viewBounds(state);
+  const span = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
+  const overview = WORLD_SIZE / getWorldSize(state);
+  return state.tier >= 4 ? overview * 0.9 : Math.max(overview, 400 / span);
 }
 
 function targetLabel(state: GameState, target: WorldTarget | null) {
@@ -214,10 +223,11 @@ export function WorldMap({
   pingRef.current = ping;
   groupActiveRef.current = isGroupActive;
   orderFeedbackRef.current = orderFeedback;
+  const worldSize = getWorldSize(state);
   const initialView: View = {
-    zoom: state.tier >= 4 ? 1 : 4.5,
-    centerX: state.home?.x ?? 250,
-    centerY: state.home?.y ?? 250,
+    zoom: state.tier >= 4 ? WORLD_SIZE / worldSize : 4.5,
+    centerX: state.tier >= 4 ? worldSize / 2 : (state.home?.x ?? worldSize / 2),
+    centerY: state.tier >= 4 ? worldSize / 2 : (state.home?.y ?? worldSize / 2),
   };
   const viewRef = useRef<View>(initialView),
     previousTier = useRef(state.tier);
@@ -244,16 +254,16 @@ export function WorldMap({
   const mapSeed = state.mapGeneration?.seed;
   const terrain = useMemo(
     () => createTerrain(mapMode === 'random' ? mapSeed! : 6842, state.seasonIndex, state),
-    [mapMode, mapSeed, geography, state.seasonIndex, state.home.x, state.home.y],
+    [mapMode, mapSeed, worldSize, geography, state.seasonIndex, state.home.x, state.home.y],
   );
   useEffect(() => {
     if (focusRequest)
       setView((previous) => ({
         ...previous,
-        centerX: clamp(focusRequest.x, 0, 500),
-        centerY: clamp(focusRequest.y, 0, 500),
+        centerX: clamp(focusRequest.x, 0, worldSize),
+        centerY: clamp(focusRequest.y, 0, worldSize),
       }));
-  }, [focusRequest]);
+  }, [focusRequest, worldSize]);
   const renderSizeRef = useRef(size);
   stateRef.current = state;
   anchorRef.current = groupAnchor;
@@ -275,9 +285,9 @@ export function WorldMap({
 
   useEffect(() => {
     if (state.tier >= 4 && previousTier.current < 4)
-      setView({ zoom: 1, centerX: 250, centerY: 250 });
+      setView({ zoom: WORLD_SIZE / worldSize, centerX: worldSize / 2, centerY: worldSize / 2 });
     previousTier.current = state.tier;
-  }, [state.tier]);
+  }, [state.tier, worldSize]);
 
   useEffect(() => {
     const element = containerRef.current;
@@ -321,9 +331,10 @@ export function WorldMap({
     (clientX: number, clientY: number) => {
       const bounds = canvasRef.current!.getBoundingClientRect(),
         t = getTransform();
+      const worldSize = getWorldSize(stateRef.current);
       return {
-        x: clamp((clientX - bounds.left - t.x) / t.scale / WORLD_X, 0, WORLD_SIZE),
-        y: clamp((clientY - bounds.top - t.y) / t.scale / WORLD_Y, 0, WORLD_SIZE),
+        x: clamp((clientX - bounds.left - t.x) / t.scale / WORLD_X, 0, worldSize),
+        y: clamp((clientY - bounds.top - t.y) / t.scale / WORLD_Y, 0, worldSize),
       };
     },
     [getTransform],
@@ -632,9 +643,7 @@ export function WorldMap({
 
   const zoom = useCallback((delta: number) => {
     setView((previous) => {
-      const bounds = viewBounds(stateRef.current),
-        span = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
-      const minZoom = stateRef.current.tier >= 4 ? 0.9 : Math.max(1, 400 / span);
+      const minZoom = minimumZoom(stateRef.current);
       return {
         ...previous,
         zoom: clamp(Math.round((previous.zoom + delta) * 100) / 100, minZoom, 16),
@@ -692,6 +701,8 @@ export function WorldMap({
       ctx.translate(t.x, t.y);
       ctx.scale(t.scale, t.scale);
       const current = stateRef.current;
+      const worldSize = getWorldSize(current);
+      const sectorCount = getWorldSectorCount(current);
       drawWorld(
         ctx,
         current,
@@ -728,30 +739,35 @@ export function WorldMap({
       miniCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
       miniCtx.clearRect(0, 0, mw, mh);
       miniCtx.drawImage(terrain, 0, 0, mw, mh);
-      for (let sy = 0; sy < 5; sy++)
-        for (let sx = 0; sx < 5; sx++) {
+      for (let sy = 0; sy < sectorCount; sy++)
+        for (let sx = 0; sx < sectorCount; sx++) {
           if (!isVisibleAt(current, sx * 100 + 50, sy * 100 + 50)) {
             miniCtx.fillStyle = '#dfe0cdec';
-            miniCtx.fillRect((sx * mw) / 5, (sy * mh) / 5, mw / 5 + 0.5, mh / 5 + 0.5);
+            miniCtx.fillRect(
+              (sx * mw) / sectorCount,
+              (sy * mh) / sectorCount,
+              mw / sectorCount + 0.5,
+              mh / sectorCount + 0.5,
+            );
           }
         }
       miniCtx.strokeStyle = '#89957444';
       miniCtx.lineWidth = 0.5;
       if (current.tier >= 4)
-        for (let i = 1; i < 5; i++) {
+        for (let i = 1; i < sectorCount; i++) {
           miniCtx.beginPath();
-          miniCtx.moveTo((i * mw) / 5, 0);
-          miniCtx.lineTo((i * mw) / 5, mh);
-          miniCtx.moveTo(0, (i * mh) / 5);
-          miniCtx.lineTo(mw, (i * mh) / 5);
+          miniCtx.moveTo((i * mw) / sectorCount, 0);
+          miniCtx.lineTo((i * mw) / sectorCount, mh);
+          miniCtx.moveTo(0, (i * mh) / sectorCount);
+          miniCtx.lineTo(mw, (i * mh) / sectorCount);
           miniCtx.stroke();
         }
       if (!current.urbanized && current.home) {
         miniCtx.fillStyle = '#b5974f';
         miniCtx.beginPath();
         miniCtx.arc(
-          (current.home.x / WORLD_SIZE) * mw,
-          (current.home.y / WORLD_SIZE) * mh,
+          (current.home.x / worldSize) * mw,
+          (current.home.y / worldSize) * mh,
           2.2,
           0,
           Math.PI * 2,
@@ -774,30 +790,30 @@ export function WorldMap({
         .forEach((u) => {
           miniCtx.fillStyle = u.factionId && u.factionId !== 'player' ? '#a2694e' : '#61764a';
           miniCtx.beginPath();
-          miniCtx.arc((u.x / WORLD_SIZE) * mw, (u.y / WORLD_SIZE) * mh, 1.5, 0, Math.PI * 2);
+          miniCtx.arc((u.x / worldSize) * mw, (u.y / worldSize) * mh, 1.5, 0, Math.PI * 2);
           miniCtx.fill();
         });
       current.cities
         .filter((c) => isVisibleAt(current, c.x, c.y))
         .forEach((c) => {
           miniCtx.fillStyle = c.factionId === 'player' ? '#536c45' : '#a47a58';
-          miniCtx.fillRect((c.x / WORLD_SIZE) * mw - 2, (c.y / WORLD_SIZE) * mh - 2, 4, 4);
+          miniCtx.fillRect((c.x / worldSize) * mw - 2, (c.y / worldSize) * mh - 2, 4, 4);
         });
       current.battalions
         .filter((b) => b.hp > 0 && isVisibleAt(current, b.x, b.y))
         .forEach((b) => {
           miniCtx.fillStyle = b.factionId === 'player' ? '#52694a' : '#a46f52';
           miniCtx.beginPath();
-          miniCtx.arc((b.x / WORLD_SIZE) * mw, (b.y / WORLD_SIZE) * mh, 1.6, 0, Math.PI * 2);
+          miniCtx.arc((b.x / worldSize) * mw, (b.y / worldSize) * mh, 1.6, 0, Math.PI * 2);
           miniCtx.fill();
         });
       miniCtx.strokeStyle = '#fffbe5dd';
       miniCtx.lineWidth = 1;
       miniCtx.strokeRect(
-        (-t.x / t.scale / MAP_WIDTH) * mw + 0.5,
-        (-t.y / t.scale / MAP_HEIGHT) * mh + 0.5,
-        (width / t.scale / MAP_WIDTH) * mw - 1,
-        (height / t.scale / MAP_HEIGHT) * mh - 1,
+        (-t.x / t.scale / WORLD_X / worldSize) * mw + 0.5,
+        (-t.y / t.scale / WORLD_Y / worldSize) * mh + 0.5,
+        (width / t.scale / WORLD_X / worldSize) * mw - 1,
+        (height / t.scale / WORLD_Y / worldSize) * mh - 1,
       );
       // A paused canvas has no animation work until a real input changes it.
       // Running scenes retain the existing maximum of thirty draws per second.
@@ -964,9 +980,7 @@ export function WorldMap({
           if (activePointersRef.current.size >= 2 && pinchStartRef.current) {
             const [p1, p2] = Array.from(activePointersRef.current.values());
             const currentDist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-            const bounds = viewBounds(stateRef.current),
-              span = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
-            const minimumZoom = stateRef.current.tier >= 4 ? 0.9 : Math.max(1, 400 / span);
+            const minZoom = minimumZoom(stateRef.current);
             const canvasBounds = event.currentTarget.getBoundingClientRect();
             const fit = stateRef.current.tier >= 4 ? Math.min : Math.max;
             const next = anchoredPinchView(
@@ -986,7 +1000,7 @@ export function WorldMap({
                 worldScaleX: WORLD_X,
                 worldScaleY: WORLD_Y,
               },
-              minimumZoom,
+              minZoom,
             );
             if (next) setView(next);
             return;

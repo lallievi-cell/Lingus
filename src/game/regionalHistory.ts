@@ -1,12 +1,11 @@
 import type { Caravan, GameState, RegionalRoadSegment } from './types';
+import { getWorldSize, isWorldPoint } from './worldDimensions';
 
 export const REGIONAL_ROUTE_GRID = 12.5;
 export const REGIONAL_ROUTE_LIMIT = 2048;
 export const REGIONAL_ROUTE_WEAR_LIMIT = 1_000_000;
 type Point = { x: number; y: number };
 const EPSILON = 1e-8;
-const validPoint = (p: Point) =>
-  Number.isFinite(p.x) && Number.isFinite(p.y) && p.x >= 0 && p.x <= 500 && p.y >= 0 && p.y <= 500;
 
 /**
  * Record only the segment which really moved, never the remaining itinerary.
@@ -19,8 +18,8 @@ export function recordCaravanTravel(state: GameState, caravan: Caravan, previous
     caravan.hp <= 0 ||
     caravan.arrived ||
     (caravan.customsRefused && !caravan.returning) ||
-    !validPoint(previous) ||
-    !validPoint(caravan)
+    !isWorldPoint(state, previous) ||
+    !isWorldPoint(state, caravan)
   )
     return;
   const dx = caravan.x - previous.x,
@@ -65,7 +64,8 @@ export function recordCaravanTravel(state: GameState, caravan: Caravan, previous
       to = { x: previous.x + dx * high, y: previous.y + dy * high },
       middleX = (from.x + to.x) / 2,
       middleY = (from.y + to.y) / 2;
-    const base = `${lineKey}:${Math.min(39, Math.floor(middleX / REGIONAL_ROUTE_GRID))}:${Math.min(39, Math.floor(middleY / REGIONAL_ROUTE_GRID))}`;
+    const lastCell = Math.ceil(getWorldSize(state) / REGIONAL_ROUTE_GRID) - 1;
+    const base = `${lineKey}:${Math.min(lastCell, Math.floor(middleX / REGIONAL_ROUTE_GRID))}:${Math.min(lastCell, Math.floor(middleY / REGIONAL_ROUTE_GRID))}`;
     const walked = distance * (high - low);
     const group = groups.get(base) ?? [];
     const lowProjection = Math.min(project(from), project(to)),

@@ -27,6 +27,7 @@ import { captureObservedTaskResults, snapshotTaskResultInputs } from './taskResu
 import { promoteDeferredSparks } from './discoveryPacing';
 import { safeAutonomousRoute } from './safeForaging';
 import { isDryLandPoint, isLandPoint, planLandRoute } from './landNavigation';
+import type { WorldSize } from './worldDimensions';
 import {
   activeUnits,
   adult,
@@ -95,8 +96,9 @@ export function createGame(
   seed = 6842,
   playMode: 'guided' | 'classic' = 'classic',
   mapMode: MapMode = 'seed-zero',
+  worldSize: WorldSize = 500,
 ) {
-  return createInitialState(seed, playMode, mapMode);
+  return createInitialState(seed, playMode, mapMode, worldSize);
 }
 function chooseSubjects(
   s: GameState,

@@ -5,6 +5,7 @@ import { CUSTODIAN_RISK_LABELS, getCustodianStatuses } from '../game/custodianSt
 import { resolveUnitSex } from '../game/demography';
 import { visibleUnitEquipment } from '../game/unitEquipment';
 import { getRiverFords, isLandPoint } from '../game/landNavigation';
+import { isWorldPointRevealed } from '../game/worldDimensions';
 import type { GameState, MapEntity, WorldTarget } from '../game/types';
 import { groundPileFor, resourceKnown, resourcePileLabel } from './mapResourceLayout';
 import { getCityPresentation } from './cityPresentation';
@@ -178,14 +179,7 @@ export function targetPresentation(
 ): TargetPresentation | null {
   if (!target) return null;
   if (target.type === 'point' && state.mapGeneration?.landNavigation === 1) {
-    const revealed =
-      state.tier >= 4 ||
-      state.sectors.some(
-        (sector) =>
-          sector.explored &&
-          sector.x === Math.min(4, Math.floor(target.x / 100)) &&
-          sector.y === Math.min(4, Math.floor(target.y / 100)),
-      );
+    const revealed = isWorldPointRevealed(state, target.x, target.y);
     if (!revealed) return null;
     const ford = getRiverFords(state).find(
       (entry) => Math.hypot(entry.x - target.x, entry.y - target.y) <= entry.width / 2,

@@ -7,6 +7,7 @@ import { activeUnits, canPay, clamp, copy, distance, log, nextId, pay, totalFood
 import { killUnit, recordAttackTrauma } from './simulation';
 import { combatEquipmentFor } from './unitEquipment';
 import { moveOnLand } from './landNavigation';
+import { getWorldSize } from './worldDimensions';
 import type { Caravan, City, Faction, ForeignRaid, GameState, Inventory, Unit } from './types';
 
 /** Product extension: policy parameters, not formulas attributed to the GDD. */
@@ -263,7 +264,7 @@ function dispatchRaid(state: GameState, faction: Faction, origin: City) {
   const members: Unit[] = Array.from({ length: count }, (_, index) => ({
     id: `${id}-member-${index}`,
     name: `Razziatore di ${faction.name}`,
-    x: clamp(origin.x + index, 0, 500),
+    x: clamp(origin.x + index, 0, getWorldSize(state)),
     y: origin.y,
     hp: health / count,
     hunger: 20,

@@ -1,13 +1,13 @@
 import type { GameState, Sector } from '../game/types';
+import { getWorldSectorCount, getWorldSize } from '../game/worldDimensions';
 import { createRiverArtGeometry, sampleRiverArt, traceRiverArt } from './mapRiverGeometry';
 
 type World = Pick<GameState, 'mapGeneration' | 'sectors' | 'home'>;
 type Point = { x: number; y: number };
 type Color = readonly [number, number, number];
 const WIDTH = 1200,
-  HEIGHT = 800,
-  SX = 2.4,
-  SY = 1.6;
+  HEIGHT = 800;
+type Projection = { sx: number; sy: number; sectors: number; detail: number; worldSize: number };
 const clamp = (v: number) => Math.max(0, Math.min(1, v));
 const blend = (a: number, b: number, t: number) => a + (b - a) * t;
 const smooth = (t: number) => t * t * (3 - 2 * t);
@@ -53,7 +53,7 @@ function defaultSectors(): Sector[] {
   });
 }
 
-function groundColors(sectors: Sector[], season: number): Color[] {
+function groundColors(sectors: Sector[], season: number, side: number): Color[] {
   const palette: Record<Sector['biome'], Color> =
     season === 3
       ? {
@@ -82,8 +82,8 @@ function groundColors(sectors: Sector[], season: number): Color[] {
               mountain: [155, 154, 129],
               river: [109, 141, 119],
             };
-  const cells: Color[] = Array.from({ length: 25 }, () => palette.plain);
-  for (const sector of sectors) cells[sector.y * 5 + sector.x] = palette[sector.biome];
+  const cells: Color[] = Array.from({ length: side * side }, () => palette.plain);
+  for (const sector of sectors) cells[sector.y * side + sector.x] = palette[sector.biome];
   return cells;
 }
 
@@ -94,14 +94,16 @@ function paintGround(
   season: number,
   sectors: Sector[],
   home: Point,
+  projection: Projection,
 ) {
+  const { sx: SX, sy: SY, sectors: side, detail } = projection;
   const base = document.createElement('canvas');
   base.width = WIDTH;
   base.height = HEIGHT;
   const painter = base.getContext('2d')!;
   const image = painter.createImageData(WIDTH, HEIGHT),
     data = image.data;
-  const cells = groundColors(sectors, season);
+  const cells = groundColors(sectors, season, side);
   const snow = season === 3;
   const earth: Color = snow ? [194, 190, 170] : [181, 152, 104];
   // Low relief belongs to the cached surface, with no extra full-size canvas or
@@ -113,36 +115,38 @@ function paintGround(
   for (let y = 0; y < reliefHeight; y++) {
     for (let x = 0; x < reliefWidth; x++) {
       heights[y * reliefWidth + x] =
-        noise(x / 7.5, y / 6.2, seed + 281) * 0.7 + noise(x / 2.7, y / 2.1, seed + 1181) * 0.3;
+        noise(x / (7.5 * detail), y / (6.2 * detail), seed + 281) * 0.7 +
+        noise(x / (2.7 * detail), y / (2.1 * detail), seed + 1181) * 0.3;
     }
   }
   for (let y = 0; y < reliefHeight - 1; y++) {
     for (let x = 0; x < reliefWidth - 1; x++) {
       const height = heights[y * reliefWidth + x];
       relief[y * reliefWidth + x] =
-        (height - heights[y * reliefWidth + x + 1]) * 38 +
-        (height - heights[(y + 1) * reliefWidth + x]) * 27;
+        ((height - heights[y * reliefWidth + x + 1]) * 38 +
+          (height - heights[(y + 1) * reliefWidth + x]) * 27) *
+        detail;
     }
   }
   for (let y = 0; y < HEIGHT; y++) {
     const gy = y / (SY * 100) - 0.5,
       iy = Math.floor(gy),
       fy = smooth(gy - iy);
-    const y0 = Math.max(0, Math.min(4, iy)),
-      y1 = Math.max(0, Math.min(4, iy + 1));
+    const y0 = Math.max(0, Math.min(side - 1, iy)),
+      y1 = Math.max(0, Math.min(side - 1, iy + 1));
     for (let x = 0; x < WIDTH; x++) {
       const gx = x / (SX * 100) - 0.5,
         ix = Math.floor(gx),
         fx = smooth(gx - ix);
-      const x0 = Math.max(0, Math.min(4, ix)),
-        x1 = Math.max(0, Math.min(4, ix + 1));
-      const a = cells[y0 * 5 + x0],
-        b = cells[y0 * 5 + x1],
-        c = cells[y1 * 5 + x0],
-        d = cells[y1 * 5 + x1];
-      const broad = noise(x / 104, y / 83, seed),
-        patches = noise(x / 36, y / 25, seed + 91);
-      const clumps = noise(x / 7.8, y / 5.3, seed + 711),
+      const x0 = Math.max(0, Math.min(side - 1, ix)),
+        x1 = Math.max(0, Math.min(side - 1, ix + 1));
+      const a = cells[y0 * side + x0],
+        b = cells[y0 * side + x1],
+        c = cells[y1 * side + x0],
+        d = cells[y1 * side + x1];
+      const broad = noise(x / (104 * detail), y / (83 * detail), seed),
+        patches = noise(x / (36 * detail), y / (25 * detail), seed + 91);
+      const clumps = noise(x / (7.8 * detail), y / (5.3 * detail), seed + 711),
         grain = hash(x, y, seed + 1709);
       const soil = clamp((patches - 0.54) * 2.6) * (snow ? 0.1 : 0.47);
       const dx = x / SX - home.x,
@@ -209,7 +213,7 @@ function dab(
 }
 
 /** Fine pigment stays distinct at close zoom, above the deliberately soft soil washes. */
-function paintPigment(ctx: CanvasRenderingContext2D, seed: number) {
+function paintPigment(ctx: CanvasRenderingContext2D, seed: number, detail: number) {
   const paper = document.createElement('canvas');
   paper.width = paper.height = 256;
   const brush = paper.getContext('2d')!;
@@ -224,10 +228,10 @@ function paintPigment(ctx: CanvasRenderingContext2D, seed: number) {
   }
   brush.putImageData(pigment, 0, 0);
   ctx.save();
-  ctx.scale(1 / 3, 1 / 3);
+  ctx.scale(detail / 3, detail / 3);
   ctx.globalCompositeOperation = 'soft-light';
   ctx.fillStyle = ctx.createPattern(paper, 'repeat')!;
-  ctx.fillRect(0, 0, WIDTH * 3, HEIGHT * 3);
+  ctx.fillRect(0, 0, (WIDTH * 3) / detail, (HEIGHT * 3) / detail);
   ctx.restore();
 }
 
@@ -239,6 +243,7 @@ function brushIsland(
   depth: number,
   color: string,
   phase: number,
+  detail: number,
 ) {
   const random = randomStream(Math.round(phase * 989381) ^ 0x71fe2a);
   ctx.save();
@@ -251,7 +256,7 @@ function brushIsland(
     const px = (random() - 0.5) * width * 1.2,
       py = (random() - 0.5) * depth * 1.5,
       span = width * (0.12 + random() * 0.45),
-      thickness = 0.3 + depth * (0.04 + random() * 0.12);
+      thickness = 0.3 * detail + depth * (0.04 + random() * 0.12);
     ctx.beginPath();
     ctx.moveTo(px - span, py);
     ctx.lineTo(px - span * 0.55, py - thickness * 0.65);
@@ -272,7 +277,9 @@ function paintLandscapeMasses(
   season: number,
   sectors: Sector[],
   home: Point,
+  projection: Projection,
 ) {
+  const { sx: SX, sy: SY, detail } = projection;
   const random = randomStream(seed ^ 0x4b13da75);
   const winter = season === 3,
     autumn = season === 2,
@@ -311,18 +318,26 @@ function paintLandscapeMasses(
             : summer
               ? '#e7d18a28'
               : '#b6c68125';
-      brushIsland(ctx, x, y, width, depth, i % 3 === 0 ? shade : light, phase);
+      brushIsland(ctx, x, y, width, depth, i % 3 === 0 ? shade : light, phase, detail);
       // Broken edges keep the meadow as a group of brush strokes, never a neat oval stamp.
       for (let edge = 0; edge < 5; edge++) {
         const angle = random() * Math.PI * 2;
         const ex = x + Math.cos(angle) * width * (0.6 + random() * 0.35),
           ey = y + Math.sin(angle) * depth * 0.85;
-        dab(ctx, ex, ey, 0.8 + random() * 2.4, 0.3 + random() * 0.6, light, -0.2);
+        dab(
+          ctx,
+          ex,
+          ey,
+          (0.8 + random() * 2.4) * detail,
+          (0.3 + random() * 0.6) * detail,
+          light,
+          -0.2,
+        );
       }
       if (mountain) {
         // Flat seams belong to the ground; collectible rock has a raised, shaded silhouette.
         ctx.strokeStyle = winter ? '#8b9b9255' : '#776e5842';
-        ctx.lineWidth = 0.23;
+        ctx.lineWidth = 0.23 * detail;
         ctx.beginPath();
         ctx.moveTo(x - width * 0.55, y + depth * 0.12);
         ctx.lineTo(x - width * 0.1, y - depth * 0.2);
@@ -336,8 +351,8 @@ function paintLandscapeMasses(
             ctx,
             lx,
             ly,
-            0.55 + random() * 0.6,
-            0.16 + random() * 0.15,
+            (0.55 + random() * 0.6) * detail,
+            (0.16 + random() * 0.15) * detail,
             winter ? '#c3cbb347' : autumn ? '#c39a5b65' : '#9f9f6350',
             random() * 2 - 1,
           );
@@ -348,7 +363,14 @@ function paintLandscapeMasses(
 }
 
 /** Wear marks compose the camp without inventing buildings, goods or a gameplay road. */
-function paintCampWear(ctx: CanvasRenderingContext2D, seed: number, season: number, home: Point) {
+function paintCampWear(
+  ctx: CanvasRenderingContext2D,
+  seed: number,
+  season: number,
+  home: Point,
+  projection: Projection,
+) {
+  const { sx: SX, sy: SY } = projection;
   const random = randomStream(seed ^ 0x574ea3d1),
     winter = season === 3;
   ctx.save();
@@ -401,12 +423,15 @@ function paintSmallGrowth(
   seed: number,
   season: number,
   home: Point,
+  projection: Projection,
 ) {
+  const { sx: SX, sy: SY, detail } = projection;
+  const density = 1 / (detail * detail);
   const random = randomStream(seed ^ 0x38e2f6a1),
     winter = season === 3,
     autumn = season === 2;
   // Pigment is subordinate to the landscape shapes, not an all-over noisy carpet.
-  for (let i = 0; i < 6200; i++) {
+  for (let i = 0; i < 6200 * density; i++) {
     const x = random() * WIDTH,
       y = random() * HEIGHT;
     const nearHome = Math.hypot(x / SX - home.x, y / SY - home.y) < 11;
@@ -416,23 +441,38 @@ function paintSmallGrowth(
         ? ['#d1ba8050', '#8c785542', '#556e4936'][i % 3]
         : ['#ddd29c45', '#526e4535', '#81935b45'][i % 3];
     if (nearHome && i % 3) continue;
-    dab(ctx, x, y, 0.25 + random() * 0.85, 0.08 + random() * 0.22, color, random() * 1.6);
+    dab(
+      ctx,
+      x,
+      y,
+      (0.25 + random() * 0.85) * detail,
+      (0.08 + random() * 0.22) * detail,
+      color,
+      random() * 1.6,
+    );
   }
   ctx.lineCap = 'round';
-  for (let i = 0; i < 4500; i++) {
+  for (let i = 0; i < 4500 * density; i++) {
     const x = random() * WIDTH,
       y = random() * HEIGHT;
     if (Math.hypot(x / SX - home.x, y / SY - home.y) < 16 + random() * 5) continue;
-    const patch = noise(x / 31, y / 24, seed + 126);
+    const patch = noise(x / (31 * detail), y / (24 * detail), seed + 126);
     if (patch < 0.36 || (winter && random() > 0.22)) continue;
-    const height = 0.45 + random() * 1.7,
-      lean = (random() - 0.5) * 2.5;
+    const height = (0.45 + random() * 1.7) * detail,
+      lean = (random() - 0.5) * 2.5 * detail;
     // A soft basal paint mark and individually tapered blades, never repeated V symbols.
-    dab(ctx, x + 0.3, y + 0.18, 1.1 + random() * 0.9, 0.34, '#324b3022');
+    dab(
+      ctx,
+      x + 0.3 * detail,
+      y + 0.18 * detail,
+      (1.1 + random() * 0.9) * detail,
+      0.34 * detail,
+      '#324b3022',
+    );
     for (let blade = 0; blade < 2 + (i % 4); blade++) {
-      const bx = x + (blade - 1.5) * (0.25 + random() * 0.45),
+      const bx = x + (blade - 1.5) * (0.25 + random() * 0.45) * detail,
         bladeHeight = height * (0.55 + random() * 0.65),
-        tip = lean + (random() - 0.5) * 1.1;
+        tip = lean + (random() - 0.5) * 1.1 * detail;
       ctx.strokeStyle = winter
         ? '#6c887a65'
         : season === 1
@@ -446,30 +486,45 @@ function paintSmallGrowth(
             : blade === 1
               ? '#cfce939c'
               : '#4c713e80';
-      ctx.lineWidth = blade === 1 ? 0.22 : 0.35;
+      ctx.lineWidth = (blade === 1 ? 0.22 : 0.35) * detail;
       ctx.beginPath();
       ctx.moveTo(bx, y);
       ctx.quadraticCurveTo(bx + tip * 0.3, y - bladeHeight * 0.6, bx + tip, y - bladeHeight);
       ctx.stroke();
     }
-    if (autumn && i % 11 === 0) dab(ctx, x + 1, y - 0.5, 0.65, 0.22, '#9b7d4d66', -0.5);
+    if (autumn && i % 11 === 0)
+      dab(ctx, x + detail, y - 0.5 * detail, 0.65 * detail, 0.22 * detail, '#9b7d4d66', -0.5);
     if (!winter && i % 31 === 0) {
-      dab(ctx, x - 0.25, y - height, 0.42, 0.28, '#f0dfaaad');
-      dab(ctx, x + 0.4, y - height + 0.15, 0.27, 0.2, '#e7c6879c');
+      dab(ctx, x - 0.25 * detail, y - height, 0.42 * detail, 0.28 * detail, '#f0dfaaad');
+      dab(
+        ctx,
+        x + 0.4 * detail,
+        y - height + 0.15 * detail,
+        0.27 * detail,
+        0.2 * detail,
+        '#e7c6879c',
+      );
     }
   }
   // Soil inclusions are sub-pixel specks, not fake harvestable rock silhouettes.
-  for (let i = 0; i < 950; i++) {
+  for (let i = 0; i < 950 * density; i++) {
     const x = random() * WIDTH,
       y = random() * HEIGHT,
-      size = 0.22 + random() * 0.48;
-    dab(ctx, x + 0.18, y + 0.18, size * 1.25, size * 0.5, '#534d3722');
+      size = (0.22 + random() * 0.48) * detail;
+    dab(ctx, x + 0.18 * detail, y + 0.18 * detail, size * 1.25, size * 0.5, '#534d3722');
     dab(ctx, x, y, size, size * 0.55, winter ? '#c0c5b8' : '#a6a58c', -0.15);
     dab(ctx, x - size * 0.2, y - size * 0.15, size * 0.45, size * 0.18, '#ded6b275');
   }
 }
 
-function paintRiver(ctx: CanvasRenderingContext2D, seed: number, season: number, world?: World) {
+function paintRiver(
+  ctx: CanvasRenderingContext2D,
+  seed: number,
+  season: number,
+  projection: Projection,
+  world?: World,
+) {
+  const { sx: SX, sy: SY, worldSize } = projection;
   const random = randomStream(seed ^ 0x724e38a5),
     winter = season === 3;
   const geometry = createRiverArtGeometry(world);
@@ -478,7 +533,7 @@ function paintRiver(ctx: CanvasRenderingContext2D, seed: number, season: number,
   ctx.scale(SX, SY);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  const water = ctx.createLinearGradient(0, 0, 500, 500);
+  const water = ctx.createLinearGradient(0, 0, worldSize, worldSize);
   water.addColorStop(0, winter ? '#849f9b' : '#557e77');
   water.addColorStop(0.5, winter ? '#a7bab1' : '#7d9e8b');
   water.addColorStop(1, winter ? '#94b4b2' : '#597f79');
@@ -552,11 +607,19 @@ export function createPainterlyTerrain(
   const originalSeed = world?.mapGeneration?.seed ?? seed;
   const sectors = world?.sectors ?? defaultSectors();
   const home = world?.home ?? { x: 250, y: 250 };
-  paintGround(ctx, originalSeed, season, sectors, home);
-  paintLandscapeMasses(ctx, originalSeed, season, sectors, home);
-  paintCampWear(ctx, originalSeed, season, home);
-  paintPigment(ctx, originalSeed);
-  paintSmallGrowth(ctx, originalSeed, season, home);
-  paintRiver(ctx, originalSeed, season, world);
+  const worldSize = getWorldSize(world ?? {});
+  const projection: Projection = {
+    sx: WIDTH / worldSize,
+    sy: HEIGHT / worldSize,
+    sectors: getWorldSectorCount(world ?? {}),
+    detail: 500 / worldSize,
+    worldSize,
+  };
+  paintGround(ctx, originalSeed, season, sectors, home, projection);
+  paintLandscapeMasses(ctx, originalSeed, season, sectors, home, projection);
+  paintCampWear(ctx, originalSeed, season, home, projection);
+  paintPigment(ctx, originalSeed, projection.detail);
+  paintSmallGrowth(ctx, originalSeed, season, home, projection);
+  paintRiver(ctx, originalSeed, season, projection, world);
   return canvas;
 }

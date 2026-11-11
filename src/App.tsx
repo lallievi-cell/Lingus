@@ -83,6 +83,7 @@ import {
 import { GrowthReadiness, IndividualGrowthReadiness } from './components/GrowthReadiness';
 import { GuidedCouncil, CouncilRules } from './components/GuidedCouncil';
 import { getCalendar, hasOpeningBalance, seasonStart } from './game/calendar';
+import { getWorldSize, REGION_WORLD_SIZE } from './game/worldDimensions';
 import { resolveUnitSex } from './game/demography';
 import { TeachingPanel } from './components/TeachingPanel';
 import { MobileActionDock } from './components/MobileActionDock';
@@ -219,7 +220,7 @@ function App() {
   const [initialSave] = useState(() => browserSaves.load());
   const [recoveryLoad, setRecoveryLoad] = useState(initialSave);
   const [game, setGame] = useState<GameState>(
-    () => initialSave.game ?? createGame(freshMapSeed(), 'guided', 'random'),
+    () => initialSave.game ?? createGame(freshMapSeed(), 'guided', 'random', REGION_WORLD_SIZE),
   );
   const [mapSession, setMapSession] = useState(0);
   const [panel, setPanel] = useState<Panel>(() =>
@@ -1077,7 +1078,7 @@ function App() {
             (!chooseNew && current.mapGeneration?.mode === 'random'
               ? current.mapGeneration.seed
               : freshMapSeed(current.mapGeneration?.seed)));
-      return createGame(seed, mode, map);
+      return createGame(seed, mode, map, map === 'random' ? REGION_WORLD_SIZE : 500);
     });
   }
 
@@ -1113,7 +1114,7 @@ function App() {
       notify('Un’altra scheda ha cambiato la partita. Scegli quale storia riprendere.');
       return;
     }
-    setGame(begun);
+    activateStory(begun);
     closePanel();
   }
 
@@ -1123,7 +1124,10 @@ function App() {
       newMap === 'seed-zero'
         ? 6842
         : (parseMapSeed(newSeed) ?? freshMapSeed(game.mapGeneration?.seed));
-    const fresh = { ...createGame(seed, newMode, newMap), started: true };
+    const fresh = {
+      ...createGame(seed, newMode, newMap, newMap === 'random' ? REGION_WORLD_SIZE : 500),
+      started: true,
+    };
     if (!preserveCurrentStory()) return;
     if (!saveNow(fresh, { reason: 'new-story', allowReplaceInvalid: true }).ok) {
       notify('Il nuovo inizio non è stato salvato. La storia attuale resta aperta.');
@@ -2910,7 +2914,10 @@ function App() {
             className="primary-button"
             disabled={!game.started && !newMapValid}
             onClick={() => {
-              if (!game.started && !newMapValid) return;
+              if (!game.started) {
+                beginStory();
+                return;
+              }
               setGame((g) => ({ ...g, started: true, paused: false }));
               closePanel();
             }}
@@ -3309,6 +3316,11 @@ function App() {
                 {game.mapGeneration.mode === 'random' ? 'Mappa casuale' : 'Seed Zero'}
                 {' · Seed '}
                 <code>{game.mapGeneration.seed}</code>
+                {' · '}
+                {getWorldSize(game) === REGION_WORLD_SIZE ? 'Regione' : 'Valle'}
+                {' · '}
+                {getWorldSize(game).toLocaleString('it')} ×{' '}
+                {getWorldSize(game).toLocaleString('it')} m
               </>
             ) : (
               'Mappa di una versione precedente · seed originale non disponibile'

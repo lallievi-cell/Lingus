@@ -1,5 +1,11 @@
 import { emptyInventory, HOME } from './content';
 import type { City, Faction, MapEntity, Sector } from './types';
+import {
+  getInitialWorldHome,
+  LEGACY_WORLD_SIZE,
+  REGION_WORLD_SIZE,
+  type WorldSize,
+} from './worldDimensions';
 
 type Point = { x: number; y: number };
 export type RiverSegment = [Point, Point];
@@ -33,9 +39,10 @@ export function riverSegments(sectors: Sector[]): RiverSegment[] {
     current = next;
   }
   if (points.length < 2) return [];
+  const extent = (Math.max(4, ...sectors.map((sector) => Math.max(sector.x, sector.y))) + 1) * 100;
   const edge = (point: Point, inward: Point): Point => ({
-    x: point.x === inward.x ? point.x : point.x < inward.x ? 0 : 500,
-    y: point.y === inward.y ? point.y : point.y < inward.y ? 0 : 500,
+    x: point.x === inward.x ? point.x : point.x < inward.x ? 0 : extent,
+    y: point.y === inward.y ? point.y : point.y < inward.y ? 0 : extent,
   });
   points.unshift(edge(points[0], points[1]));
   points.push(edge(points.at(-1)!, points.at(-2)!));
@@ -56,11 +63,18 @@ function segmentDistance(point: Point, [a, b]: RiverSegment) {
 export function generateWorld(
   seed: number,
   factions: Faction[],
+  worldSize: WorldSize = LEGACY_WORLD_SIZE,
 ): {
   sectors: Sector[];
   entities: MapEntity[];
   cities: City[];
 } {
+  const size = worldSize === REGION_WORLD_SIZE ? REGION_WORLD_SIZE : LEGACY_WORLD_SIZE;
+  const grid = size / 100;
+  const center = Math.floor(grid / 2);
+  const homeSector = `sector-${center}-${center}`;
+  const home = size === LEGACY_WORLD_SIZE ? HOME : getInitialWorldHome(size);
+  const regional = size === REGION_WORLD_SIZE;
   const random = generator(seed);
   const integer = (min: number, max: number) => min + Math.floor(random() * (max - min + 1));
   const shuffle = <T>(values: T[]) => {
@@ -70,20 +84,20 @@ export function generateWorld(
     }
     return values;
   };
-  const sectors: Sector[] = Array.from({ length: 25 }, (_, index) => ({
-    id: `sector-${index % 5}-${Math.floor(index / 5)}`,
-    x: index % 5,
-    y: Math.floor(index / 5),
-    explored: index === 12,
+  const sectors: Sector[] = Array.from({ length: grid * grid }, (_, index) => ({
+    id: `sector-${index % grid}-${Math.floor(index / grid)}`,
+    x: index % grid,
+    y: Math.floor(index / grid),
+    explored: index === center * grid + center,
     faunaCapacity: 20,
     initialFauna: 0,
     biome: 'plain',
   }));
   const riverCells: Point[] = [];
-  let column = random() < 0.5 ? 0 : 4;
-  const bend = integer(1, 3),
+  let column = random() < 0.5 ? 0 : grid - 1;
+  const bend = integer(1, grid - 2),
     rotate = random() < 0.5;
-  for (let row = 0; row < 5; row++) {
+  for (let row = 0; row < grid; row++) {
     riverCells.push({ x: column, y: row });
     if (row === bend) {
       column += column === 0 ? 1 : -1;
@@ -93,25 +107,25 @@ export function generateWorld(
   for (const cell of riverCells) {
     const x = rotate ? cell.y : cell.x,
       y = rotate ? cell.x : cell.y;
-    sectors[y * 5 + x].biome = 'river';
+    sectors[y * grid + x].biome = 'river';
   }
   const outerLand = shuffle(
     sectors.filter(
       (sector) =>
         sector.biome !== 'river' &&
-        (sector.x === 0 || sector.y === 0 || sector.x === 4 || sector.y === 4),
+        (sector.x === 0 || sector.y === 0 || sector.x === grid - 1 || sector.y === grid - 1),
     ),
   );
   const mountainStart = outerLand[0];
   const mountains = [mountainStart];
   mountainStart.biome = 'mountain';
-  const mountainCount = integer(3, 5);
+  const mountainCount = regional ? integer(12, 20) : integer(3, 5);
   while (mountains.length < mountainCount) {
     const candidates = shuffle(
       sectors.filter(
         (sector) =>
           sector.biome === 'plain' &&
-          Math.hypot(sector.x - 2, sector.y - 2) >= 1.5 &&
+          Math.hypot(sector.x - center, sector.y - center) >= 1.5 &&
           mountains.some(
             (other) => Math.abs(other.x - sector.x) + Math.abs(other.y - sector.y) === 1,
           ),
@@ -122,16 +136,17 @@ export function generateWorld(
     mountains.push(candidates[0]);
   }
   const forestCenters = shuffle(
-    sectors.filter((sector) => sector.biome === 'plain' && sector.id !== 'sector-2-2'),
-  ).slice(0, 2);
+    sectors.filter((sector) => sector.biome === 'plain' && sector.id !== homeSector),
+  ).slice(0, regional ? 6 : 2);
   const forest = sectors
-    .filter((sector) => sector.biome === 'plain' && sector.id !== 'sector-2-2')
+    .filter((sector) => sector.biome === 'plain' && sector.id !== homeSector)
     .map((sector) => ({
       sector,
       score: Math.min(...forestCenters.map((center) => distance(center, sector))) + random() * 1.8,
     }))
     .sort((a, b) => a.score - b.score);
-  for (const { sector } of forest.slice(0, integer(6, 9))) sector.biome = 'forest';
+  for (const { sector } of forest.slice(0, regional ? integer(28, 40) : integer(6, 9)))
+    sector.biome = 'forest';
 
   const river = riverSegments(sectors);
   const dry = (point: Point, margin = 12) =>
@@ -142,7 +157,7 @@ export function generateWorld(
       x: sector.x * 100 + integer(30, 70),
       y: sector.y * 100 + integer(30, 70),
     }))
-    .filter((point) => dry(point, 20) && distance(point, HOME) >= 160);
+    .filter((point) => dry(point, 20) && distance(point, home) >= 160);
   const chooseCities = (
     spacing: number,
     selected: typeof cityCandidates = [],
@@ -158,7 +173,7 @@ export function generateWorld(
     }
     return undefined;
   };
-  const citySites = chooseCities(130) ?? chooseCities(90);
+  const citySites = chooseCities(regional ? 260 : 130) ?? chooseCities(regional ? 180 : 90);
   if (!citySites) throw new Error('The generated land cannot hold the foreign settlements.');
   const cities: City[] = factions.map((faction, index) => {
     const site = citySites[index];
@@ -192,15 +207,34 @@ export function generateWorld(
     };
   });
   const entities: MapEntity[] = [];
+  // The larger region keeps physical node spacing without repeatedly scanning
+  // its entire population while placing each new resource or animal.
+  const entityBuckets = new Map<string, MapEntity[]>();
+  const bucketKey = (x: number, y: number) => `${x}:${y}`;
+  const clearOfEntities = (point: Point, spacing: number) => {
+    if (!regional) return entities.every((entity) => distance(entity, point) >= spacing);
+    const bx = Math.floor(point.x / 4),
+      by = Math.floor(point.y / 4);
+    const radius = Math.ceil(spacing / 4);
+    for (let y = by - radius; y <= by + radius; y++)
+      for (let x = bx - radius; x <= bx + radius; x++)
+        if (
+          (entityBuckets.get(bucketKey(x, y)) ?? []).some(
+            (entity) => distance(entity, point) < spacing,
+          )
+        )
+          return false;
+    return true;
+  };
   const free = (point: Point, spacing = 4, predator = false) =>
     point.x >= 2 &&
-    point.x <= 498 &&
+    point.x <= size - 2 &&
     point.y >= 2 &&
-    point.y <= 498 &&
-    distance(point, HOME) >= (predator ? 110 : 9) &&
+    point.y <= size - 2 &&
+    distance(point, home) >= (predator ? 110 : 9) &&
     dry(point) &&
     cities.every((city) => distance(city, point) >= (predator ? 60 : 20)) &&
-    entities.every((entity) => distance(entity, point) >= spacing);
+    clearOfEntities(point, spacing);
   const add = (kind: MapEntity['kind'], point: Point, amount: number, hp: number) => {
     const x = Math.round(point.x * 100) / 100,
       y = Math.round(point.y * 100) / 100;
@@ -217,10 +251,16 @@ export function generateWorld(
       originY: y,
       sectorId: sectorId(x, y),
     });
+    if (regional) {
+      const key = bucketKey(Math.floor(x / 4), Math.floor(y / 4));
+      const bucket = entityBuckets.get(key);
+      if (bucket) bucket.push(entities.at(-1)!);
+      else entityBuckets.set(key, [entities.at(-1)!]);
+    }
   };
   const radial = (radius: number, angle: number): Point => ({
-    x: HOME.x + Math.cos(angle) * radius,
-    y: HOME.y + Math.sin(angle) * radius,
+    x: home.x + Math.cos(angle) * radius,
+    y: home.y + Math.sin(angle) * radius,
   });
   const ring = (min: number, max: number, angle?: number): Point => {
     for (let attempt = 0; attempt < 400; attempt++) {
@@ -255,7 +295,7 @@ export function generateWorld(
     add('berries', ring(52, 68, startAngle + (index * Math.PI * 2) / 3), integer(20, 25), 1);
   for (let index = 0; index < 6; index++) add('deer', ring(38, 65), 2, 30);
 
-  for (const sector of sectors.filter((sector) => sector.id !== 'sector-2-2')) {
+  for (const sector of sectors.filter((sector) => sector.id !== homeSector)) {
     const point = (predator = false): Point | undefined => {
       for (let attempt = 0; attempt < 160; attempt++) {
         const candidate = {

@@ -1,4 +1,5 @@
 import type { GameState } from '../game/types';
+import { isWorldPointRevealed } from '../game/worldDimensions';
 import { createRiverArtGeometry, sampleRiverArt, type RiverArtGeometry } from './mapRiverGeometry';
 
 type Viewport = { minX: number; minY: number; maxX: number; maxY: number };
@@ -21,13 +22,7 @@ export function getRiverHighlights(
         point.x <= viewport.maxX + 2 &&
         point.y >= viewport.minY - 2 &&
         point.y <= viewport.maxY + 2)) &&
-    (state.tier >= 4 ||
-      state.sectors.some(
-        (sector) =>
-          sector.explored &&
-          sector.x === Math.min(4, Math.floor(point.x / 100)) &&
-          sector.y === Math.min(4, Math.floor(point.y / 100)),
-      ));
+    isWorldPointRevealed(state, point.x, point.y);
   const highlights = [];
   for (let i = 0; i < count; i++) {
     const distance = ((i / count) * geometry.length + clock * 1.1) % geometry.length;

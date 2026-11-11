@@ -14,6 +14,7 @@ import type { Building, GameState, MapEntity, Resource, Target, Unit } from './t
 import { taskOutcomeMessage } from './taskOutcomes';
 import { resolveInteractionPosition } from './interactionPositions';
 import { isLandPoint } from './landNavigation';
+import { sectorIndex } from './worldDimensions';
 
 export type WorkCategory = 'idle' | 'working' | 'recovering' | 'young' | 'dead';
 export interface WorkStatus {
@@ -41,8 +42,8 @@ function sourceVisible(state: GameState, source: MapEntity) {
     state.sectors.some(
       (sector) =>
         sector.explored &&
-        sector.x === Math.min(4, Math.floor(source.x / 100)) &&
-        sector.y === Math.min(4, Math.floor(source.y / 100)),
+        sector.x === sectorIndex(state, source.x) &&
+        sector.y === sectorIndex(state, source.y),
     )
   );
 }

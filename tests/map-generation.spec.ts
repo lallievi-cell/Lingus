@@ -5,7 +5,13 @@ type WorldSave = {
   time: number;
   seed: number;
   playMode?: 'guided' | 'classic';
-  mapGeneration?: { mode: 'random' | 'seed-zero'; seed: number; version: 1; landNavigation?: 1 };
+  mapGeneration?: {
+    mode: 'random' | 'seed-zero';
+    seed: number;
+    version: 1;
+    landNavigation?: 1;
+    worldSize?: 1000;
+  };
   entities: {
     id: string;
     kind: string;
@@ -76,6 +82,8 @@ test('new stories default to different random maps and reload preserves the save
   );
   const first = await startAndPause(page);
   expect(first.mapGeneration?.mode).toBe('random');
+  expect(first.mapGeneration?.worldSize).toBe(1000);
+  expect(first.sectors).toHaveLength(100);
   await openRestart(page);
   const next = await startAndPause(page, false);
   expect(next.mapGeneration?.mode).toBe('random');
@@ -103,6 +111,7 @@ test('an explicit map seed reproduces its geometry independently from Guided or 
     seed: 123,
     version: 1,
     landNavigation: 1,
+    worldSize: 1000,
   });
 
   await openRestart(page);
@@ -156,7 +165,13 @@ test('the picker rejects invalid seeds and accepts the reproducible seed zero', 
   await seed.fill('0');
   await expect(begin).toBeEnabled();
   const state = await startAndPause(page);
-  expect(state.mapGeneration).toEqual({ mode: 'random', seed: 0, version: 1, landNavigation: 1 });
+  expect(state.mapGeneration).toEqual({
+    mode: 'random',
+    seed: 0,
+    version: 1,
+    landNavigation: 1,
+    worldSize: 1000,
+  });
 });
 
 test('map options remain accessible on mobile and canceling restart preserves the old map', async ({

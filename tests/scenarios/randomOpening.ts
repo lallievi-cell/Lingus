@@ -1,4 +1,4 @@
-import { HOME } from '../../src/game/content';
+import type { WorldSize } from '../../src/game/worldDimensions';
 import {
   compileSentence,
   createGame,
@@ -50,11 +50,19 @@ function concludeCouncil(state: GameState) {
  * material sources and gives group orders at ten-second decisions. Inventory,
  * knowledge, unit positions and random outcomes are never prepared by the test.
  */
-export function replayRandomOpening(seed: number) {
-  let state: GameState = { ...createGame(seed, 'guided', 'random'), started: true };
+export function replayRandomOpening(
+  seed: number,
+  worldSize: WorldSize = 500,
+  currentCalendar = false,
+) {
+  let state: GameState = { ...createGame(seed, 'guided', 'random', worldSize), started: true };
+  const homePoint = state.home;
+  const deadline = currentCalendar ? 350 : 210;
   // Keep the historical timings as coverage for existing Guided saves.
-  delete state.openingBalanceVersion;
-  delete state.openingCouncilsCompleted;
+  if (!currentCalendar) {
+    delete state.openingBalanceVersion;
+    delete state.openingCouncilsCompleted;
+  }
   const orders: RandomOpeningOrder[] = [];
   const discoveries: { at: number; wordId: string; recipe: string[] }[] = [];
   const rejectedOrders: { at: number; tokens: string[]; reason: string }[] = [];
@@ -66,7 +74,8 @@ export function replayRandomOpening(seed: number) {
         sector.x === Math.floor(entity.x / 100) &&
         sector.y === Math.floor(entity.y / 100),
     );
-  const nearHome = (entity: MapEntity) => Math.hypot(entity.x - HOME.x, entity.y - HOME.y);
+  const nearHome = (entity: MapEntity) =>
+    Math.hypot(entity.x - homePoint.x, entity.y - homePoint.y);
   const source = (kind: MapEntity['kind'], minimum = 0) =>
     state.entities
       .filter((entity) => entity.kind === kind && entity.amount > minimum && visible(entity))
@@ -77,7 +86,7 @@ export function replayRandomOpening(seed: number) {
     x: entity.x,
     y: entity.y,
   });
-  const home: Target = { type: 'point', ...HOME };
+  const home: Target = { type: 'point', ...homePoint };
   // A close visible pair makes the first extraction understandable without
   // selecting an artisan or placing anyone at an artificial intersection.
   const pairs = state.entities
@@ -110,7 +119,8 @@ export function replayRandomOpening(seed: number) {
         (a, b) =>
           adults.filter((unit) => Math.hypot(unit.x - b.x, unit.y - b.y) <= 15).length -
             adults.filter((unit) => Math.hypot(unit.x - a.x, unit.y - a.y) <= 15).length ||
-          Math.hypot(a.x - HOME.x, a.y - HOME.y) - Math.hypot(b.x - HOME.x, b.y - HOME.y),
+          Math.hypot(a.x - homePoint.x, a.y - homePoint.y) -
+            Math.hypot(b.x - homePoint.x, b.y - homePoint.y),
       )[0];
     return {
       anchor,
@@ -138,7 +148,7 @@ export function replayRandomOpening(seed: number) {
     return true;
   };
 
-  for (let step = 0; step <= 840 && !state.gameOver; step++) {
+  for (let step = 0; step <= deadline * 4 && !state.gameOver; step++) {
     for (const spark of state.sparks.filter((entry) => !entry.deferred)) {
       const learned = hasWord(state, spark.wordId);
       state = solveSpark(state, spark.id, spark.recipe);
@@ -178,7 +188,7 @@ export function replayRandomOpening(seed: number) {
         fire &&
         !craftedOnOrder &&
         stage === 'stone' &&
-        time % 90 >= 60 &&
+        getCalendar(state).isNight &&
         hasWord(state, 'V_06') &&
         state.resources.wood >= 5 &&
         pair
@@ -204,7 +214,7 @@ export function replayRandomOpening(seed: number) {
         say(['S_01', 'V_06', 'O_02']);
       }
     }
-    if (state.time >= 210) break;
+    if (state.time >= deadline) break;
     state = tick(state, 0.25);
   }
   return { state, firstFireAt, orders, rejectedOrders, discoveries, hiddenTargets };
@@ -214,9 +224,14 @@ export function replayRandomOpening(seed: number) {
  * before the cold, and the public campfire selector recalls the full adult
  * group. This checks one year, not a self-sustaining multiyear economy.
  */
-export function replayRandomFirstYear(seed: number, endTime: 360 | 390 = 360) {
-  const opening = replayRandomOpening(seed);
+export function replayRandomFirstYear(
+  seed: number,
+  endTime: 360 | 390 = 360,
+  worldSize: WorldSize = 500,
+) {
+  const opening = replayRandomOpening(seed, worldSize);
   let state = opening.state;
+  const homePoint = state.home;
   const orders = [...opening.orders];
   const rejectedOrders = [...opening.rejectedOrders];
   const discoveries = [...opening.discoveries];
@@ -233,7 +248,7 @@ export function replayRandomFirstYear(seed: number, endTime: 360 | 390 = 360) {
     state.buildings.find(
       (building) => !building.cityId && building.kind === 'campfire' && building.hp > 0,
     );
-  const pointHome: Target = { type: 'point', ...HOME };
+  const pointHome: Target = { type: 'point', ...homePoint };
   const target = (entity: MapEntity): Target => ({
     type: 'entity',
     id: entity.id,
@@ -247,12 +262,13 @@ export function replayRandomFirstYear(seed: number, endTime: 360 | 390 = 360) {
           entity.kind === 'berries' &&
           entity.amount > minimum &&
           visible(entity) &&
-          Math.hypot(entity.x - HOME.x, entity.y - HOME.y) < 70,
+          Math.hypot(entity.x - homePoint.x, entity.y - homePoint.y) < 70,
       )
       .sort((a, b) =>
         richest
           ? b.amount - a.amount
-          : Math.hypot(a.x - HOME.x, a.y - HOME.y) - Math.hypot(b.x - HOME.x, b.y - HOME.y),
+          : Math.hypot(a.x - homePoint.x, a.y - homePoint.y) -
+            Math.hypot(b.x - homePoint.x, b.y - homePoint.y),
       )[0];
   const wood = () =>
     state.entities
@@ -264,7 +280,9 @@ export function replayRandomFirstYear(seed: number, endTime: 360 | 390 = 360) {
           visible(entity),
       )
       .sort(
-        (a, b) => Math.hypot(a.x - HOME.x, a.y - HOME.y) - Math.hypot(b.x - HOME.x, b.y - HOME.y),
+        (a, b) =>
+          Math.hypot(a.x - homePoint.x, a.y - homePoint.y) -
+          Math.hypot(b.x - homePoint.x, b.y - homePoint.y),
       )[0];
   const say = (tokens: string[], destination?: Target) => {
     if (tokens.includes('V_04') && getCalendar(state).isNight) return;
@@ -304,7 +322,7 @@ export function replayRandomFirstYear(seed: number, endTime: 360 | 390 = 360) {
     // The material depot frees the shared starting capacity for actual winter
     // food. Give each haul time to return before asking for the next task.
     if (time === depotAt)
-      say(['S_01', 'V_05', 'O_02'], { type: 'point', x: HOME.x, y: HOME.y - 3 });
+      say(['S_01', 'V_05', 'O_02'], { type: 'point', x: homePoint.x, y: homePoint.y - 3 });
     if ((time === depotAt + 10 || time === depotAt + 30) && food(8))
       say(['S_01', 'V_04'], target(food(8)!));
     if (time === depotAt + 50 && time < 250 && state.resources.wood < 7 && wood())

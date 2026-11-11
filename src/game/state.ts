@@ -1,5 +1,11 @@
 import { HOME, INNATE_WORDS, BASE_HOUSING, ADULT_AGE, emptyInventory } from './content';
 import { generateWorld } from './worldGeneration';
+import {
+  getInitialWorldHome,
+  LEGACY_WORLD_SIZE,
+  REGION_WORLD_SIZE,
+  type WorldSize,
+} from './worldDimensions';
 import type { City, Faction, GameState, MapEntity, MapMode, Sector, Unit } from './types';
 
 /** Guided product calibration A-59: time to establish the first generation.
@@ -11,7 +17,11 @@ export function createInitialState(
   seed = 6842,
   playMode: 'guided' | 'classic' = 'classic',
   mapMode: MapMode = 'seed-zero',
+  worldSize: WorldSize = LEGACY_WORLD_SIZE,
 ): GameState {
+  const size =
+    mapMode === 'random' && worldSize === REGION_WORLD_SIZE ? REGION_WORLD_SIZE : LEGACY_WORLD_SIZE;
+  const home = size === LEGACY_WORLD_SIZE ? HOME : getInitialWorldHome(size);
   const people: [string, number, number, number, number, number][] = [
     ['Korg', 8, 8, 4, 100, 20],
     ['Ayla', 10, 4, 8, 100, 20],
@@ -25,8 +35,8 @@ export function createInitialState(
     id: `unit-${i}`,
     name,
     sex: (['M', 'F', 'F', 'M', 'F', 'F', 'M'] as const)[i],
-    x: HOME.x + Math.cos(i * 2.4) * 4,
-    y: HOME.y + Math.sin(i * 2.4) * 4,
+    x: home.x + Math.cos(i * 2.4) * 4,
+    y: home.y + Math.sin(i * 2.4) * 4,
     hp,
     hunger,
     temp: 100,
@@ -233,6 +243,7 @@ export function createInitialState(
       seed: seed >>> 0,
       version: 1,
       ...(mapMode === 'random' ? { landNavigation: 1 as const } : {}),
+      ...(size === REGION_WORLD_SIZE ? { worldSize: REGION_WORLD_SIZE } : {}),
     },
     seed: seed >>> 0,
     time: 0,
@@ -267,7 +278,7 @@ export function createInitialState(
         tone: 'info',
       },
     ],
-    explored: [{ ...HOME }],
+    explored: [{ ...home }],
     stats: {
       commands: 0,
       discoveries: 0,
@@ -315,10 +326,14 @@ export function createInitialState(
       lastSummerYear: 0,
       lastWinterYear: 0,
     },
-    home: { ...HOME },
+    home: { ...home },
     burntWood: 0,
   };
-  if (mapMode === 'random') Object.assign(state, generateWorld(seed >>> 0, factions));
+  if (mapMode === 'random') {
+    Object.assign(state, generateWorld(seed >>> 0, factions, size));
+    if (size === REGION_WORLD_SIZE)
+      state.revision = Math.max(state.revision, state.entities.length + 100);
+  }
   return state;
 }
 export const INITIAL_HOUSING = BASE_HOUSING;

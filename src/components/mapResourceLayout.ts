@@ -1,6 +1,7 @@
 import { RESOURCE_ORDER, RESOURCE_SPECS } from '../game/content';
 import { groundPileLocation, sameGroundPile } from '../game/groundPiles';
 import type { GameState, MapEntity, Resource } from '../game/types';
+import { getWorldSize } from '../game/worldDimensions';
 
 export interface GroundPile {
   entity: MapEntity;
@@ -64,8 +65,11 @@ export function getGroundPiles(s: GameState): GroundPile[] {
       const pile = group[i];
       if (besideSource || group.length > 1) {
         const column = i % 2 === 0 ? 1 : -1;
-        pile.x = Math.max(1, Math.min(499, pile.x + column * (5 + Math.floor(i / 4) * 5)));
-        pile.y = Math.max(1, Math.min(499, pile.y + 4 + Math.floor(i / 2) * 6));
+        pile.x = Math.max(
+          1,
+          Math.min(getWorldSize(s) - 1, pile.x + column * (5 + Math.floor(i / 4) * 5)),
+        );
+        pile.y = Math.max(1, Math.min(getWorldSize(s) - 1, pile.y + 4 + Math.floor(i / 2) * 6));
       }
       piles.push(pile);
     }

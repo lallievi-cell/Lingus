@@ -1,6 +1,7 @@
 import { RESOURCE_ORDER, RESOURCE_SPECS } from '../game/content';
 import { freeCapacity, hasWord } from '../game/runtime';
 import type { GameState, Inventory, Resource } from '../game/types';
+import { getWorldSize } from '../game/worldDimensions';
 
 export type StockLevel = 0 | 1 | 2 | 3;
 export type CampStockGroup = 'food' | 'wood' | 'stone' | 'pelt' | 'goods';
@@ -157,6 +158,7 @@ const stockGroups: { group: CampStockGroup; resources: Resource[]; offset: [numb
 /** Decorative stock anchors: no ground entities, collisions or inventory writes. */
 export function getCampStockSlots(state: GameState): CampStockSlot[] {
   if (state.urbanized) return [];
+  const worldEdge = getWorldSize(state) - 2;
   const allocated: { x: number; y: number }[] = [];
   const buildings = state.buildings.filter((building) => building.hp > 0);
   // Reserve all five positions, including empty groups, so a new material never
@@ -174,7 +176,9 @@ export function getCampStockSlots(state: GameState): CampStockSlot[] {
           };
         }),
       ),
-    ].filter((point) => point.x >= 2 && point.x <= 498 && point.y >= 2 && point.y <= 498);
+    ].filter(
+      (point) => point.x >= 2 && point.x <= worldEdge && point.y >= 2 && point.y <= worldEdge,
+    );
     const clearance = (point: { x: number; y: number }) =>
       Math.min(
         ...buildings.map(

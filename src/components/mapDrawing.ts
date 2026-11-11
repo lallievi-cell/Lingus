@@ -2,6 +2,7 @@ import type { GameState, Resource, WorldTarget } from '../game/types';
 import { hasBuilding, isPlayerBuilding } from '../game/runtime';
 import { FIRE_HEAT } from '../game/thermal';
 import { getCalendar } from '../game/calendar';
+import { getWorldSize, getWorldSectorCount, isWorldPointRevealed } from '../game/worldDimensions';
 import {
   customGroupMembers,
   isCustomGroupAnchor,
@@ -31,6 +32,7 @@ import { drawMapGroundShadows } from './mapLighting';
 import { drawMapWorkEffects } from './mapWorkEffects';
 import { drawMapSurfaceMotion } from './mapSurfaceMotion';
 import { drawRiverFords } from './mapFordArt';
+import { boundedMapLabelX, drawOverviewNature, usesOverviewNature } from './mapOverviewArt';
 
 const fallbackMotionSession = createMapMotionSession();
 
@@ -45,15 +47,7 @@ export const UNIT_ART_SCALE = 0.3;
 export const worldPoint = (x: number, y: number) => ({ x: x * 2.4, y: y * 1.6 });
 export const hasConcept = (state: GameState, id: string) => (state.words[id]?.retention ?? 0) > 0;
 export function isVisibleAt(state: GameState, x: number, y: number) {
-  return (
-    state.tier >= 4 ||
-    state.sectors.some(
-      (s) =>
-        s.explored &&
-        s.x === Math.min(4, Math.floor(x / 100)) &&
-        s.y === Math.min(4, Math.floor(y / 100)),
-    )
-  );
+  return isWorldPointRevealed(state, x, y);
 }
 
 export const entityNames: Record<string, string> = {
@@ -1073,7 +1067,11 @@ export function drawWorld(
   atmosphereOptions?: AtmosphereOptions,
 ) {
   const calendar = getCalendar(state);
-  ctx.drawImage(terrain, 0, 0, MAP_WIDTH, MAP_HEIGHT);
+  const worldScale = getWorldSize(state) / WORLD_SIZE;
+  const mapWidth = MAP_WIDTH * worldScale,
+    mapHeight = MAP_HEIGHT * worldScale;
+  const sectorCount = getWorldSectorCount(state);
+  ctx.drawImage(terrain, 0, 0, mapWidth, mapHeight);
   drawMapSurfaceMotion(ctx, state, terrain, time, viewport, atmosphereOptions?.reducedMotion);
   drawRiverFords(ctx, state, viewport);
   drawRegionalRoutes(ctx, state, viewport);
@@ -1089,6 +1087,10 @@ export function drawWorld(
       point.y >= viewport.minY - 16 &&
       point.y <= viewport.maxY + 16);
   const lineScale = Math.max(0.1, Math.hypot(ctx.getTransform().a, ctx.getTransform().b));
+  const overviewNature = usesOverviewNature(lineScale, atmosphereOptions?.pixelRatio);
+  const workingTargets = new Set(
+    state.units.filter((unit) => unit.hp > 0 && unit.targetId).map((unit) => unit.targetId),
+  );
   const motions = new Map(
     state.units
       .filter((u) => u.hp > 0)
@@ -1321,7 +1323,25 @@ export function drawWorld(
       (entity.kind === 'stone' && !hasConcept(state, 'O_02'));
     objects.push({
       y: entity.y,
-      draw: () =>
+      draw: () => {
+        if (
+          overviewNature &&
+          selected?.id !== entity.id &&
+          hovered?.id !== entity.id &&
+          !workingTargets.has(entity.id)
+        ) {
+          const point = worldPoint(entity.x, entity.y);
+          drawOverviewNature(
+            ctx,
+            entity,
+            state.seasonIndex,
+            unknown,
+            point.x,
+            point.y,
+            SPRITE_SCALE,
+          );
+          return;
+        }
         sprite(entity, () => {
           drawEntity(
             ctx,
@@ -1332,7 +1352,8 @@ export function drawWorld(
             unknown,
             animalContext,
           );
-        }),
+        });
+      },
     });
   }
   for (const pile of piles) {
@@ -1584,21 +1605,27 @@ export function drawWorld(
         );
         const labelScale = Math.max(0.05, lineScale / (atmosphereOptions?.pixelRatio ?? 1));
         const nameSize =
-          state.tier >= 4 ? Math.max(9, Math.min(16, 10 * labelScale)) / labelScale : 10;
+          state.tier >= 4 ? Math.max(10, Math.min(16, 10 * labelScale)) / labelScale : 10;
         ctx.font = `${nameSize}px Georgia`;
         ctx.textAlign = 'center';
         ctx.fillStyle = '#465b3d';
         ctx.strokeStyle = '#f8f3e3';
         ctx.lineWidth = state.tier >= 4 ? 2 / labelScale : 3;
-        ctx.strokeText(city.name, p.x, p.y + (state.tier >= 4 ? 27 : 23));
-        ctx.fillText(city.name, p.x, p.y + (state.tier >= 4 ? 27 : 23));
+        const labelMargin = 8 / labelScale;
+        const labelMin = viewport ? viewport.minX * 2.4 + labelMargin : 0;
+        const labelMax = viewport ? viewport.maxX * 2.4 - labelMargin : mapWidth;
+        const labelWidth = Math.max(1, labelMax - labelMin);
+        const labelX = boundedMapLabelX(p.x, ctx.measureText(city.name).width, labelMin, labelMax);
+        const nameBaseline = p.y + (state.tier >= 4 ? 27 : 23);
+        ctx.strokeText(city.name, labelX, nameBaseline, labelWidth);
+        ctx.fillText(city.name, labelX, nameBaseline, labelWidth);
         if (hasConcept(state, 'O_08')) {
-          ctx.font = `${state.tier >= 4 ? Math.max(7, Math.min(10, 7 * labelScale)) / labelScale : 7}px sans-serif`;
+          ctx.font = `${state.tier >= 4 ? Math.max(8, Math.min(10, 7 * labelScale)) / labelScale : 7}px sans-serif`;
           ctx.fillStyle = '#7e896c';
           ctx.fillText(
             `${Object.values(city.cohorts).reduce((n, v) => n + v, 0)}`,
-            p.x,
-            p.y + (state.tier >= 4 ? 37 : 33),
+            labelX,
+            state.tier >= 4 ? nameBaseline + nameSize + 2 / labelScale : p.y + 33,
           );
         }
       },
@@ -1701,24 +1728,24 @@ export function drawWorld(
   if (state.tier >= 4) {
     ctx.strokeStyle = '#8c947738';
     ctx.lineWidth = 0.5;
-    for (let i = 1; i < 5; i++) {
+    for (let i = 1; i < sectorCount; i++) {
       ctx.beginPath();
-      ctx.moveTo((i * MAP_WIDTH) / 5, 0);
-      ctx.lineTo((i * MAP_WIDTH) / 5, MAP_HEIGHT);
-      ctx.moveTo(0, (i * MAP_HEIGHT) / 5);
-      ctx.lineTo(MAP_WIDTH, (i * MAP_HEIGHT) / 5);
+      ctx.moveTo((i * mapWidth) / sectorCount, 0);
+      ctx.lineTo((i * mapWidth) / sectorCount, mapHeight);
+      ctx.moveTo(0, (i * mapHeight) / sectorCount);
+      ctx.lineTo(mapWidth, (i * mapHeight) / sectorCount);
       ctx.stroke();
     }
   }
-  for (let sy = 0; sy < 5; sy++)
-    for (let sx = 0; sx < 5; sx++)
+  for (let sy = 0; sy < sectorCount; sy++)
+    for (let sx = 0; sx < sectorCount; sx++)
       if (!isVisibleAt(state, sx * 100 + 50, sy * 100 + 50)) {
         ctx.fillStyle = '#e3e1cbf5';
         ctx.fillRect(
-          (sx * MAP_WIDTH) / 5,
-          (sy * MAP_HEIGHT) / 5,
-          MAP_WIDTH / 5 + 0.5,
-          MAP_HEIGHT / 5 + 0.5,
+          (sx * mapWidth) / sectorCount,
+          (sy * mapHeight) / sectorCount,
+          mapWidth / sectorCount + 0.5,
+          mapHeight / sectorCount + 0.5,
         );
       }
 
@@ -1734,7 +1761,7 @@ export function drawWorld(
           : (90 - seasonTime) / 6;
   if (darkness > 0) {
     ctx.fillStyle = `rgba(35,53,66,${darkness * 0.38})`;
-    ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+    ctx.fillRect(0, 0, mapWidth, mapHeight);
     for (const fire of state.buildings.filter(
       (b) =>
         b.kind === 'campfire' &&
@@ -1757,19 +1784,26 @@ export function drawWorld(
   drawMapAtmosphere(ctx, state, time, viewport, atmosphereOptions);
 
   // Unexplored margins fade into the paper rather than a hard black RTS mask.
-  const vignette = ctx.createRadialGradient(600, 405, 280, 600, 405, 720);
+  const vignette = ctx.createRadialGradient(
+    mapWidth / 2,
+    mapHeight / 2 + 5 * worldScale,
+    280 * worldScale,
+    mapWidth / 2,
+    mapHeight / 2 + 5 * worldScale,
+    720 * worldScale,
+  );
   vignette.addColorStop(0, '#e9e6cd00');
   vignette.addColorStop(0.55, '#e9e6cd00');
   vignette.addColorStop(1, '#e9e6cddd');
   ctx.fillStyle = vignette;
-  ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+  ctx.fillRect(0, 0, mapWidth, mapHeight);
 
   // A few birds provide scale, never gameplay information.
   ctx.strokeStyle = '#546d534d';
   ctx.lineWidth = 1.1;
   for (let i = 0; i < (atmosphereOptions?.reducedMotion ? 0 : 3); i++) {
-    const x = ((time * 3 + 140 + i * 17) % 1400) - 100,
-      y = 130 + Math.sin(time * 0.04 + i) * 15 + i * 9;
+    const x = ((time * 3 + 140 * worldScale + i * 17) % (mapWidth + 200)) - 100,
+      y = 130 * worldScale + Math.sin(time * 0.04 + i) * 15 + i * 9;
     ctx.beginPath();
     ctx.moveTo(x - 4, y - 2);
     ctx.quadraticCurveTo(x - 2, y - 4 - Math.sin(time * 2) * 2, x, y);

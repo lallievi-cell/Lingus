@@ -1,5 +1,6 @@
 import { getCalendar } from '../game/calendar';
 import type { GameState } from '../game/types';
+import { isWorldPointRevealed } from '../game/worldDimensions';
 
 type Viewport = { minX: number; minY: number; maxX: number; maxY: number };
 type GroundShadow = { id: string; x: number; y: number; width: number; height: number };
@@ -31,13 +32,7 @@ export function getGroundShadows(state: GameState, viewport?: Viewport): GroundS
         point.x <= viewport.maxX + 20 &&
         point.y >= viewport.minY - 20 &&
         point.y <= viewport.maxY + 20)) &&
-    (state.tier >= 4 ||
-      state.sectors.some(
-        (sector) =>
-          sector.explored &&
-          sector.x === Math.min(4, Math.floor(point.x / 100)) &&
-          sector.y === Math.min(4, Math.floor(point.y / 100)),
-      ));
+    isWorldPointRevealed(state, point.x, point.y);
   const shadows: GroundShadow[] = [];
   for (const source of state.entities) {
     if (!visible(source)) continue;

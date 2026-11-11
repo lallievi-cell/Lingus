@@ -1,4 +1,5 @@
 import type { Building, GameState } from '../game/types';
+import { isWorldPointRevealed } from '../game/worldDimensions';
 import { freeCapacity } from '../game/runtime';
 import { getCalendar } from '../game/calendar';
 import { CITY_FOUNDRY_CHIMNEY } from './regionalLayout';
@@ -41,15 +42,7 @@ function idPhase(id: string) {
 }
 
 function revealed(state: GameState, x: number, y: number) {
-  return (
-    state.tier >= 4 ||
-    state.sectors.some(
-      (s) =>
-        s.explored &&
-        s.x === Math.min(4, Math.floor(x / 100)) &&
-        s.y === Math.min(4, Math.floor(y / 100)),
-    )
-  );
+  return isWorldPointRevealed(state, x, y);
 }
 function visible(state: GameState, point: { x: number; y: number }, view?: AtmosphereViewport) {
   return (

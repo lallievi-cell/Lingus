@@ -72,6 +72,7 @@ import { resolveInteractionPosition, type InteractionKind } from './interactionP
 import { warmShelterDestination } from './shelterSeeking';
 import { moveWildlifeToward, wanderDestination } from './wildlifeMovement';
 import { isDryLandPoint, isLandPoint, moveOnLand, planLandRoute } from './landNavigation';
+import { getWorldSize, sectorIndex } from './worldDimensions';
 import {
   PERSONAL_DISCOVERY,
   personalExperienceEligible,
@@ -311,8 +312,8 @@ export function createBuilding(
   const b: Building = {
     id: nextId(s, 'building'),
     kind,
-    x: clamp(x, 0, 500),
-    y: clamp(y, 0, 500),
+    x: clamp(x, 0, getWorldSize(s)),
+    y: clamp(y, 0, getWorldSize(s)),
     hp: spec.maxHp,
     active: true,
     workerIds: [],
@@ -1205,8 +1206,8 @@ function nextGuidedGatherSource(s: GameState, u: Unit, tokens: string[], source?
       s.sectors.some(
         (sector) =>
           sector.explored &&
-          sector.x === Math.min(4, Math.floor(entry.x / 100)) &&
-          sector.y === Math.min(4, Math.floor(entry.y / 100)),
+          sector.x === sectorIndex(s, entry.x) &&
+          sector.y === sectorIndex(s, entry.y),
       ) &&
       !forbiddenByDogma(s, tokens, { type: 'entity', id: entry.id, x: entry.x, y: entry.y }, u),
   );
@@ -2373,8 +2374,8 @@ export function updateUnits(s: GameState, dt: number) {
       if (assigned) processWork(s, u, dt);
       else startInstinct(s, u, dt);
     } else processWork(s, u, dt);
-    const sx = Math.min(4, Math.floor(u.x / 100)),
-      sy = Math.min(4, Math.floor(u.y / 100)),
+    const sx = sectorIndex(s, u.x),
+      sy = sectorIndex(s, u.y),
       sector = s.sectors.find((z) => z.x === sx && z.y === sy);
     if (sector) sector.explored = true;
     if (!s.explored.some((p) => distance(p, u) < 20)) s.explored.push({ x: u.x, y: u.y });
@@ -2456,13 +2457,13 @@ export function updateAnimals(s: GameState, dt: number) {
       withinAnimalLandReach(s, e, human, 15)
     ) {
       const d = distance(e, human) || 1,
-        sectorX = Math.min(4, Math.max(0, Math.floor(e.originX / 100))) * 100,
-        sectorY = Math.min(4, Math.max(0, Math.floor(e.originY / 100))) * 100;
+        sectorX = sectorIndex(s, e.originX) * 100,
+        sectorY = sectorIndex(s, e.originY) * 100;
       const x = clamp(e.x + ((e.x - human.x) / d) * fa.speed * dt, sectorX + 2, sectorX + 98);
       const y = clamp(e.y + ((e.y - human.y) / d) * fa.speed * dt, sectorY + 2, sectorY + 98);
       moveWildlifeToward(e, { x, y }, fa.speed * dt, s);
     } else if (!hunted.has(e.id)) {
-      moveWildlifeToward(e, wanderDestination(e, s.time), fa.speed * dt, s);
+      moveWildlifeToward(e, wanderDestination(e, s.time, s), fa.speed * dt, s);
     }
   }
 }

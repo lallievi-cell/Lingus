@@ -1,5 +1,6 @@
 import type { GameState } from './types';
 import { createRiverArtGeometry, sampleRiverArt } from './riverGeometry';
+import { getWorldSize } from './worldDimensions';
 
 export type LandPoint = { x: number; y: number };
 export interface RiverFord extends LandPoint {
@@ -13,17 +14,17 @@ export interface RiverFord extends LandPoint {
   dy: number;
 }
 
-const WORLD_SIZE = 500;
 const WATER_RADIUS = 6.25; // Painted half-width six plus a quarter-metre foot clearance.
 const BUCKET_SIZE = 16;
 const GRID_STEP = 4;
-const GRID_SIDE = WORLD_SIZE / GRID_STEP + 1;
-const NODE_COUNT = GRID_SIDE * GRID_SIDE;
 const EPSILON = 1e-8;
 type Segment = { a: LandPoint; b: LandPoint };
 type Grid = { land: Uint8Array; checked: Uint8Array; edges: Uint8Array };
 type Model = {
-  buckets: Map<number, Segment[]>;
+  worldSize: number;
+  gridSide: number;
+  nodeCount: number;
+  buckets: Map<string, Segment[]>;
   fords: readonly RiverFord[];
   routes: Map<string, readonly LandPoint[] | null>;
   grid?: Grid;
@@ -34,12 +35,12 @@ const models = new Map<string, Model>();
 const stateModels = new WeakMap<GameState, Model>();
 const distance = (a: LandPoint, b: LandPoint) => Math.hypot(a.x - b.x, a.y - b.y);
 const finitePoint = (p: LandPoint) => Number.isFinite(p.x) && Number.isFinite(p.y);
-const inside = (p: LandPoint) =>
-  finitePoint(p) && p.x >= 0 && p.x <= WORLD_SIZE && p.y >= 0 && p.y <= WORLD_SIZE;
-const bucketId = (x: number, y: number) => y * 64 + x;
-const nodePoint = (node: number): LandPoint => ({
-  x: (node % GRID_SIDE) * GRID_STEP,
-  y: Math.floor(node / GRID_SIDE) * GRID_STEP,
+const inside = (p: LandPoint, worldSize: number) =>
+  finitePoint(p) && p.x >= 0 && p.x <= worldSize && p.y >= 0 && p.y <= worldSize;
+const bucketId = (x: number, y: number) => `${x}:${y}`;
+const nodePoint = (model: Model, node: number): LandPoint => ({
+  x: (node % model.gridSide) * GRID_STEP,
+  y: Math.floor(node / model.gridSide) * GRID_STEP,
 });
 const navigationEnabled = (state: GameState) => state.mapGeneration?.landNavigation === 1;
 
@@ -53,8 +54,10 @@ export function isInRiverFord(point: LandPoint, ford: RiverFord) {
 }
 
 function createModel(state: GameState): Model {
+  const worldSize = getWorldSize(state);
+  const gridSide = worldSize / GRID_STEP + 1;
   const geometry = createRiverArtGeometry(state);
-  const buckets = new Map<number, Segment[]>();
+  const buckets = new Map<string, Segment[]>();
   for (let index = 1; index < geometry.points.length; index++) {
     const a = geometry.points[index - 1],
       b = geometry.points[index];
@@ -86,12 +89,12 @@ function createModel(state: GameState): Model {
       const bankA = { x: center.x - dx * 10, y: center.y - dy * 10 };
       const bankB = { x: center.x + dx * 10, y: center.y + dy * 10 };
       if (
-        !inside(bankA) ||
-        !inside(bankB) ||
+        !inside(bankA, worldSize) ||
+        !inside(bankB, worldSize) ||
         center.x < 20 ||
-        center.x > 480 ||
+        center.x > worldSize - 20 ||
         center.y < 20 ||
-        center.y > 480
+        center.y > worldSize - 20
       )
         continue;
       if (fords.some((ford) => distance(ford, center) < 50)) continue;
@@ -110,14 +113,21 @@ function createModel(state: GameState): Model {
       break;
     }
   }
-  return { buckets, fords: Object.freeze(fords), routes: new Map() };
+  return {
+    worldSize,
+    gridSide,
+    nodeCount: gridSide * gridSide,
+    buckets,
+    fords: Object.freeze(fords),
+    routes: new Map(),
+  };
 }
 
 function modelFor(state: GameState) {
   const existing = stateModels.get(state);
-  if (existing) return existing;
+  if (existing?.worldSize === getWorldSize(state)) return existing;
   const generation = state.mapGeneration;
-  const key = `${generation?.mode}:${generation?.seed}:${generation?.landNavigation}:${state.sectors.map((sector) => `${sector.x},${sector.y}:${sector.biome}`).join('|')}`;
+  const key = `${getWorldSize(state)}:${generation?.mode}:${generation?.seed}:${generation?.landNavigation}:${state.sectors.map((sector) => `${sector.x},${sector.y}:${sector.biome}`).join('|')}`;
   let model = models.get(key);
   if (!model) {
     model = createModel(state);
@@ -150,17 +160,19 @@ function pointInRiver(model: Model, point: LandPoint) {
 }
 
 function pointOnLand(model: Model, point: LandPoint) {
-  if (!inside(point)) return false;
+  if (!inside(point, model.worldSize)) return false;
   return !pointInRiver(model, point) || model.fords.some((ford) => isInRiverFord(point, ford));
 }
 
 export function isLandPoint(state: GameState, point: LandPoint) {
-  return navigationEnabled(state) ? pointOnLand(modelFor(state), point) : inside(point);
+  return navigationEnabled(state)
+    ? pointOnLand(modelFor(state), point)
+    : inside(point, getWorldSize(state));
 }
 
 /** A traversable ford is still water, so it cannot support a building or town. */
 export function isDryLandPoint(state: GameState, point: LandPoint) {
-  if (!inside(point)) return false;
+  if (!inside(point, getWorldSize(state))) return false;
   return !navigationEnabled(state) || !pointInRiver(modelFor(state), point);
 }
 
@@ -228,7 +240,8 @@ function crossedSegments(model: Model, a: LandPoint, b: LandPoint) {
   let nextX = stepX ? ((x + (stepX > 0 ? 1 : 0)) * BUCKET_SIZE - a.x) / dx : Infinity;
   let nextY = stepY ? ((y + (stepY > 0 ? 1 : 0)) * BUCKET_SIZE - a.y) / dy : Infinity;
   const result = new Set<Segment>();
-  for (let visits = 0; visits < 130; visits++) {
+  const maximumVisits = Math.abs(endX - x) + Math.abs(endY - y) + 1;
+  for (let visits = 0; visits < maximumVisits; visits++) {
     for (const segment of model.buckets.get(bucketId(x, y)) ?? []) result.add(segment);
     if (x === endX && y === endY) break;
     if (nextX < nextY) {
@@ -295,10 +308,14 @@ export function isLandSegment(state: GameState, a: LandPoint, b: LandPoint) {
 
 function gridFor(model: Model) {
   if (!model.grid) {
-    const land = new Uint8Array(NODE_COUNT);
-    for (let node = 0; node < NODE_COUNT; node++)
-      land[node] = Number(pointOnLand(model, nodePoint(node)));
-    model.grid = { land, checked: new Uint8Array(NODE_COUNT), edges: new Uint8Array(NODE_COUNT) };
+    const land = new Uint8Array(model.nodeCount);
+    for (let node = 0; node < model.nodeCount; node++)
+      land[node] = Number(pointOnLand(model, nodePoint(model, node)));
+    model.grid = {
+      land,
+      checked: new Uint8Array(model.nodeCount),
+      edges: new Uint8Array(model.nodeCount),
+    };
   }
   return model.grid;
 }
@@ -312,12 +329,13 @@ function connectedNode(model: Model, point: LandPoint) {
     for (let dx = -3; dx <= 3; dx++) {
       const nx = x + dx,
         ny = y + dy;
-      if (nx < 0 || nx >= GRID_SIDE || ny < 0 || ny >= GRID_SIDE) continue;
-      const node = ny * GRID_SIDE + nx;
-      if (grid.land[node]) candidates.push({ node, distance: distance(point, nodePoint(node)) });
+      if (nx < 0 || nx >= model.gridSide || ny < 0 || ny >= model.gridSide) continue;
+      const node = ny * model.gridSide + nx;
+      if (grid.land[node])
+        candidates.push({ node, distance: distance(point, nodePoint(model, node)) });
     }
   candidates.sort((a, b) => a.distance - b.distance || a.node - b.node);
-  return candidates.find((entry) => clearSegment(model, point, nodePoint(entry.node)))?.node;
+  return candidates.find((entry) => clearSegment(model, point, nodePoint(model, entry.node)))?.node;
 }
 
 class MinHeap {
@@ -373,15 +391,15 @@ function shortestGridPath(model: Model, start: number, goal: number) {
   const key = `${start}:${goal}`;
   if (model.routes.has(key)) return model.routes.get(key)!;
   const grid = gridFor(model),
-    target = nodePoint(goal);
-  const costs = new Float64Array(NODE_COUNT);
+    target = nodePoint(model, goal);
+  const costs = new Float64Array(model.nodeCount);
   costs.fill(Infinity);
   costs[start] = 0;
-  const previous = new Int32Array(NODE_COUNT);
+  const previous = new Int32Array(model.nodeCount);
   previous.fill(-1);
-  const closed = new Uint8Array(NODE_COUNT),
+  const closed = new Uint8Array(model.nodeCount),
     heap = new MinHeap();
-  heap.push(start, distance(nodePoint(start), target));
+  heap.push(start, distance(nodePoint(model, start), target));
   let found = false;
   while (heap.size) {
     const current = heap.pop()!.node;
@@ -391,33 +409,33 @@ function shortestGridPath(model: Model, start: number, goal: number) {
       break;
     }
     closed[current] = 1;
-    const x = current % GRID_SIDE,
-      y = Math.floor(current / GRID_SIDE),
-      origin = nodePoint(current);
+    const x = current % model.gridSide,
+      y = Math.floor(current / model.gridSide),
+      origin = nodePoint(model, current);
     for (let index = 0; index < directions.length; index++) {
       const [dx, dy] = directions[index],
         nx = x + dx,
         ny = y + dy;
-      if (nx < 0 || nx >= GRID_SIDE || ny < 0 || ny >= GRID_SIDE) continue;
-      const node = ny * GRID_SIDE + nx;
+      if (nx < 0 || nx >= model.gridSide || ny < 0 || ny >= model.gridSide) continue;
+      const node = ny * model.gridSide + nx;
       if (closed[node] || !grid.land[node]) continue;
       const bit = 1 << index;
       if (!(grid.checked[current] & bit)) {
         grid.checked[current] |= bit;
-        if (clearSegment(model, origin, nodePoint(node))) grid.edges[current] |= bit;
+        if (clearSegment(model, origin, nodePoint(model, node))) grid.edges[current] |= bit;
       }
       if (!(grid.edges[current] & bit)) continue;
       const cost = costs[current] + GRID_STEP * (dx && dy ? Math.SQRT2 : 1);
       if (cost >= costs[node]) continue;
       costs[node] = cost;
       previous[node] = current;
-      heap.push(node, cost + distance(nodePoint(node), target));
+      heap.push(node, cost + distance(nodePoint(model, node), target));
     }
   }
   let result: readonly LandPoint[] | null = null;
   if (found) {
     const path: LandPoint[] = [];
-    for (let node = goal; node !== -1; node = previous[node]) path.push(nodePoint(node));
+    for (let node = goal; node !== -1; node = previous[node]) path.push(nodePoint(model, node));
     path.reverse();
     result = smoothPath(model, path[0], path.slice(1));
     result = [path[0], ...result];

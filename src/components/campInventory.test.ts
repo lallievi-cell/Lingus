@@ -235,6 +235,28 @@ describe('readable delivered camp stocks', () => {
     expect(getCampStockSlots(state).some((slot) => slot.group === 'wood')).toBe(false);
   });
 
+  it('places regional camp stocks beyond the old valley boundary without changing the inventory', () => {
+    const state = createInitialState(42, 'classic', 'random', 1000);
+    expect(state.home).toEqual({ x: 550, y: 550 });
+    expect(getCampStockSlots(state)).toEqual([]);
+    RESOURCE_ORDER.forEach((resource) => (state.resources[resource] = 3));
+    const before = JSON.stringify(state);
+    const slots = getCampStockSlots(state);
+    expect(slots).toHaveLength(5);
+    expect(slots.flatMap((slot) => slot.resources).sort()).toEqual([...RESOURCE_ORDER].sort());
+    expect(
+      slots.every(
+        (slot) =>
+          slot.x > 500 &&
+          slot.x <= 998 &&
+          slot.y > 500 &&
+          slot.y <= 998 &&
+          Math.hypot(slot.x - state.home.x, slot.y - state.home.y) <= 14.001,
+      ),
+    ).toBe(true);
+    expect(JSON.stringify(state)).toBe(before);
+  });
+
   it('moves decorative piles aside for buildings and hides them after urbanization', () => {
     const state = createInitialState();
     state.resources.pelt = 1;

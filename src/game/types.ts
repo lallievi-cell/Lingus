@@ -514,6 +514,8 @@ export interface MapGeneration {
   /** New generated valleys use real land routes and shallow river crossings.
    * Omitted in earlier saves to preserve their original movement rules. */
   landNavigation?: 1;
+  /** The larger regional geography; omission preserves the original 500 m valley. */
+  worldSize?: 1000;
 }
 export interface GameState {
   version: 2;

@@ -3,6 +3,7 @@ import { distance, hasBuilding } from './runtime';
 import { COLD_RESCUE, thermalConditionsAt } from './thermal';
 import type { GameState, MapEntity, Unit } from './types';
 import { planLandRoute } from './landNavigation';
+import { sectorIndex } from './worldDimensions';
 
 type Point = { x: number; y: number };
 
@@ -49,8 +50,8 @@ export function safeAutonomousRoute(state: GameState, start: Point, destination:
       state.sectors.some(
         (sector) =>
           sector.explored &&
-          sector.x === Math.min(4, Math.floor(predator.x / 100)) &&
-          sector.y === Math.min(4, Math.floor(predator.y / 100)),
+          sector.x === sectorIndex(state, predator.x) &&
+          sector.y === sectorIndex(state, predator.y),
       );
     if (!known) return false;
     const paths = actualRoutes

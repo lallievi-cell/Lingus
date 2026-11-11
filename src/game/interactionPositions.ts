@@ -1,4 +1,5 @@
 import type { GameState, Unit } from './types';
+import { getWorldSize, isWorldPoint } from './worldDimensions';
 
 export type InteractionKind =
   | 'resource'
@@ -38,7 +39,6 @@ export type InteractionPosition = {
   key: string;
 };
 
-const WORLD_SIZE = 500;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const maximumRadius: Record<InteractionKind, number> = {
   resource: 3.6,
@@ -124,10 +124,6 @@ function offsetFor(kind: InteractionKind, slot: number, radius: number, phase: n
   return { x: x * ratio, y: y * ratio };
 }
 
-function withinWorld(x: number, y: number) {
-  return x >= 0 && x <= WORLD_SIZE && y >= 0 && y <= WORLD_SIZE;
-}
-
 /**
  * Pure physical destination around a logical target. The caller moves the unit
  * here; tx/ty and targetId can continue to describe the actual object/order.
@@ -141,15 +137,16 @@ export function resolveInteractionPosition(
 ): InteractionPosition {
   const kind = options.kind ?? inferKind(unit, anchor);
   const slot = Math.max(0, Math.floor(options.slot ?? permanentSlot(state, unit)));
-  const anchorX = Math.max(0, Math.min(WORLD_SIZE, anchor.x));
-  const anchorY = Math.max(0, Math.min(WORLD_SIZE, anchor.y));
+  const worldSize = getWorldSize(state);
+  const anchorX = Math.max(0, Math.min(worldSize, anchor.x));
+  const anchorY = Math.max(0, Math.min(worldSize, anchor.y));
   const key = options.key ?? anchor.id ?? `${kind}:${anchorX.toFixed(3)},${anchorY.toFixed(3)}`;
   const radius = Number.isFinite(options.maxRadius)
     ? Math.max(0, Math.min(10, options.maxRadius!))
     : maximumRadius[kind];
   const phase = hash(key) * Math.PI * 2;
   let offset = offsetFor(kind, slot, radius, phase);
-  if (!withinWorld(anchorX + offset.x, anchorY + offset.y)) {
+  if (!isWorldPoint(state, { x: anchorX + offset.x, y: anchorY + offset.y })) {
     // Reorient a border slot into the map rather than clamping several people
     // onto the same edge coordinate. Keep the real interaction radius unchanged.
     const distance = Math.hypot(offset.x, offset.y);
@@ -157,7 +154,7 @@ export function resolveInteractionPosition(
     for (let attempt = 1; attempt <= 64; attempt++) {
       const inward = angle + attempt * GOLDEN_ANGLE + slot * 0.037;
       const candidate = { x: Math.cos(inward) * distance, y: Math.sin(inward) * distance };
-      if (withinWorld(anchorX + candidate.x, anchorY + candidate.y)) {
+      if (isWorldPoint(state, { x: anchorX + candidate.x, y: anchorY + candidate.y })) {
         offset = candidate;
         break;
       }

@@ -3,12 +3,18 @@ import { openWordBank } from './mobile-ui';
 
 const SAVE_KEY = 'lingus.save.v2';
 
-async function begin(page: Page) {
+async function begin(page: Page, viaGuide = false) {
   await page.goto('/');
   // These conformance cases intentionally click the canonical GDD coordinates.
   // Procedural defaults and seed controls are covered in map-generation.spec.ts.
   await page.getByRole('button', { name: /^Seed Zero/ }).click();
-  await page.getByRole('button', { name: 'Dai inizio alla storia' }).click();
+  if (viaGuide) {
+    await page
+      .getByRole('dialog', { name: 'Benvenuto in Lingus' })
+      .getByRole('button', { name: 'Come si gioca' })
+      .click();
+    await page.getByRole('button', { name: 'Ho quattro parole. Cominciamo.' }).click();
+  } else await page.getByRole('button', { name: 'Dai inizio alla storia' }).click();
 }
 async function closePanel(page: Page) {
   await page.getByRole('button', { name: 'Chiudi finestra' }).click();
@@ -251,68 +257,69 @@ async function seed(
   await page.reload();
 }
 
-test('a real Guided order understands Legno without a puzzle and the save survives reload', async ({
-  page,
-}) => {
-  const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
-  await begin(page);
-  // The contextual bank starts with subjects, then reveals the known verbs.
-  await expect(page.locator('.word-shelf .word-tile')).toHaveCount(1);
-  await expect(page.getByRole('button', { name: /^Gruppo:/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Colpire:/ })).toHaveCount(0);
-  await expect(page.locator('.sentence-slot')).toHaveCount(2);
-  await expect(page.locator('.day-cycle')).toHaveCount(0);
-  await expect(page.locator('.world-resources')).not.toContainText('Cibo');
-  await page.screenshot({
-    path: test.info().outputPath('lingus-fidelity-initial.png'),
-    fullPage: true,
-  });
-  await page.getByRole('button', { name: 'Velocità 4x' }).click();
-  await page.getByRole('button', { name: /^Gruppo:/ }).click();
-  await expect(page.locator('.word-shelf .word-tile')).toHaveCount(3);
-  await page.getByRole('button', { name: /^Colpire:/ }).click();
-  // Initial map is the central 100m sector of a 500m world, zoomed 4.5×.
-  await worldClick(page, 223, 229, 4.5, 3);
-  await expect(page.locator('.map-toolbar')).toContainText('Un ostacolo senza nome');
-  await page.getByRole('button', { name: 'Pronuncia', exact: true }).click();
-  await expect(page.locator('.toast')).toContainText('La tribù ha ascoltato');
-  const understanding = page.locator('.contextual-discovery-notice');
-  await expect(understanding).toContainText('La tribù comprende «Legno»', { timeout: 22_000 });
-  await expect(page.getByRole('dialog', { name: 'La Scintilla Cognitiva' })).toHaveCount(0);
-  // Understanding a material does not stop the world; pause explicitly to inspect
-  // its actual first custodian and inventory before the next experience matures.
-  await page.getByRole('button', { name: 'Metti in pausa', exact: true }).click();
-  await page
-    .getByRole('group', { name: 'Filtra le parole' })
-    .getByRole('button', { name: 'Tutte', exact: true })
-    .click();
-  await expect(page.getByRole('button', { name: /^Legno:/ })).toBeVisible();
-  await expect(page.locator('.word-shelf .word-tile')).toHaveCount(5);
-  const saved = await saveAndRead(page);
+for (const viaGuide of [false, true]) {
+  test(`a real Guided order understands Legno without a puzzle and the save survives reload from ${viaGuide ? 'the guide' : 'welcome'}`, async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await begin(page, viaGuide);
+    // The contextual bank starts with subjects, then reveals the known verbs.
+    await expect(page.locator('.word-shelf .word-tile')).toHaveCount(1);
+    await expect(page.getByRole('button', { name: /^Gruppo:/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Colpire:/ })).toHaveCount(0);
+    await expect(page.locator('.sentence-slot')).toHaveCount(2);
+    await expect(page.locator('.day-cycle')).toHaveCount(0);
+    await expect(page.locator('.world-resources')).not.toContainText('Cibo');
+    await page.screenshot({
+      path: test.info().outputPath('lingus-fidelity-initial.png'),
+      fullPage: true,
+    });
+    await page.getByRole('button', { name: 'Velocità 4x' }).click();
+    await page.getByRole('button', { name: /^Gruppo:/ }).click();
+    await expect(page.locator('.word-shelf .word-tile')).toHaveCount(3);
+    await page.getByRole('button', { name: /^Colpire:/ }).click();
+    // Initial map is the central 100m sector of a 500m world, zoomed 4.5×.
+    await worldClick(page, 223, 229, 4.5, 3);
+    await expect(page.locator('.map-toolbar')).toContainText('Un ostacolo senza nome');
+    await page.getByRole('button', { name: 'Pronuncia', exact: true }).click();
+    await expect(page.locator('.toast')).toContainText('La tribù ha ascoltato');
+    const understanding = page.locator('.contextual-discovery-notice');
+    await expect(understanding).toContainText('La tribù comprende «Legno»', { timeout: 22_000 });
+    await expect(page.getByRole('dialog', { name: 'La Scintilla Cognitiva' })).toHaveCount(0);
+    // Understanding a material does not stop the world; pause explicitly to inspect
+    // its actual first custodian and inventory before the next experience matures.
+    await page.getByRole('button', { name: 'Metti in pausa', exact: true }).click();
+    await page
+      .getByRole('group', { name: 'Filtra le parole' })
+      .getByRole('button', { name: 'Tutte', exact: true })
+      .click();
+    await expect(page.getByRole('button', { name: /^Legno:/ })).toBeVisible();
+    await expect(page.locator('.word-shelf .word-tile')).toHaveCount(5);
+    const saved = await saveAndRead(page);
 
-  expect(saved.version).toBe(2);
-  expect(saved.openingBalanceVersion).toBe(1);
-  expect(saved.openingCouncilsCompleted).toBe(0);
-  expect(saved.words.O_03.retention).toBe(50);
-  expect(saved.words.O_03.custodians).toHaveLength(1);
-  expect(saved.words.O_03.learnedRecipe).toEqual(['V_03']);
-  expect(saved.sparks.some((spark: { wordId: string }) => spark.wordId === 'O_03')).toBe(false);
-  expect(saved.stats.commands).toBe(1);
-  expect(saved.resources.wood).toBe(0); // No invented stored materials before carrying is known.
-  await page.reload();
-  await expect(page.getByRole('button', { name: 'Solo compatibili', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
-  await page
-    .getByRole('group', { name: 'Filtra le parole' })
-    .getByRole('button', { name: 'Tutte', exact: true })
-    .click();
-  await expect(page.getByRole('button', { name: /^Legno:/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Riprendi il tempo' })).toBeVisible();
-  expect(errors).toEqual([]);
-});
+    expect(saved.version).toBe(2);
+    expect(saved.openingBalanceVersion).toBe(1);
+    expect(saved.openingCouncilsCompleted).toBe(0);
+    expect(saved.words.O_03.retention).toBe(50);
+    expect(saved.words.O_03.custodians).toHaveLength(1);
+    expect(saved.words.O_03.learnedRecipe).toEqual(['V_03']);
+    expect(saved.sparks.some((spark: { wordId: string }) => spark.wordId === 'O_03')).toBe(false);
+    expect(saved.stats.commands).toBe(1);
+    expect(saved.resources.wood).toBe(0); // No invented stored materials before carrying is known.
+    await page.reload();
+    await expect(
+      page.getByRole('button', { name: 'Solo compatibili', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await page
+      .getByRole('group', { name: 'Filtra le parole' })
+      .getByRole('button', { name: 'Tutte', exact: true })
+      .click();
+    await expect(page.getByRole('button', { name: /^Legno:/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Riprendi il tempo' })).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+}
 
 test('controls, cognitive HUD, and rejection of malformed imports preserve the seven-person seed', async ({
   page,

@@ -1,17 +1,19 @@
 import type { GameState, MapEntity } from './types';
 import { moveOnLand } from './landNavigation';
+import { getWorldSize } from './worldDimensions';
 
 /** The old idle pose is still the destination, not an instantaneous position.
  * Travel back from a flight or a fight therefore obeys the animal's real speed. */
-export function wanderDestination(entity: MapEntity, time: number) {
+export function wanderDestination(entity: MapEntity, time: number, state?: GameState) {
   const suffix = Number(entity.id.split('-').at(-1));
   let phase = Number.isFinite(suffix) ? suffix : 0;
   if (!Number.isFinite(suffix))
     for (const character of entity.id) phase = (phase * 31 + character.charCodeAt(0)) >>> 0;
   phase += time * 0.05;
+  const worldSize = getWorldSize(state ?? {});
   return {
-    x: Math.max(0, Math.min(500, (entity.originX ?? entity.x) + Math.sin(phase) * 2)),
-    y: Math.max(0, Math.min(500, (entity.originY ?? entity.y) + Math.cos(phase) * 2)),
+    x: Math.max(0, Math.min(worldSize, (entity.originX ?? entity.x) + Math.sin(phase) * 2)),
+    y: Math.max(0, Math.min(worldSize, (entity.originY ?? entity.y) + Math.cos(phase) * 2)),
   };
 }
 

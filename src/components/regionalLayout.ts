@@ -1,4 +1,5 @@
 import type { Battalion, GameState } from '../game/types';
+import { getWorldSize } from '../game/worldDimensions';
 
 export const CITY_FOUNDRY_CHIMNEY = { x: 23.6, y: -33.6 } as const;
 
@@ -54,7 +55,8 @@ export function getBattalionDisplayPoint(state: GameState, battalion: Battalion)
         const x = city.x + (Math.cos(candidateAngle) * radius) / 2.4;
         const y = city.y + (Math.sin(candidateAngle) * radius) / 1.6;
         if ((y - city.y) * 1.6 > 30 && Math.abs((x - city.x) * 2.4) < 50) continue;
-        if (x < 12 || x > 488 || y < 20 || y > 480) continue;
+        if (x < 12 || x > getWorldSize(state) - 12 || y < 20 || y > getWorldSize(state) - 20)
+          continue;
         if (reserved.some((other) => Math.hypot((x - other.x) * 2.4, (y - other.y) * 1.6) < 40))
           continue;
         point = { x, y };

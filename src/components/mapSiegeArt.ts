@@ -1,4 +1,5 @@
 import { BUILDING_SPECS } from '../game/content';
+import { isWorldPointRevealed } from '../game/worldDimensions';
 import type { Battalion, Building, City, GameState } from '../game/types';
 import { getBattalionDisplayPoint } from './regionalLayout';
 
@@ -35,14 +36,7 @@ export interface SiegeProjectile {
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const worldPoint = (point: Point) => ({ x: point.x * 2.4, y: point.y * 1.6 });
-const revealed = (state: GameState, point: Point) =>
-  state.tier >= 4 ||
-  state.sectors.some(
-    (sector) =>
-      sector.explored &&
-      sector.x === Math.min(4, Math.floor(point.x / 100)) &&
-      sector.y === Math.min(4, Math.floor(point.y / 100)),
-  );
+const revealed = (state: GameState, point: Point) => isWorldPointRevealed(state, point.x, point.y);
 const inView = (point: Point, view?: SiegeViewport) =>
   !view ||
   (point.x >= view.minX - 40 &&
