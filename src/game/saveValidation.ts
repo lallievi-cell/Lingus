@@ -281,7 +281,8 @@ export function validSave(value: unknown): value is GameState {
         ['seed-zero', 'random'].includes(value.mode as string) &&
         number(value.seed, 0, 4294967295) &&
         Number.isInteger(value.seed) &&
-        value.version === 1,
+        value.version === 1 &&
+        optional(value.landNavigation, (version) => version === 1 && value.mode === 'random'),
     )
   )
     return false;

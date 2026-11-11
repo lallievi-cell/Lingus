@@ -511,6 +511,9 @@ export interface MapGeneration {
   /** The original seed, kept separately from the evolving simulation RNG. */
   seed: number;
   version: 1;
+  /** New generated valleys use real land routes and shallow river crossings.
+   * Omitted in earlier saves to preserve their original movement rules. */
+  landNavigation?: 1;
 }
 export interface GameState {
   version: 2;

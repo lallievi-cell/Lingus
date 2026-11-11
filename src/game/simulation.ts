@@ -71,6 +71,7 @@ import {
 import { resolveInteractionPosition, type InteractionKind } from './interactionPositions';
 import { warmShelterDestination } from './shelterSeeking';
 import { moveWildlifeToward, wanderDestination } from './wildlifeMovement';
+import { isDryLandPoint, isLandPoint, moveOnLand, planLandRoute } from './landNavigation';
 import {
   PERSONAL_DISCOVERY,
   personalExperienceEligible,
@@ -348,6 +349,7 @@ export function canIgnite(s: GameState, x = s.home.x, y = s.home.y) {
   const fire = s.buildings.find((b) => isPlayerBuilding(s, b) && b.kind === 'campfire' && b.hp > 0);
   if (fire?.active) return true;
   const location = fire ?? { x, y };
+  if (s.mapGeneration?.landNavigation === 1 && !isDryLandPoint(s, location)) return false;
   return (
     hasWord(s, 'O_05') &&
     s.resources.wood + localFuel(s, location.x, location.y).reduce((n, e) => n + e.amount, 0) >=
@@ -536,6 +538,7 @@ function move(s: GameState, u: Unit, x: number, y: number, dt: number, speed = 4
     slow = u.temp <= 20 ? 0.5 : 1,
     d = distance(u, { x, y }),
     step = speed * slow * effects.movement * dt;
+  if (s.mapGeneration?.landNavigation === 1) return moveOnLand(s, u, { x, y }, step);
   if (d <= step) {
     u.x = x;
     u.y = y;
@@ -560,7 +563,13 @@ function moveToInteraction(
     key: `${kind}:${anchor.id ?? `${anchor.x.toFixed(3)}:${anchor.y.toFixed(3)}`}`,
     maxRadius,
   });
-  return move(s, u, place.x, place.y, dt, speed);
+  // A shore-side order must not leave a valid target unreachable merely
+  // because this person's usual formation slot falls into the river.
+  const destination =
+    s.mapGeneration?.landNavigation === 1 && !isLandPoint(s, place) && isLandPoint(s, anchor)
+      ? anchor
+      : place;
+  return move(s, u, destination.x, destination.y, dt, speed);
 }
 
 function closest<T extends { x: number; y: number }>(items: T[], p: { x: number; y: number }) {
@@ -2373,6 +2382,25 @@ export function updateUnits(s: GameState, dt: number) {
   }
   applyEducation(s);
 }
+function withinAnimalLandReach(
+  state: GameState,
+  start: { x: number; y: number },
+  destination: { x: number; y: number },
+  range: number,
+) {
+  if (state.mapGeneration?.landNavigation !== 1) return true;
+  const route = planLandRoute(state, start, destination);
+  if (!route) return false;
+  let length = 0;
+  let previous = start;
+  for (const waypoint of route) {
+    length += distance(previous, waypoint);
+    if (length > range + 1e-8) return false;
+    previous = waypoint;
+  }
+  return true;
+}
+
 export function updateAnimals(s: GameState, dt: number) {
   if (!Number.isFinite(dt) || dt <= 0) return;
   const humans = activeUnits(s),
@@ -2395,7 +2423,8 @@ export function updateAnimals(s: GameState, dt: number) {
       attack =
         predator &&
         (seasonOf(s).isNight || human.isolation >= 30 || e.kind === 'alpha') &&
-        distance(e, human) <= 20;
+        distance(e, human) <= 20 &&
+        withinAnimalLandReach(s, e, human, 20);
     if (attack) {
       if (
         getDogmaEffects(s, { unit: human }).protected ||
@@ -2403,10 +2432,13 @@ export function updateAnimals(s: GameState, dt: number) {
       )
         continue;
       if (distance(e, human) > 1.5) {
-        const d = distance(e, human),
-          step = Math.min(d, fa.speed * dt);
-        e.x += ((human.x - e.x) / d) * step;
-        e.y += ((human.y - e.y) / d) * step;
+        if (s.mapGeneration?.landNavigation === 1) moveWildlifeToward(e, human, fa.speed * dt, s);
+        else {
+          const d = distance(e, human),
+            step = Math.min(d, fa.speed * dt);
+          e.x += ((human.x - e.x) / d) * step;
+          e.y += ((human.y - e.y) / d) * step;
+        }
       } else {
         const wound = fa.damage * dt;
         human.hp -= wound;
@@ -2417,15 +2449,20 @@ export function updateAnimals(s: GameState, dt: number) {
         }
         if (human.hp <= 0) killUnit(s, human, 'V_03');
       }
-    } else if (e.kind === 'deer' && distance(e, human) <= 15 && !hunted.has(e.id)) {
+    } else if (
+      e.kind === 'deer' &&
+      distance(e, human) <= 15 &&
+      !hunted.has(e.id) &&
+      withinAnimalLandReach(s, e, human, 15)
+    ) {
       const d = distance(e, human) || 1,
         sectorX = Math.min(4, Math.max(0, Math.floor(e.originX / 100))) * 100,
         sectorY = Math.min(4, Math.max(0, Math.floor(e.originY / 100))) * 100;
       const x = clamp(e.x + ((e.x - human.x) / d) * fa.speed * dt, sectorX + 2, sectorX + 98);
       const y = clamp(e.y + ((e.y - human.y) / d) * fa.speed * dt, sectorY + 2, sectorY + 98);
-      moveWildlifeToward(e, { x, y }, fa.speed * dt);
+      moveWildlifeToward(e, { x, y }, fa.speed * dt, s);
     } else if (!hunted.has(e.id)) {
-      moveWildlifeToward(e, wanderDestination(e, s.time), fa.speed * dt);
+      moveWildlifeToward(e, wanderDestination(e, s.time), fa.speed * dt, s);
     }
   }
 }

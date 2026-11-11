@@ -9,7 +9,7 @@ describe('ordinary legacy opening on generated maps', () => {
     (seed) => {
       const result = replayRandomOpening(seed);
       const { state, orders, discoveries } = result;
-      expect(state.mapGeneration).toEqual({ mode: 'random', seed, version: 1 });
+      expect(state.mapGeneration).toEqual({ mode: 'random', seed, version: 1, landNavigation: 1 });
       expect(state.gameOver).toBeNull();
       expect(result.firstFireAt).not.toBeNull();
       expect(result.firstFireAt!).toBeLessThanOrEqual(210);

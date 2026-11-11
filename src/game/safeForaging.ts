@@ -2,6 +2,7 @@ import { effectiveElapsed, hasOpeningBalance } from './calendar';
 import { distance, hasBuilding } from './runtime';
 import { COLD_RESCUE, thermalConditionsAt } from './thermal';
 import type { GameState, MapEntity, Unit } from './types';
+import { planLandRoute } from './landNavigation';
 
 type Point = { x: number; y: number };
 
@@ -26,6 +27,11 @@ function distanceToRoute(point: Point, start: Point, end: Point) {
  * homeward route. Unexplored animals are not revealed by this test. Direct
  * orders remain the player's decision, including an intentionally risky meal. */
 export function safeAutonomousRoute(state: GameState, start: Point, destination: Point) {
+  const actualRoutes =
+    state.mapGeneration?.landNavigation === 1
+      ? [planLandRoute(state, start, destination), planLandRoute(state, destination, state.home)]
+      : undefined;
+  if (actualRoutes?.some((route) => !route)) return false;
   if (state.playMode !== 'guided') return true;
   if (
     hasBuilding(state, 'palisade') &&
@@ -46,10 +52,22 @@ export function safeAutonomousRoute(state: GameState, start: Point, destination:
           sector.x === Math.min(4, Math.floor(predator.x / 100)) &&
           sector.y === Math.min(4, Math.floor(predator.y / 100)),
       );
-    return (
-      known &&
-      (distanceToRoute(predator, start, destination) < AUTONOMOUS_PREDATOR_CLEARANCE ||
-        distanceToRoute(predator, destination, state.home) < AUTONOMOUS_PREDATOR_CLEARANCE)
+    if (!known) return false;
+    const paths = actualRoutes
+      ? [
+          [start, ...actualRoutes[0]!],
+          [destination, ...actualRoutes[1]!],
+        ]
+      : [
+          [start, destination],
+          [destination, state.home],
+        ];
+    return paths.some((path) =>
+      path.some(
+        (point, index) =>
+          distanceToRoute(predator, index ? path[index - 1] : point, point) <
+          AUTONOMOUS_PREDATOR_CLEARANCE,
+      ),
     );
   });
 }
@@ -65,7 +83,14 @@ export function safeInstinctiveFood(state: GameState, unit: Unit, food: MapEntit
   const home = thermalConditionsAt(state, unit, state.home);
   if (home.fireHeat <= 0 && home.shelterWarmth <= 0) return true;
   if (home.delta <= outside.delta) return true;
-  const trip = (distance(unit, food) + distance(food, state.home)) / 4 + 1.5;
+  const routeDistance = (from: Point, to: Point) => {
+    if (state.mapGeneration?.landNavigation !== 1) return distance(from, to);
+    const path = planLandRoute(state, from, to);
+    return path
+      ? path.reduce((sum, point, index) => sum + distance(index ? path[index - 1] : from, point), 0)
+      : Infinity;
+  };
+  const trip = (routeDistance(unit, food) + routeDistance(food, state.home)) / 4 + 1.5;
   const exposure = effectiveElapsed(state, state.time, state.time + trip);
   return unit.temp + outside.delta * exposure >= COLD_RESCUE.guidedWarning;
 }

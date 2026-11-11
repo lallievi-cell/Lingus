@@ -6,6 +6,7 @@ import { effectiveDamage } from './math';
 import { activeUnits, canPay, clamp, copy, distance, log, nextId, pay, totalFood } from './runtime';
 import { killUnit, recordAttackTrauma } from './simulation';
 import { combatEquipmentFor } from './unitEquipment';
+import { moveOnLand } from './landNavigation';
 import type { Caravan, City, Faction, ForeignRaid, GameState, Inventory, Unit } from './types';
 
 /** Product extension: policy parameters, not formulas attributed to the GDD. */
@@ -63,11 +64,14 @@ function intervalReady(state: GameState, key: string, seconds: number) {
   return last === undefined || effectiveElapsed(state, last, state.time) >= seconds;
 }
 function move(
+  state: GameState,
   point: { x: number; y: number },
   target: { x: number; y: number },
   dt: number,
   speed = 4,
 ) {
+  if (state.mapGeneration?.landNavigation === 1)
+    return moveOnLand(state, point, target, Math.max(0, dt) * speed);
   const length = distance(point, target),
     step = Math.max(0, dt) * speed;
   if (length <= step) {
@@ -571,7 +575,7 @@ function updateRaid(state: GameState, raid: ForeignRaid, dt: number) {
     let arrived = true;
     for (const member of members) {
       member.action = 'raiding-returning';
-      if (!move(member, origin, dt)) arrived = false;
+      if (!move(state, member, origin, dt)) arrived = false;
     }
     if (arrived) finishRaid(state, raid, members, origin);
     return;
@@ -599,14 +603,14 @@ function updateRaid(state: GameState, raid: ForeignRaid, dt: number) {
         .sort((a, b) => distance(a, member) - distance(b, member))[0];
     if (guard) {
       const target = { x: guard.x + Math.cos(i * 2.4) * 1.2, y: guard.y + Math.sin(i * 2.4) * 1.2 };
-      move(member, target, dt);
+      move(state, member, target, dt);
       member.action = 'raiding';
     } else {
       const target = {
         x: raid.target.x + Math.cos(i * 2.4) * 2,
         y: raid.target.y + Math.sin(i * 2.4) * 2,
       };
-      if (move(member, target, dt)) reached = true;
+      if (move(state, member, target, dt)) reached = true;
     }
   }
   raid.progress = Math.min(1, raid.progress + dt);

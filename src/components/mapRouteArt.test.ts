@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createGame } from '../game/engine';
 import type { RegionalRoadSegment } from '../game/types';
 import { drawRegionalRoutes, getRegionalRouteStyle } from './mapRouteArt';
+import { getRiverFords } from '../game/landNavigation';
 
 /** Capture emitted road strokes without depending on a browser pixel rasterizer. */
 function painter() {
@@ -87,5 +88,34 @@ describe('regional ground traces', () => {
     expect(getRegionalRouteStyle({ tier: 4 }, repeated).stage).toBe('dirt');
     expect(getRegionalRouteStyle({ tier: 5 }, repeated).stage).toBe('paved');
     expect(getRegionalRouteStyle({ tier: 5 }, repeated).width).toBeGreaterThan(firstPass.width);
+  });
+
+  it('shows recorded wet traffic through a real ford without turning it into a paved bridge', () => {
+    const state = createGame(42, 'classic', 'random');
+    state.mapGeneration!.landNavigation = 1;
+    state.tier = 5;
+    const ford = getRiverFords(state)[0];
+    state.regionalRoutes = [
+      { key: 'ford-route', from: ford.bankA, to: ford.bankB, travelled: 200 },
+    ];
+    const crossesCenter = (stroke: ReturnType<typeof painter>['strokes'][number]) => {
+      const a = { x: stroke.from.x / 2.4, y: stroke.from.y / 1.6 };
+      const b = { x: stroke.to.x / 2.4, y: stroke.to.y / 1.6 };
+      return (a.x - ford.x) * (b.x - ford.x) + (a.y - ford.y) * (b.y - ford.y) <= 0;
+    };
+    const current = painter();
+    const before = structuredClone(state);
+    drawRegionalRoutes(current.ctx, state);
+    expect(
+      current.strokes.some((stroke) => stroke.color === '#9a9d73' && crossesCenter(stroke)),
+    ).toBe(true);
+    expect(
+      current.strokes.some((stroke) => stroke.color === '#746d54' && crossesCenter(stroke)),
+    ).toBe(false);
+    expect(state).toEqual(before);
+    delete state.mapGeneration!.landNavigation;
+    const legacy = painter();
+    drawRegionalRoutes(legacy.ctx, state);
+    expect(legacy.strokes.some(crossesCenter)).toBe(false);
   });
 });

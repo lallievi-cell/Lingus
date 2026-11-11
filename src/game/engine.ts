@@ -26,6 +26,7 @@ import { canPrepareBriefLesson, getLessonPreview } from './teaching';
 import { captureObservedTaskResults, snapshotTaskResultInputs } from './taskResults';
 import { promoteDeferredSparks } from './discoveryPacing';
 import { safeAutonomousRoute } from './safeForaging';
+import { isDryLandPoint, isLandPoint, planLandRoute } from './landNavigation';
 import {
   activeUnits,
   adult,
@@ -264,6 +265,18 @@ export function issueCommand(
     );
     return s;
   }
+  if (
+    s.mapGeneration?.landNavigation === 1 &&
+    target?.type === 'point' &&
+    !isLandPoint(s, target)
+  ) {
+    log(
+      s,
+      'Qui non si può passare a piedi. Scegli un punto sulla riva o oltre il fiume: il percorso userà un guado. Non hai speso Voce.',
+      'warning',
+    );
+    return s;
+  }
   const workers = chooseSubjects(s, subject, target, executorId, selectionCenter);
   const selectedIds =
     ['S_08', 'S_09'].includes(subject) && executorId ? [executorId] : workers.map((u) => u.id);
@@ -399,10 +412,42 @@ export function issueCommand(
     return s;
   }
   if (verb === 'V_05' && args.includes('O_05')) {
+    const fireSite =
+      s.buildings.find(
+        (building) =>
+          building.kind === 'campfire' && building.hp > 0 && isPlayerBuilding(s, building),
+      ) ??
+      target ??
+      s.home;
+    if (s.mapGeneration?.landNavigation === 1 && !isDryLandPoint(s, fireSite)) {
+      log(
+        s,
+        'Il Falò richiede terreno asciutto. Lascia libero il guado per attraversare.',
+        'warning',
+      );
+      return s;
+    }
     if (!canIgnite(s, target?.x ?? s.home.x, target?.y ?? s.home.y)) {
       log(
         s,
         'Per accendere il primo falò servono cinque unità di legno nelle scorte o disponibili nelle vicinanze.',
+        'warning',
+      );
+      return s;
+    }
+  }
+  if (kind && s.mapGeneration?.landNavigation === 1) {
+    const site =
+      target?.type === 'point'
+        ? target
+        : {
+            x: s.home.x + 5 + (s.buildings.length % 5) * 3,
+            y: s.home.y + 5 + Math.floor(s.buildings.length / 5) * 3,
+          };
+    if (!isDryLandPoint(s, site) || !planLandRoute(s, workers[0], site)) {
+      log(
+        s,
+        'La costruzione richiede terreno asciutto e raggiungibile. Lascia libero il guado per attraversare.',
         'warning',
       );
       return s;

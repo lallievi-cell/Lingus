@@ -2,6 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { createGame, issueCommand } from './engine';
 import { updateUnits } from './simulation';
 import { safeAutonomousRoute } from './safeForaging';
+import { getRiverFords } from './landNavigation';
+
+it('checks predators even when a land-navigation meal needs no outward or return movement', () => {
+  const state = createGame(42, 'guided', 'random');
+  const bank = getRiverFords(state)[0].bankA;
+  state.home = { ...bank };
+  state.tier = 4;
+  state.entities = [
+    { id: 'nearby-predator', kind: 'alpha', ...bank, hp: 120, maxHp: 120, amount: 3 },
+  ];
+  expect(safeAutonomousRoute(state, bank, bank)).toBe(false);
+});
 
 function scene(hunger = 65) {
   const state = createGame(6842, 'guided');

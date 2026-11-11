@@ -10,7 +10,7 @@ Una nuova partita ricentra la visuale sul campo e ripristina lo zoom iniziale, a
 
 ## Geografia e partenza
 
-Il mondo mantiene **500 × 500 metri e 25 settori**. Il campo comincia nella prateria centrale; cambiano disposizione dei boschi e dei rilievi, corso del fiume e posizione dei nodi. Il fiume collega due bordi attraverso una catena connessa di settori: disegno e collocamento delle risorse usano gli stessi segmenti. I fiumi conservano la traversabilità dell'attuale simulazione.
+Il mondo mantiene **500 × 500 metri e 25 settori**. Il campo comincia nella prateria centrale; cambiano disposizione dei boschi e dei rilievi, corso del fiume e posizione dei nodi. Il fiume collega due bordi attraverso una catena connessa di settori: disegno e collocamento delle risorse usano gli stessi segmenti. Dalla 0.4.0 le nuove mappe casuali si attraversano tramite guadi: persone, fauna e convogli condividono gli stessi passaggi. I salvataggi precedenti e Seed Zero mantengono la traversabilità originaria.
 
 Il generatore riserva risorse fisiche raggiungibili, con quantità effettive:
 
@@ -27,6 +27,8 @@ Fuori dal campo la densità di alberi, bacche, pietre e minerali dipende dal bio
 ## Salvataggi e generazione
 
 La generazione ha uno stream casuale separato: creare la mappa non consuma i tiri della simulazione. Il salvataggio conserva `mapGeneration` con modalità, seed originale e versione del generatore (**1**), oltre alle coordinate e quantità effettive del mondo. `state.seed` continua a evolvere per gli eventi della partita.
+
+Le nuove mappe casuali conservano anche `mapGeneration.landNavigation: 1`, che abilita fiume fisico e guadi. I passaggi vengono ricavati dalla geografia salvata con la stessa versione della regola; non consumano casualità e non spostano risorse o insediamenti. L’assenza del campo conserva i movimenti precedenti. [RELEASE-040.md](RELEASE-040.md) descrive interazioni e compatibilità.
 
 Il caricamento usa il mondo salvato: una roccia già scavata conserva la quantità restante e gli animali mantengono la posizione raggiunta. Non ricostruisce la mappa dal seed. Il metadato è facoltativo per i vecchi salvataggi v2; quando manca, l'interfaccia indica che il seed originale non è registrato.
 

@@ -1,9 +1,10 @@
 import type { GameState, RegionalRoadSegment } from '../game/types';
 import { riverSegments } from '../game/worldGeneration';
+import { getRiverFords, isInRiverFord } from '../game/landNavigation';
 
 type Point = { x: number; y: number };
 type Viewport = { minX: number; minY: number; maxX: number; maxY: number };
-type Piece = { from: Point; to: Point };
+type Piece = { from: Point; to: Point; ford?: boolean };
 export interface RegionalRouteStyle {
   stage: 'trail' | 'dirt' | 'paved';
   wear: number;
@@ -40,7 +41,7 @@ function cubic(a: Point, b: Point, c: Point, d: Point, t: number): Point {
 }
 
 function updateWater(state: GameState) {
-  const key = `${state.mapGeneration?.mode ?? 'seed-zero'}:${state.sectors.map((s) => `${s.x},${s.y}:${s.biome}`).join('|')}`;
+  const key = `${state.mapGeneration?.mode ?? 'seed-zero'}:${state.mapGeneration?.seed ?? ''}:${state.mapGeneration?.landNavigation ?? 0}:${state.sectors.map((s) => `${s.x},${s.y}:${s.biome}`).join('|')}`;
   if (geographyKey === key) return;
   geographyKey = key;
   landCache.clear();
@@ -82,7 +83,7 @@ function distanceToPiece(point: Point, piece: Piece) {
   return Math.hypot(point.x - piece.from.x - dx * fraction, point.y - piece.from.y - dy * fraction);
 }
 
-function landPieces(segment: RegionalRoadSegment): Piece[] {
+function landPieces(state: GameState, segment: RegionalRoadSegment): Piece[] {
   const { from, to } = segment;
   const key = `${segment.key}:${from.x.toFixed(4)},${from.y.toFixed(4)}:${to.x.toFixed(4)},${to.y.toFixed(4)}`;
   const cached = landCache.get(key);
@@ -90,6 +91,7 @@ function landPieces(segment: RegionalRoadSegment): Piece[] {
   const length = Math.hypot(to.x - from.x, to.y - from.y);
   const count = Math.max(1, Math.ceil(length / 0.7));
   const pieces: Piece[] = [];
+  const fords = getRiverFords(state);
   let open: Piece | undefined;
   for (let i = 0; i < count; i++) {
     const at = (fraction: number) => ({
@@ -97,16 +99,17 @@ function landPieces(segment: RegionalRoadSegment): Piece[] {
       y: from.y + (to.y - from.y) * fraction,
     });
     const midpoint = at((i + 0.5) / count);
-    // The river itself has a 5.5m half-width. Preserve water and a bank margin;
-    // traffic history records a crossing, never an invented bridge structure.
-    if (water.some((piece) => distanceToPiece(midpoint, piece) < 7.6)) {
+    // Keep deep water and its bank margin clear. Only an actual traversed ford
+    // can show a wet ground trace; repeated trips never pave a bridge here.
+    const inWater = water.some((piece) => distanceToPiece(midpoint, piece) < 7.6);
+    if (inWater && !fords.some((ford) => isInRiverFord(midpoint, ford))) {
       open = undefined;
       continue;
     }
     const next = at((i + 1) / count);
-    if (open) open.to = next;
+    if (open && open.ford === inWater) open.to = next;
     else {
-      open = { from: at(i / count), to: next };
+      open = { from: at(i / count), to: next, ford: inWater };
       pieces.push(open);
     }
   }
@@ -151,7 +154,14 @@ export function drawRegionalRoutes(
     const style = getRegionalRouteStyle(state, segment);
     const width = Math.max(style.width, 0.65 / scale);
     ctx.globalAlpha = style.opacity;
-    for (const piece of landPieces(segment)) {
+    for (const piece of landPieces(state, segment)) {
+      if (piece.ford) {
+        ctx.globalAlpha = Math.min(style.opacity, 0.32);
+        stroke(piece, '#6a827038', width + 0.6);
+        stroke(piece, '#9a9d73', Math.min(width, 0.8));
+        ctx.globalAlpha = style.opacity;
+        continue;
+      }
       // Soft, worn shoulders blend with the pigment of the terrain.
       stroke(piece, '#7e75512e', width + 1.1);
       stroke(piece, style.stage === 'paved' ? '#746d54' : '#aa9062', width);

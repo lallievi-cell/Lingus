@@ -1,5 +1,6 @@
 import type { GameState, WorldTarget } from '../game/types';
 import { getCalendar } from '../game/calendar';
+import { getRiverFords } from '../game/landNavigation';
 import { BUILDING_NAMES } from '../game/content';
 import { getGroundPiles, resourcePileLabel } from './mapResourceLayout';
 import { isVisibleAt, hasConcept } from './mapDrawing';
@@ -96,6 +97,13 @@ export function getVisibleWorldTargets(
     );
   }
   const night = getCalendar(state).isNight;
+  for (const ford of getRiverFords(state))
+    add(
+      'places',
+      'Guado del fiume',
+      { type: 'point', id: ford.id, x: ford.x, y: ford.y },
+      `Attraversamento a piedi · ${relativePlace(ford, state.home)}`,
+    );
   for (const entity of state.entities) {
     if (
       entity.kind === 'ground' ||

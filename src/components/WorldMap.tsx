@@ -91,6 +91,10 @@ function viewBounds(state: GameState) {
 
 function targetLabel(state: GameState, target: WorldTarget | null) {
   if (!target) return null;
+  if (target.type === 'point') {
+    const terrain = targetPresentation(state, target);
+    if (terrain) return terrain.label;
+  }
   const numbered = hasConcept(state, 'O_08');
   if (target.type === 'unit') {
     const unit = state.units.find((u) => u.id === target.id);

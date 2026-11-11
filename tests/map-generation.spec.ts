@@ -5,7 +5,7 @@ type WorldSave = {
   time: number;
   seed: number;
   playMode?: 'guided' | 'classic';
-  mapGeneration?: { mode: 'random' | 'seed-zero'; seed: number; version: 1 };
+  mapGeneration?: { mode: 'random' | 'seed-zero'; seed: number; version: 1; landNavigation?: 1 };
   entities: {
     id: string;
     kind: string;
@@ -98,7 +98,12 @@ test('an explicit map seed reproduces its geometry independently from Guided or 
   await page.goto('/');
   await page.getByLabel('Seed della mappa', { exact: true }).fill('123');
   const guided = await startAndPause(page);
-  expect(guided.mapGeneration).toEqual({ mode: 'random', seed: 123, version: 1 });
+  expect(guided.mapGeneration).toEqual({
+    mode: 'random',
+    seed: 123,
+    version: 1,
+    landNavigation: 1,
+  });
 
   await openRestart(page);
   await page.getByLabel('Seed della mappa', { exact: true }).fill('123');
@@ -151,7 +156,7 @@ test('the picker rejects invalid seeds and accepts the reproducible seed zero', 
   await seed.fill('0');
   await expect(begin).toBeEnabled();
   const state = await startAndPause(page);
-  expect(state.mapGeneration).toEqual({ mode: 'random', seed: 0, version: 1 });
+  expect(state.mapGeneration).toEqual({ mode: 'random', seed: 0, version: 1, landNavigation: 1 });
 });
 
 test('map options remain accessible on mobile and canceling restart preserves the old map', async ({

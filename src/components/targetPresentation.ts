@@ -4,6 +4,7 @@ import { hasWord } from '../game/runtime';
 import { CUSTODIAN_RISK_LABELS, getCustodianStatuses } from '../game/custodianStatus';
 import { resolveUnitSex } from '../game/demography';
 import { visibleUnitEquipment } from '../game/unitEquipment';
+import { getRiverFords, isLandPoint } from '../game/landNavigation';
 import type { GameState, MapEntity, WorldTarget } from '../game/types';
 import { groundPileFor, resourceKnown, resourcePileLabel } from './mapResourceLayout';
 import { getCityPresentation } from './cityPresentation';
@@ -176,6 +177,37 @@ export function targetPresentation(
   target: WorldTarget | null,
 ): TargetPresentation | null {
   if (!target) return null;
+  if (target.type === 'point' && state.mapGeneration?.landNavigation === 1) {
+    const revealed =
+      state.tier >= 4 ||
+      state.sectors.some(
+        (sector) =>
+          sector.explored &&
+          sector.x === Math.min(4, Math.floor(target.x / 100)) &&
+          sector.y === Math.min(4, Math.floor(target.y / 100)),
+      );
+    if (!revealed) return null;
+    const ford = getRiverFords(state).find(
+      (entry) => Math.hypot(entry.x - target.x, entry.y - target.y) <= entry.width / 2,
+    );
+    if (ford)
+      return {
+        label: 'Guado del fiume',
+        stage: 'Attraversamento a piedi',
+        kind: 'landmark',
+        description:
+          'Qui l’acqua è bassa. Persone, animali e convogli possono raggiungere l’altra riva.',
+        hint: 'Indica una destinazione sulla riva opposta: il percorso passa dal guado.',
+      };
+    if (!isLandPoint(state, target))
+      return {
+        label: 'Fiume · Acqua profonda',
+        stage: 'Passaggio impraticabile a piedi',
+        kind: 'landmark',
+        description: 'Qui non si può attraversare a piedi. Cerca un guado lungo il fiume.',
+        hint: 'Seleziona un punto di terra sulla riva opposta: le persone cercheranno il percorso attraverso un guado.',
+      };
+  }
   if (state.tier >= 4 && target.type === 'city') {
     const city = state.cities.find(
       (candidate) => candidate.id === target.id && candidate.factionId !== 'ruins',

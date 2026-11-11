@@ -30,6 +30,7 @@ import { drawCampStock } from './mapCampStockArt';
 import { drawMapGroundShadows } from './mapLighting';
 import { drawMapWorkEffects } from './mapWorkEffects';
 import { drawMapSurfaceMotion } from './mapSurfaceMotion';
+import { drawRiverFords } from './mapFordArt';
 
 const fallbackMotionSession = createMapMotionSession();
 
@@ -1074,6 +1075,7 @@ export function drawWorld(
   const calendar = getCalendar(state);
   ctx.drawImage(terrain, 0, 0, MAP_WIDTH, MAP_HEIGHT);
   drawMapSurfaceMotion(ctx, state, terrain, time, viewport, atmosphereOptions?.reducedMotion);
+  drawRiverFords(ctx, state, viewport);
   drawRegionalRoutes(ctx, state, viewport);
   const nearHome = (target: WorldTarget | null) =>
     target?.type === 'point' && Math.hypot(target.x - state.home.x, target.y - state.home.y) <= 10;

@@ -6,7 +6,12 @@ describe('saved map identity and backward compatibility', () => {
     const guided = createGame(42, 'guided', 'random');
     const classic = createGame(42, 'classic', 'random');
     expect(guided.seed).toBe(42);
-    expect(guided.mapGeneration).toEqual({ mode: 'random', seed: 42, version: 1 });
+    expect(guided.mapGeneration).toEqual({
+      mode: 'random',
+      seed: 42,
+      version: 1,
+      landNavigation: 1,
+    });
     expect(guided.entities).toEqual(classic.entities);
     expect(guided.sectors).toEqual(classic.sectors);
     expect(guided.cities).toEqual(classic.cities);
@@ -43,6 +48,16 @@ describe('saved map identity and backward compatibility', () => {
     expect(parseGame(serializeGame(canonical))).toEqual({ ...canonical, paused: true });
   });
 
+  it('retains the original movement rules of earlier generated saves', () => {
+    const previous = createGame(42, 'guided', 'random');
+    delete previous.mapGeneration!.landNavigation;
+    const loaded = parseGame(serializeGame(previous))!;
+    expect(loaded.mapGeneration).toEqual(previous.mapGeneration);
+    expect(loaded.mapGeneration?.landNavigation).toBeUndefined();
+    const current = createGame(42, 'guided', 'random');
+    expect(parseGame(serializeGame(current))?.mapGeneration?.landNavigation).toBe(1);
+  });
+
   it.each([
     { mode: 'random', seed: -1, version: 1 },
     { mode: 'random', seed: 1.25, version: 1 },
@@ -50,6 +65,9 @@ describe('saved map identity and backward compatibility', () => {
     { mode: 'unknown', seed: 1, version: 1 },
     { mode: 'random', seed: 1, version: 2 },
     { mode: 'random', seed: '1', version: 1 },
+    { mode: 'random', seed: 1, version: 1, landNavigation: 2 },
+    { mode: 'random', seed: 1, version: 1, landNavigation: true },
+    { mode: 'seed-zero', seed: 1, version: 1, landNavigation: 1 },
     null,
   ])('rejects malformed optional map metadata: %j', (metadata) => {
     const state = createGame();

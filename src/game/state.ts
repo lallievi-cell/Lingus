@@ -228,7 +228,12 @@ export function createInitialState(
     ...(playMode === 'guided'
       ? { openingBalanceVersion: 1 as const, openingCouncilsCompleted: 0 }
       : {}),
-    mapGeneration: { mode: mapMode, seed: seed >>> 0, version: 1 },
+    mapGeneration: {
+      mode: mapMode,
+      seed: seed >>> 0,
+      version: 1,
+      ...(mapMode === 'random' ? { landNavigation: 1 as const } : {}),
+    },
     seed: seed >>> 0,
     time: 0,
     seasonIndex: 0,

@@ -1,4 +1,5 @@
-import type { MapEntity } from './types';
+import type { GameState, MapEntity } from './types';
+import { moveOnLand } from './landNavigation';
 
 /** The old idle pose is still the destination, not an instantaneous position.
  * Travel back from a flight or a fight therefore obeys the animal's real speed. */
@@ -19,7 +20,12 @@ export function moveWildlifeToward(
   entity: MapEntity,
   destination: { x: number; y: number },
   maximumStep: number,
+  state?: GameState,
 ) {
+  if (state?.mapGeneration?.landNavigation === 1) {
+    moveOnLand(state, entity, destination, maximumStep);
+    return;
+  }
   const dx = destination.x - entity.x,
     dy = destination.y - entity.y,
     distance = Math.hypot(dx, dy);

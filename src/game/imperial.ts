@@ -16,6 +16,7 @@ import {
 } from './calendar';
 import { rememberCombatWound } from './damageAttribution';
 import { recordCaravanTravel } from './regionalHistory';
+import { isDryLandPoint, moveOnLand, planLandRoute } from './landNavigation';
 import { guidedBirthMultiplier } from './guidedProgression';
 import {
   foreignForgeCanWork,
@@ -276,11 +277,15 @@ function findCity(s: GameState, target?: Target, foreign = false): City | undefi
   return foreign ? pool[0] : capital(s);
 }
 function moveTo(
+  state: GameState,
   point: { x: number; y: number },
   target: { x: number; y: number },
   speed: number,
   dt: number,
+  onSegment?: (from: { x: number; y: number }, to: { x: number; y: number }) => void,
 ): boolean {
+  if (state.mapGeneration?.landNavigation === 1)
+    return moveOnLand(state, point, target, speed * dt, onSegment);
   const d = distance(point, target),
     step = speed * dt;
   if (d <= step) {
@@ -1318,6 +1323,15 @@ export function handleImperialCommand(
       sy = Math.floor(target.y / 100);
     if (s.cities.some((c) => c.sectorX === sx && c.sectorY === sy))
       return output(false, 'Questo settore ospita già una città.');
+    const site = { type: 'point' as const, x: sx * 100 + 50, y: sy * 100 + 50 };
+    if (
+      s.mapGeneration?.landNavigation === 1 &&
+      (!isDryLandPoint(s, site) || !planLandRoute(s, source, site))
+    )
+      return output(
+        false,
+        'Il centro del settore non è raggiungibile via terra. Scegli un settore con un luogo asciutto per fondare la colonia.',
+      );
     const inv = inventoryFor(s, source);
     if (source.cohorts.workers < 30 || inv.wood < 50 || inv.stone < 50 || !foodCost(inv, 50))
       return output(
@@ -1337,14 +1351,7 @@ export function handleImperialCommand(
       send[r] = n;
       left -= n;
     }
-    const car = makeCaravan(
-      s,
-      'colonists',
-      source,
-      { type: 'point', x: sx * 100 + 50, y: sy * 100 + 50 },
-      send,
-      30,
-    );
+    const car = makeCaravan(s, 'colonists', source, site, send, 30);
     car.words = known(s);
     car.dogmas = copy(s.dogmas);
     return output(true, 'Trenta cittadini portano la lingua della capitale verso una nuova terra.');
@@ -1875,11 +1882,11 @@ function updateFrontline(s: GameState, dt: number) {
     if (u.action === 'frontline' && active) {
       u.tx = host.x;
       u.ty = host.y;
-      moveTo(u, host, 4, dt);
+      moveTo(s, u, host, 4, dt);
     } else {
       u.action = 'frontline-returning';
       const home = s.cities.find((c) => c.id === u.cityId && c.factionId === PLAYER);
-      if (!home || moveTo(u, home, 4, dt)) {
+      if (!home || moveTo(s, u, home, 4, dt)) {
         u.action = 'idle';
         u.targetId = undefined;
         u.command = undefined;
@@ -1953,7 +1960,7 @@ function damageGarrison(s: GameState, city: City, damage: number, attackerId?: s
 }
 function attackCity(s: GameState, b: Battalion, city: City, dt: number) {
   if (distance(b, city) > 3) {
-    moveTo(b, city, b.cavalry ? 8 : 4, dt);
+    moveTo(s, b, city, b.cavalry ? 8 : 4, dt);
     return;
   }
   const effect = armyEffects(s, b),
@@ -2083,7 +2090,7 @@ function battleArmies(s: GameState, dt: number) {
       b.ty = s.home.y;
     }
     if (b.action === 'moving') {
-      moveTo(b, { x: b.tx ?? b.x, y: b.ty ?? b.y }, b.cavalry ? 8 : 4, dt);
+      moveTo(s, b, { x: b.tx ?? b.x, y: b.ty ?? b.y }, b.cavalry ? 8 : 4, dt);
       if (distance(b, { x: b.tx ?? b.x, y: b.ty ?? b.y }) < 0.01) b.action = 'idle';
     }
     if (['conquering', 'attacking'].includes(b.action)) {
@@ -2192,8 +2199,13 @@ export function updateImperial(s: GameState, dt: number) {
   for (const car of s.caravans.filter((c) => !c.arrived && c.hp > 0)) {
     if (car.customsRefused && !car.returning) continue;
     const previous = { x: car.x, y: car.y };
-    if (moveTo(car, car.target, hasWord(s, 'O_13') ? 6 : 4, dt)) delivered.push(car);
-    recordCaravanTravel(s, car, previous);
+    const onSegment =
+      s.mapGeneration?.landNavigation === 1
+        ? (from: { x: number; y: number }, to: { x: number; y: number }) =>
+            recordCaravanTravel(s, { ...car, ...to }, from)
+        : undefined;
+    if (moveTo(s, car, car.target, hasWord(s, 'O_13') ? 6 : 4, dt, onSegment)) delivered.push(car);
+    if (!onSegment) recordCaravanTravel(s, car, previous);
   }
   // The border charge precedes arrival/exchange, including a large time step.
   inspectForeignCustoms(s);

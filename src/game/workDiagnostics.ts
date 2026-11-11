@@ -13,6 +13,7 @@ import {
 import type { Building, GameState, MapEntity, Resource, Target, Unit } from './types';
 import { taskOutcomeMessage } from './taskOutcomes';
 import { resolveInteractionPosition } from './interactionPositions';
+import { isLandPoint } from './landNavigation';
 
 export type WorkCategory = 'idle' | 'working' | 'recovering' | 'young' | 'dead';
 export interface WorkStatus {
@@ -57,7 +58,9 @@ function gatheringStage(state: GameState, unit: Unit, source: MapEntity) {
     kind,
     key: `${kind}:${source.id}`,
   });
-  const approaching = distance(unit, position) > 0.05;
+  const workplace =
+    state.mapGeneration?.landNavigation === 1 && !isLandPoint(state, position) ? source : position;
+  const approaching = distance(unit, workplace) > 0.05;
   return {
     title: approaching
       ? `Va a ${extraction ? 'estrarre' : 'raccogliere'} ${resource}`
