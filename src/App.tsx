@@ -3445,6 +3445,11 @@ function App() {
               onChange={setGame}
               onClose={closePanel}
               onCompose={preparePhrase}
+              onFocus={(destination) => {
+                closeWordBank();
+                setPhrasebookTab(null);
+                focusTarget(destination);
+              }}
             />
           </Modal>
         )}

@@ -347,6 +347,74 @@
   padding: 7px 0;
   color: var(--surface-ink, #25372e);
 }
+.app .civilization-panel .faction-list > .civ-culture-card {
+  display: block;
+  padding: 0;
+  border-top: 0;
+  border-bottom: 1px solid var(--line, #c8c7b2);
+}
+.app .civilization-panel .civ-culture-disclosure > summary {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+  margin: 0;
+  cursor: pointer;
+  list-style: none;
+}
+.app .civilization-panel .civ-culture-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+.app .civilization-panel .civ-culture-disclosure > summary::marker {
+  content: '';
+}
+.app .civilization-panel .civ-culture-disclosure .faction-symbol {
+  display: grid;
+  place-items: center;
+}
+.app .civilization-panel .civ-culture-name {
+  display: block;
+  color: var(--surface-ink, #25372e);
+  font: 700 15px/1.35 var(--sans, sans-serif);
+}
+.app .civilization-panel .civ-culture-identity {
+  display: block;
+  margin-top: 3px;
+  color: var(--surface-muted, #586454);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.app .civilization-panel .civ-culture-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 8px;
+  margin-top: 7px;
+}
+.app .civilization-panel .civ-culture-activity {
+  color: var(--surface-muted, #586454);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.app .civilization-panel .civ-culture-disclosure > summary > svg:last-child {
+  color: var(--surface-muted, #586454);
+}
+.app .civilization-panel .civ-culture-details {
+  padding: 0 0 16px 56px;
+}
+.app .civilization-panel .civ-culture-preference {
+  margin: 0 0 10px;
+  max-width: 60ch;
+  color: var(--surface-muted, #586454);
+  font-size: 13px;
+  line-height: 1.55;
+}
+@media (max-width: 480px) {
+  .app .civilization-panel .civ-culture-details {
+    padding-left: 0;
+  }
+}
 .app .civilization-panel .city-cohorts {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

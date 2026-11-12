@@ -4,6 +4,7 @@ import { getDogmaEffects } from './dogmas';
 import { imperialLawEffects } from './imperialLawPolicy';
 import { areFactionsHostile } from './foreignPolicy';
 import { foreignFuelReserve } from './foreignEconomy';
+import { getRegionalCultureProfile } from './regionalCultures';
 import { clamp, distance, hasBuilding, hasWord, log, nextId } from './runtime';
 import type { Caravan, City, GameState, Resource } from './types';
 
@@ -47,6 +48,7 @@ export function dispatchForeignMerchants(s: GameState) {
   const destinations = s.cities.filter((c) => c.factionId === 'player' && alive(c));
   if (!destinations.length) return;
   for (const f of s.factions) {
+    const culture = getRegionalCultureProfile(f);
     const origin =
       s.cities.find((c) => c.id === f.cityId && c.factionId === f.id && alive(c)) ??
       s.cities.find((c) => c.factionId === f.id && alive(c));
@@ -58,7 +60,8 @@ export function dispatchForeignMerchants(s: GameState) {
       getDogmaEffects({ ...s, dogmas: f.dogmas }).isolated ||
       (s.eventTimes[`merchantDeparture:${f.id}`] !== undefined &&
         effectiveElapsed(s, s.eventTimes[`merchantDeparture:${f.id}`], s.time) <
-          FOREIGN_COMMERCE_ASSUMPTIONS.departureIntervalSeconds) ||
+          (culture?.merchantIntervalSeconds ??
+            FOREIGN_COMMERCE_ASSUMPTIONS.departureIntervalSeconds)) ||
       s.caravans.some((c) => c.kind === 'trade' && c.factionId === f.id && !c.arrived && c.hp > 0)
     )
       continue;
@@ -68,9 +71,17 @@ export function dispatchForeignMerchants(s: GameState) {
         exportable(s, origin, r) >= 1 &&
         (r !== 'coin' || (f.words.includes('O_12') && hasWord(s, 'O_12'))),
     );
-    const offered = choices.sort(
-      (a, b) => exportable(s, origin, b) * price(b) - exportable(s, origin, a) * price(a),
-    )[0];
+    const offered = choices.sort((a, b) => {
+      if (culture) {
+        const preference = (resource: Resource) => {
+          const rank = culture.tradePreferences.indexOf(resource);
+          return rank < 0 ? culture.tradePreferences.length : rank;
+        };
+        const order = preference(a) - preference(b);
+        if (order) return order;
+      }
+      return exportable(s, origin, b) * price(b) - exportable(s, origin, a) * price(a);
+    })[0];
     if (!offered) continue;
     const quantity = Math.min(
       FOREIGN_COMMERCE_ASSUMPTIONS.maximumCargoUnits,

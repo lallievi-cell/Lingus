@@ -367,7 +367,18 @@ export interface City {
   corruption?: number;
   rebelling?: boolean;
 }
+export type RegionalCultureId =
+  | 'forest'
+  | 'stone'
+  | 'river'
+  | 'dawn'
+  | 'meadow'
+  | 'trail'
+  | 'highland'
+  | 'clay';
 export interface Faction {
+  /** New regional societies opt in; omission preserves earlier AI decisions. */
+  culture?: RegionalCultureId;
   eventMemory?: MemoryEvent[];
   tension?: Record<string, number>;
   craftCycles?: Record<string, number>;
@@ -516,6 +527,8 @@ export interface MapGeneration {
   landNavigation?: 1;
   /** The larger regional geography; omission preserves the original 500 m valley. */
   worldSize?: 1000;
+  /** Eight distinct societies and their settlement-placement policy. */
+  regionalCultures?: 1;
 }
 export interface GameState {
   version: 2;

@@ -6,9 +6,19 @@ import { effectiveDamage } from './math';
 import { activeUnits, canPay, clamp, copy, distance, log, nextId, pay, totalFood } from './runtime';
 import { killUnit, recordAttackTrauma } from './simulation';
 import { combatEquipmentFor } from './unitEquipment';
-import { moveOnLand } from './landNavigation';
-import { getWorldSize } from './worldDimensions';
-import type { Caravan, City, Faction, ForeignRaid, GameState, Inventory, Unit } from './types';
+import { isDryLandPoint, moveOnLand, planLandRoute } from './landNavigation';
+import { getWorldSize, isWorldPointRevealed } from './worldDimensions';
+import { getRegionalCultureProfile } from './regionalCultures';
+import type {
+  Caravan,
+  City,
+  Faction,
+  ForeignRaid,
+  GameState,
+  Inventory,
+  Sector,
+  Unit,
+} from './types';
 
 /** Product extension: policy parameters, not formulas attributed to the GDD. */
 export const FOREIGN_POLICY_ASSUMPTIONS = {
@@ -43,6 +53,8 @@ export const FOREIGN_POLICY_ASSUMPTIONS = {
   maximumRaids: 12,
   maximumUltimata: 16,
   maximumRelations: 64,
+  regionalMaximumPressureActions: 2,
+  regionalPressureSpacingSeconds: 90,
 } as const;
 
 const FOOD = ['food', 'meat', 'cooked'] as const;
@@ -63,6 +75,63 @@ function policy(state: GameState) {
 function intervalReady(state: GameState, key: string, seconds: number) {
   const last = state.eventTimes[key];
   return last === undefined || effectiveElapsed(state, last, state.time) >= seconds;
+}
+
+/** A negative relation alone never gives a new society knowledge of the player. */
+function regionalContact(state: GameState, faction: Faction) {
+  const key = `regionalContact:${faction.id}`;
+  if (state.eventTimes[key] !== undefined) return true;
+  const contacted =
+    faction.lastTradeAt !== undefined ||
+    state.cities.some(
+      (city) =>
+        city.factionId === faction.id &&
+        liveCity(city) &&
+        isWorldPointRevealed(state, city.x, city.y),
+    ) ||
+    state.units.some(
+      (unit) => unit.factionId === faction.id && isWorldPointRevealed(state, unit.x, unit.y),
+    ) ||
+    state.battalions.some(
+      (army) =>
+        army.hp > 0 &&
+        army.factionId === 'player' &&
+        ['attacking', 'conquering'].includes(army.action) &&
+        state.cities.some((city) => city.id === army.targetId && city.factionId === faction.id),
+    );
+  if (contacted) state.eventTimes[key] = state.time;
+  return contacted;
+}
+
+function regionalPressureAllowed(state: GameState, faction: Faction) {
+  if (!getRegionalCultureProfile(faction)) return true;
+  if (!regionalContact(state, faction)) return false;
+  if (
+    !intervalReady(
+      state,
+      'regionalPressureDeparture',
+      FOREIGN_POLICY_ASSUMPTIONS.regionalPressureSpacingSeconds,
+    )
+  )
+    return false;
+  const profiled = new Set(
+    state.factions.filter((entry) => entry.culture).map((entry) => entry.id),
+  );
+  const raids = (state.foreignPolicy?.raids ?? []).filter(
+    (raid) => profiled.has(raid.factionId) && raid.phase !== 'ended',
+  );
+  const requests = (state.foreignPolicy?.ultimata ?? []).filter(
+    (entry) => profiled.has(entry.factionId) && ['pending', 'dispatched'].includes(entry.status),
+  );
+  return (
+    raids.length + requests.length < FOREIGN_POLICY_ASSUMPTIONS.regionalMaximumPressureActions &&
+    !raids.some((raid) => raid.factionId === faction.id) &&
+    !requests.some((entry) => entry.factionId === faction.id)
+  );
+}
+
+function recordRegionalPressure(state: GameState, faction: Faction) {
+  if (getRegionalCultureProfile(faction)) state.eventTimes.regionalPressureDeparture = state.time;
 }
 function move(
   state: GameState,
@@ -240,7 +309,8 @@ function dispatchRaid(state: GameState, faction: Faction, origin: City) {
     state.urbanized ||
     (faction.peaceUntil ?? 0) > state.time ||
     faction.relation > FOREIGN_POLICY_ASSUMPTIONS.raidRelationThreshold ||
-    !intervalReady(state, `raid:${faction.id}`, FOREIGN_POLICY_ASSUMPTIONS.raidIntervalSeconds)
+    !intervalReady(state, `raid:${faction.id}`, FOREIGN_POLICY_ASSUMPTIONS.raidIntervalSeconds) ||
+    !regionalPressureAllowed(state, faction)
   )
     return;
   const data = policy(state);
@@ -308,6 +378,7 @@ function dispatchRaid(state: GameState, faction: Faction, origin: City) {
   }
   faction.hostile = true;
   state.eventTimes[`raid:${faction.id}`] = state.time;
+  recordRegionalPressure(state, faction);
   log(
     state,
     `${faction.name} invia una piccola razzia verso il nostro accampamento. Prepara il presidio o la palizzata.`,
@@ -323,7 +394,8 @@ function dispatchUltimatum(state: GameState, faction: Faction, city: City) {
       state,
       `ultimatum:${faction.id}`,
       FOREIGN_POLICY_ASSUMPTIONS.ultimatumIntervalSeconds,
-    )
+    ) ||
+    !regionalPressureAllowed(state, faction)
   )
     return;
   const data = policy(state);
@@ -363,6 +435,7 @@ function dispatchUltimatum(state: GameState, faction: Faction, city: City) {
     dogmaTargetId: opposing?.targetId,
   });
   state.eventTimes[`ultimatum:${faction.id}`] = state.time;
+  recordRegionalPressure(state, faction);
   log(
     state,
     opposing
@@ -660,6 +733,7 @@ function updateRaid(state: GameState, raid: ForeignRaid, dt: number) {
 
 function dispatchExpansion(state: GameState, faction: Faction, origin: City) {
   const A = FOREIGN_POLICY_ASSUMPTIONS;
+  const profile = getRegionalCultureProfile(faction);
   const representedWorkers = state.units.filter(
     (unit) =>
       unit.hp > 0 &&
@@ -671,7 +745,11 @@ function dispatchExpansion(state: GameState, faction: Faction, origin: City) {
     state.tier < 4 ||
     !faction.words.includes('V_08') ||
     !faction.words.includes('O_10') ||
-    !intervalReady(state, `expansion:${faction.id}`, A.expansionIntervalSeconds) ||
+    !intervalReady(
+      state,
+      `expansion:${faction.id}`,
+      profile?.expansionIntervalSeconds ?? A.expansionIntervalSeconds,
+    ) ||
     origin.cohorts.workers - representedWorkers < A.expansionWorkers + 8 ||
     !canPay(origin.resources, { wood: A.expansionWood, stone: A.expansionStone }) ||
     totalFood(origin.resources) < A.expansionFood ||
@@ -704,7 +782,15 @@ function dispatchExpansion(state: GameState, faction: Faction, origin: City) {
         Math.floor(car.target.y / 100) === sector.y,
     );
   });
-  const target = sectors.sort((a, b) => a.id.localeCompare(b.id))[0];
+  const target = profile
+    ? sectors
+        .map((sector) => ({
+          sector,
+          score: regionalExpansionScore(state, faction, origin, sector),
+        }))
+        .filter((entry) => entry.score !== null)
+        .sort((a, b) => b.score! - a.score! || a.sector.id.localeCompare(b.sector.id))[0]?.sector
+    : sectors.sort((a, b) => a.id.localeCompare(b.id))[0];
   if (!target) return;
   const resources = emptyInventory();
   resources.wood = A.expansionWood;
@@ -729,6 +815,55 @@ function dispatchExpansion(state: GameState, faction: Faction, origin: City) {
   state.eventTimes[`expansion:${faction.id}`] = state.time;
   faction.lastExpansionAt = state.time;
   log(state, `${faction.name} invia coloni verso un settore vicino.`, 'info');
+}
+
+/** Evaluate physical adjacent land before withdrawing a single settler or load. */
+function regionalExpansionScore(state: GameState, faction: Faction, origin: City, sector: Sector) {
+  const point = { x: sector.x * 100 + 50, y: sector.y * 100 + 50 };
+  if (!isDryLandPoint(state, point)) return null;
+  const route = planLandRoute(state, origin, point);
+  if (!route) return null;
+  const profile = getRegionalCultureProfile(faction)!;
+  let previous: { x: number; y: number } = origin,
+    travelled = 0;
+  for (const waypoint of route) {
+    travelled += distance(previous, waypoint);
+    previous = waypoint;
+  }
+  const materials = { wood: 0, stone: 0, ore: 0 };
+  let food = 0;
+  for (const entity of state.entities) {
+    if (
+      entity.amount <= 0 ||
+      entity.domesticated ||
+      Math.floor(entity.x / 100) !== sector.x ||
+      Math.floor(entity.y / 100) !== sector.y
+    )
+      continue;
+    if (entity.kind === 'berries') food += entity.amount;
+    if (entity.kind === 'deer') food += entity.amount * 1.6;
+    if (entity.kind === 'tree') materials.wood += entity.amount;
+    if (entity.kind === 'stone') materials.stone += entity.amount;
+    if (entity.kind === 'ore' && faction.words.includes('O_07')) materials.ore += entity.amount;
+  }
+  const rank = profile.preferredBiomes.indexOf(sector.biome);
+  let score = (rank < 0 ? 0 : rank === 0 ? 12 : 6) + Math.min(80, food) / 8 - travelled / 40;
+  for (const [index, resource] of profile.materialPriorities.entries())
+    if (resource === 'wood' || resource === 'stone' || resource === 'ore')
+      score += (Math.min(100, materials[resource]) / 100) * (3 - index) * 3;
+  if (
+    profile.preferredBiomes.includes('river') &&
+    state.sectors.some(
+      (nearby) =>
+        nearby.biome === 'river' &&
+        Math.abs(nearby.x - sector.x) + Math.abs(nearby.y - sector.y) === 1,
+    )
+  )
+    score += 6;
+  for (const city of state.cities)
+    if (liveCity(city) && areFactionsHostile(state, faction.id, city.factionId))
+      score -= Math.max(0, 150 - distance(city, point)) / 10;
+  return score;
 }
 
 function prepareForeignHousing(state: GameState, faction: Faction, city: City) {
@@ -865,7 +1000,12 @@ function planRelationsAndWar(state: GameState) {
       );
       if (touching)
         pair.relation = clamp(
-          pair.relation - FOREIGN_POLICY_ASSUMPTIONS.borderFrictionPerSeason,
+          pair.relation -
+            ((getRegionalCultureProfile(left)?.borderFrictionPerSeason ??
+              FOREIGN_POLICY_ASSUMPTIONS.borderFrictionPerSeason) +
+              (getRegionalCultureProfile(right)?.borderFrictionPerSeason ??
+                FOREIGN_POLICY_ASSUMPTIONS.borderFrictionPerSeason)) /
+              2,
           -100,
           100,
         );
@@ -944,6 +1084,7 @@ export function dispatchForeignPolicy(state: GameState) {
     // Losing the original capital does not erase a real, surviving colony.
     faction.cityId = origin.id;
     faction.subjugated = false;
+    if (getRegionalCultureProfile(faction)) regionalContact(state, faction);
     prepareForeignHousing(state, faction, origin);
     dispatchUltimatum(state, faction, origin);
     dispatchRaid(state, faction, origin);

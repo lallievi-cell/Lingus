@@ -1,5 +1,6 @@
 import { emptyInventory, HOME } from './content';
 import type { City, Faction, MapEntity, Sector } from './types';
+import { getRegionalCultureProfile } from './regionalCultures';
 import {
   getInitialWorldHome,
   LEGACY_WORLD_SIZE,
@@ -175,8 +176,48 @@ export function generateWorld(
   };
   const citySites = chooseCities(regional ? 260 : 130) ?? chooseCities(regional ? 180 : 90);
   if (!citySites) throw new Error('The generated land cannot hold the foreign settlements.');
+  // Match the already separated, dry sites to local preferences. A bitmask
+  // assignment considers the whole group, so one society cannot consume the
+  // only suitable place for another merely because it comes first in the list.
+  // This changes no random draws or legacy four-culture geography.
+  let assignedSites = citySites;
+  if (
+    regional &&
+    factions.length <= 8 &&
+    factions.every((faction) => !!getRegionalCultureProfile(faction))
+  ) {
+    const costs = factions.map((faction) => {
+      const profile = getRegionalCultureProfile(faction)!;
+      return citySites.map((site) => {
+        const biome = profile.preferredBiomes.indexOf(site.sector.biome);
+        let rank = biome < 0 ? profile.preferredBiomes.length + 1 : biome;
+        const riverRank = profile.preferredBiomes.indexOf('river');
+        if (riverRank >= 0 && river.length) {
+          const bankDistance = Math.min(...river.map((segment) => segmentDistance(site, segment)));
+          rank = Math.min(rank, riverRank + bankDistance / 150);
+        }
+        return rank * 100;
+      });
+    });
+    const assignments = new Map<number, { cost: number; sites: number[] }>();
+    const assign = (ordinal: number, occupied: number): { cost: number; sites: number[] } => {
+      if (ordinal === factions.length) return { cost: 0, sites: [] };
+      const known = assignments.get(occupied);
+      if (known) return known;
+      let best = { cost: Infinity, sites: [] as number[] };
+      for (let index = 0; index < citySites.length; index++) {
+        if (occupied & (1 << index)) continue;
+        const next = assign(ordinal + 1, occupied | (1 << index));
+        const cost = costs[ordinal][index] + next.cost;
+        if (cost < best.cost) best = { cost, sites: [index, ...next.sites] };
+      }
+      assignments.set(occupied, best);
+      return best;
+    };
+    assignedSites = assign(0, 0).sites.map((index) => citySites[index]);
+  }
   const cities: City[] = factions.map((faction, index) => {
-    const site = citySites[index];
+    const site = assignedSites[index];
     site.sector.cityId = faction.cityId;
     const resources = emptyInventory();
     Object.assign(resources, { food: 20, wood: 20, stone: 10 });

@@ -1,5 +1,6 @@
 import { HOME, INNATE_WORDS, BASE_HOUSING, ADULT_AGE, emptyInventory } from './content';
 import { generateWorld } from './worldGeneration';
+import { createRegionalFactions } from './regionalCultures';
 import {
   getInitialWorldHome,
   LEGACY_WORLD_SIZE,
@@ -232,6 +233,8 @@ export function createInitialState(
     sectors.find((s) => s.x === sectorX && s.y === sectorY)!.cityId = city.id;
     return city;
   });
+  if (size === REGION_WORLD_SIZE)
+    factions.splice(0, factions.length, ...createRegionalFactions(factions));
   const state: GameState = {
     version: 2,
     playMode,
@@ -243,7 +246,9 @@ export function createInitialState(
       seed: seed >>> 0,
       version: 1,
       ...(mapMode === 'random' ? { landNavigation: 1 as const } : {}),
-      ...(size === REGION_WORLD_SIZE ? { worldSize: REGION_WORLD_SIZE } : {}),
+      ...(size === REGION_WORLD_SIZE
+        ? { worldSize: REGION_WORLD_SIZE, regionalCultures: 1 as const }
+        : {}),
     },
     seed: seed >>> 0,
     time: 0,

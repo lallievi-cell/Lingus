@@ -23,7 +23,9 @@ describe('ordinary Guided opening in the larger region', () => {
         expect(state.units.find((unit) => unit.id === `unit-${index}`)?.hp).toBeGreaterThan(0);
       expect(state.resources.tool).toBeGreaterThanOrEqual(1);
       expect(state.resources.wood).toBeGreaterThanOrEqual(2);
-      expect(state.buildings.find((building) => building.kind === 'campfire')).toMatchObject({
+      expect(
+        state.buildings.find((building) => !building.cityId && building.kind === 'campfire'),
+      ).toMatchObject({
         ...state.home,
         active: true,
       });

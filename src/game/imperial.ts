@@ -27,6 +27,7 @@ import {
   FOREIGN_ECONOMY_ASSUMPTIONS,
 } from './foreignEconomy';
 import { developForeignCulture } from './foreignCulture';
+import { getRegionalCultureProfile } from './regionalCultures';
 import {
   areFactionsHostile,
   completeForeignExpansion,
@@ -2448,6 +2449,104 @@ function produceCity(s: GameState, c: City, spentCycles = 0) {
         ['tree', 'stone', 'ore'].includes(e.kind) &&
         e.amount > 0,
     );
+  const regionalFaction = s.factions.find(
+    (faction) => faction.id === c.factionId && faction.culture,
+  );
+  const regionalProfile = regionalFaction && getRegionalCultureProfile(regionalFaction);
+  const materialTravel = new Map<string, number>();
+  const materialLoad = regionalFaction?.words.includes('O_13')
+    ? 5
+    : regionalFaction?.words.includes('V_05')
+      ? 3
+      : 1;
+  if (regionalProfile) {
+    // District workers may fetch nearby unclaimed supplies, but neither an
+    // intervening river nor another society's stores disappear from the trip.
+    const candidates = s.entities.filter((entity) => {
+      if (
+        !['tree', 'stone', 'ore'].includes(entity.kind) ||
+        entity.amount <= 0 ||
+        !isWorldPoint(s, c) ||
+        !isWorldPoint(s, entity) ||
+        distance(c, entity) > 180
+      )
+        return false;
+      const sx = Math.floor(entity.x / 100),
+        sy = Math.floor(entity.y / 100);
+      if (sx === c.sectorX && sy === c.sectorY) return true;
+      if (sx === Math.floor(s.home.x / 100) && sy === Math.floor(s.home.y / 100)) return false;
+      return !s.cities.some(
+        (city) =>
+          city.factionId !== 'ruins' &&
+          city.factionId !== c.factionId &&
+          city.sectorX === sx &&
+          city.sectorY === sy,
+      );
+    });
+    nodes.splice(
+      0,
+      nodes.length,
+      ...candidates.filter((entity) => {
+        const route = planLandRoute(s, c, entity);
+        if (!route) return false;
+        let length = 0,
+          previous: { x: number; y: number } = c;
+        for (const point of route) {
+          length += distance(previous, point);
+          previous = point;
+        }
+        if (length > 180) return false;
+        const local =
+          Math.floor(entity.x / 100) === c.sectorX && Math.floor(entity.y / 100) === c.sectorY;
+        materialTravel.set(
+          entity.id,
+          local ? 0 : (2 * length) / 4 / IMPERIAL_ASSUMPTIONS.extractionCycleSeconds,
+        );
+        return true;
+      }),
+    );
+  }
+  const materialTargets: Partial<Inventory> = regionalProfile
+    ? {
+        wood: cityHas(s, c, 'depot') ? Math.max(80, foreignFuelReserve(s, c) + 20) : 12,
+        stone: cityHas(s, c, 'depot') ? 80 : 14,
+        ore: regionalFaction.words.includes('O_07') ? 12 : 0,
+      }
+    : {};
+  if (regionalProfile) {
+    // Save enough for a known, still-missing institution rather than stopping
+    // permanently below its price. The reserve remains finite and physical.
+    for (const kind of [
+      ...regionalProfile.buildingPriorities,
+      'palace',
+      'court',
+      'school',
+    ] as BuildingKind[]) {
+      const spec = BUILDING_SPECS[kind];
+      if (
+        !spec.recipe.every((word) => regionalFaction.words.includes(word)) ||
+        buildings.some((building) => building.kind === kind)
+      )
+        continue;
+      for (const resource of ['wood', 'stone'] as const)
+        materialTargets[resource] = Math.max(
+          materialTargets[resource] ?? 0,
+          spec.cost[resource] ?? 0,
+        );
+    }
+  }
+  if (regionalProfile) {
+    const rank = (node: GameState['entities'][number]) => {
+      const resource = node.kind === 'tree' ? 'wood' : node.kind === 'ore' ? 'ore' : 'stone';
+      if (resource === 'wood' && inv.wood < Math.max(12, foreignFuelReserve(s, c))) return -2;
+      if (resource === 'stone' && inv.stone < 4) return -1;
+      return regionalProfile.materialPriorities.indexOf(resource);
+    };
+    nodes.sort(
+      (a, b) =>
+        rank(a) - rank(b) || (materialTravel.get(a.id) ?? 0) - (materialTravel.get(b.id) ?? 0),
+    );
+  }
   // Urban quotas use equivalent season effort, matching normalized biological needs.
   // A slower opening calendar must not duplicate harvests or minting opportunities.
   let cycles = Math.max(
@@ -2463,14 +2562,70 @@ function produceCity(s: GameState, c: City, spentCycles = 0) {
       protectedNode =
         sanctuaryProtected(scoped, token, node) ||
         !!forbiddenByDogma(scoped, tokens, { type: 'entity', id: node.id, x: node.x, y: node.y }),
-      available = protectedNode
+      allowed = protectedNode
         ? 0
-        : Math.min(Math.max(0, node.amount - resourcePreservationFloor(scoped, node)), cycles),
-      produced = addCityResource(s, c, r, available * local.production * workshop);
+        : Math.min(
+            Math.max(0, node.amount - resourcePreservationFloor(scoped, node)),
+            cycles,
+            regionalProfile
+              ? Math.max(0, (materialTargets[r] ?? 0) - inv[r]) /
+                  Math.max(0.01, local.production * workshop)
+              : Infinity,
+          );
+    let available = allowed;
+    const trip = regionalProfile ? (materialTravel.get(node.id) ?? 0) : 0;
+    if (regionalProfile) {
+      const multiplier = Math.max(0.01, local.production * workshop);
+      const held = RESOURCES.filter(
+        (resource) => RESOURCE_SPECS[resource].category === RESOURCE_SPECS[r].category,
+      ).reduce((sum, resource) => sum + inv[resource], 0);
+      const room = Math.max(0, cityCapacity(s, c, r) - held);
+      const fullLoads = Math.floor(cycles / (materialLoad + trip));
+      const transportable =
+        fullLoads * materialLoad + Math.max(0, cycles - fullLoads * (materialLoad + trip) - trip);
+      available = Math.min(
+        available,
+        Math.max(0, node.amount - resourcePreservationFloor(scoped, node)) / multiplier,
+        room / multiplier,
+        transportable / multiplier,
+      );
+    }
+    const produced = addCityResource(s, c, r, available * local.production * workshop);
     node.amount -= Math.min(node.amount, produced);
-    cycles -= produced;
+    cycles -= produced + (produced > 0 ? trip * Math.ceil(produced / materialLoad) : 0);
     const faction = s.factions.find((f) => f.id === c.factionId);
+    if (
+      regionalProfile &&
+      faction &&
+      !faction.words.includes(token) &&
+      node.kind !== 'ore' &&
+      !protectedNode &&
+      produced === 0 &&
+      node.amount - resourcePreservationFloor(scoped, node) >= 1 &&
+      cycles >= 1 + trip
+    ) {
+      // A first extraction still exists when storage is full. Like village
+      // work, it leaves a real, selectable pile rather than inventing stocks.
+      node.amount--;
+      cycles -= 1 + trip;
+      s.entities.push({
+        id: nextId(s, 'foreign-extraction'),
+        kind: 'ground',
+        resource: r,
+        x: node.x,
+        y: node.y,
+        amount: 1,
+        hp: 0,
+        maxHp: 1,
+      });
+      foreignEvent(s, faction, node.kind === 'tree' ? 'ENV_TREE_NODE' : 'ENV_ROCK_NODE', 100, [
+        token,
+      ]);
+      foreignEvent(s, faction, 'ENV_CRAFT', 20, [node.kind === 'tree' ? 'V_08' : 'V_06'], true);
+      foreignComprehension(s, faction, c);
+    }
     if (faction && produced > 0) {
+      witnessRegionalWork(s, faction, c, node);
       if (node.kind === 'tree') foreignEvent(s, faction, 'ENV_TREE_NODE', 50, ['O_03']);
       if (node.kind === 'stone') foreignEvent(s, faction, 'ENV_ROCK_NODE', 50, ['O_02']);
       for (let i = 0; i < Math.floor(produced); i++)
@@ -2889,14 +3044,93 @@ function foreignComprehension(s: GameState, f: Faction, c: City) {
       f.words = f.words.filter((w) => w !== id);
   }
 }
+
+/** Regional societies learn from paid work in their actual district. These
+ * observations describe aggregate workers; they do not create words or goods. */
+function witnessRegionalWork(s: GameState, f: Faction, c: City, point: { x: number; y: number }) {
+  if (!f.culture) return;
+  if (
+    !f.words.includes('M_01') &&
+    s.entities.some(
+      (entity) =>
+        ['wolf', 'alpha'].includes(entity.kind) && entity.hp > 0 && distance(entity, point) <= 24,
+    )
+  )
+    foreignEvent(s, f, 'ENV_PREDATOR_ENCOUNTER', 100, ['M_01']);
+  if (
+    !f.words.includes('S_05') &&
+    s.cities.some(
+      (city) =>
+        city.factionId !== f.id &&
+        city.factionId !== 'ruins' &&
+        cityPopulation(city) > 0 &&
+        distance(city, point) <= 100,
+    )
+  )
+    foreignEvent(s, f, 'ENV_FOREIGN_WORK_NEIGHBOUR', 100, ['S_05']);
+  if (
+    !f.words.includes('O_10') &&
+    f.words.includes('M_04') &&
+    f.words.includes('S_05') &&
+    cityHas(s, c, 'depot') &&
+    s.sectors.some(
+      (sector) =>
+        sector.biome !== 'river' &&
+        Math.abs(sector.x - c.sectorX) + Math.abs(sector.y - c.sectorY) === 1 &&
+        !s.cities.some(
+          (city) =>
+            city.sectorX === sector.x &&
+            city.sectorY === sector.y &&
+            city.factionId === f.id &&
+            cityPopulation(city) > 0,
+        ),
+    )
+  )
+    foreignEvent(s, f, 'ENV_WORKED_TERRITORY', 100, ['O_10']);
+}
 /** Foreign food and crafts share the same finite unassigned worker budget.
  * Meals may be eaten where harvested; only physical surplus enters the stores. */
 function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
+  const regionalFoodRoutes = new Map<string, number>();
   const inv = c.resources,
     localNode = (e: { x: number; y: number }) =>
       Math.floor(e.x / 100) === c.sectorX && Math.floor(e.y / 100) === c.sectorY,
     nodes = s.entities
       .filter((e) => {
+        if (f.culture) {
+          if (!['berries', 'deer', 'ore'].includes(e.kind)) return false;
+          if (!isWorldPoint(s, c) || !isWorldPoint(s, e)) return false;
+          const sx = Math.floor(e.x / 100),
+            sy = Math.floor(e.y / 100);
+          if (
+            distance(e, c) > 180 ||
+            (!localNode(e) &&
+              sx === Math.floor(s.home.x / 100) &&
+              sy === Math.floor(s.home.y / 100))
+          )
+            return false;
+          if (
+            s.cities.some(
+              (city) =>
+                city.factionId !== 'ruins' &&
+                city.factionId !== f.id &&
+                city.sectorX === sx &&
+                city.sectorY === sy,
+            )
+          )
+            return false;
+          const route = planLandRoute(s, c, e);
+          if (!route) return false;
+          let length = 0,
+            previous: { x: number; y: number } = c;
+          for (const point of route) {
+            length += distance(previous, point);
+            previous = point;
+          }
+          if (length > 180) return false;
+          regionalFoodRoutes.set(e.id, length);
+          return true;
+        }
         if (localNode(e)) return true;
         if (
           distance(e, c) > 90 ||
@@ -2917,8 +3151,12 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
       ),
     season = endedSeason(s),
     loadSize = f.words.includes('O_13') ? 5 : f.words.includes('V_05') ? 3 : 1,
-    travelCycles = (e: { x: number; y: number }) =>
-      localNode(e) ? 0 : (2 * distance(e, c)) / 4 / IMPERIAL_ASSUMPTIONS.extractionCycleSeconds;
+    travelCycles = (e: { x: number; y: number; id?: string }) =>
+      localNode(e)
+        ? 0
+        : (2 * (f.culture ? (regionalFoodRoutes.get(e.id ?? '') ?? Infinity) : distance(e, c))) /
+          4 /
+          IMPERIAL_ASSUMPTIONS.extractionCycleSeconds;
   allocateCityWorkers(s, c);
   const occupied = cityBuildings(s, c).reduce(
       (n, b) => n + BUILDING_SPECS[b.kind].workers * (b.lastEfficiency ?? 0),
@@ -3029,7 +3267,15 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
     if (resource === 'meat' && cityHas(s, c, 'campfire') && inv.wood >= 1) {
       const cooked = Math.min(
         raw,
-        Math.floor(Math.max(0, inv.wood - (BUILDING_SPECS.campfire.upkeep.wood ?? 0))),
+        Math.floor(
+          Math.max(
+            0,
+            inv.wood -
+              (f.culture
+                ? Math.max(20, foreignFuelReserve(s, c))
+                : (BUILDING_SPECS.campfire.upkeep.wood ?? 0)),
+          ),
+        ),
         Math.max(0, Math.floor(cycles - amount - tripWork)),
       );
       if (cooked > 0) {
@@ -3045,6 +3291,7 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
     node.amount = Math.max(0, node.amount - received);
     cycles -= received + tripWork;
     physicalDelivery(received);
+    if (received > 0) witnessRegionalWork(s, f, c, node);
     if (resource === 'meat') {
       foreignEvent(s, f, 'ENV_HUNT_MEAL', 100, ['O_04']);
       for (let i = 0; i < Math.floor(received); i++)
@@ -3086,6 +3333,25 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
   const make = (kind: BuildingKind, maximum = 1) => {
     const spec = BUILDING_SPECS[kind],
       existing = cityBuildings(s, c).filter((b) => b.kind === kind);
+    if (f.culture && !spec.recipe.every((word) => f.words.includes(word))) return false;
+    if (
+      f.culture &&
+      spec.workers > 0 &&
+      spec.workerKind !== 'sage' &&
+      spec.workerKind !== 'warrior'
+    ) {
+      const committed = cityBuildings(s, c).reduce((sum, building) => {
+        const installed = BUILDING_SPECS[building.kind];
+        return (
+          sum +
+          (installed.workerKind === 'sage' || installed.workerKind === 'warrior'
+            ? 0
+            : installed.workers)
+        );
+      }, 0);
+      const logisticsReserve = Math.min(2, Math.max(1, Math.floor(workforce / 4)));
+      if (workforce - committed - spec.workers < logisticsReserve) return false;
+    }
     if (existing.length >= maximum || !canPay(inv, spec.cost)) return false;
     if (kind === 'farm' && inv.seed < (spec.cost.seed ?? 0) + foreignSeedReserve(s, c, 1))
       return false;
@@ -3125,35 +3391,98 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
   };
   // A real food source takes priority over spending its last construction wood
   // on stores and heat. The next extraction shift can then fund infrastructure.
+  const profile = getRegionalCultureProfile(f);
   if (f.words.includes('V_10')) make('pen', Math.max(1, Math.ceil((population * 72) / 800)));
-  if (f.words.includes('V_05')) {
-    make('storage');
-    make('depot');
+  if (profile) {
+    if (expectedHarvest < fullNeed && f.words.includes('V_09'))
+      make('farm', Math.max(1, Math.ceil((population * 288) / 1250)));
+    const priorities = [
+      ...new Set([
+        ...profile.buildingPriorities,
+        'storage',
+        'depot',
+        'campfire',
+        'menhir',
+        'farm',
+        'foundry',
+        'archive',
+        'palace',
+        'court',
+        'school',
+      ] as BuildingKind[]),
+    ];
+    for (const kind of priorities) {
+      if (
+        kind === 'foundry' &&
+        inv.wood < (BUILDING_SPECS.foundry.cost.wood ?? 0) + foreignFuelReserve(s, c) + 10
+      )
+        continue;
+      make(
+        kind,
+        kind === 'farm'
+          ? Math.max(1, Math.ceil((population * 288) / 1250))
+          : kind === 'pen'
+            ? Math.max(1, Math.ceil((population * 72) / 800))
+            : 1,
+      );
+    }
+  } else {
+    if (f.words.includes('V_05')) {
+      make('storage');
+      make('depot');
+    }
+    if (f.words.includes('O_05')) make('campfire');
+    if (['V_06', 'O_02', 'M_03'].every((word) => f.words.includes(word))) make('menhir');
+    if (f.words.includes('V_09')) make('farm', Math.max(1, Math.ceil((population * 288) / 1250)));
+    if (
+      f.words.includes('V_12') &&
+      inv.wood >= (BUILDING_SPECS.foundry.cost.wood ?? 0) + foreignFuelReserve(s, c) + 10
+    )
+      make('foundry');
+    if (f.words.includes('O_09')) make('archive');
+    if (f.words.includes('S_07')) make('palace');
+    if (f.words.includes('O_14')) make('court');
+    if (f.words.includes('V_14')) make('school');
   }
-  if (f.words.includes('O_05')) make('campfire');
-  if (['V_06', 'O_02', 'M_03'].every((word) => f.words.includes(word))) make('menhir');
-  if (f.words.includes('V_09')) make('farm', Math.max(1, Math.ceil((population * 288) / 1250)));
   if (
-    f.words.includes('V_12') &&
-    inv.wood >= (BUILDING_SPECS.foundry.cost.wood ?? 0) + foreignFuelReserve(s, c) + 10
-  )
-    make('foundry');
-  if (f.words.includes('O_09')) make('archive');
-  if (f.words.includes('S_07')) make('palace');
-  if (f.words.includes('O_14')) make('court');
-  if (f.words.includes('V_14')) make('school');
-  if (f.words.includes('V_06') && inv.stone >= 1 && cycles >= 1) {
+    f.words.includes('V_06') &&
+    inv.stone >= 1 &&
+    cycles >= 1 &&
+    (!profile || inv.tool < Math.max(1, Math.ceil(workforce / 8)))
+  ) {
     inv.stone--;
     inv.tool++;
     cycles--;
     foreignEvent(s, f, 'ENV_CRAFT', 20, ['O_05'], true);
+    if (profile && !f.words.includes('S_02')) {
+      foreignEvent(s, f, 'ENV_PERSONAL_TOOL', 100, ['S_02']);
+      foreignComprehension(s, f, c);
+    }
   }
+  if (
+    profile &&
+    !f.words.includes('M_04') &&
+    f.words.includes('S_02') &&
+    f.words.includes('V_05') &&
+    inv.tool >= 1 &&
+    inv.wood + inv.stone >= 1 &&
+    cityHas(s, c, 'depot')
+  )
+    foreignEvent(s, f, 'ENV_RESOURCE_STEWARDSHIP', 100, ['M_04']);
   if (cityHas(s, c, 'campfire') && inv.wood >= 10 && nodes.some((e) => e.kind === 'ore'))
     foreignEvent(s, f, 'ENV_HIGH_HEAT', 50, ['O_07']);
   if (cityHas(s, c, 'campfire') && inv.meat >= 1 && inv.wood >= 1 && cycles >= 1) {
     const cooked = Math.min(
       Math.floor(inv.meat),
-      Math.floor(Math.max(0, inv.wood - (BUILDING_SPECS.campfire.upkeep.wood ?? 0))),
+      Math.floor(
+        Math.max(
+          0,
+          inv.wood -
+            (f.culture
+              ? Math.max(20, foreignFuelReserve(s, c))
+              : (BUILDING_SPECS.campfire.upkeep.wood ?? 0)),
+        ),
+      ),
       Math.floor(cycles),
       5,
     );
@@ -3255,7 +3584,11 @@ export function seasonalImperial(s: GameState) {
   }
   for (const faction of s.factions) {
     const city = s.cities.find((c) => c.id === faction.cityId);
-    if (city && city.factionId === PLAYER) faction.subjugated = true;
+    if (faction.culture)
+      faction.subjugated = !s.cities.some(
+        (entry) => entry.factionId === faction.id && cityPopulation(entry) > 0,
+      );
+    else if (city && city.factionId === PLAYER) faction.subjugated = true;
   }
   teachProvinces(s);
   applySeasonalLaws(s);

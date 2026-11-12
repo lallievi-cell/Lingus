@@ -510,10 +510,16 @@
    half of a small map. Long explanations remain reachable by touch/keyboard. */
 @media (max-width: 860px) {
   .lingus-world .lingus-world__target-card {
+    box-sizing: border-box;
     max-height: min(44%, 170px);
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;
+  }
+  .lingus-world .lingus-world__target-card[data-mobile-placement='top'] {
+    /* Scorte, Elementi and zoom occupy the first 44px touch row. */
+    top: 60px !important;
+    max-height: min(44%, 170px, calc(100% - 68px));
   }
   .lingus-world .lingus-world__target-card[data-mobile-placement='bottom'] {
     top: auto !important;

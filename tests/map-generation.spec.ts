@@ -11,6 +11,7 @@ type WorldSave = {
     version: 1;
     landNavigation?: 1;
     worldSize?: 1000;
+    regionalCultures?: 1;
   };
   entities: {
     id: string;
@@ -23,6 +24,7 @@ type WorldSave = {
   }[];
   sectors: { id: string; x: number; y: number; biome: string; cityId?: string }[];
   cities: { id: string; x: number; y: number; sectorX: number; sectorY: number }[];
+  factions: { id: string; culture?: string }[];
 };
 
 const mapPicker = (page: Page) => page.getByRole('group', { name: 'Mappa della nuova partita' });
@@ -84,6 +86,8 @@ test('new stories default to different random maps and reload preserves the save
   expect(first.mapGeneration?.mode).toBe('random');
   expect(first.mapGeneration?.worldSize).toBe(1000);
   expect(first.sectors).toHaveLength(100);
+  expect(first.cities).toHaveLength(8);
+  expect(new Set(first.factions.map((faction) => faction.culture)).size).toBe(8);
   await openRestart(page);
   const next = await startAndPause(page, false);
   expect(next.mapGeneration?.mode).toBe('random');
@@ -112,6 +116,7 @@ test('an explicit map seed reproduces its geometry independently from Guided or 
     version: 1,
     landNavigation: 1,
     worldSize: 1000,
+    regionalCultures: 1,
   });
 
   await openRestart(page);
@@ -171,6 +176,7 @@ test('the picker rejects invalid seeds and accepts the reproducible seed zero', 
     version: 1,
     landNavigation: 1,
     worldSize: 1000,
+    regionalCultures: 1,
   });
 });
 

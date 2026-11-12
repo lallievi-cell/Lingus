@@ -7,21 +7,28 @@ import {
   ChevronDown,
   Flag,
   Globe2,
+  Footprints,
+  Mountain,
+  Pickaxe,
   Search,
   ScrollText,
   Sparkles,
   Users,
+  Sprout,
+  Sun,
+  TreePine,
+  Waves,
   X,
 } from 'lucide-react';
 import { BUILDING_ORDER, BUILDING_SPECS, RESOURCE_SPECS, WORDS } from '../game/content';
 import { getIntelligibility, playerPopulation, removeLaw, removeTradition } from '../game/imperial';
 import { hasWord } from '../game/runtime';
-import { isVisibleAt } from './mapDrawing';
+import { culturePresentation } from './culturePresentation';
 import { Glyph } from './Glyph';
 import { buildingPurpose } from '../game/phrasebook';
 import { describeStockQuantity, getInventoryEntries } from './campInventory';
 import { formatVisibleNumber, describePeople, describeResourceAmount } from './semanticReadability';
-import type { BuildingKind, City, GameState, Resource, Target } from '../game/types';
+import type { BuildingKind, City, GameState, Resource, Target, WorldTarget } from '../game/types';
 import './CivilizationPanel.css';
 
 export type CivilizationMode =
@@ -85,6 +92,16 @@ const modePresentation: Record<CivilizationMode, { title: string; detail: string
     detail: 'Scegli una costruzione. La frase sarà pronta nella tua Voce.',
   },
 };
+const cultureSymbols = {
+  forest: TreePine,
+  stone: Pickaxe,
+  river: Waves,
+  dawn: Sun,
+  meadow: Sprout,
+  trail: Footprints,
+  highland: Mountain,
+  clay: Building2,
+};
 
 export function CivilizationPanel({
   state: s,
@@ -92,6 +109,7 @@ export function CivilizationPanel({
   target,
   onChange,
   onCompose,
+  onFocus,
   onClose,
 }: {
   state: GameState;
@@ -99,6 +117,7 @@ export function CivilizationPanel({
   target: Target | null;
   onChange: (s: GameState) => void;
   onCompose: (tokens: string[], target?: Target) => void;
+  onFocus?: (target: WorldTarget) => void;
   onClose: () => void;
 }) {
   const [search, setSearch] = useState('');
@@ -167,9 +186,9 @@ export function CivilizationPanel({
         .toLocaleLowerCase('it')
         .includes(search.trim().toLocaleLowerCase('it')),
   );
-  const visibleFactions = s.factions.filter((faction) => {
-    const city = s.cities.find((entry) => entry.id === faction.cityId);
-    return city && isVisibleAt(s, city.x, city.y);
+  const visibleCultures = s.factions.flatMap((faction) => {
+    const presentation = culturePresentation(s, faction);
+    return presentation ? [{ faction, ...presentation }] : [];
   });
   const totalCities = s.cities.filter((city) => city.factionId !== 'ruins').length;
   const controlledCities = s.cities.filter(
@@ -354,56 +373,72 @@ export function CivilizationPanel({
       {mode === 'world' && (
         <>
           <div className="faction-list">
-            {visibleFactions.map((faction) => {
-              const city = s.cities.find((entry) => entry.id === faction.cityId)!;
+            {visibleCultures.map(({ faction, city, profile, activity, status, hostile }) => {
               const understanding = getIntelligibility(s, faction.words);
+              const Symbol = faction.culture ? cultureSymbols[faction.culture] : Globe2;
               return (
-                <article key={faction.id} className={faction.hostile ? 'civ-faction-hostile' : ''}>
-                  <div className="faction-symbol">
-                    <Globe2 size={24} aria-hidden="true" />
-                  </div>
-                  <div className="civ-faction-copy">
-                    <div className="civ-faction-heading">
-                      <h3>{faction.name}</h3>
-                      <span className={`civ-status ${faction.hostile ? 'civ-status-warning' : ''}`}>
-                        {faction.hostile ? 'Ostile' : faction.subjugated ? 'Annessa' : 'In pace'}
+                <article
+                  key={faction.id}
+                  aria-label={faction.name}
+                  className={`civ-culture-card ${hostile ? 'civ-faction-hostile' : ''}`}
+                >
+                  <details name="known-cultures" className="civ-culture-disclosure">
+                    <summary>
+                      <span className="faction-symbol">
+                        <Symbol size={22} aria-hidden="true" />
                       </span>
-                    </div>
-                    <span className="civ-understanding">
-                      Comprensione{' '}
-                      {numbered
-                        ? `${formatVisibleNumber(understanding)}%`
-                        : understanding < 30
-                          ? 'assente'
+                      <span className="civ-faction-copy">
+                        <strong className="civ-culture-name">{faction.name}</strong>
+                        {profile && <span className="civ-culture-identity">{profile.label}</span>}
+                        <span className="civ-culture-state">
+                          <span className={`civ-status ${hostile ? 'civ-status-warning' : ''}`}>
+                            {status}
+                          </span>
+                          {activity && <span className="civ-culture-activity">{activity}</span>}
+                        </span>
+                      </span>
+                      <ChevronDown size={18} aria-hidden="true" />
+                    </summary>
+                    <div className="civ-culture-details">
+                      {profile && <p className="civ-culture-preference">{profile.description}</p>}
+                      <span className="civ-understanding">
+                        Comprensione{' '}
+                        {numbered
+                          ? `${formatVisibleNumber(understanding)}%`
+                          : understanding < 30
+                            ? 'assente'
+                            : understanding < 80
+                              ? 'parziale'
+                              : 'condivisa'}
+                      </span>
+                      <div className="meter">
+                        <span style={{ width: `${Math.max(0, Math.min(100, understanding))}%` }} />
+                      </div>
+                      <p className="faction-speech">
+                        {understanding < 30
+                          ? '◇ ϟ ⋔ ⊙ ⋈ ⌁'
                           : understanding < 80
-                            ? 'parziale'
-                            : 'condivisa'}
-                    </span>
-                    <div className="meter">
-                      <span style={{ width: `${Math.max(0, Math.min(100, understanding))}%` }} />
+                            ? '«Il nostro luogo, i vostri doni. Insieme.»'
+                            : '«Comprendiamo la vostra lingua.»'}
+                      </p>
+                      <button
+                        className="text-button civ-inline-action"
+                        onClick={() => {
+                          const destination = cityTarget(city);
+                          if (onFocus) onFocus(destination);
+                          else onCompose([], destination);
+                          onClose();
+                        }}
+                      >
+                        Indica sulla mappa
+                        <ArrowRight size={16} />
+                      </button>
                     </div>
-                    <p className="faction-speech">
-                      {understanding < 30
-                        ? '◇ ϟ ⋔ ⊙ ⋈ ⌁'
-                        : understanding < 80
-                          ? '«Il nostro luogo, i vostri doni. Insieme.»'
-                          : '«Comprendiamo la vostra lingua.»'}
-                    </p>
-                    <button
-                      className="text-button civ-inline-action"
-                      onClick={() => {
-                        onCompose([], cityTarget(city));
-                        onClose();
-                      }}
-                    >
-                      Indica sulla mappa
-                      <ArrowRight size={16} />
-                    </button>
-                  </div>
+                  </details>
                 </article>
               );
             })}
-            {visibleFactions.length === 0 && (
+            {visibleCultures.length === 0 && (
               <div className="civ-empty">
                 <Globe2 size={26} aria-hidden="true" />
                 <div>

@@ -6,6 +6,7 @@ import { seasonLength } from './calendar';
 import { validKnowledgeHistory } from './knowledgeHistory';
 import { validPhrasebook } from './phrasebook';
 import { TASK_OUTCOME_REASONS } from './taskOutcomes';
+import { REGIONAL_CULTURES } from './regionalCultures';
 import {
   REGIONAL_ROUTE_GRID,
   REGIONAL_ROUTE_LIMIT,
@@ -88,6 +89,10 @@ function validatorFor(worldSize: 500 | 1000) {
     number(v.relation, -100, 100) &&
     flag(v.hostile) &&
     text(v.cityId) &&
+    optional(
+      v.culture,
+      (culture) => typeof culture === 'string' && Object.hasOwn(REGIONAL_CULTURES, culture),
+    ) &&
     optional(v.eventMemory, (x) => list(x, event)) &&
     optional(v.tension, numericMap);
   const city = (v: unknown) => {
@@ -291,6 +296,14 @@ function validatorFor(worldSize: 500 | 1000) {
           optional(
             value.worldSize,
             (size) => size === 1000 && value.mode === 'random' && value.landNavigation === 1,
+          ) &&
+          optional(
+            value.regionalCultures,
+            (version) =>
+              version === 1 &&
+              value.mode === 'random' &&
+              value.worldSize === 1000 &&
+              value.landNavigation === 1,
           ),
       )
     )

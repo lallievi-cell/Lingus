@@ -33,6 +33,7 @@ import { drawMapWorkEffects } from './mapWorkEffects';
 import { drawMapSurfaceMotion } from './mapSurfaceMotion';
 import { drawRiverFords } from './mapFordArt';
 import { boundedMapLabelX, drawOverviewNature, usesOverviewNature } from './mapOverviewArt';
+import { planCityLabels } from './mapCityLabels';
 
 const fallbackMotionSession = createMapMotionSession();
 
@@ -1522,7 +1523,7 @@ export function drawWorld(
           UNIT_ART_SCALE,
         ),
     });
-  for (const city of state.cities.filter(
+  const visibleCities = state.cities.filter(
     (c) =>
       (!viewport ||
         (c.x >= viewport.minX - 35 &&
@@ -1531,7 +1532,50 @@ export function drawWorld(
           c.y <= viewport.maxY + 40)) &&
       isVisibleAt(state, c.x, c.y) &&
       c.factionId !== 'ruins',
-  ))
+  );
+  const pixelRatio = atmosphereOptions?.pixelRatio ?? 1;
+  const labelScale = Math.max(0.05, lineScale / pixelRatio);
+  const nameSize = state.tier >= 4 ? Math.max(10, Math.min(16, 10 * labelScale)) / labelScale : 10;
+  const labelTransform = ctx.getTransform();
+  const labelOffsetX = labelTransform.e / pixelRatio,
+    labelOffsetY = labelTransform.f / pixelRatio;
+  const numberedCities = hasConcept(state, 'O_08');
+  ctx.save();
+  ctx.font = `${nameSize}px Georgia`;
+  const cityLabelPlan =
+    state.tier >= 4
+      ? planCityLabels(
+          visibleCities.map((city) => ({
+            id: city.id,
+            x: city.x * 2.4 * labelScale + labelOffsetX,
+            baseline:
+              city.y * 1.6 * labelScale +
+              labelOffsetY +
+              Math.max(27 * labelScale, nameSize * labelScale + 6),
+            width: ctx.measureText(city.name).width * labelScale,
+            ascent: nameSize * labelScale + 2,
+            descent: numberedCities ? nameSize * labelScale + 4 : 2,
+            priority:
+              selected?.type === 'city' && selected.id === city.id
+                ? 100
+                : hovered?.type === 'city' && hovered.id === city.id
+                  ? 90
+                  : city.factionId === 'player'
+                    ? 20
+                    : 0,
+            selected: selected?.type === 'city' && selected.id === city.id,
+          })),
+          {
+            minX: 8,
+            minY: 8,
+            maxX: Math.max(9, ctx.canvas.width / pixelRatio - 8),
+            maxY: Math.max(9, ctx.canvas.height / pixelRatio - 8),
+          },
+        )
+      : undefined;
+  ctx.restore();
+  const cityCaptions: (() => void)[] = [];
+  for (const city of visibleCities)
     objects.push({
       y: city.y,
       draw: () => {
@@ -1603,31 +1647,54 @@ export function drawWorld(
           ],
           own ? '#6d8b54' : '#b38e6c',
         );
-        const labelScale = Math.max(0.05, lineScale / (atmosphereOptions?.pixelRatio ?? 1));
-        const nameSize =
-          state.tier >= 4 ? Math.max(10, Math.min(16, 10 * labelScale)) / labelScale : 10;
-        ctx.font = `${nameSize}px Georgia`;
-        ctx.textAlign = 'center';
-        ctx.fillStyle = '#465b3d';
-        ctx.strokeStyle = '#f8f3e3';
-        ctx.lineWidth = state.tier >= 4 ? 2 / labelScale : 3;
-        const labelMargin = 8 / labelScale;
-        const labelMin = viewport ? viewport.minX * 2.4 + labelMargin : 0;
-        const labelMax = viewport ? viewport.maxX * 2.4 - labelMargin : mapWidth;
-        const labelWidth = Math.max(1, labelMax - labelMin);
-        const labelX = boundedMapLabelX(p.x, ctx.measureText(city.name).width, labelMin, labelMax);
-        const nameBaseline = p.y + (state.tier >= 4 ? 27 : 23);
-        ctx.strokeText(city.name, labelX, nameBaseline, labelWidth);
-        ctx.fillText(city.name, labelX, nameBaseline, labelWidth);
-        if (hasConcept(state, 'O_08')) {
-          ctx.font = `${state.tier >= 4 ? Math.max(8, Math.min(10, 7 * labelScale)) / labelScale : 7}px sans-serif`;
-          ctx.fillStyle = '#7e896c';
-          ctx.fillText(
-            `${Object.values(city.cohorts).reduce((n, v) => n + v, 0)}`,
-            labelX,
-            state.tier >= 4 ? nameBaseline + nameSize + 2 / labelScale : p.y + 33,
-          );
-        }
+        const caption = () => {
+          const placement = cityLabelPlan?.get(city.id);
+          if (state.tier >= 4 && !placement) return;
+          ctx.font = `${nameSize}px Georgia`;
+          ctx.textAlign = 'center';
+          const labelMargin = 8 / labelScale;
+          const labelMin = viewport ? viewport.minX * 2.4 + labelMargin : 0;
+          const labelMax = viewport ? viewport.maxX * 2.4 - labelMargin : mapWidth;
+          const labelWidth = placement
+            ? placement.width / labelScale
+            : Math.max(1, labelMax - labelMin);
+          const labelX = placement
+            ? (placement.x - labelOffsetX) / labelScale
+            : boundedMapLabelX(p.x, ctx.measureText(city.name).width, labelMin, labelMax);
+          const nameBaseline = placement
+            ? (placement.baseline - labelOffsetY) / labelScale
+            : p.y + 23;
+          if (placement?.displaced) {
+            const anchorX = p.x * labelScale + labelOffsetX,
+              anchorY = p.y * labelScale + labelOffsetY;
+            const edgeX = Math.max(placement.left, Math.min(placement.right, anchorX));
+            const edgeY = anchorY < placement.top ? placement.top : placement.bottom;
+            ctx.save();
+            ctx.strokeStyle = '#546b4a77';
+            ctx.lineWidth = 0.7 / labelScale;
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo((edgeX - labelOffsetX) / labelScale, (edgeY - labelOffsetY) / labelScale);
+            ctx.stroke();
+            ctx.restore();
+          }
+          ctx.fillStyle = '#465b3d';
+          ctx.strokeStyle = '#f8f3e3';
+          ctx.lineWidth = state.tier >= 4 ? 2 / labelScale : 3;
+          ctx.strokeText(city.name, labelX, nameBaseline, labelWidth);
+          ctx.fillText(city.name, labelX, nameBaseline, labelWidth);
+          if (numberedCities) {
+            ctx.font = `${state.tier >= 4 ? Math.max(8, Math.min(10, 7 * labelScale)) / labelScale : 7}px sans-serif`;
+            ctx.fillStyle = '#7e896c';
+            ctx.fillText(
+              `${Object.values(city.cohorts).reduce((n, v) => n + v, 0)}`,
+              labelX,
+              state.tier >= 4 ? nameBaseline + nameSize + 2 / labelScale : p.y + 33,
+            );
+          }
+        };
+        if (state.tier >= 4) cityCaptions.push(caption);
+        else caption();
       },
     });
   for (const b of state.battalions.filter(
@@ -1671,6 +1738,7 @@ export function drawWorld(
     });
   objects.sort((a, b) => a.y - b.y).forEach((o) => o.draw());
   drawRegionalSieges(ctx, state, time, { ...atmosphereOptions, viewport });
+  for (const caption of cityCaptions) caption();
   for (const spark of state.sparks) {
     if (spark.deferred) continue;
     const u = renderUnits.get(spark.unitId);
