@@ -44,7 +44,20 @@ test.describe('mobile touch navigation', () => {
     await expect(page.locator('.sentence-slot.filled')).toHaveCount(2);
     await closeWordBank(page);
     const bounds = (await map.boundingBox())!;
-    await map.tap({ position: { x: bounds.width * 0.8, y: bounds.height * 0.35 } });
+    // The selected person's terrain disclosure is a real touch control in
+    // the upper map. Choose open ground below it, then use the normal picker
+    // if the random geography puts several objects under the touch.
+    const point = { x: bounds.width * 0.8, y: bounds.height * 0.6 };
+    expect(
+      await map.evaluate((canvas, position) => {
+        const rect = canvas.getBoundingClientRect();
+        return document.elementFromPoint(rect.x + position.x, rect.y + position.y) === canvas;
+      }, point),
+    ).toBe(true);
+    await map.tap({ position: point });
+    const overlaps = page.getByRole('group', { name: 'Scegli tra gli elementi sovrapposti' });
+    if (await overlaps.isVisible())
+      await overlaps.getByRole('button', { name: 'Punto sul terreno', exact: true }).tap();
     await page.getByRole('button', { name: 'Pronuncia', exact: true }).tap();
     await expect(
       page.getByRole('status').filter({ hasText: 'La tribù ha ascoltato.' }),

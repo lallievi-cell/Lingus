@@ -404,6 +404,39 @@
     system-ui,
     sans-serif;
 }
+.lingus-world__target-card.has-biome-details {
+  pointer-events: auto;
+}
+.map-biome-details {
+  border-top: 1px solid #b8b89b59;
+  margin-top: 7px;
+}
+.map-biome-details summary {
+  display: list-item;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 13px 0 10px;
+  color: #344d35;
+  cursor: pointer;
+  font:
+    600 11px/1.4 'DM Sans Variable',
+    system-ui,
+    sans-serif;
+}
+.map-biome-details summary:focus-visible {
+  outline: 2px solid #738b59;
+  outline-offset: -2px;
+  border-radius: 3px;
+}
+.map-biome-details[open] {
+  padding-bottom: 4px;
+}
+.map-biome-details[open] summary {
+  padding-bottom: 5px;
+}
+.lingus-world__target-card[data-terrain-focus='true']:has(.map-biome-details[open]) > p {
+  display: none !important;
+}
 
 @media (max-width: 800px) {
   .lingus-world__target-card {
@@ -532,6 +565,9 @@
     font-size: 11px !important;
     line-height: 1.4 !important;
     overflow: visible !important;
+  }
+  .lingus-world .lingus-world__target-card.has-biome-details:has(.map-biome-details[open]) {
+    max-height: min(52%, 230px, calc(100% - 68px));
   }
   .lingus-world__target-card:focus-visible {
     outline: 2px solid #738b59;

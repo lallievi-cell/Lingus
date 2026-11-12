@@ -16,7 +16,8 @@ import {
 } from './calendar';
 import { rememberCombatWound } from './damageAttribution';
 import { recordCaravanTravel } from './regionalHistory';
-import { isDryLandPoint, moveOnLand, planLandRoute } from './landNavigation';
+import { isDryLandPoint, landRouteEffort, moveOnLand, planLandRoute } from './landNavigation';
+import { farmYieldMultiplier } from './biomes';
 import { isWorldPoint, sectorIndex } from './worldDimensions';
 import { guidedBirthMultiplier } from './guidedProgression';
 import {
@@ -2336,7 +2337,8 @@ function produceCity(s: GameState, c: City, spentCycles = 0) {
           (c.factionId === PLAYER ? imperialLawEffects(s).agricultureMultiplier : 1) *
           workshop *
           (vocation.includes('V_09') ? 1.5 : 1) *
-          drought,
+          drought *
+          farmYieldMultiplier(s, b),
       );
     }
     if (b.kind === 'pen' && (b.livestock ?? 0) > 0) {
@@ -2500,7 +2502,9 @@ function produceCity(s: GameState, c: City, spentCycles = 0) {
           Math.floor(entity.x / 100) === c.sectorX && Math.floor(entity.y / 100) === c.sectorY;
         materialTravel.set(
           entity.id,
-          local ? 0 : (2 * length) / 4 / IMPERIAL_ASSUMPTIONS.extractionCycleSeconds,
+          local
+            ? 0
+            : (2 * landRouteEffort(s, c, route)) / 4 / IMPERIAL_ASSUMPTIONS.extractionCycleSeconds,
         );
         return true;
       }),
@@ -3128,7 +3132,7 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
             previous = point;
           }
           if (length > 180) return false;
-          regionalFoodRoutes.set(e.id, length);
+          regionalFoodRoutes.set(e.id, landRouteEffort(s, c, route));
           return true;
         }
         if (localNode(e)) return true;
@@ -3202,7 +3206,7 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
       (b.kind === 'pen' && (b.livestock ?? 0) > 0
         ? 20 * 40
         : b.kind === 'farm' && season === 2
-          ? 50 * 25
+          ? 50 * 25 * farmYieldMultiplier(s, b)
           : 0) *
         (b.lastEfficiency ?? 0),
     0,

@@ -50,6 +50,7 @@ import {
 } from './dogmas';
 import { imperialLawEffects, recordLawWork } from './imperialLawPolicy';
 import { enforceActionLaws } from './imperial';
+import { farmYieldMultiplier } from './biomes';
 import { canFitCraftOutput, canPayLocally, payLocally } from './craftMaterials';
 import { applyCivilAssault, CIVIL_LAW_ASSUMPTIONS, updateCivilConflicts } from './civilLaw';
 import { newbornName, pairFertileUnits, recordTribeEvent, resolveUnitSex } from './demography';
@@ -2610,7 +2611,8 @@ export function seasonalCore(s: GameState) {
           fx.agriculture *
           agricultureLaw *
           fx.production *
-          (hadDrought && !hadWorkshop ? 0.5 : 1),
+          (hadDrought && !hadWorkshop ? 0.5 : 1) *
+          farmYieldMultiplier(s, b),
       );
       const work = b.seasonWork?.[getCalendar(s).seasonIndex - 1],
         totalWork = Object.values(work?.workerSeconds ?? {}).reduce(

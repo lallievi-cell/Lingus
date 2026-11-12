@@ -61,6 +61,8 @@ function groundColors(sectors: Sector[], season: number, side: number): Color[] 
           plain: [216, 221, 209],
           mountain: [191, 201, 193],
           river: [175, 195, 183],
+          wetland: [160, 185, 171],
+          dryland: [214, 207, 183],
         }
       : season === 2
         ? {
@@ -68,6 +70,8 @@ function groundColors(sectors: Sector[], season: number, side: number): Color[] 
             plain: [165, 145, 98],
             mountain: [158, 148, 125],
             river: [128, 143, 105],
+            wetland: [111, 139, 103],
+            dryland: [183, 147, 99],
           }
         : season === 1
           ? {
@@ -75,12 +79,16 @@ function groundColors(sectors: Sector[], season: number, side: number): Color[] 
               plain: [172, 165, 108],
               mountain: [163, 157, 126],
               river: [119, 145, 108],
+              wetland: [103, 139, 109],
+              dryland: [190, 161, 108],
             }
           : {
               forest: [87, 116, 86],
               plain: [143, 161, 113],
               mountain: [155, 154, 129],
               river: [109, 141, 119],
+              wetland: [94, 134, 113],
+              dryland: [178, 159, 113],
             };
   const cells: Color[] = Array.from({ length: side * side }, () => palette.plain);
   for (const sector of sectors) cells[sector.y * side + sector.x] = palette[sector.biome];
@@ -424,8 +432,12 @@ function paintSmallGrowth(
   season: number,
   home: Point,
   projection: Projection,
+  sectors: Sector[],
 ) {
-  const { sx: SX, sy: SY, detail } = projection;
+  const { sx: SX, sy: SY, detail, sectors: side } = projection;
+  const biomes = new Map(sectors.map((sector) => [sector.y * side + sector.x, sector.biome]));
+  const biomeAt = (x: number, y: number) =>
+    biomes.get(Math.floor(y / (SY * 100)) * side + Math.floor(x / (SX * 100)));
   const density = 1 / (detail * detail);
   const random = randomStream(seed ^ 0x38e2f6a1),
     winter = season === 3,
@@ -434,6 +446,7 @@ function paintSmallGrowth(
   for (let i = 0; i < 6200 * density; i++) {
     const x = random() * WIDTH,
       y = random() * HEIGHT;
+    if (biomeAt(x, y) === 'dryland' && i % 3 !== 0) continue;
     const nearHome = Math.hypot(x / SX - home.x, y / SY - home.y) < 11;
     const color = winter
       ? ['#fffdeb36', '#81968b1e', '#b1c2b629'][i % 3]
@@ -455,6 +468,7 @@ function paintSmallGrowth(
   for (let i = 0; i < 4500 * density; i++) {
     const x = random() * WIDTH,
       y = random() * HEIGHT;
+    if (biomeAt(x, y) === 'dryland' && i % 5 !== 0) continue;
     if (Math.hypot(x / SX - home.x, y / SY - home.y) < 16 + random() * 5) continue;
     const patch = noise(x / (31 * detail), y / (24 * detail), seed + 126);
     if (patch < 0.36 || (winter && random() > 0.22)) continue;
@@ -515,6 +529,100 @@ function paintSmallGrowth(
     dab(ctx, x, y, size, size * 0.55, winter ? '#c0c5b8' : '#a6a58c', -0.15);
     dab(ctx, x - size * 0.2, y - size * 0.15, size * 0.45, size * 0.18, '#ded6b275');
   }
+}
+
+/** Habitat accents stay on the cached ground: damp soil is walkable, unlike the
+ * actual painted river. A separate random stream keeps older valleys identical. */
+function paintBiomeAccents(
+  ctx: CanvasRenderingContext2D,
+  seed: number,
+  season: number,
+  sectors: Sector[],
+  home: Point,
+  projection: Projection,
+) {
+  const { sx: SX, sy: SY, detail } = projection;
+  const winter = season === 3,
+    autumn = season === 2;
+  const random = randomStream(seed ^ 0x36ba92e7);
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (const sector of sectors) {
+    const wet = sector.biome === 'wetland';
+    if (!wet && sector.biome !== 'dryland') continue;
+    for (let index = 0; index < (wet ? 48 : 28); index++) {
+      // A faded perimeter mingles with the existing colour wash, avoiding a
+      // square edge where one sector's vegetation meets another habitat.
+      const u = random(),
+        v = random();
+      const edge = Math.min(u, v, 1 - u, 1 - v);
+      if (random() > 0.35 + Math.min(1, edge * 8) * 0.65) continue;
+      const wx = (sector.x + u) * 100,
+        wy = (sector.y + v) * 100;
+      if (Math.hypot(wx - home.x, wy - home.y) < 24) continue;
+      const x = wx * SX,
+        y = wy * SY,
+        width = (3 + random() * 5) * SX,
+        depth = (0.7 + random() * 1.4) * SY;
+      brushIsland(
+        ctx,
+        x,
+        y,
+        width,
+        depth,
+        wet ? (winter ? '#627f7524' : '#355e4827') : winter ? '#ab986d20' : '#9d75452b',
+        random() * 7,
+        detail,
+      );
+      if (wet) {
+        // Rushes grow in uneven low clumps. Muted stems remain distinct from
+        // the tall resource trees and never suggest collectible goods.
+        const height = (winter ? 1.4 : 2.2) * detail;
+        for (let stem = 0; stem < 5; stem++) {
+          const bx = x + (random() - 0.5) * 4 * detail,
+            bend = (random() - 0.5) * 1.6 * detail,
+            top = y - height * (0.6 + random() * 0.9);
+          ctx.strokeStyle =
+            stem % 2 === 0
+              ? winter
+                ? '#8d977780'
+                : autumn
+                  ? '#aa9d627d'
+                  : '#a8b27d85'
+              : winter
+                ? '#617e6b75'
+                : '#4b715585';
+          ctx.lineWidth = 0.27 * detail;
+          ctx.beginPath();
+          ctx.moveTo(bx, y);
+          ctx.quadraticCurveTo(bx + bend * 0.3, top + height * 0.4, bx + bend, top);
+          ctx.stroke();
+        }
+        dab(ctx, x, y + 0.25 * detail, 3 * detail, 0.45 * detail, '#b2c5a621', -0.08);
+      } else {
+        // Flat mineral flecks and hairline clay seams read as sparse earth,
+        // rather than boulders or a new impassable wall.
+        ctx.strokeStyle = winter ? '#9e937b32' : '#86693e37';
+        ctx.lineWidth = 0.2 * detail;
+        ctx.beginPath();
+        ctx.moveTo(x - width * 0.45, y + depth * 0.2);
+        ctx.lineTo(x - width * 0.05, y - depth * 0.15);
+        ctx.lineTo(x + width * 0.35, y + depth * 0.1);
+        ctx.stroke();
+        for (let speck = 0; speck < 4; speck++)
+          dab(
+            ctx,
+            x + (random() - 0.5) * width,
+            y + (random() - 0.5) * depth,
+            (0.35 + random() * 0.45) * detail,
+            0.19 * detail,
+            winter ? '#c4bea576' : '#c6ad7675',
+            -0.2,
+          );
+      }
+    }
+  }
+  ctx.restore();
 }
 
 function paintRiver(
@@ -619,7 +727,8 @@ export function createPainterlyTerrain(
   paintLandscapeMasses(ctx, originalSeed, season, sectors, home, projection);
   paintCampWear(ctx, originalSeed, season, home, projection);
   paintPigment(ctx, originalSeed, projection.detail);
-  paintSmallGrowth(ctx, originalSeed, season, home, projection);
+  paintSmallGrowth(ctx, originalSeed, season, home, projection, sectors);
+  paintBiomeAccents(ctx, originalSeed, season, sectors, home, projection);
   paintRiver(ctx, originalSeed, season, projection, world);
   return canvas;
 }

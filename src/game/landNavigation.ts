@@ -1,6 +1,12 @@
 import type { GameState } from './types';
 import { createRiverArtGeometry, sampleRiverArt } from './riverGeometry';
 import { getWorldSize } from './worldDimensions';
+import {
+  terrainPointAtEffort,
+  terrainSegmentEffort,
+  terrainTravelCost,
+  type BiomeWorld,
+} from './biomes';
 
 export type LandPoint = { x: number; y: number };
 export interface RiverFord extends LandPoint {
@@ -27,6 +33,9 @@ type Model = {
   buckets: Map<string, Segment[]>;
   fords: readonly RiverFord[];
   routes: Map<string, readonly LandPoint[] | null>;
+  /** Only the new biome rules change route effort; older maps keep metre costs. */
+  terrain?: BiomeWorld;
+  terrainCosts?: Float64Array;
   grid?: Grid;
 };
 const models = new Map<string, Model>();
@@ -120,14 +129,40 @@ function createModel(state: GameState): Model {
     buckets,
     fords: Object.freeze(fords),
     routes: new Map(),
+    ...(state.mapGeneration?.biomeRules === 1
+      ? {
+          // Biome helpers read only geography. Keep that immutable snapshot,
+          // rather than retaining an imported campaign's units and history in
+          // the bounded route cache for as long as its geography stays hot.
+          terrain: {
+            mapGeneration: { ...state.mapGeneration },
+            sectors: state.sectors,
+          },
+          terrainCosts: (() => {
+            const side = worldSize / 100,
+              costs = new Float64Array(side * side);
+            costs.fill(1);
+            for (const sector of state.sectors)
+              costs[sector.y * side + sector.x] = terrainTravelCost(state, {
+                x: sector.x * 100 + 50,
+                y: sector.y * 100 + 50,
+              });
+            return costs;
+          })(),
+        }
+      : {}),
   };
 }
 
 function modelFor(state: GameState) {
   const existing = stateModels.get(state);
-  if (existing?.worldSize === getWorldSize(state)) return existing;
+  if (
+    existing?.worldSize === getWorldSize(state) &&
+    Boolean(existing.terrain) === (state.mapGeneration?.biomeRules === 1)
+  )
+    return existing;
   const generation = state.mapGeneration;
-  const key = `${getWorldSize(state)}:${generation?.mode}:${generation?.seed}:${generation?.landNavigation}:${state.sectors.map((sector) => `${sector.x},${sector.y}:${sector.biome}`).join('|')}`;
+  const key = `${getWorldSize(state)}:${generation?.mode}:${generation?.seed}:${generation?.landNavigation}:${generation?.biomeRules}:${state.sectors.map((sector) => `${sector.x},${sector.y}:${sector.biome}`).join('|')}`;
   let model = models.get(key);
   if (!model) {
     model = createModel(state);
@@ -387,6 +422,52 @@ const directions = [
   [-1, 1],
 ] as const;
 
+function segmentEffort(model: Model, from: LandPoint, to: LandPoint) {
+  return model.terrain ? terrainSegmentEffort(model.terrain, from, to) : distance(from, to);
+}
+
+function gridEdgeEffort(model: Model, x: number, y: number, dx: number, dy: number) {
+  const length = GRID_STEP * (dx && dy ? Math.SQRT2 : 1);
+  if (!model.terrain) return length;
+  // 4 m divides the 100 m sector width: a grid edge never crosses a biome
+  // boundary in its interior. Its midpoint gives the exact interval cost.
+  const side = model.worldSize / 100,
+    sx = Math.min(side - 1, Math.floor(((x + dx / 2) * GRID_STEP) / 100)),
+    sy = Math.min(side - 1, Math.floor(((y + dy / 2) * GRID_STEP) / 100));
+  return length * model.terrainCosts![sy * side + sx];
+}
+
+/** A cheaper detour must stay within the direct trip's effort ellipse. If no
+ * lower-cost cell can meet it, the unobstructed segment is already optimal.
+ * This avoids a grid search for ordinary short trips within one habitat. */
+function directTerrainRouteIsOptimal(model: Model, start: LandPoint, end: LandPoint) {
+  if (!model.terrain) return true;
+  const length = distance(start, end),
+    effort = segmentEffort(model, start, end),
+    averageCost = effort / length;
+  if (averageCost <= 1 + EPSILON) return true;
+  const distanceToCell = (point: LandPoint, x: number, y: number) =>
+    Math.hypot(
+      Math.max(x - point.x, 0, point.x - x - 100),
+      Math.max(y - point.y, 0, point.y - y - 100),
+    );
+  const side = model.worldSize / 100,
+    // Any route cheaper than the direct effort lies inside this ellipse's
+    // axis bounds. Local wildlife trips normally touch just one cell.
+    x0 = Math.max(0, Math.floor((start.x + end.x - effort) / 200)),
+    x1 = Math.min(side - 1, Math.floor((start.x + end.x + effort) / 200)),
+    y0 = Math.max(0, Math.floor((start.y + end.y - effort) / 200)),
+    y1 = Math.min(side - 1, Math.floor((start.y + end.y + effort) / 200));
+  for (let y = y0; y <= y1; y++)
+    for (let x = x0; x <= x1; x++)
+      if (
+        model.terrainCosts![y * side + x] < averageCost - EPSILON &&
+        distanceToCell(start, x * 100, y * 100) + distanceToCell(end, x * 100, y * 100) < effort
+      )
+        return false;
+  return true;
+}
+
 function shortestGridPath(model: Model, start: number, goal: number) {
   const key = `${start}:${goal}`;
   if (model.routes.has(key)) return model.routes.get(key)!;
@@ -425,7 +506,7 @@ function shortestGridPath(model: Model, start: number, goal: number) {
         if (clearSegment(model, origin, nodePoint(model, node))) grid.edges[current] |= bit;
       }
       if (!(grid.edges[current] & bit)) continue;
-      const cost = costs[current] + GRID_STEP * (dx && dy ? Math.SQRT2 : 1);
+      const cost = costs[current] + gridEdgeEffort(model, x, y, dx, dy);
       if (cost >= costs[node]) continue;
       costs[node] = cost;
       previous[node] = current;
@@ -447,11 +528,25 @@ function shortestGridPath(model: Model, start: number, goal: number) {
 
 function smoothPath(model: Model, start: LandPoint, points: readonly LandPoint[]): LandPoint[] {
   const route: LandPoint[] = [];
+  // Smoothing may remove bends, never the effort saving that justified them.
+  const cumulative = model.terrain ? new Float64Array(points.length) : undefined;
+  if (cumulative)
+    for (let index = 0; index < points.length; index++)
+      cumulative[index] =
+        (index ? cumulative[index - 1] : 0) +
+        segmentEffort(model, index ? points[index - 1] : start, points[index]);
   let current = start,
     index = 0;
   while (index < points.length) {
     let next = points.length - 1;
-    while (next > index && !clearSegment(model, current, points[next])) next--;
+    while (
+      next > index &&
+      (!clearSegment(model, current, points[next]) ||
+        (cumulative &&
+          segmentEffort(model, current, points[next]) >
+            cumulative[next] - (index ? cumulative[index - 1] : 0) + EPSILON))
+    )
+      next--;
     const destination = points[next];
     if (distance(current, destination) > EPSILON) route.push({ ...destination });
     current = destination;
@@ -471,12 +566,33 @@ export function planLandRoute(
   const model = modelFor(state);
   if (!pointOnLand(model, start) || !pointOnLand(model, end)) return null;
   if (distance(start, end) <= EPSILON) return [];
-  if (clearSegment(model, start, end)) return [{ ...end }];
+  const direct = clearSegment(model, start, end);
+  if (direct && directTerrainRouteIsOptimal(model, start, end)) return [{ ...end }];
   const first = connectedNode(model, start),
     last = connectedNode(model, end);
-  if (first === undefined || last === undefined) return null;
+  if (first === undefined || last === undefined) return direct ? [{ ...end }] : null;
   const path = shortestGridPath(model, first, last);
-  return path ? smoothPath(model, start, [...path, end]) : null;
+  if (!path) return direct ? [{ ...end }] : null;
+  const route = smoothPath(model, start, [...path, end]);
+  // Grid attachment can add a few metres. An available direct segment remains
+  // a valid candidate and should win when it costs less than the grid route.
+  return direct && landRouteEffort(state, start, route) >= segmentEffort(model, start, end)
+    ? [{ ...end }]
+    : route;
+}
+
+/** Walking-equivalent metres for travel time, including every actual ford leg. */
+export function landRouteEffort(state: GameState, start: LandPoint, route: readonly LandPoint[]) {
+  let total = 0,
+    previous = start;
+  for (const point of route) {
+    total +=
+      state.mapGeneration?.biomeRules === 1
+        ? terrainSegmentEffort(state, previous, point)
+        : distance(previous, point);
+    previous = point;
+  }
+  return total;
 }
 
 /** Advance along actual land legs, conserving the complete physical movement budget. */
@@ -508,14 +624,21 @@ export function moveOnLand(
   if (!route) return false;
   if (!route.length) return true;
   let remaining = Math.max(0, maximumStep);
+  const terrain = state.mapGeneration?.biomeRules === 1;
   for (const waypoint of route) {
     if (remaining <= 0) return false;
-    const length = distance(point, waypoint),
+    const length = terrain
+        ? terrainSegmentEffort(state, point, waypoint)
+        : distance(point, waypoint),
       step = Math.min(length, remaining),
       from = onSegment ? { x: point.x, y: point.y } : undefined;
     if (length <= remaining) {
       point.x = waypoint.x;
       point.y = waypoint.y;
+    } else if (terrain) {
+      const partial = terrainPointAtEffort(state, point, waypoint, step);
+      point.x = partial.x;
+      point.y = partial.y;
     } else {
       point.x += ((waypoint.x - point.x) / length) * step;
       point.y += ((waypoint.y - point.y) / length) * step;

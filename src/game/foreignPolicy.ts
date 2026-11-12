@@ -6,9 +6,10 @@ import { effectiveDamage } from './math';
 import { activeUnits, canPay, clamp, copy, distance, log, nextId, pay, totalFood } from './runtime';
 import { killUnit, recordAttackTrauma } from './simulation';
 import { combatEquipmentFor } from './unitEquipment';
-import { isDryLandPoint, moveOnLand, planLandRoute } from './landNavigation';
+import { isDryLandPoint, landRouteEffort, moveOnLand, planLandRoute } from './landNavigation';
 import { getWorldSize, isWorldPointRevealed } from './worldDimensions';
 import { getRegionalCultureProfile } from './regionalCultures';
+import { biomeEffectsEnabled, farmYieldMultiplier } from './biomes';
 import type {
   Caravan,
   City,
@@ -824,12 +825,7 @@ function regionalExpansionScore(state: GameState, faction: Faction, origin: City
   const route = planLandRoute(state, origin, point);
   if (!route) return null;
   const profile = getRegionalCultureProfile(faction)!;
-  let previous: { x: number; y: number } = origin,
-    travelled = 0;
-  for (const waypoint of route) {
-    travelled += distance(previous, waypoint);
-    previous = waypoint;
-  }
+  const travelled = landRouteEffort(state, origin, route);
   const materials = { wood: 0, stone: 0, ore: 0 };
   let food = 0;
   for (const entity of state.entities) {
@@ -848,6 +844,8 @@ function regionalExpansionScore(state: GameState, faction: Faction, origin: City
   }
   const rank = profile.preferredBiomes.indexOf(sector.biome);
   let score = (rank < 0 ? 0 : rank === 0 ? 12 : 6) + Math.min(80, food) / 8 - travelled / 40;
+  if (biomeEffectsEnabled(state) && faction.words.includes('V_09'))
+    score += 8 * (farmYieldMultiplier(state, point) - 1);
   for (const [index, resource] of profile.materialPriorities.entries())
     if (resource === 'wood' || resource === 'stone' || resource === 'ore')
       score += (Math.min(100, materials[resource]) / 100) * (3 - index) * 3;

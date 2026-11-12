@@ -304,6 +304,15 @@ function validatorFor(worldSize: 500 | 1000) {
               value.mode === 'random' &&
               value.worldSize === 1000 &&
               value.landNavigation === 1,
+          ) &&
+          optional(
+            value.biomeRules,
+            (version) =>
+              version === 1 &&
+              value.mode === 'random' &&
+              value.worldSize === 1000 &&
+              value.landNavigation === 1 &&
+              value.regionalCultures === 1,
           ),
       )
     )
@@ -643,7 +652,10 @@ function validatorFor(worldSize: 500 | 1000) {
           Number.isInteger(v.y) &&
           flag(v.explored) &&
           number(v.faunaCapacity) &&
-          ['forest', 'plain', 'mountain', 'river'].includes(v.biome as string),
+          (['forest', 'plain', 'mountain', 'river'].includes(v.biome as string) ||
+            (record(s.mapGeneration) &&
+              s.mapGeneration.biomeRules === 1 &&
+              ['wetland', 'dryland'].includes(v.biome as string))),
       ) ||
       (s.sectors as unknown[]).length !== sectorCount * sectorCount ||
       new Set((s.sectors as RecordValue[]).map((sector) => `${sector.x},${sector.y}`)).size !==

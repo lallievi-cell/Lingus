@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { setImmediate } from 'node:timers/promises';
 import { replayRandomOpening } from '../../tests/scenarios/randomOpening';
 import { getCalendar } from './calendar';
 import { parseGame, serializeGame } from './engine';
@@ -6,8 +7,12 @@ import { parseGame, serializeGame } from './engine';
 describe('ordinary Guided opening in the larger region', () => {
   it.each([1, 42, 6842])(
     'earns its fire and supplies before winter, seed %s',
-    (seed) => {
+    async (seed) => {
+      // Each replay is synchronous CPU work. Let the test worker exchange its
+      // pending reporter messages between seeds instead of starving RPC timers.
+      await setImmediate();
       const replay = replayRandomOpening(seed, 1000, true);
+      await setImmediate();
       const { state } = replay;
       expect(state.openingBalanceVersion).toBe(1);
       expect(state.mapGeneration?.worldSize).toBe(1000);

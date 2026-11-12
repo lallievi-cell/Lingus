@@ -8,6 +8,8 @@ import { entityTargetPresentation } from './targetPresentation';
 import { BUILDING_SPECS } from '../game/content';
 import { isVisibleAt } from './mapDrawing';
 import { visiblePerson } from './TribeEvents';
+import { resolveConstruction } from '../game/grammar';
+import { biomePresentation } from './biomePresentation';
 import './QualityOfLife.css';
 
 export function OrderPreview({
@@ -35,6 +37,10 @@ export function OrderPreview({
     numbered = hasWord(state, 'O_08');
   const people = preview.unitIds.map((id) => state.units.find((u) => u.id === id)!).filter(Boolean);
   const oneArtisan = people.length === 1 && sentence.some((id) => id === 'V_06' || id === 'V_07');
+  const farmTerrain =
+    resolveConstruction(sentence)?.kind === 'farm'
+      ? biomePresentation(state, preview.destinations[0] ?? target)
+      : null;
   const destinations = [
     ...new Set(
       preview.destinations.map((destination) => {
@@ -107,6 +113,11 @@ export function OrderPreview({
         {preview.accepted && destinations.length > 0 && (
           <p>
             <b>Destinazione:</b> {destinations.join(' · ')}.
+          </p>
+        )}
+        {farmTerrain?.farming && (
+          <p className="preview-farm-terrain">
+            <b>Terreno del campo: {farmTerrain.label}.</b> {farmTerrain.farming}
           </p>
         )}
         {preview.interruptions.length > 0 && (

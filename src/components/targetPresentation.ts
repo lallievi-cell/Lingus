@@ -10,6 +10,7 @@ import type { GameState, MapEntity, WorldTarget } from '../game/types';
 import { groundPileFor, resourceKnown, resourcePileLabel } from './mapResourceLayout';
 import { getCityPresentation } from './cityPresentation';
 import { deriveSiegePresentation, type SiegePresentation } from './mapSiegeArt';
+import { biomePresentation } from './biomePresentation';
 import {
   lastCustodianLabel,
   lifeStageLabel,
@@ -201,6 +202,14 @@ export function targetPresentation(
         description: 'Qui non si può attraversare a piedi. Cerca un guado lungo il fiume.',
         hint: 'Seleziona un punto di terra sulla riva opposta: le persone cercheranno il percorso attraverso un guado.',
       };
+    const terrain = biomePresentation(state, target);
+    if (terrain)
+      return {
+        label: terrain.label,
+        stage: 'Terreno esplorato',
+        kind: 'landmark',
+        description: terrain.description,
+      };
   }
   if (state.tier >= 4 && target.type === 'city') {
     const city = state.cities.find(
@@ -327,6 +336,19 @@ export function targetPresentation(
   }
   if (target.type === 'building') {
     const building = state.buildings.find((b) => b.id === target.id);
+    if (building?.kind === 'farm' && biomePresentation(state, building))
+      return {
+        label: BUILDING_NAMES.farm,
+        stage:
+          building.completed === false
+            ? 'In costruzione'
+            : building.active
+              ? 'Campo agricolo'
+              : 'Inattivo',
+        kind: 'landmark',
+        description: 'Gli addetti coltivano il campo per il raccolto alla fine dell’autunno.',
+        hint: 'Il terreno influisce sulla resa. Manutenzione, lavoro e condizioni stagionali determinano il raccolto effettivo.',
+      };
     if (building?.kind === 'campfire') {
       const lit = building.active && building.hp > 0 && building.completed !== false;
       const coversRest = Math.hypot(building.x - state.home.x, building.y - state.home.y) + 8 <= 15;

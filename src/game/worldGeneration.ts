@@ -65,6 +65,7 @@ export function generateWorld(
   seed: number,
   factions: Faction[],
   worldSize: WorldSize = LEGACY_WORLD_SIZE,
+  biomeRules = false,
 ): {
   sectors: Sector[];
   entities: MapEntity[];
@@ -148,6 +149,51 @@ export function generateWorld(
     .sort((a, b) => a.score - b.score);
   for (const { sector } of forest.slice(0, regional ? integer(28, 40) : integer(6, 9)))
     sector.biome = 'forest';
+
+  // New regions opt in explicitly. Earlier geography keeps both its terrain
+  // and random stream, including the positions of its opening resources.
+  if (regional && biomeRules) {
+    const riverSectors = sectors.filter((sector) => sector.biome === 'river');
+    const bankDistance = (sector: Sector) =>
+      Math.min(
+        ...riverSectors.map((river) => Math.abs(river.x - sector.x) + Math.abs(river.y - sector.y)),
+      );
+    const candidates = sectors.filter(
+      (sector) =>
+        ['plain', 'forest'].includes(sector.biome) &&
+        Math.max(Math.abs(sector.x - center), Math.abs(sector.y - center)) > 1,
+    );
+    const wetlands: Sector[] = [];
+    const wetlandCount = integer(6, 9);
+    const banks = shuffle(candidates.filter((sector) => bankDistance(sector) <= 2));
+    // A connected ribbon follows the river rather than scattering isolated
+    // swamp tiles through the grasslands. The secondary distance permits a
+    // short inland branch where mountain foothills interrupt the bank.
+    while (wetlands.length < wetlandCount && banks.length) {
+      banks.sort((a, b) => {
+        const patchDistance = (sector: Sector) =>
+          wetlands.length
+            ? Math.min(
+                ...wetlands.map(
+                  (wetland) => Math.abs(wetland.x - sector.x) + Math.abs(wetland.y - sector.y),
+                ),
+              )
+            : 0;
+        return patchDistance(a) - patchDistance(b) || bankDistance(a) - bankDistance(b);
+      });
+      const sector = banks.shift()!;
+      sector.biome = 'wetland';
+      wetlands.push(sector);
+    }
+    const dryCandidates = shuffle(
+      candidates.filter((sector) => sector.biome !== 'wetland' && bankDistance(sector) >= 3),
+    );
+    const dryCenter = dryCandidates[0];
+    if (dryCenter) {
+      dryCandidates.sort((a, b) => distance(a, dryCenter) - distance(b, dryCenter));
+      for (const sector of dryCandidates.slice(0, integer(7, 10))) sector.biome = 'dryland';
+    }
+  }
 
   const river = riverSegments(sectors);
   const dry = (point: Point, margin = 12) =>
@@ -362,23 +408,48 @@ export function generateWorld(
     const biome = sector.biome;
     populate(
       'tree',
-      biome === 'forest' ? integer(11, 15) : biome === 'mountain' ? integer(3, 6) : integer(5, 9),
+      biome === 'forest'
+        ? integer(11, 15)
+        : biome === 'mountain'
+          ? integer(3, 6)
+          : biome === 'wetland'
+            ? integer(4, 7)
+            : biome === 'dryland'
+              ? integer(1, 3)
+              : integer(5, 9),
       () => integer(18, 28),
       100,
     );
     populate(
       'berries',
-      biome === 'mountain' ? integer(1, 2) : integer(3, 5),
+      biome === 'mountain' || biome === 'dryland'
+        ? integer(1, 2)
+        : biome === 'wetland'
+          ? integer(5, 7)
+          : integer(3, 5),
       () => integer(18, 26),
       1,
     );
     populate(
       'stone',
-      biome === 'mountain' ? integer(2, 4) : integer(1, 2),
+      biome === 'mountain' || biome === 'dryland'
+        ? integer(2, 4)
+        : biome === 'wetland'
+          ? 1
+          : integer(1, 2),
       () => integer(80, 130),
       100,
     );
-    populate('deer', biome === 'mountain' ? integer(1, 2) : integer(3, 5), () => 2, 30);
+    populate(
+      'deer',
+      biome === 'mountain'
+        ? integer(1, 2)
+        : biome === 'wetland' || biome === 'dryland'
+          ? integer(2, 3)
+          : integer(3, 5),
+      () => 2,
+      30,
+    );
     if (biome === 'mountain') populate('ore', integer(1, 2), () => integer(350, 650), 100);
     if (random() < 0.5) populate('wolf', integer(1, 2), () => 1, 45, true);
     if (biome === 'forest' && random() < 0.35) populate('alpha', 1, () => 3, 120, true);
@@ -408,7 +479,12 @@ export function generateWorld(
       (entity) =>
         entity.sectorId === sector.id && ['deer', 'wolf', 'alpha', 'mammoth'].includes(entity.kind),
     ).length;
-    sector.faunaCapacity = sector.biome === 'forest' ? 24 : sector.biome === 'mountain' ? 12 : 20;
+    sector.faunaCapacity =
+      sector.biome === 'forest'
+        ? 24
+        : sector.biome === 'mountain' || sector.biome === 'dryland'
+          ? 12
+          : 20;
   }
   return { sectors, entities, cities };
 }

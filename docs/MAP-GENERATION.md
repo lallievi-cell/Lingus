@@ -4,7 +4,7 @@ Le nuove partite nel browser propongono **Casuale**: una regione di **1.000 × 1
 
 ## Scelta e riproduzione
 
-Il seed è un intero tra **0 e 4294967295**, compresi gli estremi. A parità di dimensioni e regola di generazione, lo stesso seed produce la stessa geografia nelle due difficoltà. La 0.6.0 aggiunge la disposizione di otto culture: iniziare oggi una nuova storia con il seed di una regione della 0.5.0 può quindi dare insediamenti e risorse collocati diversamente. Caricare quella regione conserva invece tutte le coordinate salvate. «Nuovo seed» ne sceglie un altro; un campo vuoto permette la scelta automatica. Le impostazioni mostrano il seed originale e le dimensioni della partita. Le opzioni di riavvio non sostituiscono la partita finché non viene confermata la nuova storia.
+Il seed è un intero tra **0 e 4294967295**, compresi gli estremi. A parità di dimensioni e regola di generazione, lo stesso seed produce la stessa geografia nelle due difficoltà. La 0.6.0 aggiunge la disposizione di otto culture e la 0.7.0 i sei ambienti funzionali: iniziare oggi una nuova storia con il seed di una regione precedente può quindi dare insediamenti e risorse collocati diversamente. Caricare quella regione conserva invece tutte le coordinate salvate. «Nuovo seed» ne sceglie un altro; un campo vuoto permette la scelta automatica. Le impostazioni mostrano il seed originale e le dimensioni della partita. Le opzioni di riavvio non sostituiscono la partita finché non viene confermata la nuova storia.
 
 Una nuova partita ricentra la visuale sul campo e ripristina lo zoom iniziale, anche quando si riutilizza lo stesso seed. Importare una partita inizializza la visuale appropriata al suo stato.
 
@@ -28,7 +28,9 @@ Le entità sono distanziate, con identificativi, settore e origine coerenti. Nod
 
 Il Popolo dei Rami, Le Voci della Selce, I Figli del Fiume e I Custodi dell’Alba conservano identità e parole iniziali. Si aggiungono Le Genti dei Prati, I Camminatori, Le Sentinelle dei Monti e Le Mani d’Argilla. Ciascuna comunità parte con le stesse dimensioni e scorte ordinarie di un insediamento straniero; il giocatore conserva i sette fondatori e le quattro parole innate. Le preferenze culturali cambiano le decisioni, senza moltiplicatori di produzione.
 
-Fuori dal campo la densità di alberi, bacche, pietre e minerali dipende dal bioma. La capacità faunistica è ventiquattro nei boschi, dodici in montagna e venti negli altri settori. Se i rilievi disponibili sono occupati dagli insediamenti, il mammut può comparire in un'altra zona asciutta e distante. Le distanze di sicurezza riguardano la disposizione iniziale; fauna e persone continuano poi a muoversi secondo la simulazione.
+Fuori dal campo la densità di alberi, bacche, pietre e minerali dipende dal bioma. Nelle nuove regioni della 0.7.0, zone umide vicine al fiume hanno più bacche; terre aride lontane dalle rive hanno pochi alberi e bacche e più pietra. I nuovi ambienti restano fuori dall’intorno iniziale del campo. La capacità faunistica è ventiquattro nei boschi, dodici in montagna e nelle terre aride e venti negli altri settori. Se i rilievi disponibili sono occupati dagli insediamenti, il mammut può comparire in un'altra zona asciutta e distante. Le distanze di sicurezza riguardano la disposizione iniziale; fauna e persone continuano poi a muoversi secondo la simulazione.
+
+La [0.7.0](RELEASE-070.md) rende fertili o più faticosi da attraversare i diversi terreni. Campi, viaggi fisici e logistica straniera usano gli stessi profili ambientali. I guadi restano gli unici attraversamenti del fiume. La scheda della selezione esplorata espone gli effetti in **Terreno**, secondo le conoscenze di Agricoltura e Numero.
 
 ## Salvataggi e generazione
 
@@ -40,9 +42,11 @@ Solo le regioni estese aggiungono `mapGeneration.worldSize: 1000`. Senza questo 
 
 Le nuove regioni della 0.6.0 aggiungono `mapGeneration.regionalCultures: 1`, che identifica la disposizione di otto culture. Ogni fazione conserva il proprio profilo in `culture`. L’assenza dei nuovi campi nei salvataggi precedenti mantiene le comunità esistenti e le decisioni dell’IA precedenti. Il seed va interpretato insieme alle dimensioni e alla regola di generazione registrata.
 
+Le nuove regioni della 0.7.0 aggiungono `mapGeneration.biomeRules: 1`. Senza questo campo non cambiano velocità o fertilità; i salvataggi precedenti non ricevono zone umide o terre aride. I nuovi tipi di bioma sono validi soltanto con il metadato coerente. La regola non si applica alle valli casuali di cinquecento metri né a Seed Zero.
+
 Il caricamento usa il mondo salvato: una roccia già scavata conserva la quantità restante e gli animali mantengono la posizione raggiunta. Non ricostruisce la mappa dal seed. Il metadato è facoltativo per i vecchi salvataggi v2; quando manca, l'interfaccia indica che il seed originale non è registrato.
 
-L'API `createGame(seed, playMode)` mantiene Seed Zero per i replay e i test precedenti. `createGame(seed, playMode, 'random')` genera ancora una valle di 500 metri e quattro culture per compatibilità. Il browser richiede esplicitamente la regione con `createGame(seed, playMode, 'random', 1000)`; dalla 0.6.0 questa chiamata crea otto culture e il nuovo metadato. Il quarto argomento omesso vale 500.
+L'API `createGame(seed, playMode)` mantiene Seed Zero per i replay e i test precedenti. `createGame(seed, playMode, 'random')` genera ancora una valle di 500 metri e quattro culture per compatibilità. Il browser richiede esplicitamente la regione con `createGame(seed, playMode, 'random', 1000)`; dalla 0.6.0 questa chiamata crea otto culture e dalla 0.7.0 abilita anche gli ambienti funzionali. Il quarto argomento omesso vale 500.
 
 ## Prove
 

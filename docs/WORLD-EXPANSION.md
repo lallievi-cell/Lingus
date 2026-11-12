@@ -24,9 +24,15 @@ Le comunità incontrate hanno schede compatte espandibili, con identità e attiv
 
 I salvataggi precedenti mantengono il numero di culture e le regole già presenti: una regione della 0.5.0 non riceve retroattivamente quattro nuovi insediamenti. L’espansione delle comunità è una possibilità governata da conoscenze e risorse reali, non una promessa che ogni cultura sopravviva o fondi una colonia in ogni campagna.
 
+## Quarto traguardo: ambienti funzionali
+
+La [0.7.0](RELEASE-070.md) aggiunge zone umide e terre aride alle nuove regioni, con risorse e disegno del terreno distinti. Sei ambienti differenziano fertilità agricola e costo degli spostamenti. Persone, fauna, eserciti e convogli usano percorsi che considerano terreno e guadi; l’economia straniera paga il lavoro aggiuntivo dei viaggi. Le società che conoscono l’agricoltura considerano la fertilità quando scelgono nuove colonie.
+
+Gli effetti si leggono nel dettaglio **Terreno** della selezione esistente, senza aggiungere un pannello sopra la mappa. Agricoltura e quantità esatte seguono le conoscenze della tribù. Il campo iniziale rimane in prateria e conserva le risorse vicine necessarie all’apertura. I vecchi salvataggi conservano velocità, raccolti e disposizione dei biomi precedenti.
+
 ## Passi successivi
 
-1. **Ambienti:** introdurre fertilità, riparo e costi di attraversamento che differenzino pianure, foreste, rilievi, zone umide, coste e zone aride. Ogni ambiente deve cambiare le opportunità di insediamento e scambio.
-2. **Coste e mare:** introdurre prima un ciclo completo di pesca e conservazione, poi approdi, imbarcazioni e collegamenti verso isole e culture lontane. Risorse, lavoro e carichi devono continuare a esistere nel mondo e nelle scorte reali.
+1. **Coste e mare:** introdurre prima un ciclo completo di pesca e conservazione, poi approdi, imbarcazioni e collegamenti verso isole e culture lontane. Risorse, lavoro e carichi devono continuare a esistere nel mondo e nelle scorte reali.
+2. **Adattamento ambientale:** valutare riparo naturale e specializzazioni climatiche attraverso playtest più lunghi; la 0.7.0 non modifica le formule termiche.
 
 Nuove possibilità e specializzazioni dovranno seguire esperienze, parole e trasmissione del sapere. Le prime stagioni devono continuare a offrire tempo per capire e assegnare il lavoro. Le scene preparate e le prove di carico restano distinte dalle campagne ordinarie.

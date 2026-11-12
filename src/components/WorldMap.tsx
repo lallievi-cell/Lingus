@@ -45,6 +45,7 @@ import { CAMP_STOCK_ART_BOUNDS } from './mapCampStockArt';
 import { ensureNaturalAtlas } from './mapNaturalAtlas';
 import { getVisibleWorldTargets } from './visibleWorldTargets';
 import { VisibleWorldTargets } from './VisibleWorldTargets';
+import { targetBiomePresentation } from './biomePresentation';
 import './WorldMap.css';
 
 interface WorldMapProps {
@@ -891,6 +892,8 @@ export function WorldMap({
   const focusedTarget = hovered && hovered.type !== 'point' ? hovered : selectedTarget;
   const label = targetLabel(state, focusedTarget ?? null);
   const details = targetPresentation(state, focusedTarget ?? null);
+  const biomeDetails =
+    focusedTarget === selectedTarget ? targetBiomePresentation(state, selectedTarget) : null;
   const transform = getTransform();
   const visibleTargets = visibleTargetsOpen
     ? getVisibleWorldTargets(state, {
@@ -1260,17 +1263,23 @@ export function WorldMap({
       </div>
       {details && (
         <div
-          className="lingus-world__target-card"
+          className={`lingus-world__target-card ${biomeDetails ? 'has-biome-details' : ''}`}
           role="status"
           aria-label="Dettagli del bersaglio"
           tabIndex={0}
           onKeyDown={(event) => {
             if (
-              [' ', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)
+              [' ', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(
+                event.key,
+              ) ||
+              (event.key === 'Enter' &&
+                event.target instanceof Element &&
+                event.target.closest('summary'))
             )
               event.stopPropagation();
           }}
           data-resource-stage={details.kind}
+          data-terrain-focus={details.stage === 'Terreno esplorato'}
           data-mobile-placement={
             focusedTarget &&
             focusedTarget.y * WORLD_Y * getTransform().scale + getTransform().y < size.height / 2
@@ -1282,6 +1291,14 @@ export function WorldMap({
           <strong>{details.label}</strong>
           <p>{details.description}</p>
           {details.hint && <small>{details.hint}</small>}
+          {biomeDetails && (
+            <details className="map-biome-details" key={biomeDetails.biome}>
+              <summary>Terreno · {biomeDetails.label}</summary>
+              {focusedTarget?.type !== 'point' && <p>{biomeDetails.description}</p>}
+              <p>{biomeDetails.movement}</p>
+              {biomeDetails.farming && <p>{biomeDetails.farming}</p>}
+            </details>
+          )}
         </div>
       )}
       <div className="lingus-world__footer">

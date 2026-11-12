@@ -2,7 +2,7 @@ import { effectiveElapsed, hasOpeningBalance } from './calendar';
 import { distance, hasBuilding } from './runtime';
 import { COLD_RESCUE, thermalConditionsAt } from './thermal';
 import type { GameState, MapEntity, Unit } from './types';
-import { planLandRoute } from './landNavigation';
+import { landRouteEffort, planLandRoute } from './landNavigation';
 import { sectorIndex } from './worldDimensions';
 
 type Point = { x: number; y: number };
@@ -87,9 +87,7 @@ export function safeInstinctiveFood(state: GameState, unit: Unit, food: MapEntit
   const routeDistance = (from: Point, to: Point) => {
     if (state.mapGeneration?.landNavigation !== 1) return distance(from, to);
     const path = planLandRoute(state, from, to);
-    return path
-      ? path.reduce((sum, point, index) => sum + distance(index ? path[index - 1] : from, point), 0)
-      : Infinity;
+    return path ? landRouteEffort(state, from, path) : Infinity;
   };
   const trip = (routeDistance(unit, food) + routeDistance(food, state.home)) / 4 + 1.5;
   const exposure = effectiveElapsed(state, state.time, state.time + trip);

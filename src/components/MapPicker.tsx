@@ -43,7 +43,7 @@ export function MapPicker({
         <button type="button" aria-pressed={value === 'random'} onClick={() => onChange('random')}>
           <strong>Casuale</strong>
           <small>
-            Una regione quattro volte più ampia, con spazio per esplorare e fondare città.
+            Una regione quattro volte più ampia, con sei ambienti e otto culture da incontrare.
           </small>
         </button>
         <button
