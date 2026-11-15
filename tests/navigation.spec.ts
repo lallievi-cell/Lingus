@@ -1,8 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 import { closeWordBank, openWordBank, showRecentPhrases } from './mobile-ui';
 
-async function beginPaused(page: Page) {
+async function beginPaused(page: Page, seed?: string) {
   await page.goto('/');
+  if (seed) await page.getByLabel('Seed della mappa', { exact: true }).fill(seed);
   await page.getByRole('button', { name: 'Dai inizio alla storia' }).click();
   await page.getByRole('button', { name: 'Metti in pausa', exact: true }).click();
 }
@@ -119,8 +120,21 @@ test.describe('mobile touch navigation', () => {
   });
 });
 
+async function selectGround(page: Page, position: { x: number; y: number }) {
+  const map = page.getByRole('img', { name: /Mappa della valle/ });
+  await map.click({ position });
+  const overlaps = page.getByRole('group', { name: 'Scegli tra gli elementi sovrapposti' });
+  // Seed 518 places two trees under this destination, reproducing the
+  // missing-target path seen in the original CI trace.
+  await expect(overlaps).toBeVisible();
+  await overlaps.getByRole('button', { name: 'Punto sul terreno', exact: true }).click();
+  await expect(overlaps).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Deseleziona bersaglio' })).toBeVisible();
+  await expect(map).toBeFocused();
+}
+
 test('quick group selection, echoes and keyboard controls affect real orders', async ({ page }) => {
-  await beginPaused(page);
+  await beginPaused(page, '518');
   const map = page.getByRole('img', { name: /Mappa della valle/ });
   const bounds = (await map.boundingBox())!;
   const scale = Math.max(bounds.width / 1200, bounds.height / 800) * 4.5;
@@ -136,17 +150,27 @@ test('quick group selection, echoes and keyboard controls affect real orders', a
   ).toBeVisible();
   await page.getByRole('button', { name: /^Gruppo:/ }).click();
   await page.getByRole('button', { name: /^Andare:/ }).click();
+  // A group anchor chooses executors. It does not resolve an overlapping
+  // destination: choose the terrain through the same public flow as a player.
+  await selectGround(page, farPoint);
   await page.getByRole('button', { name: 'Pronuncia', exact: true }).click();
   await expect(
     page
       .getByRole('status')
       .filter({ hasText: 'Nessun adulto disponibile è vicino al punto scelto' }),
   ).toBeVisible();
-  expect((await readSave(page)).stats.commands).toBe(0);
+  const rejected = await readSave(page);
+  expect(rejected.stats.commands).toBe(0);
+  expect(rejected.voice).toBe(3);
   await map.click({ button: 'right', position: { x: bounds.width / 2, y: bounds.height / 2 } });
-  await map.click({ position: farPoint });
+  await selectGround(page, farPoint);
   await page.getByRole('button', { name: 'Pronuncia', exact: true }).click();
-  expect((await readSave(page)).stats.commands).toBe(1);
+  const ordered = await readSave(page);
+  expect(ordered.stats.commands).toBe(1);
+  expect(ordered.voice).toBe(2);
+  expect(
+    ordered.units.filter((unit: { action: string }) => unit.action === 'moving').length,
+  ).toBeGreaterThan(0);
   await page.keyboard.press('Escape');
   await expect(page.locator('.sentence-slot.filled')).toHaveCount(0);
   await page
@@ -157,7 +181,7 @@ test('quick group selection, echoes and keyboard controls affect real orders', a
   await page.keyboard.press('Backspace');
   await expect(page.locator('.sentence-slot.filled')).toHaveCount(1);
   await page.getByRole('button', { name: /^Andare:/ }).click();
-  await map.click({ position: farPoint });
+  await selectGround(page, farPoint);
   await page.keyboard.press('Digit3');
   await expect(page.getByRole('button', { name: 'Velocità 4x' })).toHaveAttribute(
     'aria-pressed',
@@ -166,7 +190,9 @@ test('quick group selection, echoes and keyboard controls affect real orders', a
   await page.keyboard.press('Space');
   await page.keyboard.press('Enter');
   await page.keyboard.press('Space');
-  expect((await readSave(page)).stats.commands).toBe(2);
+  const recalled = await readSave(page);
+  expect(recalled.stats.commands).toBe(2);
+  expect(recalled.voice).toBe(1);
   await expect(page.locator('.toast')).toBeHidden();
   await page.screenshot({
     path: test.info().outputPath('lingus-interface-desktop.png'),
