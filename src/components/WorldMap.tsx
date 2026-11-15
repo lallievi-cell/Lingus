@@ -253,9 +253,19 @@ export function WorldMap({
     .join('|');
   const mapMode = state.mapGeneration?.mode;
   const mapSeed = state.mapGeneration?.seed;
+  const coastalRules = state.mapGeneration?.coastalRules;
   const terrain = useMemo(
     () => createTerrain(mapMode === 'random' ? mapSeed! : 6842, state.seasonIndex, state),
-    [mapMode, mapSeed, worldSize, geography, state.seasonIndex, state.home.x, state.home.y],
+    [
+      mapMode,
+      mapSeed,
+      coastalRules,
+      worldSize,
+      geography,
+      state.seasonIndex,
+      state.home.x,
+      state.home.y,
+    ],
   );
   useEffect(() => {
     if (focusRequest)
@@ -452,6 +462,8 @@ export function WorldMap({
           addArt('entity', e.id, e.x, e.y, 11, 13, 8);
         } else if (e.kind === 'corpse') {
           addArt('entity', e.id, e.x, e.y, 15, 9, 3);
+        } else if (e.kind === 'fishery') {
+          addArt('entity', e.id, e.x, e.y, 29, 12, 1);
         } else {
           addArt('entity', e.id, e.x, e.y, e.kind === 'berries' ? 31 : 39, 24, 16, 20);
         }

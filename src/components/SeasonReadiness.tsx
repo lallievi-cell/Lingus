@@ -128,10 +128,10 @@ export function SeasonReadiness({
           <p className={entry.sufficient ? '' : 'qol-warning'} key={entry.id}>
             <b>{entry.label}:</b>{' '}
             {numbered
-              ? `autonomia stimata: circa ${Math.floor(entry.seconds)} s, senza contare la carne cruda.`
+              ? `autonomia stimata: circa ${Math.floor(entry.seconds)} s, senza contare ${state.mapGeneration?.coastalRules === 1 ? 'carne e pesce crudi' : 'la carne cruda'}.`
               : entry.sufficient
-                ? 'il cibo vegetale e la carne cotta nelle scorte dovrebbero bastare fino alla fine della prossima stagione.'
-                : 'il cibo vegetale e la carne cotta nelle scorte non bastano fino alla fine della prossima stagione. Procurane altro.'}
+                ? 'il cibo vegetale e i pasti cotti nelle scorte dovrebbero bastare fino alla fine della prossima stagione.'
+                : 'il cibo vegetale e i pasti cotti nelle scorte non bastano fino alla fine della prossima stagione. Procurane altro.'}
           </p>
         ))}
         <p className="qol-assumption">
@@ -147,6 +147,28 @@ export function SeasonReadiness({
               <p>
                 Se manca cibo cotto, viene mangiata prima dei vegetali. Ogni pasto può causare
                 malattia e perdita di salute: cuocila quando puoi.
+              </p>
+              {canCook && (
+                <button className="text-button" onClick={() => onCompose(cookingPhrase)}>
+                  Prepara cottura
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+        {report.rawFish > 0 && (
+          <div className="raw-food-warning">
+            <TriangleAlert size={14} />
+            <div>
+              <strong>
+                {hasWord(state, 'O_04')
+                  ? 'Il pesce crudo è un rischio'
+                  : 'Un alimento crudo è un rischio'}
+              </strong>
+              <p>
+                Può causare malattia e non rientra nella stima del cibo sicuro.{' '}
+                {hasWord(state, 'O_04') ? 'Il pesce cotto' : 'Questo alimento, una volta cotto,'} si
+                conserva più a lungo ed è incluso nella stima.
               </p>
               {canCook && (
                 <button className="text-button" onClick={() => onCompose(cookingPhrase)}>

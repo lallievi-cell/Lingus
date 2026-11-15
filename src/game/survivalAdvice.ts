@@ -74,20 +74,27 @@ export function getSurvivalAdvice(state: GameState): SurvivalAdvice | null {
               ['deer', 'wolf', 'alpha', 'mammoth'].includes(entity.kind) &&
               entity.hp <= 0) ||
             (entity.kind === 'ground' &&
-              (vegetarian ? ['food'] : ['food', 'cooked', 'meat']).includes(
+              (vegetarian ? ['food'] : ['food', 'cooked', 'meat', 'fish', 'cookedFish']).includes(
                 entity.resource ?? '',
               ))),
       )
       .sort((a, b) => distance(a, hungry) - distance(b, hungry))[0];
     const canNameFood = hasWord(state, 'O_04') && cognitiveSlots(state) >= 3;
     const stores =
-      state.resources.food + (vegetarian ? 0 : state.resources.meat + state.resources.cooked) > 0;
+      state.resources.food +
+        (vegetarian
+          ? 0
+          : state.resources.meat +
+            state.resources.cooked +
+            (state.resources.fish ?? 0) +
+            (state.resources.cookedFish ?? 0)) >
+      0;
     return {
       id: `hunger:${hungry.id}`,
       priority: hungry.hunger >= 95 ? 'danger' : 'care',
       title: hungry.hunger >= 95 ? 'Prima viene il cibo' : 'Un compagno deve mangiare',
       text: stores
-        ? 'C’è cibo nelle scorte: chi ha fame deve raggiungere il campo per mangiare. Cuoci la carne quando puoi: mangiarla cruda può causare malattia.'
+        ? 'C’è cibo nelle scorte: chi ha fame deve raggiungere il campo per mangiare. Cuoci carne e pesce quando puoi: mangiarli crudi può causare malattia.'
         : source
           ? 'Interrompi il lavoro e guida chi ha fame alla fonte di cibo indicata sulla mappa. Gli animali vivi devono essere abbattuti prima di poterli mangiare.'
           : 'Non ci sono scorte consegnate o fonti commestibili visibili. Esplora con prudenza e porta cibo al campo.',

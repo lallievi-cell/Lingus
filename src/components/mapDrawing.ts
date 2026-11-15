@@ -34,6 +34,7 @@ import { drawMapSurfaceMotion } from './mapSurfaceMotion';
 import { drawRiverFords } from './mapFordArt';
 import { boundedMapLabelX, drawOverviewNature, usesOverviewNature } from './mapOverviewArt';
 import { planCityLabels } from './mapCityLabels';
+import { drawFisheryMarker, drawFishSprite } from './mapCoastArt';
 
 const fallbackMotionSession = createMapMotionSession();
 
@@ -75,6 +76,7 @@ export const entityNames: Record<string, string> = {
   wolf: 'Lupo',
   mammoth: 'Mammut',
   corpse: 'Resti di un compagno',
+  fishery: 'Punto di pesca',
   campfire: 'Falò centrale',
   storage: 'Pozzo delle scorte',
   depot: 'Deposito dei materiali',
@@ -150,7 +152,15 @@ function drawMaterial(
     rock(ctx, x, y - 4, 11, 1, true);
     return;
   }
-  if (resource === 'wood') {
+  if (resource === 'fish' || resource === 'cookedFish') {
+    ctx.save();
+    ctx.translate(x, y);
+    drawFishSprite(ctx, resource === 'cookedFish');
+    ctx.translate(2, 9);
+    ctx.scale(0.85, 0.85);
+    drawFishSprite(ctx, resource === 'cookedFish');
+    ctx.restore();
+  } else if (resource === 'wood') {
     const log = (px: number, py: number) => {
       polygon(
         ctx,
@@ -575,7 +585,8 @@ function drawEntity(
   const { x, y } = worldPoint(entity.x, entity.y);
   ctx.save();
   ctx.translate(x, y);
-  drawPainterlyNature(ctx, entity, time, seasonIndex, unknown, animationContext);
+  if (entity.kind === 'fishery') drawFisheryMarker(ctx, !unknown);
+  else drawPainterlyNature(ctx, entity, time, seasonIndex, unknown, animationContext);
   ctx.restore();
   if (selected && entity.hp !== undefined && entity.maxHp && entity.hp < entity.maxHp) {
     const ratio = Math.max(0, entity.hp / entity.maxHp);
@@ -1321,12 +1332,14 @@ export function drawWorld(
       continue;
     const unknown =
       (entity.kind === 'tree' && !hasConcept(state, 'O_03')) ||
-      (entity.kind === 'stone' && !hasConcept(state, 'O_02'));
+      (entity.kind === 'stone' && !hasConcept(state, 'O_02')) ||
+      (entity.kind === 'fishery' && !hasConcept(state, 'O_04'));
     objects.push({
       y: entity.y,
       draw: () => {
         if (
           overviewNature &&
+          entity.kind !== 'fishery' &&
           selected?.id !== entity.id &&
           hovered?.id !== entity.id &&
           !workingTargets.has(entity.id)

@@ -1,4 +1,5 @@
 import { activeUnits, distance } from './runtime';
+import { refundPaidCooking } from './fishing';
 import { killUnit } from './simulation';
 import type { Caravan, City, GameState, Unit } from './types';
 
@@ -26,6 +27,7 @@ export function chooseDelegateIdentity(state: GameState, source: City) {
 
 export function departDelegateIdentity(state: GameState, caravan: Caravan, unit?: Unit) {
   if (!unit) return;
+  refundPaidCooking(state, unit);
   caravan.delegateUnitId = unit.id;
   caravan.x = unit.x;
   caravan.y = unit.y;

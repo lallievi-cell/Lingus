@@ -10,6 +10,8 @@ import {
 import { createInitialState } from './state';
 import type { MapMode } from './types';
 import { canFitCraftOutput, canPayLocally, payLocally } from './craftMaterials';
+import { chooseCookingInput, payCookingInput, cookingPaymentCost } from './fishing';
+import { migrateCoastalInventories } from './coastalInventoryMigration';
 import { validSave } from './saveValidation';
 import { canRehearseWord, GUIDED_PROGRESSION } from './guidedProgression';
 import { recalledSparkTokens } from './knowledgeRecovery';
@@ -27,6 +29,7 @@ import { captureObservedTaskResults, snapshotTaskResultInputs } from './taskResu
 import { promoteDeferredSparks } from './discoveryPacing';
 import { safeAutonomousRoute } from './safeForaging';
 import { isDryLandPoint, isLandPoint, planLandRoute } from './landNavigation';
+import { isSeaPoint } from './coastGeometry';
 import type { WorldSize } from './worldDimensions';
 import {
   activeUnits,
@@ -57,7 +60,7 @@ import {
   population,
   plainFoodCook,
   recordEvent,
-  resetUnit,
+  resetUnitWithState,
   seasonalCore,
   simulationStep,
   tryIgnite,
@@ -186,7 +189,7 @@ function assignBuildingJob(
   }
   for (const old of s.buildings) old.workerIds = old.workerIds?.filter((id) => id !== u.id);
   dropCarriedLoad(s, u);
-  resetUnit(u);
+  resetUnitWithState(s, u);
   u.lastTaskResult = undefined;
   u.action = 'working';
   u.jobBuildingId = b.id;
@@ -274,7 +277,9 @@ export function issueCommand(
   ) {
     log(
       s,
-      'Qui non si può passare a piedi. Scegli un punto sulla riva o oltre il fiume: il percorso userà un guado. Non hai speso Voce.',
+      isSeaPoint(s, target)
+        ? 'Il mare aperto non si attraversa a piedi. Scegli un punto asciutto sulla costa. Non hai speso Voce.'
+        : 'Qui non si può passare a piedi. Scegli un punto sulla riva o oltre il fiume: il percorso userà un guado. Non hai speso Voce.',
       'warning',
     );
     return s;
@@ -377,14 +382,31 @@ export function issueCommand(
     log(s, 'Questa costruzione è già presente.', 'warning');
     return s;
   }
-  if (verb === 'V_07') cost = args.includes('O_02') ? { stone: 1 } : { meat: 1 };
+  const cookingChoice =
+    verb === 'V_07' && !args.includes('O_02') ? chooseCookingInput(s, workers, target) : undefined;
+  if (cookingChoice) {
+    const index = workers.indexOf(cookingChoice.worker);
+    if (index > 0) workers.unshift(...workers.splice(index, 1));
+  }
+  if (verb === 'V_07')
+    cost = args.includes('O_02')
+      ? { stone: 1 }
+      : cookingChoice?.input === 'fish'
+        ? { fish: 1 }
+        : { meat: 1 };
   if (
     (verb === 'V_06' || (s.playMode === 'guided' && plainFoodCook(tokens))) &&
     !kind &&
     !canFitCraftOutput(
       s,
-      cost,
-      verb === 'V_07' ? 'cooked' : args.includes('O_03') ? 'spear' : 'tool',
+      cookingChoice ? cookingPaymentCost(cookingChoice) : cost,
+      verb === 'V_07'
+        ? cookingChoice?.input === 'fish'
+          ? 'cookedFish'
+          : 'cooked'
+        : args.includes('O_03')
+          ? 'spear'
+          : 'tool',
     )
   ) {
     log(
@@ -399,7 +421,7 @@ export function issueCommand(
   const localCraft = ['V_06', 'V_07'].includes(verb) && !kind;
   // A group order chooses a real artisan who can reach the inputs. Work places
   // around the same source differ by a few metres; roster order is not a cost rule.
-  if (localCraft && subject !== 'S_02') {
+  if (localCraft && !cookingChoice && subject !== 'S_02') {
     const index = workers.findIndex((worker) => canPayLocally(s, cost, worker));
     if (index > 0) workers.unshift(...workers.splice(index, 1));
   }
@@ -457,7 +479,8 @@ export function issueCommand(
   }
   if (verb === 'V_06' && args.includes('O_09') && target?.id?.startsWith('word:'))
     s.lastCraftWord = target.id.slice(5);
-  if (localCraft) payLocally(s, cost, workers[0]);
+  if (cookingChoice) payCookingInput(s, cookingChoice);
+  else if (localCraft) payLocally(s, cost, workers[0]);
   else pay(s.resources, cost);
   if (
     verb === 'V_02' &&
@@ -478,7 +501,7 @@ export function issueCommand(
     assigned++;
     trace?.assignedUnitIds.push(builder.id);
     droppedCargo = dropCarriedLoad(s, builder);
-    resetUnit(builder);
+    resetUnitWithState(s, builder);
     builder.lastTaskResult = undefined;
     builder.action = 'building';
     builder.command = [...tokens];
@@ -526,7 +549,7 @@ export function issueCommand(
       droppedCargo = dropCarriedLoad(s, u) || droppedCargo;
       assigned++;
       trace?.assignedUnitIds.push(u.id);
-      resetUnit(u);
+      resetUnitWithState(s, u);
       u.lastTaskResult = undefined;
       u.command = [...tokens];
       u.lastOrderAt = s.time;
@@ -595,6 +618,8 @@ export function issueCommand(
         u.ty = s.home.y;
       } else if (verb === 'V_06' || verb === 'V_07') {
         u.action = verb === 'V_06' ? 'crafting' : 'cooking';
+        if (cookingChoice?.input === 'fish') u.cookInput = 'fish';
+        u.targetId = cookingChoice?.pile?.id;
         u.tx = u.x;
         u.ty = u.y;
         break;
@@ -1068,6 +1093,7 @@ export function serializeGame(s: GameState) {
 export function parseGame(raw: string): GameState | null {
   try {
     const s: unknown = JSON.parse(raw);
+    migrateCoastalInventories(s);
     // Older idle countdowns could expire between browser ticks and be saved
     // slightly below zero. Recover only that known case; work progress and
     // the rest of the imported world still pass the full validator.

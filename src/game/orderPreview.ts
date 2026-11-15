@@ -96,14 +96,14 @@ export function getOrderPreview(
     .filter((u) => (u.carry?.amount ?? 0) > 0 && !next.units.find((v) => v.id === u.id)?.carry)
     .map((u) => u.id);
   const accessibleTotal = (s: GameState, r: Resource) =>
-    s.resources[r] +
+    (s.resources[r] ?? 0) +
     s.units.reduce((n, u) => n + (u.carry?.resource === r ? u.carry.amount : 0), 0) +
     s.entities
       .filter((e) => e.kind === 'ground' && e.resource === r)
       .reduce((n, e) => n + Math.max(0, e.amount), 0) +
     s.cities
       .filter((c) => c.factionId === 'player' && !c.capital)
-      .reduce((n, c) => n + c.resources[r], 0);
+      .reduce((n, c) => n + (c.resources[r] ?? 0), 0);
   const costs = RESOURCE_ORDER.map((resource) => ({
     resource,
     amount: accessibleTotal(state, resource) - accessibleTotal(next, resource),
@@ -137,11 +137,16 @@ export function getOrderPreview(
             source.kind === 'corpse' ||
             (['deer', 'wolf', 'alpha', 'mammoth'].includes(source.kind) && source.hp <= 0) ||
             (source.kind === 'ground' &&
-              ['food', 'meat', 'cooked'].includes(source.resource ?? '')))
+              ['food', 'meat', 'cooked', 'fish', 'cookedFish'].includes(source.resource ?? '')))
         );
       });
     const repeated = guidedRepeatTransport(state, tokens);
-    behaviour = `${food ? 'Raccoglie cibo da fonti compatibili e carcasse; non abbatte animali vivi.' : 'Raccoglie dai cumuli a terra o estrae direttamente da alberi, rocce e giacimenti adatti.'} Trasporta poi il carico al campo. ${repeated ? 'In Guidata ripete i viaggi durante il giorno, finché ci sono risorse e spazio. Esaurita una fonte, cerca altre fonti compatibili entro venti metri dal punto iniziale, nelle terre già esplorate. Se scegli un cumulo, raccoglie solo materiali già a terra.' : 'Completa un viaggio; per ripetere servono altri ordini o una tradizione disponibile.'}`;
+    const fishing = destinations.some((destination) =>
+      state.entities.some((entity) => entity.id === destination.id && entity.kind === 'fishery'),
+    );
+    behaviour = fishing
+      ? `Raggiunge la riva asciutta e pesca. Ogni carico richiede lavoro e consuma soltanto il pescato realmente catturato dalla riserva finita. Le scorte aumentano alla consegna. ${repeated ? 'In Guidata ripete i viaggi durante il giorno finché ci sono pesce e spazio.' : 'Completa un viaggio; per ripetere serve un altro ordine o una tradizione.'}`
+      : `${food ? 'Raccoglie cibo da fonti compatibili e carcasse; non abbatte animali vivi.' : 'Raccoglie dai cumuli a terra o estrae direttamente da alberi, rocce e giacimenti adatti.'} Trasporta poi il carico al campo. ${repeated ? 'In Guidata ripete i viaggi durante il giorno, finché ci sono risorse e spazio. Esaurita una fonte, cerca altre fonti compatibili entro venti metri dal punto iniziale, nelle terre già esplorate. Se scegli un cumulo, raccoglie solo materiali già a terra.' : 'Completa un viaggio; per ripetere servono altri ordini o una tradizione disponibile.'}`;
   } else if (predicate.verb === 'V_03')
     behaviour =
       'Su alberi e rocce lascia i materiali sul posto: non li consegna al campo. Contro animali vivi caccia e può subire ferite.';
@@ -156,12 +161,21 @@ export function getOrderPreview(
   else if (predicate.verb === 'V_07')
     behaviour =
       state.playMode === 'guided' && plainFoodCook(tokens)
-        ? 'Un cuoco prepara pasti durante il giorno finché ci sono carne, un Falò attivo e spazio. Ogni porzione consuma una carne; fame, freddo o un nuovo ordine interrompono il lavoro.'
+        ? state.mapGeneration?.coastalRules === 1
+          ? 'Un cuoco prepara pasti durante il giorno finché ci sono carne o pesce catturato, un Falò attivo e spazio. Ogni ciclo paga la propria porzione; fame, freddo o un nuovo ordine interrompono il lavoro.'
+          : 'Un cuoco prepara pasti durante il giorno finché ci sono carne, un Falò attivo e spazio. Ogni porzione consuma una carne; fame, freddo o un nuovo ordine interrompono il lavoro.'
         : 'Un artigiano completa una cottura. Il compito diretto termina dopo questo ciclo.';
   else if (predicate.verb === 'V_02')
     behaviour =
       'Mangia dalle scorte raggiungibili o dalla fonte scelta, fino alla sazietà. La carne cruda può causare malattia.';
   else behaviour = compilation.message;
+  if (
+    predicate.verb === 'V_07' &&
+    unitIds.some((id) => next.units.find((unit) => unit.id === id)?.cookInput === 'fish')
+  )
+    behaviour =
+      'Un cuoco usa la porzione di pesce crudo realmente prelevata per produrre pesce cotto. Se il lavoro viene interrotto prima del completamento, la porzione viene lasciata sul terreno. ' +
+      behaviour;
   const sideEffects =
     !accepted &&
     (costs.length > 0 ||

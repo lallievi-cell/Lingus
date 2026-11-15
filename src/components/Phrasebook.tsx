@@ -22,7 +22,7 @@ import {
 } from '../game/phrasebook';
 import { hasWord } from '../game/runtime';
 import { resolveConstruction } from '../game/grammar';
-import type { GameState, Inventory, Resource } from '../game/types';
+import type { GameState, Inventory, Resource, Target } from '../game/types';
 import { describeStockQuantity } from './campInventory';
 import './Phrasebook.css';
 
@@ -124,7 +124,7 @@ export function Phrasebook({
 }: {
   state: GameState;
   onChange: (next: GameState) => void;
-  onUse: (tokens: string[]) => void;
+  onUse: (tokens: string[], suggestedTarget?: Target) => void;
   onClose: () => void;
   initialTab?: PhrasebookTab;
   draft?: string[];
@@ -489,7 +489,7 @@ export function Phrasebook({
                   className="phrasebook-use"
                   disabled={!item.available}
                   aria-label={`Prepara la frase: ${item.title}`}
-                  onClick={() => onUse([...item.tokens])}
+                  onClick={() => onUse([...item.tokens], item.suggestedTarget)}
                 >
                   Prepara <ArrowRight size={15} aria-hidden="true" />
                 </button>

@@ -1,5 +1,7 @@
 import { ADULT_AGE } from './content';
 import { effectiveElapsed, getCalendar } from './calendar';
+import { refundPaidCooking } from './fishing';
+import { dropCarriedLoad } from './simulation';
 import { rememberCombatWound } from './damageAttribution';
 import { forbiddenByDogma, getDogmaEffects, protectedByDogma } from './dogmas';
 import { lawArchetype, lawSubjectMatches } from './imperialLawPolicy';
@@ -37,7 +39,9 @@ function protectedPerson(s: GameState, u: Unit) {
     getDogmaEffects(s, { unit: u }).protected
   );
 }
-function stop(u: Unit) {
+function stop(s: GameState, u: Unit) {
+  refundPaidCooking(s, u);
+  if (s.mapGeneration?.coastalRules === 1) dropCarriedLoad(s, u);
   u.command = undefined;
   u.targetId = undefined;
   u.progress = 0;
@@ -106,7 +110,7 @@ export function applyCivilAssault(
   const murdered = victim.hp <= 0;
   if (murdered && code(s, 'murder', attacker)) {
     if (!protectedPerson(s, attacker)) kill(s, attacker, 'O_14');
-    stop(attacker);
+    stop(s, attacker);
     forgetFeuds(s, attacker.id);
     log(
       s,
@@ -119,7 +123,7 @@ export function applyCivilAssault(
       if (attacker.hp <= 0) kill(s, attacker, 'O_14');
     }
     s.cohesion = clamp(s.cohesion + 10);
-    stop(attacker);
+    stop(s, attacker);
     forgetFeuds(s, attacker.id);
     log(
       s,
@@ -186,7 +190,8 @@ export function updateCivilConflicts(s: GameState, dt: number, assault: Assault)
     (e) =>
       e.amount > 0 &&
       ((e.kind === 'berries' && getCalendar(s).season !== 3) ||
-        (e.kind === 'ground' && ['food', 'meat', 'cooked'].includes(e.resource ?? '')) ||
+        (e.kind === 'ground' &&
+          ['food', 'meat', 'cooked', 'fish', 'cookedFish'].includes(e.resource ?? '')) ||
         (['deer', 'wolf', 'alpha', 'mammoth'].includes(e.kind) && e.hp <= 0)),
   );
   const stores = [
@@ -197,7 +202,15 @@ export function updateCivilConflicts(s: GameState, dt: number, assault: Assault)
   ];
   const places = [
     ...rations,
-    ...stores.filter((p) => p.inventory.food + p.inventory.meat + p.inventory.cooked > 0),
+    ...stores.filter(
+      (p) =>
+        p.inventory.food +
+          p.inventory.meat +
+          p.inventory.cooked +
+          (p.inventory.fish ?? 0) +
+          (p.inventory.cookedFish ?? 0) >
+        0,
+    ),
   ];
   for (const place of places) {
     const accessible =
@@ -206,7 +219,16 @@ export function updateCivilConflicts(s: GameState, dt: number, assault: Assault)
         .reduce((n, e) => n + e.amount, 0) +
       stores
         .filter((p) => distance(p, place) <= CIVIL_LAW_ASSUMPTIONS.radiusMetres)
-        .reduce((n, p) => n + p.inventory.food + p.inventory.meat + p.inventory.cooked, 0);
+        .reduce(
+          (n, p) =>
+            n +
+            p.inventory.food +
+            p.inventory.meat +
+            p.inventory.cooked +
+            (p.inventory.fish ?? 0) +
+            (p.inventory.cookedFish ?? 0),
+          0,
+        );
     if (accessible > CIVIL_LAW_ASSUMPTIONS.scarceFoodUnits) continue;
     const pair = adults.filter((u) => distance(u, place) <= CIVIL_LAW_ASSUMPTIONS.radiusMetres);
     if (pair.length < 2) continue;

@@ -121,6 +121,7 @@ describe('biome-aware land travel', () => {
     // Populate the biome model first: removing the metadata must invalidate it.
     expect(planLandRoute(state, start, target)!.length).toBeGreaterThan(1);
     delete state.mapGeneration!.biomeRules;
+    delete state.mapGeneration!.coastalRules;
     expect(planLandRoute(state, start, target)).toEqual([target]);
     expect(landRouteEffort(state, start, [target])).toBe(200);
     const actor = { ...start };

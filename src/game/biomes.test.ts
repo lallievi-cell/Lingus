@@ -33,6 +33,7 @@ describe('versioned terrestrial biome rules', () => {
   it('leaves old regional geography and yields untouched when imported without the rule', () => {
     const state = createGame(42, 'guided', 'random', 1000);
     delete state.mapGeneration!.biomeRules;
+    delete state.mapGeneration!.coastalRules;
     Object.assign(state, generateWorld(42, state.factions, 1000));
     expect(validSave(state)).toBe(true);
     const restored = parseGame(serializeGame(state))!;
@@ -62,6 +63,7 @@ describe('versioned terrestrial biome rules', () => {
     expect(point.x).toBeCloseTo(210, 9);
     expect(point.y).toBe(250);
     delete state.mapGeneration!.biomeRules;
+    delete state.mapGeneration!.coastalRules;
     expect(terrainSegmentEffort(state, a, b)).toBe(100);
     expect(terrainPointAtEffort(state, a, b, 63)).toEqual({ x: 213, y: 250 });
   });

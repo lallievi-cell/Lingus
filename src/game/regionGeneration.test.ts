@@ -30,7 +30,15 @@ describe('the larger playable regional geography', () => {
     ] as const;
     for (const [seed, expected] of footprints) {
       const world = generateWorld(seed, factions);
-      expect(createHash('sha256').update(JSON.stringify(world)).digest('hex')).toBe(expected);
+      expect(
+        createHash('sha256')
+          .update(
+            JSON.stringify(world, (key, value) =>
+              ['fish', 'cookedFish'].includes(key) && value === 0 ? undefined : value,
+            ),
+          )
+          .digest('hex'),
+      ).toBe(expected);
       expect(generateWorld(seed, factions, 500)).toEqual(world);
     }
   });

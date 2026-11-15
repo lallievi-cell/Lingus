@@ -75,12 +75,18 @@ export function getInventoryEntries(
     const amount = positive(inventory[resource]);
     const arriving = incoming?.[resource] ?? 0;
     const word = RESOURCE_SPECS[resource].wordId;
-    const observed = observable.has(resource) || !word || !!state.words[word];
+    const seafood = resource === 'fish' || resource === 'cookedFish';
+    const observed = !seafood && (observable.has(resource) || !word || !!state.words[word]);
     if (!observed && amount === 0 && arriving === 0) return [];
     return [
       {
         resource,
-        label: RESOURCE_SPECS[resource].label,
+        label:
+          seafood && !hasWord(state, 'O_04')
+            ? resource === 'fish'
+              ? 'Alimento crudo senza nome'
+              : 'Alimento cotto senza nome'
+            : RESOURCE_SPECS[resource].label,
         amount,
         incoming: arriving,
         quantity: describeStockQuantity(amount, numbered),
@@ -144,7 +150,11 @@ export function getCampStockCapacity(state: GameState): CampStockCapacity[] {
 }
 
 const stockGroups: { group: CampStockGroup; resources: Resource[]; offset: [number, number] }[] = [
-  { group: 'food', resources: ['food', 'meat', 'cooked', 'seed'], offset: [-10, 7] },
+  {
+    group: 'food',
+    resources: ['food', 'meat', 'cooked', 'fish', 'cookedFish', 'seed'],
+    offset: [-10, 7],
+  },
   { group: 'wood', resources: ['wood'], offset: [-12, -4] },
   { group: 'stone', resources: ['stone'], offset: [12, -4] },
   { group: 'pelt', resources: ['pelt'], offset: [10, 7] },

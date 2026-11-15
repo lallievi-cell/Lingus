@@ -29,6 +29,8 @@ export type Resource =
   | 'food'
   | 'meat'
   | 'cooked'
+  | 'fish'
+  | 'cookedFish'
   | 'wood'
   | 'stone'
   | 'pelt'
@@ -51,6 +53,7 @@ export interface ResourceSpec {
   wordId?: string;
 }
 export type EntityKind =
+  | 'fishery'
   | 'berries'
   | 'tree'
   | 'stone'
@@ -214,6 +217,8 @@ export interface Unit {
   jobBuildingId?: string;
   suspendedJob?: { buildingId: string; command: string[] };
   craftNeedsPayment?: boolean;
+  /** A paid fish input; omission retains the original meat cooking cycle. */
+  cookInput?: 'fish';
   /** Original local area of a direct resource task, retained across deliveries. */
   workOrigin?: { x: number; y: number; groundOnly?: boolean };
   lastTaskResult?: RecordedTaskResult;
@@ -505,7 +510,7 @@ export interface Sector {
   explored: boolean;
   faunaCapacity: number;
   initialFauna?: number;
-  biome: 'forest' | 'plain' | 'mountain' | 'river' | 'wetland' | 'dryland';
+  biome: 'forest' | 'plain' | 'mountain' | 'river' | 'wetland' | 'dryland' | 'coast' | 'sea';
   cityId?: string;
 }
 export interface DisasterState {
@@ -532,6 +537,8 @@ export interface MapGeneration {
   /** Ecological resource distribution, farm fertility and terrain travel effort.
    * Omitted in earlier saves to preserve their established balance. */
   biomeRules?: 1;
+  /** Physical seeded coast and finite fisheries; never retrofitted to older maps. */
+  coastalRules?: 1;
 }
 export interface GameState {
   version: 2;

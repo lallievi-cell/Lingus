@@ -39,9 +39,15 @@ describe('eight societies in newly generated regions', () => {
       expect(valley.mapGeneration?.regionalCultures).toBeUndefined();
       const previousRegion = generateWorld(seed, valley.factions, 1000);
       expect(previousRegion.cities).toHaveLength(4);
-      expect(createHash('sha256').update(JSON.stringify(previousRegion)).digest('hex')).toBe(
-        footprints[index],
-      );
+      expect(
+        createHash('sha256')
+          .update(
+            JSON.stringify(previousRegion, (key, value) =>
+              ['fish', 'cookedFish'].includes(key) && value === 0 ? undefined : value,
+            ),
+          )
+          .digest('hex'),
+      ).toBe(footprints[index]);
     }
     expect(createInitialState(42, 'guided', 'seed-zero', 1000)).toEqual(
       createInitialState(42, 'guided', 'seed-zero'),
@@ -126,6 +132,10 @@ describe('eight societies in newly generated regions', () => {
   it('connects each actual settlement and places distinctive societies near suitable landscapes', () => {
     for (const seed of referenceSeeds.slice(0, 4)) {
       const state = createInitialState(seed, 'guided', 'random', 1000);
+      // This checks the established terrestrial culture-placement policy;
+      // physical coastal settlement coverage lives in coastGeneration.test.
+      delete state.mapGeneration!.coastalRules;
+      Object.assign(state, generateWorld(seed, state.factions, 1000, true));
       const before = JSON.stringify(state);
       for (const city of state.cities) {
         const route = planLandRoute(state, state.home, city);

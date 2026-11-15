@@ -537,9 +537,17 @@ describe('GDD tiers, irreversible history, logistics and finite world formulae',
     expect(faunaGrowth(20, 0.2, 20)).toBe(0);
     expect(faunaGrowth(10, 0.2, 20)).toBe(1);
   });
-  it('keeps the closed fourteen-resource inventory separate and initially empty', () => {
+  it('preserves the original fourteen inventories and adds two distinct empty seafood stocks', () => {
     const r = emptyInventory();
-    expect(Object.keys(r)).toHaveLength(14);
-    expect(Object.values(r)).toEqual(Array(14).fill(0));
+    expect(Object.keys(r).filter((key) => !['fish', 'cookedFish'].includes(key))).toHaveLength(14);
+    expect(Object.keys(r)).toHaveLength(16);
+    expect(Object.values(r)).toEqual(Array(16).fill(0));
+    expect(RESOURCE_SPECS.fish).toMatchObject({ id: 'RES_FISH', nutrition: 40, spoil: 0.6 });
+    expect(RESOURCE_SPECS.cookedFish).toMatchObject({
+      id: 'RES_FISH_COOK',
+      nutrition: 60,
+      spoil: 0.25,
+    });
+    expect(RESOURCE_SPECS.cooked.id).toBe('RES_MEAT_COOK');
   });
 });

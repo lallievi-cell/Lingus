@@ -29,10 +29,21 @@ const inventory = (s: GameState, c: City) => (c.capital ? s.resources : c.resour
 function exportable(s: GameState, city: City, resource: Resource) {
   if (resource === 'food') {
     const population = Object.values(city.cohorts).reduce((sum, count) => sum + count, 0);
+    const vegetarian = getDogmaEffects({
+      ...s,
+      dogmas:
+        city.dogmas ??
+        s.factions.find((faction) => faction.id === city.factionId)?.dogmas ??
+        s.dogmas,
+    }).vegetarian;
     const nutrition =
       city.resources.food * RESOURCE_SPECS.food.nutrition +
-      city.resources.meat * RESOURCE_SPECS.meat.nutrition +
-      city.resources.cooked * RESOURCE_SPECS.cooked.nutrition;
+      (vegetarian
+        ? 0
+        : city.resources.meat * RESOURCE_SPECS.meat.nutrition +
+          city.resources.cooked * RESOURCE_SPECS.cooked.nutrition +
+          (city.resources.fish ?? 0) * RESOURCE_SPECS.fish.nutrition +
+          (city.resources.cookedFish ?? 0) * RESOURCE_SPECS.cookedFish.nutrition);
     return Math.min(
       city.resources.food,
       Math.max(0, nutrition - population * SEASON_LENGTH * 0.8) / RESOURCE_SPECS.food.nutrition,
@@ -206,7 +217,8 @@ export function completeForeignMerchant(
       }
       return 'return';
     }
-    for (const r of RESOURCE_ORDER) origin.resources[r] += c.resources[r];
+    for (const r of RESOURCE_ORDER)
+      origin.resources[r] = (origin.resources[r] ?? 0) + (c.resources[r] ?? 0);
     c.resources = emptyInventory();
     c.arrived = true;
     return 'return';

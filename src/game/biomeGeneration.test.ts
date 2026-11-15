@@ -113,6 +113,7 @@ describe('the ecological geography of new regions', () => {
   it('keeps all eight cities on dry land and physically reachable across new habitats', () => {
     for (const seed of seeds.slice(0, 3)) {
       const state = createInitialState(seed, 'guided', 'random', 1000);
+      delete state.mapGeneration!.coastalRules;
       Object.assign(state, generateWorld(seed, state.factions, 1000, true));
       expect(state.cities).toHaveLength(8);
       for (const city of state.cities) {

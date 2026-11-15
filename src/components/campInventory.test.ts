@@ -22,13 +22,13 @@ function building(kind: Building['kind'], extras: Partial<Building> = {}): Build
 }
 
 describe('readable delivered camp stocks', () => {
-  it('exposes all fourteen owned resources without requiring their words or Domani', () => {
+  it('exposes all sixteen owned resources without requiring their words or Domani', () => {
     const state = createInitialState();
     RESOURCE_ORDER.forEach((resource) => (state.resources[resource] = 2));
     const entries = getInventoryEntries(state);
     expect(state.words.M_02).toBeUndefined();
     expect(entries.map((entry) => entry.resource)).toEqual(RESOURCE_ORDER);
-    expect(entries).toHaveLength(14);
+    expect(entries).toHaveLength(16);
     expect(entries.find((entry) => entry.resource === 'pelt')).toMatchObject({
       label: 'Pelli',
       amount: 2,

@@ -138,12 +138,13 @@ export function getSeasonReadiness(state: GameState) {
     for (const r of RESOURCE_ORDER) {
       const spec = RESOURCE_SPECS[r];
       if (spec.spoil > 0)
-        entry.inventory[r] *=
-          1 -
-          (spec.category === 'food'
-            ? resourceSpoilage(spec.spoil, season === 1, storage, entry.inventory.pottery > 0) *
-              openingFoodSpoilageMultiplier(state, calendar.seasonIndex)
-            : spec.spoil);
+        entry.inventory[r] =
+          (entry.inventory[r] ?? 0) *
+          (1 -
+            (spec.category === 'food'
+              ? resourceSpoilage(spec.spoil, season === 1, storage, entry.inventory.pottery > 0) *
+                openingFoodSpoilageMultiplier(state, calendar.seasonIndex)
+              : spec.spoil));
     }
   }
   const ration = imperialLawEffects(state).foodConsumptionMultiplier;
@@ -151,7 +152,10 @@ export function getSeasonReadiness(state: GameState) {
     .map((entry) => {
       const safeNutrition =
         entry.inventory.food * RESOURCE_SPECS.food.nutrition +
-        entry.inventory.cooked * RESOURCE_SPECS.cooked.nutrition;
+        (fx.vegetarian
+          ? 0
+          : entry.inventory.cooked * RESOURCE_SPECS.cooked.nutrition +
+            (entry.inventory.cookedFish ?? 0) * RESOURCE_SPECS.cookedFish.nutrition);
       const effectiveSeconds =
         entry.population > 0 ? safeNutrition / (entry.population * 0.8 * ration) : Infinity;
       const seconds = Number.isFinite(effectiveSeconds)
@@ -163,6 +167,7 @@ export function getSeasonReadiness(state: GameState) {
         population: entry.population,
         safeNutrition,
         rawMeat: entry.inventory.meat,
+        rawFish: entry.inventory.fish ?? 0,
         seconds,
         sufficient: effectiveSeconds + 1e-9 >= effectiveHorizon,
       };
@@ -203,6 +208,9 @@ export function getSeasonReadiness(state: GameState) {
   const rawMeat =
     state.resources.meat +
     ownCities.filter((c) => !c.capital).reduce((n, c) => n + c.resources.meat, 0);
+  const rawFish =
+    (state.resources.fish ?? 0) +
+    ownCities.filter((c) => !c.capital).reduce((n, c) => n + (c.resources.fish ?? 0), 0);
   return {
     season,
     nextSeason,
@@ -211,6 +219,7 @@ export function getSeasonReadiness(state: GameState) {
     upkeep,
     food,
     rawMeat,
+    rawFish,
     coldExposed: coldExposed.length,
     coldEvaluated: people.length,
     fireAtHome,

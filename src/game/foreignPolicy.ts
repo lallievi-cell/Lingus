@@ -58,7 +58,7 @@ export const FOREIGN_POLICY_ASSUMPTIONS = {
   regionalPressureSpacingSeconds: 90,
 } as const;
 
-const FOOD = ['food', 'meat', 'cooked'] as const;
+const FOOD = ['food', 'meat', 'cooked', 'fish', 'cookedFish'] as const;
 const liveCity = (city: City) =>
   city.factionId !== 'ruins' && Object.values(city.cohorts).some((n) => n > 0);
 const ownCity = (state: GameState, faction: Faction) =>
@@ -157,9 +157,11 @@ function move(
 function takeFood(inventory: Inventory, amount: number, cargo?: Inventory) {
   let remaining = amount;
   for (const resource of FOOD) {
-    const quantity = Math.min(inventory[resource], remaining);
-    inventory[resource] -= quantity;
-    if (cargo) cargo[resource] += quantity;
+    const quantity = Math.min(inventory[resource] ?? 0, remaining);
+    if (quantity > 0) {
+      inventory[resource] -= quantity;
+      if (cargo) cargo[resource] = (cargo[resource] ?? 0) + quantity;
+    }
     remaining -= quantity;
   }
 }
@@ -542,7 +544,7 @@ function finishRaid(state: GameState, raid: ForeignRaid, members: Unit[], city?:
       previousHealth + members.reduce((sum, member) => sum + member.hp, 0),
     );
     for (const resource of RESOURCE_ORDER) {
-      city.resources[resource] += raid.resources[resource];
+      city.resources[resource] = (city.resources[resource] ?? 0) + (raid.resources[resource] ?? 0);
       raid.resources[resource] = 0;
     }
     for (const member of members) {
@@ -715,10 +717,12 @@ function updateRaid(state: GameState, raid: ForeignRaid, dt: number) {
   if (reached && !guards.length) {
     const maximum = members.length * FOREIGN_POLICY_ASSUMPTIONS.raidLootPerMember;
     let remaining = maximum;
-    for (const resource of ['food', 'cooked', 'meat', 'wood'] as const) {
-      const amount = Math.min(state.resources[resource], remaining);
-      state.resources[resource] -= amount;
-      raid.resources[resource] += amount;
+    for (const resource of ['food', 'cooked', 'meat', 'cookedFish', 'fish', 'wood'] as const) {
+      const amount = Math.min(state.resources[resource] ?? 0, remaining);
+      if (amount > 0) {
+        state.resources[resource] -= amount;
+        raid.resources[resource] = (raid.resources[resource] ?? 0) + amount;
+      }
       remaining -= amount;
     }
     raid.phase = 'returning';
@@ -911,7 +915,8 @@ export function completeForeignExpansion(state: GameState, caravan: Caravan) {
     if (source && distance(caravan, source) <= 0.01 && caravan.returning) {
       source.cohorts.workers += caravan.population;
       for (const resource of RESOURCE_ORDER)
-        source.resources[resource] += caravan.resources[resource];
+        source.resources[resource] =
+          (source.resources[resource] ?? 0) + (caravan.resources[resource] ?? 0);
       caravan.resources = emptyInventory();
       caravan.population = 0;
       caravan.arrived = true;

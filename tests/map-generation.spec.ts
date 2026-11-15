@@ -12,6 +12,8 @@ type WorldSave = {
     landNavigation?: 1;
     worldSize?: 1000;
     regionalCultures?: 1;
+    biomeRules?: 1;
+    coastalRules?: 1;
   };
   entities: {
     id: string;
@@ -118,6 +120,7 @@ test('an explicit map seed reproduces its geometry independently from Guided or 
     worldSize: 1000,
     regionalCultures: 1,
     biomeRules: 1,
+    coastalRules: 1,
   });
 
   await openRestart(page);
@@ -179,6 +182,7 @@ test('the picker rejects invalid seeds and accepts the reproducible seed zero', 
     worldSize: 1000,
     regionalCultures: 1,
     biomeRules: 1,
+    coastalRules: 1,
   });
 });
 

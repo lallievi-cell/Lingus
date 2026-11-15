@@ -1,7 +1,10 @@
 import { BUILDING_ORDER, BUILDING_SPECS, WORDS } from './content';
 import { cognitiveSlots, getPredicate, resolveConstruction } from './grammar';
-import { hasWord } from './runtime';
-import type { BuildingKind, GameState, PhrasebookEntry } from './types';
+import { activeUnits, adult, distance, hasWord } from './runtime';
+import { isDryLandPoint, planLandRoute } from './landNavigation';
+import { coastalRulesEnabled } from './coastGeometry';
+import { isWorldPointRevealed } from './worldDimensions';
+import type { BuildingKind, GameState, PhrasebookEntry, Target } from './types';
 
 export const PHRASEBOOK_LIMIT = 64;
 export type PhraseCategory = 'construction' | 'work' | 'tradition' | 'law' | 'dogma' | 'other';
@@ -14,6 +17,8 @@ export interface PhrasebookItem extends PhrasebookEntry {
   available: boolean;
   issue?: string;
   buildingKind?: BuildingKind;
+  /** Observed physical destination suggested only while preparing this reference. */
+  suggestedTarget?: Target;
 }
 
 export const phraseKey = (tokens: readonly string[]) => tokens.join('|');
@@ -385,12 +390,20 @@ function describe(
         };
       case 'V_07':
         return {
-          title: args.includes('O_02') ? 'Cuoci ceramica' : 'Cuoci la carne',
+          title: args.includes('O_02')
+            ? 'Cuoci ceramica'
+            : coastalRulesEnabled(state)
+              ? 'Cuoci carne o pesce'
+              : 'Cuoci la carne',
           description: args.includes('O_02')
             ? 'Un artigiano consuma pietra per cuocere ceramica, che rallenta il deterioramento del cibo. Serve un Falò acceso.'
             : state.playMode === 'guided'
-              ? 'Un cuoco prepara pasti durante il giorno, consumando carne per ogni porzione. Servono un Falò acceso, spazio e ingredienti; i bisogni interrompono il lavoro.'
-              : 'Un artigiano consuma carne e prepara una porzione cotta. Serve un Falò acceso; per un’altra porzione occorre un nuovo ordine.',
+              ? coastalRulesEnabled(state)
+                ? 'Un cuoco prepara pasti durante il giorno. Ogni porzione consuma carne oppure pesce se manca la carne; puoi scegliere un mucchio di pesce catturato. Servono un Falò acceso e spazio; i bisogni interrompono il lavoro.'
+                : 'Un cuoco prepara pasti durante il giorno, consumando carne per ogni porzione. Servono un Falò acceso, spazio e ingredienti; i bisogni interrompono il lavoro.'
+              : coastalRulesEnabled(state)
+                ? 'Un cuoco consuma carne oppure pesce se manca la carne, e prepara la porzione corrispondente. Puoi scegliere un mucchio di pesce catturato accessibile. Serve un Falò acceso.'
+                : 'Un artigiano consuma carne e prepara una porzione cotta. Serve un Falò acceso; per un’altra porzione occorre un nuovo ordine.',
           category: 'work',
         };
       case 'V_08':
@@ -470,9 +483,31 @@ function describe(
   return p.condition === 'C_01' ? { ...result, title: `Di notte: ${result.title}` } : result;
 }
 
+/** A suggestion must already be observed and reachable by a real adult. */
+export function suggestedFishingTarget(state: GameState): Target | undefined {
+  if (!coastalRulesEnabled(state) || !hasWord(state, 'O_04') || !hasWord(state, 'V_04'))
+    return undefined;
+  const workers = activeUnits(state).filter(adult);
+  if (!workers.length) return undefined;
+  const points = state.entities
+    .filter(
+      (entity) =>
+        entity.kind === 'fishery' &&
+        entity.amount > 0 &&
+        isWorldPointRevealed(state, entity.x, entity.y) &&
+        isDryLandPoint(state, entity),
+    )
+    .sort((a, b) => distance(a, state.home) - distance(b, state.home));
+  const point = points.find((fishery) =>
+    workers.some((unit) => planLandRoute(state, unit, fishery) !== null),
+  );
+  return point ? { type: 'entity', id: point.id, x: point.x, y: point.y } : undefined;
+}
+
 /** Read-only catalogue: knowledge creates recipes, actual accepted use creates history. */
 export function getPhrasebook(state: GameState): PhrasebookItem[] {
   const entries = new Map((state.phrasebook ?? []).map((entry) => [entry.id, entry]));
+  const fishingTarget = suggestedFishingTarget(state);
   const candidates = new Map<string, string[]>();
   const addKnown = (tokens: readonly string[]) => {
     if (tokens.every((id) => hasWord(state, id))) candidates.set(phraseKey(tokens), [...tokens]);
@@ -487,6 +522,7 @@ export function getPhrasebook(state: GameState): PhrasebookItem[] {
     .map(([id, tokens]) => {
       const entry = entries.get(id),
         issue = recallIssue(state, tokens);
+      const fishing = id === 'S_01|V_04|O_04' && fishingTarget;
       return {
         id,
         tokens,
@@ -497,6 +533,14 @@ export function getPhrasebook(state: GameState): PhrasebookItem[] {
         available: !issue,
         issue,
         ...describe(state, tokens),
+        ...(fishing
+          ? {
+              title: 'Pesca e porta al campo',
+              description:
+                'Raggiunge il punto di pesca osservato sulla riva, pesca e porta il carico al campo. La riserva diminuisce alla cattura e le scorte aumentano solo alla consegna. Prepara suggerisce il bersaglio senza impartire l’ordine. Puoi scegliere un’altra fonte di cibo sulla mappa.',
+              suggestedTarget: fishingTarget,
+            }
+          : {}),
       };
     })
     .sort(

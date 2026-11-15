@@ -122,6 +122,16 @@
   color: #865642;
 }
 
+.camp-inventory-icon.resource-fish {
+  background: #dce9e9;
+  color: #326d77;
+}
+
+.camp-inventory-icon.resource-cookedFish {
+  background: #eee0ca;
+  color: #8e623c;
+}
+
 .camp-inventory-icon.resource-stone,
 .camp-inventory-icon.resource-ore,
 .camp-inventory-icon.resource-ingot {

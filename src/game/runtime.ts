@@ -69,7 +69,7 @@ export function pay(inventory: Inventory, cost: Partial<Inventory>) {
     inventory[r as Resource] = Math.max(0, inventory[r as Resource] - n);
 }
 export function totalFood(r: Inventory) {
-  return r.food + r.meat + r.cooked;
+  return r.food + r.meat + r.cooked + (r.fish ?? 0) + (r.cookedFish ?? 0);
 }
 export function resourceCategory(r: Resource) {
   return RESOURCE_SPECS[r].category;
@@ -108,7 +108,7 @@ export function freeCapacity(s: GameState, r: Resource) {
 }
 export function addResource(s: GameState, r: Resource, n: number, reserved = false) {
   const add = Math.min(Math.max(0, n), freeCapacity(s, r) + (reserved ? n : 0));
-  s.resources[r] += add;
+  s.resources[r] = (s.resources[r] ?? 0) + add;
   return add;
 }
 export function resourceLabel(r: Resource) {

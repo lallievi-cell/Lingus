@@ -1,6 +1,7 @@
 import type { GameState, WorldTarget } from '../game/types';
 import { getCalendar } from '../game/calendar';
 import { getRiverFords } from '../game/landNavigation';
+import { isSeaPoint } from '../game/coastGeometry';
 import { BUILDING_NAMES } from '../game/content';
 import { getGroundPiles, resourcePileLabel } from './mapResourceLayout';
 import { isVisibleAt, hasConcept } from './mapDrawing';
@@ -97,7 +98,7 @@ export function getVisibleWorldTargets(
     );
   }
   const night = getCalendar(state).isNight;
-  for (const ford of getRiverFords(state))
+  for (const ford of getRiverFords(state).filter((ford) => !isSeaPoint(state, ford)))
     add(
       'places',
       'Guado del fiume',

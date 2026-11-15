@@ -46,7 +46,8 @@ export function foreignFuelReserve(state: GameState, city: City) {
   if (!fire) return 0;
   const population = Object.values(city.cohorts).reduce((sum, count) => sum + count, 0);
   const cooking = Math.min(
-    city.resources.meat,
+    city.resources.meat +
+      (state.mapGeneration?.coastalRules === 1 ? (city.resources.fish ?? 0) : 0),
     (population * SEASON_LENGTH * 0.8) / RESOURCE_SPECS.cooked.nutrition,
   );
   return (BUILDING_SPECS.campfire.upkeep.wood ?? 0) + Math.ceil(cooking);

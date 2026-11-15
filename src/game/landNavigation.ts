@@ -2,6 +2,12 @@ import type { GameState } from './types';
 import { createRiverArtGeometry, sampleRiverArt } from './riverGeometry';
 import { getWorldSize } from './worldDimensions';
 import {
+  createCoastGeometry,
+  coastInlandDistance,
+  isCoastLandSegment,
+  type CoastGeometry,
+} from './coastGeometry';
+import {
   terrainPointAtEffort,
   terrainSegmentEffort,
   terrainTravelCost,
@@ -28,11 +34,14 @@ type Segment = { a: LandPoint; b: LandPoint };
 type Grid = { land: Uint8Array; checked: Uint8Array; edges: Uint8Array };
 type Model = {
   worldSize: number;
+  coast?: CoastGeometry;
   gridSide: number;
   nodeCount: number;
   buckets: Map<string, Segment[]>;
   fords: readonly RiverFord[];
   routes: Map<string, readonly LandPoint[] | null>;
+  /** Exact observations include attachment and effort-preserving smoothing. */
+  plannedRoutes: Map<string, readonly LandPoint[] | null>;
   /** Only the new biome rules change route effort; older maps keep metre costs. */
   terrain?: BiomeWorld;
   terrainCosts?: Float64Array;
@@ -66,6 +75,7 @@ function createModel(state: GameState): Model {
   const worldSize = getWorldSize(state);
   const gridSide = worldSize / GRID_STEP + 1;
   const geometry = createRiverArtGeometry(state);
+  const coast = createCoastGeometry(state);
   const buckets = new Map<string, Segment[]>();
   for (let index = 1; index < geometry.points.length; index++) {
     const a = geometry.points[index - 1],
@@ -98,6 +108,9 @@ function createModel(state: GameState): Model {
       const bankA = { x: center.x - dx * 10, y: center.y - dy * 10 };
       const bankB = { x: center.x + dx * 10, y: center.y + dy * 10 };
       if (
+        (coast &&
+          (coastInlandDistance(coast, bankA) <= 0.25 ||
+            coastInlandDistance(coast, bankB) <= 0.25)) ||
         !inside(bankA, worldSize) ||
         !inside(bankB, worldSize) ||
         center.x < 20 ||
@@ -124,11 +137,13 @@ function createModel(state: GameState): Model {
   }
   return {
     worldSize,
+    coast,
     gridSide,
     nodeCount: gridSide * gridSide,
     buckets,
     fords: Object.freeze(fords),
     routes: new Map(),
+    plannedRoutes: new Map(),
     ...(state.mapGeneration?.biomeRules === 1
       ? {
           // Biome helpers read only geography. Keep that immutable snapshot,
@@ -158,11 +173,12 @@ function modelFor(state: GameState) {
   const existing = stateModels.get(state);
   if (
     existing?.worldSize === getWorldSize(state) &&
-    Boolean(existing.terrain) === (state.mapGeneration?.biomeRules === 1)
+    Boolean(existing.terrain) === (state.mapGeneration?.biomeRules === 1) &&
+    Boolean(existing.coast) === (state.mapGeneration?.coastalRules === 1)
   )
     return existing;
   const generation = state.mapGeneration;
-  const key = `${getWorldSize(state)}:${generation?.mode}:${generation?.seed}:${generation?.landNavigation}:${generation?.biomeRules}:${state.sectors.map((sector) => `${sector.x},${sector.y}:${sector.biome}`).join('|')}`;
+  const key = `${getWorldSize(state)}:${generation?.mode}:${generation?.seed}:${generation?.landNavigation}:${generation?.biomeRules}:${generation?.coastalRules}:${state.sectors.map((sector) => `${sector.x},${sector.y}:${sector.biome}`).join('|')}`;
   let model = models.get(key);
   if (!model) {
     model = createModel(state);
@@ -195,7 +211,11 @@ function pointInRiver(model: Model, point: LandPoint) {
 }
 
 function pointOnLand(model: Model, point: LandPoint) {
-  if (!inside(point, model.worldSize)) return false;
+  if (
+    !inside(point, model.worldSize) ||
+    (model.coast && coastInlandDistance(model.coast, point) <= 0.25)
+  )
+    return false;
   return !pointInRiver(model, point) || model.fords.some((ford) => isInRiverFord(point, ford));
 }
 
@@ -208,7 +228,11 @@ export function isLandPoint(state: GameState, point: LandPoint) {
 /** A traversable ford is still water, so it cannot support a building or town. */
 export function isDryLandPoint(state: GameState, point: LandPoint) {
   if (!inside(point, getWorldSize(state))) return false;
-  return !navigationEnabled(state) || !pointInRiver(modelFor(state), point);
+  if (!navigationEnabled(state)) return true;
+  const model = modelFor(state);
+  return (
+    (!model.coast || coastInlandDistance(model.coast, point) > 0.25) && !pointInRiver(model, point)
+  );
 }
 
 type Interval = [number, number];
@@ -296,6 +320,7 @@ function crossedSegments(model: Model, a: LandPoint, b: LandPoint) {
 }
 function clearSegment(model: Model, a: LandPoint, b: LandPoint) {
   if (!pointOnLand(model, a) || !pointOnLand(model, b)) return false;
+  if (model.coast && !isCoastLandSegment(model.coast, a, b)) return false;
   const dx = b.x - a.x,
     dy = b.y - a.y;
   if (dx * dx + dy * dy <= EPSILON ** 2) return true;
@@ -429,6 +454,16 @@ function segmentEffort(model: Model, from: LandPoint, to: LandPoint) {
 function gridEdgeEffort(model: Model, x: number, y: number, dx: number, dy: number) {
   const length = GRID_STEP * (dx && dy ? Math.SQRT2 : 1);
   if (!model.terrain) return length;
+  if (model.coast) {
+    const from = { x: x * GRID_STEP, y: y * GRID_STEP },
+      to = { x: (x + dx) * GRID_STEP, y: (y + dy) * GRID_STEP },
+      middle = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+    // Only the narrow physical shore contour can cross a grid edge in its
+    // interior; retain its exact integral without taxing inland A* searches.
+    return coastInlandDistance(model.coast, middle) < 42
+      ? terrainSegmentEffort(model.terrain, from, to)
+      : length * terrainTravelCost(model.terrain, middle);
+  }
   // 4 m divides the 100 m sector width: a grid edge never crosses a biome
   // boundary in its interior. Its midpoint gives the exact interval cost.
   const side = model.worldSize / 100,
@@ -564,6 +599,26 @@ export function planLandRoute(
   if (!finitePoint(start) || !finitePoint(end)) return null;
   if (!navigationEnabled(state)) return distance(start, end) <= EPSILON ? [] : [{ ...end }];
   const model = modelFor(state);
+  const key = `${start.x},${start.y}:${end.x},${end.y}`;
+  const copyRoute = (route: readonly LandPoint[] | null) =>
+    route?.map((point) => ({ x: point.x, y: point.y })) ?? null;
+  if (model.plannedRoutes.has(key)) {
+    const route = model.plannedRoutes.get(key)!;
+    // Keep recurring city/source trips hot among short-lived moving targets.
+    model.plannedRoutes.delete(key);
+    model.plannedRoutes.set(key, route);
+    return copyRoute(route);
+  }
+  const route = computeLandRoute(state, model, start, end);
+  if (model.plannedRoutes.size >= 2048)
+    model.plannedRoutes.delete(model.plannedRoutes.keys().next().value!);
+  // These observations depend only on this model's immutable geography.
+  // Empty paths and failures are geographic too; callers receive fresh points.
+  model.plannedRoutes.set(key, copyRoute(route));
+  return copyRoute(route);
+}
+
+function computeLandRoute(state: GameState, model: Model, start: LandPoint, end: LandPoint) {
   if (!pointOnLand(model, start) || !pointOnLand(model, end)) return null;
   if (distance(start, end) <= EPSILON) return [];
   const direct = clearSegment(model, start, end);

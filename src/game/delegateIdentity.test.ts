@@ -3,11 +3,14 @@ import { emptyInventory, WORD_ORDER } from './content';
 import { createGame, dismissCampfire, issueCommand, tick } from './engine';
 import { allocateCityWorkers, cityPopulation } from './imperial';
 import { validSave } from './saveValidation';
+import { settleDelegateIdentity } from './delegateIdentity';
+import { refundPaidCooking } from './fishing';
+import { createBuilding, resetUnitWithState } from './simulation';
 import type { City, GameState } from './types';
 
 /** Prepared named residents isolate the mission's identity and cohort lifecycle. */
-function fixture(anonymousSages = 0) {
-  const state = createGame(6842);
+function fixture(anonymousSages = 0, coastal = false) {
+  const state = coastal ? createGame(6842, 'classic', 'random', 1000) : createGame(6842);
   Object.assign(state, {
     started: true,
     paused: false,
@@ -117,6 +120,41 @@ function advance(state: GameState, seconds: number) {
 }
 
 describe('named Sages and the same counted delegate', () => {
+  it('returns a paid fish portion once when its cook leaves as a delegate', () => {
+    let state = fixture(0, true);
+    createBuilding(state, 'campfire', 250, 250, 'capital');
+    state.resources.fish = 3;
+    const cookId = state.units.find((unit) => unit.caste === 'sage')!.id;
+    state = issueCommand(state, ['S_02', 'V_07', 'O_04', 'O_05'], undefined, cookId);
+    expect(state.stats.commands).toBe(1);
+    expect(state.resources.fish).toBe(2);
+    expect(state.units.find((unit) => unit.id === cookId)).toMatchObject({
+      action: 'cooking',
+      cookInput: 'fish',
+    });
+
+    state = send(state);
+    const caravan = state.caravans[0];
+    const person = state.units.find((unit) => unit.id === cookId)!;
+    expect(caravan.delegateUnitId).toBe(cookId);
+    expect(person.action).toBe('delegating');
+    expect(person.cookInput).toBeUndefined();
+    const portions = () =>
+      state.entities.filter((entity) => entity.kind === 'ground' && entity.resource === 'fish');
+    expect(portions()).toHaveLength(1);
+    expect(portions()[0]).toMatchObject({ x: 250, y: 250, amount: 1 });
+    expect(state.resources.fish).toBe(2);
+    expect(state.resources.cookedFish).toBe(0);
+    expect(state.resources.cooked).toBe(0);
+
+    caravan.returning = true;
+    settleDelegateIdentity(state, caravan, capital(state));
+    resetUnitWithState(state, person);
+    expect(refundPaidCooking(state, person)).toBe(false);
+    expect(portions()).toHaveLength(1);
+    expect(portions()[0].amount).toBe(1);
+  });
+
   it('departs a real resident, releases the actual source job and transfers only after travelling', () => {
     let state = fixture();
     const population = state.cities.reduce((sum, city) => sum + cityPopulation(city), 0);

@@ -1,6 +1,7 @@
 import type { GameState, Sector } from '../game/types';
 import { getWorldSectorCount, getWorldSize } from '../game/worldDimensions';
 import { createRiverArtGeometry, sampleRiverArt, traceRiverArt } from './mapRiverGeometry';
+import { paintCoastSand, paintCoastWater } from './mapCoastArt';
 
 type World = Pick<GameState, 'mapGeneration' | 'sectors' | 'home'>;
 type Point = { x: number; y: number };
@@ -63,6 +64,8 @@ function groundColors(sectors: Sector[], season: number, side: number): Color[] 
           river: [175, 195, 183],
           wetland: [160, 185, 171],
           dryland: [214, 207, 183],
+          coast: [217, 215, 190],
+          sea: [124, 163, 164],
         }
       : season === 2
         ? {
@@ -72,6 +75,8 @@ function groundColors(sectors: Sector[], season: number, side: number): Color[] 
             river: [128, 143, 105],
             wetland: [111, 139, 103],
             dryland: [183, 147, 99],
+            coast: [191, 175, 129],
+            sea: [96, 143, 147],
           }
         : season === 1
           ? {
@@ -81,6 +86,8 @@ function groundColors(sectors: Sector[], season: number, side: number): Color[] 
               river: [119, 145, 108],
               wetland: [103, 139, 109],
               dryland: [190, 161, 108],
+              coast: [207, 192, 146],
+              sea: [96, 143, 147],
             }
           : {
               forest: [87, 116, 86],
@@ -89,6 +96,8 @@ function groundColors(sectors: Sector[], season: number, side: number): Color[] 
               river: [109, 141, 119],
               wetland: [94, 134, 113],
               dryland: [178, 159, 113],
+              coast: [199, 189, 144],
+              sea: [96, 143, 147],
             };
   const cells: Color[] = Array.from({ length: side * side }, () => palette.plain);
   for (const sector of sectors) cells[sector.y * side + sector.x] = palette[sector.biome];
@@ -729,6 +738,18 @@ export function createPainterlyTerrain(
   paintPigment(ctx, originalSeed, projection.detail);
   paintSmallGrowth(ctx, originalSeed, season, home, projection, sectors);
   paintBiomeAccents(ctx, originalSeed, season, sectors, home, projection);
+  if (world) {
+    ctx.save();
+    ctx.scale(projection.sx, projection.sy);
+    paintCoastSand(ctx, world, season === 3);
+    ctx.restore();
+  }
   paintRiver(ctx, originalSeed, season, projection, world);
+  if (world) {
+    ctx.save();
+    ctx.scale(projection.sx, projection.sy);
+    paintCoastWater(ctx, world, season === 3);
+    ctx.restore();
+  }
   return canvas;
 }

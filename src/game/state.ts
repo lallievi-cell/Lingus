@@ -247,7 +247,12 @@ export function createInitialState(
       version: 1,
       ...(mapMode === 'random' ? { landNavigation: 1 as const } : {}),
       ...(size === REGION_WORLD_SIZE
-        ? { worldSize: REGION_WORLD_SIZE, regionalCultures: 1 as const, biomeRules: 1 as const }
+        ? {
+            worldSize: REGION_WORLD_SIZE,
+            regionalCultures: 1 as const,
+            biomeRules: 1 as const,
+            coastalRules: 1 as const,
+          }
         : {}),
     },
     seed: seed >>> 0,
@@ -337,7 +342,13 @@ export function createInitialState(
   if (mapMode === 'random') {
     Object.assign(
       state,
-      generateWorld(seed >>> 0, factions, size, state.mapGeneration?.biomeRules === 1),
+      generateWorld(
+        seed >>> 0,
+        factions,
+        size,
+        state.mapGeneration?.biomeRules === 1,
+        state.mapGeneration?.coastalRules === 1,
+      ),
     );
     if (size === REGION_WORLD_SIZE)
       state.revision = Math.max(state.revision, state.entities.length + 100);

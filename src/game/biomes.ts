@@ -1,4 +1,5 @@
 import type { GameState, Sector } from './types';
+import { createCoastGeometry, coastInlandDistance, coastSegmentCuts } from './coastGeometry';
 import { getWorldSectorCount, isWorldPoint, sectorIndex } from './worldDimensions';
 
 type Point = { x: number; y: number };
@@ -7,6 +8,18 @@ export const BIOME_PROFILES: Record<
   Sector['biome'],
   { label: string; description: string; farmYield: number; travelCost: number }
 > = {
+  coast: {
+    label: 'Costa',
+    description: 'Sabbia e vegetazione bassa lungo il mare.',
+    farmYield: 0.75,
+    travelCost: 1.1,
+  },
+  sea: {
+    label: 'Mare',
+    description: 'Acqua aperta: non attraversabile a piedi e non coltivabile.',
+    farmYield: 0,
+    travelCost: 1,
+  },
   plain: {
     label: 'Prateria',
     description: 'Terreno aperto con pascoli e vegetazione bassa.',
@@ -50,13 +63,20 @@ export const biomeEffectsEnabled = (state: BiomeWorld) => state.mapGeneration?.b
 const sectorMaps = new WeakMap<Sector[], Map<number, Sector>>();
 export function terrainBiomeAt(state: BiomeWorld, point: Point): Sector['biome'] | undefined {
   if (!isWorldPoint(state, point)) return undefined;
+  const coast = createCoastGeometry(state);
+  const inland = coast ? coastInlandDistance(coast, point) : Infinity;
+  if (inland <= 0.25) return 'sea';
+  if (inland < 35) return 'coast';
   let sectors = sectorMaps.get(state.sectors);
   const count = getWorldSectorCount(state);
   if (!sectors) {
     sectors = new Map(state.sectors.map((sector) => [sector.y * count + sector.x, sector]));
     sectorMaps.set(state.sectors, sectors);
   }
-  return sectors.get(sectorIndex(state, point.y) * count + sectorIndex(state, point.x))?.biome;
+  const biome = sectors.get(
+    sectorIndex(state, point.y) * count + sectorIndex(state, point.x),
+  )?.biome;
+  return coast && biome === 'sea' ? 'coast' : biome;
 }
 
 export function farmYieldMultiplier(state: BiomeWorld, point: Point) {
@@ -70,7 +90,7 @@ export function terrainTravelCost(state: BiomeWorld, point: Point) {
 }
 
 /** Exact piecewise-constant integration: each interval lies in one 100 m sector. */
-function segmentIntervals(a: Point, b: Point) {
+function segmentIntervals(a: Point, b: Point, state?: BiomeWorld) {
   const cuts = [0, 1];
   for (const axis of ['x', 'y'] as const) {
     const delta = b[axis] - a[axis];
@@ -80,13 +100,15 @@ function segmentIntervals(a: Point, b: Point) {
     for (let boundary = (Math.floor(low / 100) + 1) * 100; boundary < high; boundary += 100)
       cuts.push((boundary - a[axis]) / delta);
   }
+  const coast = state && createCoastGeometry(state);
+  if (coast) cuts.push(...coastSegmentCuts(coast, a, b), ...coastSegmentCuts(coast, a, b, 35));
   return cuts.sort((left, right) => left - right);
 }
 
 export function terrainSegmentEffort(state: BiomeWorld, a: Point, b: Point) {
   const length = Math.hypot(b.x - a.x, b.y - a.y);
   if (!biomeEffectsEnabled(state) || !length) return length;
-  const cuts = segmentIntervals(a, b);
+  const cuts = segmentIntervals(a, b, state);
   let effort = 0;
   for (let index = 1; index < cuts.length; index++) {
     const middle = (cuts[index - 1] + cuts[index]) / 2;
@@ -106,7 +128,7 @@ export function terrainPointAtEffort(state: BiomeWorld, a: Point, b: Point, budg
   const length = Math.hypot(b.x - a.x, b.y - a.y);
   if (!length) return { ...b };
   let remaining = Math.max(0, budget);
-  const cuts = biomeEffectsEnabled(state) ? segmentIntervals(a, b) : [0, 1];
+  const cuts = biomeEffectsEnabled(state) ? segmentIntervals(a, b, state) : [0, 1];
   for (let index = 1; index < cuts.length; index++) {
     const start = cuts[index - 1],
       end = cuts[index],

@@ -2,6 +2,7 @@ import { RESOURCE_ORDER, RESOURCE_SPECS } from '../game/content';
 import { groundPileLocation, sameGroundPile } from '../game/groundPiles';
 import type { GameState, MapEntity, Resource } from '../game/types';
 import { getWorldSize } from '../game/worldDimensions';
+import { isSeaPoint } from '../game/coastGeometry';
 
 export interface GroundPile {
   entity: MapEntity;
@@ -70,6 +71,11 @@ export function getGroundPiles(s: GameState): GroundPile[] {
           Math.min(getWorldSize(s) - 1, pile.x + column * (5 + Math.floor(i / 4) * 5)),
         );
         pile.y = Math.max(1, Math.min(getWorldSize(s) - 1, pile.y + 4 + Math.floor(i / 2) * 6));
+        // Presentation offsets may spread piles along a shore, never into the sea.
+        if (isSeaPoint(s, pile)) {
+          pile.x = pile.entity.x;
+          pile.y = pile.entity.y;
+        }
       }
       piles.push(pile);
     }

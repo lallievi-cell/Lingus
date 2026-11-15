@@ -36,3 +36,11 @@ Gli effetti si leggono nel dettaglio **Terreno** della selezione esistente, senz
 2. **Adattamento ambientale:** valutare riparo naturale e specializzazioni climatiche attraverso playtest più lunghi; la 0.7.0 non modifica le formule termiche.
 
 Nuove possibilità e specializzazioni dovranno seguire esperienze, parole e trasmissione del sapere. Le prime stagioni devono continuare a offrire tempo per capire e assegnare il lavoro. Le scene preparate e le prove di carico restano distinte dalle campagne ordinarie.
+
+## Quinto traguardo: coste e pesca dalla riva
+
+La [0.8.0](RELEASE-080.md) introduce coste e mare fisici nelle nuove regioni Casuali, con geometria derivata dal seed originale. I percorsi a piedi aggirano le baie e non attraversano il mare, neppure in corrispondenza di un guado fluviale. Le postazioni di pesca restano sulla riva asciutta.
+
+La pesca consuma riserve finite e lavoro; il pescato entra nelle scorte soltanto dopo il trasporto. Pesce crudo e cotto sono risorse distinte dalla carne, con cottura pagata e restituzione fisica dell’input interrotto. Le culture autonome condividono i costi. I mondi senza `coastalRules: 1` conservano le proprie regole.
+
+Approdi, imbarcazioni, isole e collegamenti marittimi restano fasi successive.

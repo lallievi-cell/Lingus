@@ -58,10 +58,24 @@ function gatheringStage(state: GameState, unit: Unit, source: MapEntity) {
   const position = resolveInteractionPosition(state, unit, source, {
     kind,
     key: `${kind}:${source.id}`,
+    maxRadius: source.kind === 'fishery' ? 2 : undefined,
   });
   const workplace =
     state.mapGeneration?.landNavigation === 1 && !isLandPoint(state, position) ? source : position;
   const approaching = distance(unit, workplace) > 0.05;
+  if (source.kind === 'fishery')
+    return {
+      title: !hasWord(state, 'O_04')
+        ? 'Lavora sulla riva'
+        : approaching || unit.progress <= 0
+          ? 'Va a pescare'
+          : 'Pesca dalla riva',
+      detail: approaching
+        ? 'Raggiunge il punto di pesca sulla terraferma prima di lavorare.'
+        : hasWord(state, 'O_04')
+          ? 'Pesca dalla riva. La riserva diminuisce soltanto alla cattura; le scorte aumentano quando il carico viene consegnato.'
+          : 'Lavora sulla riva. Le scorte aumentano soltanto alla consegna del carico.',
+    };
   return {
     title: approaching
       ? `Va a ${extraction ? 'estrarre' : 'raccogliere'} ${resource}`
@@ -165,9 +179,24 @@ export function getUnitWorkStatus(state: GameState, unit: Unit): WorkStatus {
   if (unit.action === 'returning') {
     const cargo =
       unit.carry && unit.carry.amount > 0 ? observedResource(state, unit.carry.resource) : null;
+    const seafood = unit.carry && ['fish', 'cookedFish'].includes(unit.carry.resource);
+    const returnPlace = seafood
+      ? resolveInteractionPosition(state, unit, state.home, {
+          kind: 'return',
+          key: `return:${state.home.x.toFixed(3)}:${state.home.y.toFixed(3)}`,
+        })
+      : undefined;
+    const delivering =
+      returnPlace &&
+      distance(
+        unit,
+        state.mapGeneration?.landNavigation === 1 && !isLandPoint(state, returnPlace)
+          ? state.home
+          : returnPlace,
+      ) <= 0.05;
     return result(
       'working',
-      cargo ? `Porta ${cargo} al campo` : 'Torna al campo',
+      cargo ? (delivering ? `Consegna ${cargo}` : `Porta ${cargo} al campo`) : 'Torna al campo',
       cargo
         ? `Carico in viaggio: ${cargo}. Entrerà nelle scorte alla consegna.`
         : 'Sta completando il ritorno al campo.',
@@ -246,10 +275,24 @@ export function getUnitWorkStatus(state: GameState, unit: Unit): WorkStatus {
       'working',
       cooking ? 'Prepara il prossimo pasto' : 'Prepara il prossimo manufatto',
       cooking
-        ? 'Per continuare servono carne, un Falò acceso e spazio nelle scorte.'
+        ? state.mapGeneration?.coastalRules === 1
+          ? 'Per continuare servono carne o pesce catturato, un Falò acceso e spazio nelle scorte.'
+          : 'Per continuare servono carne, un Falò acceso e spazio nelle scorte.'
         : 'Per continuare servono altra pietra utilizzabile e spazio nelle scorte.',
     );
   }
+  if (unit.action === 'cooking' && unit.cookInput === 'fish')
+    return result(
+      'working',
+      hasWord(state, 'O_04')
+        ? unit.progress > 0
+          ? 'Cuoce pesce'
+          : 'Porta il pesce al fuoco'
+        : 'Prepara un pasto',
+      hasWord(state, 'O_04')
+        ? 'La porzione cruda è già stata prelevata. La cottura produce pesce cotto; un’interruzione restituisce la porzione ancora da cuocere.'
+        : 'La porzione cruda è già stata prelevata. Un’interruzione restituisce la porzione ancora da cuocere.',
+    );
   const guardingHome =
     unit.action === 'guarding' && unit.command?.includes('O_01') && !unit.command.includes('O_05');
   return result(

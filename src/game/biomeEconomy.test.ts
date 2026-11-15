@@ -9,6 +9,9 @@ import type { Building, BuildingKind, City, GameState, Sector } from './types';
  * They are not evidence of an ordinary campaign's progression. */
 function district(biome: Sector['biome'], enabled = true) {
   const state = createGame(42, 'classic', 'random', 1000);
+  // These controlled terrestrial districts replace the generated geography,
+  // including a town at (50, 50), independently of the coastal rules.
+  delete state.mapGeneration!.coastalRules;
   Object.assign(state, {
     started: true,
     time: 180,

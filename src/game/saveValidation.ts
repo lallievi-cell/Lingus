@@ -1,5 +1,6 @@
 import { BUILDING_SPECS, INNATE_WORDS, RESOURCE_ORDER, WORDS } from './content';
 import type { GameState } from './types';
+import { isDryLandPoint } from './landNavigation';
 import { TRIBE_EVENT_LIMIT } from './demography';
 import { validLearnedRecipe } from './knowledgeRecovery';
 import { seasonLength } from './calendar';
@@ -144,6 +145,17 @@ function validatorFor(worldSize: 500 | 1000) {
     optional(v.pendingCombatDamage, flag) &&
     optional(v.lastCombatSource, combatSource) &&
     optional(v.craftNeedsPayment, flag) &&
+    optional(
+      v.cookInput,
+      (input) =>
+        input === 'fish' &&
+        v.action === 'cooking' &&
+        (v.hp as number) > 0 &&
+        Array.isArray(v.command) &&
+        v.command.includes('V_07') &&
+        !v.command.includes('O_02') &&
+        v.craftNeedsPayment !== true,
+    ) &&
     optional(
       v.workOrigin,
       (origin) => point(origin) && record(origin) && optional(origin.groundOnly, flag),
@@ -313,6 +325,16 @@ function validatorFor(worldSize: 500 | 1000) {
               value.worldSize === 1000 &&
               value.landNavigation === 1 &&
               value.regionalCultures === 1,
+          ) &&
+          optional(
+            value.coastalRules,
+            (version) =>
+              version === 1 &&
+              value.mode === 'random' &&
+              value.worldSize === 1000 &&
+              value.landNavigation === 1 &&
+              value.regionalCultures === 1 &&
+              value.biomeRules === 1,
           ),
       )
     )
@@ -415,6 +437,11 @@ function validatorFor(worldSize: 500 | 1000) {
     )
       return false;
     if (
+      (!record(s.mapGeneration) || s.mapGeneration.coastalRules !== 1) &&
+      (s.units as RecordValue[]).some((person) => person.cookInput !== undefined)
+    )
+      return false;
+    if (
       (s.units as RecordValue[]).some(
         (person) =>
           record(person.lastTaskResult) &&
@@ -461,6 +488,7 @@ function validatorFor(worldSize: 500 | 1000) {
           number(v.hp) &&
           number(v.maxHp) &&
           [
+            'fishery',
             'berries',
             'tree',
             'stone',
@@ -473,6 +501,12 @@ function validatorFor(worldSize: 500 | 1000) {
             'seedling',
             'ground',
           ].includes(v.kind as string) &&
+          (v.kind !== 'fishery' ||
+            (record(s.mapGeneration) &&
+              s.mapGeneration.coastalRules === 1 &&
+              optional(v.resource, (resource) => resource === 'fish') &&
+              number(v.maxAmount, 0) &&
+              (v.amount as number) <= (v.maxAmount as number))) &&
           (v.kind !== 'ground' ||
             RESOURCE_ORDER.includes(v.resource as (typeof RESOURCE_ORDER)[number])),
       )
@@ -655,12 +689,23 @@ function validatorFor(worldSize: 500 | 1000) {
           (['forest', 'plain', 'mountain', 'river'].includes(v.biome as string) ||
             (record(s.mapGeneration) &&
               s.mapGeneration.biomeRules === 1 &&
-              ['wetland', 'dryland'].includes(v.biome as string))),
+              ['wetland', 'dryland'].includes(v.biome as string)) ||
+            (record(s.mapGeneration) &&
+              s.mapGeneration.coastalRules === 1 &&
+              ['coast', 'sea'].includes(v.biome as string))),
       ) ||
       (s.sectors as unknown[]).length !== sectorCount * sectorCount ||
       new Set((s.sectors as RecordValue[]).map((sector) => `${sector.x},${sector.y}`)).size !==
         sectorCount * sectorCount ||
       !list(s.explored, point)
+    )
+      return false;
+    if (
+      (s.entities as RecordValue[]).some(
+        (entity) =>
+          entity.kind === 'fishery' &&
+          !isDryLandPoint(s as unknown as GameState, entity as unknown as { x: number; y: number }),
+      )
     )
       return false;
     if (

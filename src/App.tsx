@@ -357,7 +357,13 @@ function App() {
         set.add('V_03');
         set.add('O_04');
         set.add('M_01');
-      } else if (ent.kind === 'corpse' || ent.resource === 'meat') {
+      } else if (ent.kind === 'fishery') {
+        set.add('V_04');
+        set.add('O_04');
+      } else if (
+        ent.kind === 'corpse' ||
+        ['meat', 'fish', 'cookedFish'].includes(ent.resource ?? '')
+      ) {
         set.add('V_02');
         set.add('V_04');
         set.add('O_06');
@@ -1383,7 +1389,13 @@ function App() {
                 <AppleIcon />
                 <small>Cibo</small>
                 <span className="stock-value">
-                  {stockQuantity(game.resources.food + game.resources.meat + game.resources.cooked)}
+                  {stockQuantity(
+                    game.resources.food +
+                      game.resources.meat +
+                      game.resources.cooked +
+                      (game.resources.fish ?? 0) +
+                      (game.resources.cookedFish ?? 0),
+                  )}
                 </span>
               </span>
               <span title="Legno disponibile" className="stock-summary">
@@ -2461,8 +2473,8 @@ function App() {
                 : undefined
             }
             onChange={setGame}
-            onUse={(words) => {
-              preparePhrase(words);
+            onUse={(words, suggestedTarget) => {
+              preparePhrase(words, suggestedTarget);
               sentenceSlotsRef.current?.focus({ preventScroll: true });
             }}
             onClose={closePhrasebook}

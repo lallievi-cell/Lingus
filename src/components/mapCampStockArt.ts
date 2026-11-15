@@ -1,5 +1,6 @@
 import type { CampStockSlot } from './campInventory';
 import type { Resource } from '../game/types';
+import { drawFishSprite } from './mapCoastArt';
 
 type Point = [number, number];
 
@@ -298,6 +299,11 @@ function leafTray(
       oval(ctx, bx, by, 3.9, 3.2, '#914f4e');
       oval(ctx, bx - 0.8, by - 1, 1.2, 0.9, '#cf8b71');
     }
+  } else if (kind === 'fish' || kind === 'cookedFish') {
+    ctx.save();
+    ctx.scale(0.61, 0.61);
+    drawFishSprite(ctx, kind === 'cookedFish');
+    ctx.restore();
   } else if (kind === 'seed') {
     oval(ctx, 0, -2, 9, 5, '#bfa463');
     for (let i = 0; i < 9; i++)
@@ -357,22 +363,37 @@ function food(ctx: CanvasRenderingContext2D, slot: CampStockSlot) {
   const resources = slot.resources;
   mat(ctx, 34, 15);
   const positions: Point[] =
-    resources.length === 1
-      ? [[0, 0]]
-      : resources.length === 2
-        ? [
-            [-16, 0],
-            [15, 1],
-          ]
-        : [
-            [-17, -5],
-            [16, -6],
-            [-14, 9],
-            [17, 8],
-          ];
+    resources.length > 4
+      ? [
+          [-22, -7],
+          [0, -7],
+          [22, -7],
+          [-22, 9],
+          [0, 9],
+          [22, 9],
+        ]
+      : resources.length === 1
+        ? [[0, 0]]
+        : resources.length === 2
+          ? [
+              [-16, 0],
+              [15, 1],
+            ]
+          : [
+              [-17, -5],
+              [16, -6],
+              [-14, 9],
+              [17, 8],
+            ];
   resources.forEach((resource, i) => {
     const point = positions[i % positions.length];
-    leafTray(ctx, point[0], point[1], resource, slot.level);
+    if (resources.length > 4) {
+      ctx.save();
+      ctx.translate(point[0], point[1]);
+      ctx.scale(0.72, 0.72);
+      leafTray(ctx, 0, 0, resource, slot.level);
+      ctx.restore();
+    } else leafTray(ctx, point[0], point[1], resource, slot.level);
   });
 }
 

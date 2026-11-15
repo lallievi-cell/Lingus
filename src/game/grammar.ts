@@ -177,6 +177,16 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
   const a = p.args;
   const construction = resolveConstruction(tokens);
   const entity = target?.type === 'entity' ? s.entities.find((e) => e.id === target.id) : undefined;
+  if (entity?.kind === 'fishery') {
+    if (s.mapGeneration?.coastalRules !== 1)
+      return no('Questo mondo non prevede la pesca costiera.');
+    if (['V_02', 'V_03', 'V_10'].includes(p.verb))
+      return no(
+        'Il banco va pescato con Portare e Preda; il pesce catturato si può mangiare o cuocere.',
+      );
+    if (p.verb === 'V_04' && !a.includes('O_04'))
+      return no('Per pescare, usa Portare con Preda e scegli il punto sulla riva.');
+  }
   if (p.verb === 'V_01') {
     if (!allArgs(a, ['O_01', 'M_01', 'O_10', 'S_05', 'S_08']))
       return no('Per andare, scegli un luogo, un confine, un pericolo o uno straniero.');
@@ -322,7 +332,9 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
     return out(
       a.includes('O_02')
         ? 'Cuocere ceramica: il cibo marcisce più lentamente.'
-        : 'Cuocere la carne: il nutrimento passa da 40 a 60 per porzione.',
+        : s.mapGeneration?.coastalRules === 1
+          ? 'Cuocere carne o pesce catturato: il nutrimento passa da 40 a 60 per porzione.'
+          : 'Cuocere la carne: il nutrimento passa da 40 a 60 per porzione.',
       'cooking',
     );
   }

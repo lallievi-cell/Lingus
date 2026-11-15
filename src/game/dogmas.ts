@@ -6,6 +6,8 @@ import {
   secondsForEffectiveDuration,
 } from './calendar';
 import { dogmaWeight } from './math';
+import { refundPaidCooking } from './fishing';
+import { dropCarriedLoad } from './simulation';
 import {
   DOGMA_TARGETS,
   DOGMA_VECTOR_TOKENS,
@@ -92,7 +94,7 @@ function inferredTarget(s: GameState, ctx: DogmaContext): string | undefined {
             ? 'O_06'
             : e.resource
               ? resourceToken(e.resource)
-              : ['berries', 'deer', 'wolf', 'alpha', 'mammoth'].includes(e.kind)
+              : ['berries', 'deer', 'wolf', 'alpha', 'mammoth', 'fishery'].includes(e.kind)
                 ? 'O_04'
                 : undefined;
   return undefined;
@@ -822,6 +824,8 @@ export function updateDogmas(s: GameState, dt: number) {
 }
 /** A condensed city still counts the person represented by each living unit. */
 function immolate(s: GameState, victim: Unit) {
+  refundPaidCooking(s, victim);
+  if (s.mapGeneration?.coastalRules === 1) dropCarriedLoad(s, victim);
   const city = s.cities.find((c) => c.id === victim.cityId);
   if (city) {
     const cohort =
@@ -889,9 +893,9 @@ export function updateDogmasSeason(s: GameState) {
         const r = resourceFor(d.targetId);
         if (d.targetId === 'O_04' && totalFood(s.resources) >= 10) {
           let remaining = 10;
-          for (const food of ['meat', 'food', 'cooked'] as const) {
-            const consumed = Math.min(remaining, s.resources[food]);
-            s.resources[food] -= consumed;
+          for (const food of ['meat', 'food', 'cooked', 'fish', 'cookedFish'] as const) {
+            const consumed = Math.min(remaining, s.resources[food] ?? 0);
+            if (consumed > 0) s.resources[food] -= consumed;
             remaining -= consumed;
           }
           s.cohesion = clamp(s.cohesion + 15);

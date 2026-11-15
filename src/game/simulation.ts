@@ -52,6 +52,15 @@ import { imperialLawEffects, recordLawWork } from './imperialLawPolicy';
 import { enforceActionLaws } from './imperial';
 import { farmYieldMultiplier } from './biomes';
 import { canFitCraftOutput, canPayLocally, payLocally } from './craftMaterials';
+import {
+  chooseCookingInput,
+  payCookingInput,
+  fishingEnabled,
+  fishingCapacity,
+  FISHING_SECONDS,
+  refundPaidCooking,
+  cookingPaymentCost,
+} from './fishing';
 import { applyCivilAssault, CIVIL_LAW_ASSUMPTIONS, updateCivilConflicts } from './civilLaw';
 import { newbornName, pairFertileUnits, recordTribeEvent, resolveUnitSex } from './demography';
 import { combatEquipmentFor, gatheringEquipmentFor } from './unitEquipment';
@@ -417,6 +426,8 @@ function detachForeignResident(s: GameState, unit: Unit) {
 }
 export function killUnit(s: GameState, u: Unit, cause = 'trauma') {
   if (u.hp <= 0 && u.action === 'dead') return;
+  refundPaidCooking(s, u);
+  if (fishingEnabled(s)) dropCarriedLoad(s, u);
   const own = u.factionId === undefined || u.factionId === 'player',
     wordIds = Object.entries(s.words)
       .filter(
@@ -512,6 +523,10 @@ export function killUnit(s: GameState, u: Unit, cause = 'trauma') {
     'danger',
   );
 }
+export function resetUnitWithState(s: GameState, u: Unit) {
+  refundPaidCooking(s, u);
+  resetUnit(u);
+}
 export function resetUnit(u: Unit) {
   u.action = 'idle';
   u.targetId = undefined;
@@ -524,16 +539,17 @@ export function resetUnit(u: Unit) {
   u.paidConstruction = undefined;
   u.buildingKind = undefined;
   u.craftNeedsPayment = undefined;
+  u.cookInput = undefined;
   u.workOrigin = undefined;
 }
-function resetKeepingJob(u: Unit) {
+function resetKeepingJob(u: Unit, s: GameState) {
   const job = u.suspendedJob;
-  resetUnit(u);
+  resetUnitWithState(s, u);
   u.suspendedJob = job;
 }
-function resetInstinct(u: Unit) {
-  if (!u.command && u.suspendedJob) resetKeepingJob(u);
-  else resetUnit(u);
+function resetInstinct(u: Unit, s: GameState) {
+  if (!u.command && u.suspendedJob) resetKeepingJob(u, s);
+  else resetUnitWithState(s, u);
 }
 function move(s: GameState, u: Unit, x: number, y: number, dt: number, speed = 4) {
   const effects = getDogmaEffects(s, { unit: u, tokens: u.command }),
@@ -581,6 +597,7 @@ function closest<T extends { x: number; y: number }>(items: T[], p: { x: number;
   );
 }
 export function entityResource(e: MapEntity): Resource {
+  if (e.kind === 'fishery') return 'fish';
   return (
     e.resource ??
     (e.kind === 'tree'
@@ -603,7 +620,8 @@ function edibleEntities(s: GameState, u: Unit) {
         (e.resource === 'food' && e.kind === 'ground') ||
         (!vegetarian &&
           ((['deer', 'wolf', 'alpha', 'mammoth'].includes(e.kind) && e.hp <= 0) ||
-            (e.kind === 'ground' && ['meat', 'cooked'].includes(e.resource ?? ''))))),
+            (e.kind === 'ground' &&
+              ['meat', 'cooked', 'fish', 'cookedFish'].includes(e.resource ?? ''))))),
   );
 }
 function inventoryAt(s: GameState, u: Unit): Inventory {
@@ -669,11 +687,12 @@ export function consume(s: GameState, u: Unit, e?: MapEntity) {
   const inv = inventoryAt(s, u);
   let resource: Resource | undefined, source: Inventory | undefined;
   if (e) {
+    if (e.kind === 'fishery') return false;
     if ((e.kind === 'berries' && seasonOf(s).index === 3) || e.amount <= 0) return false;
     resource = entityResource(e);
     if (effects.vegetarian && resource !== 'food') return false;
   } else if (nearInventory(s, u)) {
-    resource = (['cooked', 'meat', 'food'] as Resource[]).find(
+    resource = (['cooked', 'cookedFish', 'meat', 'fish', 'food'] as Resource[]).find(
       (r) => inv[r] > 0 && (!effects.vegetarian || r === 'food'),
     );
     source = inv;
@@ -714,11 +733,7 @@ export function consume(s: GameState, u: Unit, e?: MapEntity) {
   if (
     forbiddenByDogma(
       s,
-      [
-        'S_01',
-        'V_02',
-        resource === 'food' || resource === 'meat' || resource === 'cooked' ? 'O_04' : 'O_06',
-      ],
+      ['S_01', 'V_02', RESOURCE_SPECS[resource].category === 'food' ? 'O_04' : 'O_06'],
       e ? { type: 'entity', id: e.id, x: e.x, y: e.y } : undefined,
       u,
     )
@@ -735,19 +750,25 @@ export function consume(s: GameState, u: Unit, e?: MapEntity) {
   else source![resource] -= amount;
   u.lastEventAt ??= {};
   u.lastEventAt.MEAL = s.time;
-  if (resource === 'meat' && random(s) < 0.1) {
+  if ((resource === 'meat' || resource === 'fish') && random(s) < 0.1) {
     u.hp -= 15 * (u.caste === 'slave' ? imperialLawEffects(s).slaveMortalityMultiplier : 1);
     u.parasiteUntil = s.time + 45;
-    log(s, `${u.name} si ammala dopo un pasto di carne cruda.`, 'warning');
+    log(
+      s,
+      `${u.name} si ammala dopo un pasto di ${resource === 'fish' ? 'pesce crudo' : 'carne cruda'}.`,
+      'warning',
+    );
     if (u.hp <= 0) {
       if (u.factionId === undefined || u.factionId === 'player') killUnit(s, u, 'STAT_PARASITES');
       else {
+        refundPaidCooking(s, u);
+        if (fishingEnabled(s)) dropCarriedLoad(s, u);
         detachForeignResident(s, u);
         u.hp = 0;
         u.action = 'dead';
         u.lastDamageCause = 'STAT_PARASITES';
         u.deathAt = s.time;
-        log(s, 'Un visitatore straniero muore dopo un pasto di carne cruda.', 'warning');
+        log(s, 'Un visitatore straniero muore dopo un pasto di cibo animale crudo.', 'warning');
       }
       return true;
     }
@@ -777,6 +798,8 @@ export function matchingEntities(s: GameState, tokens: string[], u?: Unit) {
         ? (['deer', 'wolf', 'alpha', 'mammoth'] as const)
         : (['berries', 'deer', 'wolf', 'alpha', 'mammoth'] as const)),
     );
+  if (tokens.includes('V_04') && tokens.includes('O_04') && fishingEnabled(s))
+    kinds.push('fishery');
   if (tokens.includes('O_06')) kinds.push('corpse');
   const resources: Resource[] = tokens.includes('O_02')
     ? ['stone']
@@ -785,7 +808,7 @@ export function matchingEntities(s: GameState, tokens: string[], u?: Unit) {
       : tokens.includes('O_07')
         ? ['ore']
         : tokens.includes('O_04')
-          ? ['food', 'meat', 'cooked']
+          ? ['food', 'meat', 'cooked', 'fish', 'cookedFish']
           : [];
   return s.entities.filter(
     (e) =>
@@ -925,7 +948,7 @@ function finishConstruction(s: GameState, u: Unit) {
       }
     }
   }
-  resetUnit(u);
+  resetUnitWithState(s, u);
   for (const b of completed) {
     const spec = BUILDING_SPECS[b.kind];
     if (spec.workers === 0 || b.cityId) continue;
@@ -996,7 +1019,7 @@ function pauseBuildingJob(s: GameState, u: Unit) {
   if (!b) return;
   const command = [...(u.command ?? [])];
   b.workerIds = (b.workerIds ?? []).filter((id) => id !== u.id);
-  resetUnit(u);
+  resetUnitWithState(s, u);
   u.suspendedJob = { buildingId: b.id, command };
 }
 function continuousFireGuard(b: Building | undefined, command: string[] = []) {
@@ -1178,8 +1201,12 @@ export function guidedRepeatTransport(s: GameState, tokens: string[]) {
 /** A two-slot order binds the physical kind that the player actually selected.
  * It needs no unsaid word and never turns a berry task into scavenging meat. */
 function guidedTransportSources(s: GameState, u: Unit, tokens: string[], source?: MapEntity) {
-  if (tokens.some((id) => ['O_02', 'O_03', 'O_07', 'O_04', 'O_05', 'O_06'].includes(id)))
-    return matchingEntities(s, tokens, u);
+  if (tokens.some((id) => ['O_02', 'O_03', 'O_07', 'O_04', 'O_05', 'O_06'].includes(id))) {
+    const matches = matchingEntities(s, tokens, u);
+    return source?.kind === 'fishery'
+      ? matches.filter((entry) => entry.kind === 'fishery')
+      : matches;
+  }
   if (!source) return [];
   return s.entities.filter(
     (entry) =>
@@ -1231,6 +1258,13 @@ export function processWork(s: GameState, u: Unit, dt: number) {
   const tokens = u.command ?? [],
     verb = tokens.find((t) => WORDS[t]?.kind === 'V');
   if (
+    e?.kind === 'fishery' &&
+    (!fishingEnabled(s) || verb !== 'V_04' || !tokens.includes('O_04'))
+  ) {
+    resetUnitWithState(s, u);
+    return;
+  }
+  if (
     u.action === 'gathering' &&
     guidedRepeatTransport(s, tokens) &&
     (!e || e.amount <= resourcePreservationFloor(s, e))
@@ -1271,7 +1305,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       !e ||
       !enforceActionLaws(s, tokens, { type: 'entity', id: e.id, x: e.x, y: e.y }, [u.id])
     ) {
-      if (u.hp > 0) resetUnit(u);
+      if (u.hp > 0) resetUnitWithState(s, u);
       return;
     }
   }
@@ -1294,13 +1328,13 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     moveToInteraction(s, u, citizen, 'hunt', dt, 4, 1.4);
     if (!workCycle(s, u, dt, 1)) return;
     civilStrike(s, u, citizen);
-    if (citizen.hp <= 0 && u.hp > 0) resetUnit(u);
+    if (citizen.hp <= 0 && u.hp > 0) resetUnitWithState(s, u);
     return;
   }
   if (foreign && verb === 'V_03') {
     u.action = 'combat';
     if (protectedByDogma(s, 'S_05', foreign)) {
-      resetUnit(u);
+      resetUnitWithState(s, u);
       return;
     }
     if (distance(u, foreign) > 1.5) {
@@ -1351,7 +1385,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
         `${foreign.name} viene catturato. La tribù si confronta con una nuova forma di potere.`,
         'warning',
       );
-      resetUnit(u);
+      resetUnitWithState(s, u);
       return;
     }
     foreign.hp -= damage;
@@ -1360,7 +1394,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       foreign.hp = 0;
       foreign.action = 'dead';
       log(s, 'Un combattente straniero è caduto.', 'warning');
-      resetUnit(u);
+      resetUnitWithState(s, u);
       return;
     }
     if (!fx.protected) {
@@ -1387,7 +1421,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
           u.action === 'fleeing' ? 4.8 : 4,
           homeward && getDogmaEffects(s, { unit: u }).nightTaboo ? 3.5 : undefined,
         );
-    if (arrived) resetInstinct(u);
+    if (arrived) resetInstinct(u, s);
     return;
   }
   if (u.action === 'returning') {
@@ -1406,7 +1440,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
         if (
           hasOpeningBalance(s) &&
           hasWord(s, 'C_01') &&
-          ['food', 'cooked', 'meat'].includes(carried.resource)
+          ['food', 'cooked', 'meat', 'fish', 'cookedFish'].includes(carried.resource)
         )
           recordEvent(s, u, 'ENV_FOOD_RESERVE', 100, ['M_02']);
         if (tokens.includes('S_02')) {
@@ -1454,7 +1488,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
         target: { type: 'entity', id: e.id, x: e.x, y: e.y },
         suspended: false,
       };
-      resetUnit(u);
+      resetUnitWithState(s, u);
       return;
     }
     if (
@@ -1463,7 +1497,9 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       guidedDirectTask(s, u, tokens) &&
       e &&
       e.amount > resourcePreservationFloor(s, e) &&
-      ['wood', 'stone', 'ore', 'food', 'meat', 'cooked'].includes(entityResource(e)) &&
+      ['wood', 'stone', 'ore', 'food', 'meat', 'cooked', 'fish', 'cookedFish'].includes(
+        entityResource(e),
+      ) &&
       freeCapacity(s, entityResource(e)) > 0 &&
       guidedTransportSources(s, u, tokens, e).includes(e) &&
       !forbiddenByDogma(s, tokens, { type: 'entity', id: e.id, x: e.x, y: e.y }, u) &&
@@ -1473,7 +1509,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       u.progress = 0;
       u.tx = e.x;
       u.ty = e.y;
-    } else if (u.hp > 0) resetUnit(u);
+    } else if (u.hp > 0) resetUnitWithState(s, u);
     return;
   }
   if (u.action === 'building') {
@@ -1484,30 +1520,41 @@ export function processWork(s: GameState, u: Unit, dt: number) {
   if (u.action === 'crafting' || u.action === 'cooking') {
     const foodCook = plainFoodCook(tokens);
     const repeatable = plainToolCraft(tokens) || foodCook;
-    const cycleCost: Partial<Inventory> = foodCook ? { meat: 1 } : { stone: 1 };
-    const cycleOutput: Resource = foodCook ? 'cooked' : 'tool';
+    const nextCook =
+      foodCook && u.craftNeedsPayment
+        ? chooseCookingInput(s, [u], e ? { type: 'entity', id: e.id, x: e.x, y: e.y } : undefined)
+        : undefined;
+    const fishCook = nextCook ? nextCook.input === 'fish' : u.cookInput === 'fish';
+    const cycleCost: Partial<Inventory> = foodCook
+      ? fishCook
+        ? { fish: 1 }
+        : { meat: 1 }
+      : { stone: 1 };
+    const cycleOutput: Resource = foodCook ? (fishCook ? 'cookedFish' : 'cooked') : 'tool';
     // A fire going out cannot finish a new meal. Keep the already paid,
     // unheated portion physically beside the cook, once, rather than losing it
     // or leaving an invisible work reservation. This also applies to pottery
     // and Classic's single paid cycle; only Guided's food task repeats.
     if (verb === 'V_07' && !hasBuilding(s, 'campfire')) {
-      if (!u.craftNeedsPayment) drop(s, u, tokens.includes('O_02') ? 'stone' : 'meat', 1);
-      resetUnit(u);
+      refundPaidCooking(s, u, 'fire-out');
+      resetUnitWithState(s, u);
       return;
     }
     if (u.craftNeedsPayment) {
       if (
         !repeatable ||
         !guidedDirectTask(s, u, tokens) ||
-        !canFitCraftOutput(s, cycleCost, cycleOutput) ||
-        !canPayLocally(s, cycleCost, u) ||
+        !canFitCraftOutput(s, nextCook ? cookingPaymentCost(nextCook) : cycleCost, cycleOutput) ||
+        (foodCook ? !nextCook : !canPayLocally(s, cycleCost, u)) ||
         forbiddenByDogma(s, tokens, undefined, u) ||
         !enforceActionLaws(s, tokens, undefined, [u.id])
       ) {
-        if (u.hp > 0) resetUnit(u);
+        if (u.hp > 0) resetUnitWithState(s, u);
         return;
       }
-      payLocally(s, cycleCost, u);
+      if (nextCook) payCookingInput(s, nextCook);
+      else payLocally(s, cycleCost, u);
+      u.cookInput = nextCook?.input === 'fish' ? 'fish' : undefined;
       u.craftNeedsPayment = false;
     }
     if (!move(s, u, u.tx ?? s.home.x, u.ty ?? s.home.y, dt)) return;
@@ -1519,10 +1566,17 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       recordCraft(s, u, 'O_13');
     }
     if (verb === 'V_07') {
-      const output = tokens.includes('O_02') ? 'pottery' : 'cooked';
+      const output = tokens.includes('O_02')
+        ? 'pottery'
+        : u.cookInput === 'fish'
+          ? 'cookedFish'
+          : 'cooked';
       drop(s, u, output, 1 - addResource(s, output, 1));
       recordCraft(s, u, 'V_12');
     }
+    // Completion consumes the paid input exactly once before any reset.
+    u.craftNeedsPayment = true;
+    u.cookInput = undefined;
     recordLawWork(s, u.id, tokens);
     onDogmaticUse(s, tokens, u);
     // Do not prepay a speculative cycle: a spark or a new order may interrupt
@@ -1530,7 +1584,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     if (repeatable && guidedDirectTask(s, u, tokens)) {
       u.progress = 0;
       u.craftNeedsPayment = true;
-    } else resetUnit(u);
+    } else resetUnitWithState(s, u);
     return;
   }
   if (u.action === 'guarding') {
@@ -1547,7 +1601,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     );
     if (!fire) {
       if (!tryIgnite(s, u.tx ?? s.home.x, u.ty ?? s.home.y)) {
-        resetUnit(u);
+        resetUnitWithState(s, u);
         return;
       }
       fire = closest(
@@ -1601,13 +1655,13 @@ export function processWork(s: GameState, u: Unit, dt: number) {
                   ? 'school'
                   : 'temple';
       if (!assignWork(s, u, k)) {
-        resetUnit(u);
+        resetUnitWithState(s, u);
         return;
       }
       b = s.buildings.find((b) => b.id === u.jobBuildingId);
     }
     if (!b || !b.active || b.hp <= 0) {
-      resetUnit(u);
+      resetUnitWithState(s, u);
       return;
     }
     if (!moveToInteraction(s, u, b, 'work', dt, 4, 2.7)) return;
@@ -1639,7 +1693,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
   }
   if (u.action === 'hunting' || u.action === 'combat') {
     if (!e || e.amount <= 0) {
-      resetUnit(u);
+      resetUnitWithState(s, u);
       return;
     }
     if (e.hp <= 0) {
@@ -1648,7 +1702,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       return;
     }
     if (protectedByDogma(s, 'O_04') || sanctuaryProtected(s, 'O_04', e)) {
-      resetUnit(u);
+      resetUnitWithState(s, u);
       return;
     }
     const weapon = weaponFor(s, u),
@@ -1693,14 +1747,14 @@ export function processWork(s: GameState, u: Unit, dt: number) {
   }
   if (u.action === 'eating') {
     if (!u.command?.length && e && !safeInstinctiveFood(s, u, e)) {
-      resetInstinct(u);
+      resetInstinct(u, s);
       return;
     }
     // Conservare restrains an autonomous meal; an explicit Mangiare order
     // still means eating to satiety, as specified by the sentence grammar.
     const conserve = verb !== 'V_02' && hasWord(s, 'V_05');
     if (verb === 'V_02' && u.hunger <= 0) {
-      resetUnit(u);
+      resetUnitWithState(s, u);
       return;
     }
     // An explicit meal can use physically accessible stores, before walking
@@ -1709,35 +1763,35 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       if (!workCycle(s, u, dt, 1.5)) return;
       if (consume(s, u)) {
         if (u.hp <= 0) return;
-        if (u.hunger <= 0) resetUnit(u);
+        if (u.hunger <= 0) resetUnitWithState(s, u);
         return;
       }
     }
     if (conserve && u.hunger < 60) {
-      resetInstinct(u);
+      resetInstinct(u, s);
       return;
     }
     // A delivery may have arrived since this forager chose a distant node.
     // Recheck real accessible stocks before leaving their physical reach.
     if (conserve && nearInventory(s, u) && consume(s, u)) {
       if (u.hp <= 0) return;
-      if (u.hunger < 60) resetInstinct(u);
+      if (u.hunger < 60) resetInstinct(u, s);
       return;
     }
     if (!e || e.amount <= 0) {
-      resetInstinct(u);
+      resetInstinct(u, s);
       return;
     }
     if (!moveToInteraction(s, u, e, 'meal', dt)) return;
     if (!workCycle(s, u, dt, 1.5)) return;
     const ate = consume(s, u, e);
     if (u.hp <= 0) return;
-    if (!ate || u.hunger <= 0 || (conserve && u.hunger < 60)) resetInstinct(u);
+    if (!ate || u.hunger <= 0 || (conserve && u.hunger < 60)) resetInstinct(u, s);
     return;
   }
   if (u.action === 'domesticating') {
     if (!e || e.hp <= 0) {
-      resetUnit(u);
+      resetUnitWithState(s, u);
       return;
     }
     if (!moveToInteraction(s, u, e, 'forage', dt)) return;
@@ -1761,7 +1815,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     }
     recordLawWork(s, u.id, tokens);
     recordCraft(s, u, 'V_10');
-    resetUnit(u);
+    resetUnitWithState(s, u);
     return;
   }
   if (u.action === 'planting') {
@@ -1781,16 +1835,23 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       originX: u.tx ?? u.x,
       originY: u.ty ?? u.y,
     });
-    resetUnit(u);
+    resetUnitWithState(s, u);
     return;
   }
   if (u.action === 'gathering') {
+    if (
+      e?.kind === 'fishery' &&
+      (!fishingEnabled(s) || verb !== 'V_04' || !tokens.includes('O_04'))
+    ) {
+      resetUnitWithState(s, u);
+      return;
+    }
     if (
       !e ||
       e.amount <= resourcePreservationFloor(s, e) ||
       (e.kind === 'berries' && seasonOf(s).index === 3)
     ) {
-      resetUnit(u);
+      resetUnitWithState(s, u);
       return;
     }
     if (
@@ -1800,6 +1861,8 @@ export function processWork(s: GameState, u: Unit, dt: number) {
         e,
         e.kind === 'tree' ? 'tree' : e.kind === 'stone' || e.kind === 'ore' ? 'stone' : 'forage',
         dt,
+        4,
+        e.kind === 'fishery' ? 2 : undefined,
       )
     )
       return;
@@ -1820,17 +1883,25 @@ export function processWork(s: GameState, u: Unit, dt: number) {
         e,
       )
     ) {
-      resetUnit(u);
+      resetUnitWithState(s, u);
       return;
     }
-    if (!workCycle(s, u, dt, CORE_DEFAULTS.workSeconds / speed)) return;
+    if (
+      !workCycle(
+        s,
+        u,
+        dt,
+        e.kind === 'fishery' ? FISHING_SECONDS : CORE_DEFAULTS.workSeconds / speed,
+      )
+    )
+      return;
     if (e.kind === 'tree') recordEvent(s, u, 'ENV_TREE_NODE', 50, ['O_03']);
     if (e.kind === 'stone') {
       recordEvent(s, u, 'ENV_ROCK_NODE', 50, ['O_02']);
       recordCraft(s, u, 'V_06');
     }
     if (verb === 'V_04') {
-      const cap = hasWord(s, 'O_13') ? 5 : hasWord(s, 'V_05') ? 3 : 1,
+      const cap = fishingCapacity(s),
         pieces =
           e.kind === 'ground' && ['wood', 'stone', 'ore'].includes(resource)
             ? [e, ...s.entities.filter((piece) => piece.id !== e.id && sameGroundPile(e, piece))]
@@ -1844,7 +1915,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
           ),
         );
       if (amount <= 0) {
-        resetUnit(u);
+        resetUnitWithState(s, u);
         return;
       }
       if (gatherTool) s.resources.tool = Math.max(0, s.resources.tool - 0.1);
@@ -1896,7 +1967,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
         s.playMode !== 'guided' &&
         s.sparks.some((p) => p.unitId === u.id && ['O_02', 'O_03'].includes(p.wordId))
       )
-        resetUnit(u);
+        resetUnitWithState(s, u);
     }
     onDogmaticUse(s, tokens, u);
     return;
@@ -1933,7 +2004,9 @@ function startInstinct(s: GameState, u: Unit, dt: number) {
       s.playMode === 'guided' &&
       !s.urbanized &&
       !nearInventory(s, u) &&
-      (stock.food > 0 || (!fx.vegetarian && (stock.meat > 0 || stock.cooked > 0))) &&
+      (stock.food > 0 ||
+        (!fx.vegetarian &&
+          (stock.meat > 0 || stock.cooked > 0 || stock.fish > 0 || stock.cookedFish > 0))) &&
       (!food || distance(u, s.home) <= distance(u, food)) &&
       !forbiddenByDogma(s, ['S_01', 'V_02', 'O_04'], undefined, u)
     ) {
@@ -2025,7 +2098,7 @@ function assignTradition(s: GameState, u: Unit) {
               : undefined;
     if (workKind) {
       if (assignWork(s, u, workKind)) return true;
-      resetKeepingJob(u);
+      resetKeepingJob(u, s);
       continue;
     }
     // Registered artisan traditions need the same paid physical work as a
@@ -2037,26 +2110,40 @@ function assignTradition(s: GameState, u: Unit) {
     if (artisan) {
       const pottery = verb === 'V_07' && tokens.includes('O_02');
       const spear = verb === 'V_06' && tokens.includes('O_03');
+      const cookingChoice =
+        verb === 'V_07' && !pottery ? chooseCookingInput(s, [u], target) : undefined;
       const output: Resource =
-        verb === 'V_07' ? (pottery ? 'pottery' : 'cooked') : spear ? 'spear' : 'tool';
+        verb === 'V_07'
+          ? pottery
+            ? 'pottery'
+            : cookingChoice?.input === 'fish'
+              ? 'cookedFish'
+              : 'cooked'
+          : spear
+            ? 'spear'
+            : 'tool';
       const cost: Partial<Inventory> =
         verb === 'V_07'
           ? pottery
             ? { stone: 1 }
-            : { meat: 1 }
+            : cookingChoice?.input === 'fish'
+              ? { fish: 1 }
+              : { meat: 1 }
           : spear
             ? { stone: 1, wood: 1 }
             : { stone: 1 };
       if (
         (verb === 'V_07' && !hasBuilding(s, 'campfire')) ||
         !canPayLocally(s, cost, u) ||
-        !canFitCraftOutput(s, cost, output)
+        !canFitCraftOutput(s, cookingChoice ? cookingPaymentCost(cookingChoice) : cost, output)
       ) {
-        resetKeepingJob(u);
+        resetKeepingJob(u, s);
         continue;
       }
-      payLocally(s, cost, u);
+      if (cookingChoice) payCookingInput(s, cookingChoice);
+      else payLocally(s, cost, u);
       u.action = verb === 'V_07' ? 'cooking' : 'crafting';
+      u.cookInput = cookingChoice?.input === 'fish' ? 'fish' : undefined;
       u.targetId = undefined;
       u.tx = u.x;
       u.ty = u.y;
@@ -2071,7 +2158,7 @@ function assignTradition(s: GameState, u: Unit) {
     else if (verb === 'V_05' && (tokens.includes('O_05') || tokens.includes('O_01')))
       u.action = 'guarding';
     else {
-      resetUnit(u);
+      resetUnitWithState(s, u);
       continue;
     }
     return true;
@@ -2246,8 +2333,9 @@ export function updateUnits(s: GameState, dt: number) {
     }
     if (u.jobBuildingId && (u.hunger >= 75 || outsideShift || (fx.nightTaboo && phase.isNight)))
       pauseBuildingJob(s, u);
-    else if (u.command?.[0] === 'C_02' && resting && u.action !== 'returning') resetUnit(u);
-    else if (u.command?.[0] === 'C_01' && !phase.isNight) resetUnit(u);
+    else if (u.command?.[0] === 'C_02' && resting && u.action !== 'returning')
+      resetUnitWithState(s, u);
+    else if (u.command?.[0] === 'C_01' && !phase.isNight) resetUnitWithState(s, u);
     if (
       u.command &&
       forbiddenByDogma(
@@ -2261,8 +2349,9 @@ export function updateUnits(s: GameState, dt: number) {
         u,
       )
     )
-      resetUnit(u);
+      resetUnitWithState(s, u);
     if (fx.nightTaboo && phase.isNight) {
+      refundPaidCooking(s, u);
       u.command = undefined;
       if (settleForRest(s, u, dt, true, true)) {
         if (u.hunger >= 60) consume(s, u);
@@ -2324,7 +2413,7 @@ export function updateUnits(s: GameState, dt: number) {
         if (allowed && u.hp > 0) {
           if (u.jobBuildingId) pauseBuildingJob(s, u);
           dropCarriedLoad(s, u);
-          resetKeepingJob(u);
+          resetKeepingJob(u, s);
           u.action = 'resting';
           u.targetId = destination.id;
           u.tx = destination.x;
@@ -2348,6 +2437,7 @@ export function updateUnits(s: GameState, dt: number) {
         u.carry = undefined;
       }
       if (u.temp <= 15 && fire === false && hasBuilding(s, 'campfire')) {
+        refundPaidCooking(s, u);
         const nearest = closest(
           s.buildings.filter((b) => b.kind === 'campfire' && b.active),
           u,
@@ -2357,12 +2447,14 @@ export function updateUnits(s: GameState, dt: number) {
         u.ty = nearest?.y ?? s.home.y;
         u.command = undefined;
       } else if (u.action !== 'eating') {
-        resetKeepingJob(u);
+        resetKeepingJob(u, s);
         startInstinct(s, u, dt);
       }
     }
     if (!martial && hasWord(s, 'M_01') && combatWound && u.hunger < 95 && u.temp > 15) {
       if (u.jobBuildingId) pauseBuildingJob(s, u);
+      refundPaidCooking(s, u);
+      if (fishingEnabled(s)) dropCarriedLoad(s, u);
       u.action = 'fleeing';
       u.tx = s.home.x;
       u.ty = s.home.y;

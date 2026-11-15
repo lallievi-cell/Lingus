@@ -1,5 +1,6 @@
 import { WORDS } from './content';
 import { forbiddenByDogma, getDogmaEffects, resourcePreservationFloor } from './dogmas';
+import { chooseCookingInput } from './fishing';
 import { canFitCraftOutput, canPayLocally } from './craftMaterials';
 import {
   entityResource,
@@ -152,7 +153,9 @@ function completedWork(previous: GameState, next: GameState, unit: Unit, after: 
       : unit.action === 'cooking'
         ? unit.command?.includes('O_02')
           ? 'pottery'
-          : 'cooked'
+          : unit.cookInput === 'fish'
+            ? 'cookedFish'
+            : 'cooked'
         : undefined;
   if (!resource || unit.craftNeedsPayment) return false;
   const total = (state: GameState) =>
@@ -270,15 +273,25 @@ export function observeTaskOutcomes(previous: GameState, next: GameState): TaskO
     else if (before.command.includes('V_07') && !hasBuilding(next, 'campfire')) reason = 'fire';
     else if (
       before.craftNeedsPayment &&
-      !canPayLocally(next, plainFoodCook(before.command) ? { meat: 1 } : { stone: 1 }, after)
+      (plainFoodCook(before.command)
+        ? !chooseCookingInput(next, [after])
+        : !canPayLocally(next, { stone: 1 }, after))
     )
       reason = 'materials';
     else if (
       before.craftNeedsPayment &&
       !canFitCraftOutput(
         next,
-        plainFoodCook(before.command) ? { meat: 1 } : { stone: 1 },
-        plainFoodCook(before.command) ? 'cooked' : 'tool',
+        plainFoodCook(before.command)
+          ? chooseCookingInput(next, [after])?.input === 'fish'
+            ? { fish: 1 }
+            : { meat: 1 }
+          : { stone: 1 },
+        plainFoodCook(before.command)
+          ? chooseCookingInput(next, [after])?.input === 'fish'
+            ? 'cookedFish'
+            : 'cooked'
+          : 'tool',
       )
     )
       reason = 'full';

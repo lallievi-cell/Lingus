@@ -15,6 +15,7 @@ import {
   secondsForEffectiveDuration,
 } from './calendar';
 import { rememberCombatWound } from './damageAttribution';
+import { refundPaidCooking } from './fishing';
 import { recordCaravanTravel } from './regionalHistory';
 import { isDryLandPoint, landRouteEffort, moveOnLand, planLandRoute } from './landNavigation';
 import { farmYieldMultiplier } from './biomes';
@@ -69,6 +70,7 @@ import {
   sanctuaryProtected,
 } from './dogmas';
 import {
+  dropCarriedLoad,
   evaluateDiscoveries,
   killUnit,
   recordAttackTrauma,
@@ -138,6 +140,8 @@ const RESOURCES: Resource[] = [
   'food',
   'meat',
   'cooked',
+  'fish',
+  'cookedFish',
   'wood',
   'stone',
   'pelt',
@@ -150,7 +154,7 @@ const RESOURCES: Resource[] = [
   'metalArms',
   'coin',
 ];
-const FOOD: Resource[] = ['cooked', 'meat', 'food'];
+const FOOD: Resource[] = ['cooked', 'cookedFish', 'meat', 'fish', 'food'];
 const INCENTIVES = ['M_05', 'M_04', 'S_03', 'S_04'];
 const SANCTIONS = ['O_06', 'S_06', 'V_03', 'O_12', 'O_11', 'O_10', 'M_03', 'O_05', ...INCENTIVES];
 const known = (s: GameState) => Object.keys(s.words).filter((w) => hasWord(s, w));
@@ -217,19 +221,20 @@ function foodCost(r: Inventory, quantity: number): boolean {
 function takeFood(r: Inventory, quantity: number): number {
   let need = quantity;
   for (const key of FOOD) {
-    const n = Math.min(r[key], need);
-    r[key] -= n;
+    const n = Math.min(r[key] ?? 0, need);
+    if (n > 0) r[key] -= n;
     need -= n;
     if (need <= 1e-9) break;
   }
   return quantity - need;
 }
-function consumeNutrition(r: Inventory, hunger: number): number {
+function consumeNutrition(r: Inventory, hunger: number, vegetarian = false): number {
   let need = hunger;
   for (const key of FOOD) {
+    if (vegetarian && key !== 'food') continue;
     const nutrition = RESOURCE_SPECS[key].nutrition,
-      n = Math.min(r[key], need / nutrition);
-    r[key] -= n;
+      n = Math.min(r[key] ?? 0, need / nutrition);
+    if (n > 0) r[key] -= n;
     need -= n * nutrition;
     if (need <= 1e-9) break;
   }
@@ -361,6 +366,8 @@ export function condenseCities(s: GameState) {
     c.buildingIds.push(b.id);
   }
   for (const u of activeUnits(s)) {
+    refundPaidCooking(s, u);
+    if (s.mapGeneration?.coastalRules === 1) dropCarriedLoad(s, u);
     u.cityId = c.id;
     u.action = 'idle';
     u.command = undefined;
@@ -525,20 +532,20 @@ function cityCapacity(s: GameState, c: City, r: Resource): number {
     30 -
       RESOURCES.filter(
         (k) => k !== 'coin' && RESOURCE_SPECS[k].category !== RESOURCE_SPECS[r].category,
-      ).reduce((n, k) => n + inventoryFor(s, c)[k], 0),
+      ).reduce((n, k) => n + (inventoryFor(s, c)[k] ?? 0), 0),
   );
 }
 function addCityResource(s: GameState, c: City, r: Resource, amount: number): number {
   const inv = r === 'coin' && c.factionId === PLAYER ? s.resources : inventoryFor(s, c),
     category = RESOURCE_SPECS[r].category,
     total = RESOURCES.filter((k) => RESOURCE_SPECS[k].category === category).reduce(
-      (n, k) => n + inv[k],
+      (n, k) => n + (inv[k] ?? 0),
       0,
     ),
     room = r === 'coin' ? Infinity : Math.max(0, cityCapacity(s, c, r) - total);
   const n = Math.min(room, Math.max(0, amount));
-  inv[r] += n;
-  c.production[r] += n;
+  inv[r] = (inv[r] ?? 0) + n;
+  c.production[r] = (c.production[r] ?? 0) + n;
   return n;
 }
 function cityConstruction(
@@ -766,6 +773,8 @@ function removeCustodian(s: GameState, u: Unit) {
   }
 }
 function exile(s: GameState, u: Unit) {
+  refundPaidCooking(s, u);
+  if (s.mapGeneration?.coastalRules === 1) dropCarriedLoad(s, u);
   const previous = s.cities.find((c) => c.id === u.cityId);
   if (previous) changePopulation(previous, -1, unitCohort(u));
   removeCustodian(s, u);
@@ -885,10 +894,10 @@ export function applySanction(s: GameState, law: Law, unit?: Unit, city?: City, 
           load = emptyInventory();
         if (!cap) break;
         for (const r of RESOURCES.filter(
-          (r) => RESOURCE_SPECS[r].category === 'material' || r === 'meat',
+          (r) => RESOURCE_SPECS[r].category === 'material' || r === 'meat' || r === 'fish',
         )) {
-          load[r] = inv[r] * 0.5;
-          inv[r] -= load[r];
+          load[r] = (inv[r] ?? 0) * 0.5;
+          if (load[r] > 0) inv[r] -= load[r];
         }
         if (Object.values(load).some((n) => n > 0))
           makeCaravan(s, 'tax', targetCity, { type: 'city', id: cap.id, x: cap.x, y: cap.y }, load);
@@ -896,7 +905,7 @@ export function applySanction(s: GameState, law: Law, unit?: Unit, city?: City, 
         if (
           unit.carry &&
           (RESOURCE_SPECS[unit.carry.resource].category === 'material' ||
-            unit.carry.resource === 'meat')
+            ['meat', 'fish'].includes(unit.carry.resource))
         ) {
           const resource = unit.carry.resource,
             amount = unit.carry.amount * 0.5;
@@ -1351,8 +1360,8 @@ export function handleImperialCommand(
     send.stone = 50;
     let left = 50;
     for (const r of FOOD) {
-      const n = Math.min(left, inv[r]);
-      inv[r] -= n;
+      const n = Math.min(left, inv[r] ?? 0);
+      if (n > 0) inv[r] -= n;
       send[r] = n;
       left -= n;
     }
@@ -1568,7 +1577,10 @@ function completeCaravan(s: GameState, c: Caravan) {
     ) {
       if (from) {
         from.cohorts.workers += c.population;
-        for (const r of RESOURCES) inventoryFor(s, from)[r] += c.resources[r];
+        for (const r of RESOURCES) {
+          const stock = inventoryFor(s, from);
+          stock[r] = (stock[r] ?? 0) + (c.resources[r] ?? 0);
+        }
       }
       c.arrived = true;
       return;
@@ -1652,7 +1664,8 @@ function completeCaravan(s: GameState, c: Caravan) {
   if (c.kind === 'tax') {
     if (destination && destination.factionId === PLAYER) {
       const inv = inventoryFor(s, destination);
-      for (const r of RESOURCES) inv[r] += c.resources[r] * (1 - (c.corruption ?? 0));
+      for (const r of RESOURCES)
+        inv[r] = (inv[r] ?? 0) + (c.resources[r] ?? 0) * (1 - (c.corruption ?? 0));
       log(s, 'Una carovana fiscale raggiunge la capitale.', 'good');
     }
     c.arrived = true;
@@ -1661,7 +1674,7 @@ function completeCaravan(s: GameState, c: Caravan) {
   if (c.kind === 'trade') {
     if (c.returning) {
       const inv = inventoryFor(s, from);
-      for (const r of RESOURCES) inv[r] += c.resources[r];
+      for (const r of RESOURCES) inv[r] = (inv[r] ?? 0) + (c.resources[r] ?? 0);
       c.arrived = true;
       return;
     }
@@ -1674,7 +1687,7 @@ function completeCaravan(s: GameState, c: Caravan) {
       offered = c.sourceResource ?? 'food',
       foreign = destination.resources;
     if (c.gift) {
-      for (const r of RESOURCES) foreign[r] += c.resources[r];
+      for (const r of RESOURCES) foreign[r] = (foreign[r] ?? 0) + (c.resources[r] ?? 0);
       c.resources = emptyInventory();
       c.arrived = true;
       if (faction) {
@@ -1870,6 +1883,8 @@ function updateFrontline(s: GameState, dt: number) {
         !['frontline', 'frontline-returning'].includes(u.action) &&
         distance(u, host) <= IMPERIAL_ASSUMPTIONS.frontlineCallRadiusMetres,
     )) {
+      refundPaidCooking(s, u);
+      if (s.mapGeneration?.coastalRules === 1) dropCarriedLoad(s, u);
       u.action = 'frontline';
       u.targetId = host.id;
       u.command = ['S_04', 'V_03', 'S_05'];
@@ -1946,6 +1961,8 @@ function damageGarrison(s: GameState, city: City, damage: number, attackerId?: s
       continue;
     }
     city.cohorts.warriors = Math.max(0, city.cohorts.warriors - 1);
+    refundPaidCooking(s, u);
+    if (s.mapGeneration?.coastalRules === 1) dropCarriedLoad(s, u);
     u.hp = 0;
     u.action = 'dead';
     removeCustodian(s, u);
@@ -2256,6 +2273,8 @@ export function updateImperial(s: GameState, dt: number) {
         (u.caste === 'slave' && s.revoltTension >= 100) ||
         (strongUprising && strongWorkers.includes(u)),
     )) {
+      refundPaidCooking(s, u);
+      if (s.mapGeneration?.coastalRules === 1) dropCarriedLoad(s, u);
       u.factionId = 'rebels';
       u.action = 'hunting';
       u.tx = s.home.x;
@@ -2582,7 +2601,7 @@ function produceCity(s: GameState, c: City, spentCycles = 0) {
       const multiplier = Math.max(0.01, local.production * workshop);
       const held = RESOURCES.filter(
         (resource) => RESOURCE_SPECS[resource].category === RESOURCE_SPECS[r].category,
-      ).reduce((sum, resource) => sum + inv[resource], 0);
+      ).reduce((sum, resource) => sum + (inv[resource] ?? 0), 0);
       const room = Math.max(0, cityCapacity(s, c, r) - held);
       const fullLoads = Math.floor(cycles / (materialLoad + trip));
       const transportable =
@@ -2673,7 +2692,11 @@ function cityNutritionAndBirths(s: GameState, c: City) {
       (c.factionId === PLAYER ? imperialLawEffects(s).foodConsumptionMultiplier : 1),
     foraged = c.seasonFoodConsumed ?? 0,
     needed = Math.max(0, fullNeed - foraged),
-    provided = consumeNutrition(inv, needed);
+    provided = consumeNutrition(
+      inv,
+      needed,
+      getDogmaEffects(doctrineFor(s, c.factionId, c)).vegetarian,
+    );
   c.seasonFoodConsumed = provided + foraged;
   if (needed > provided && unrepresented > 0) {
     const hungerMissing = (needed - provided) / unrepresented,
@@ -3096,13 +3119,19 @@ function witnessRegionalWork(s: GameState, f: Faction, c: City, point: { x: numb
  * Meals may be eaten where harvested; only physical surplus enters the stores. */
 function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
   const regionalFoodRoutes = new Map<string, number>();
+  const coastal = s.mapGeneration?.coastalRules === 1;
+  const vegetarian = getDogmaEffects(doctrineFor(s, c.factionId, c)).vegetarian;
   const inv = c.resources,
     localNode = (e: { x: number; y: number }) =>
       Math.floor(e.x / 100) === c.sectorX && Math.floor(e.y / 100) === c.sectorY,
     nodes = s.entities
       .filter((e) => {
+        // Exhausted sources and animals already living in a pen cannot pay
+        // this shift. Reject them before asking the shared route planner.
+        if (e.amount <= 0 || (e.kind === 'deer' && e.hp > 0 && e.domesticated)) return false;
         if (f.culture) {
-          if (!['berries', 'deer', 'ore'].includes(e.kind)) return false;
+          if (!['berries', 'deer', 'ore', ...(coastal ? ['fishery'] : [])].includes(e.kind))
+            return false;
           if (!isWorldPoint(s, c) || !isWorldPoint(s, e)) return false;
           const sx = Math.floor(e.x / 100),
             sy = Math.floor(e.y / 100);
@@ -3135,6 +3164,12 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
           regionalFoodRoutes.set(e.id, landRouteEffort(s, c, route));
           return true;
         }
+        if (e.kind === 'fishery') {
+          if (!coastal || !isDryLandPoint(s, e)) return false;
+          const route = planLandRoute(s, c, e);
+          if (!route) return false;
+          regionalFoodRoutes.set(e.id, landRouteEffort(s, c, route));
+        }
         if (localNode(e)) return true;
         if (
           distance(e, c) > 90 ||
@@ -3155,10 +3190,13 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
       ),
     season = endedSeason(s),
     loadSize = f.words.includes('O_13') ? 5 : f.words.includes('V_05') ? 3 : 1,
-    travelCycles = (e: { x: number; y: number; id?: string }) =>
-      localNode(e)
+    travelCycles = (e: { x: number; y: number; id?: string; kind?: string }) =>
+      localNode(e) && e.kind !== 'fishery'
         ? 0
-        : (2 * (f.culture ? (regionalFoodRoutes.get(e.id ?? '') ?? Infinity) : distance(e, c))) /
+        : (2 *
+            (f.culture || e.kind === 'fishery'
+              ? (regionalFoodRoutes.get(e.id ?? '') ?? Infinity)
+              : distance(e, c))) /
           4 /
           IMPERIAL_ASSUMPTIONS.extractionCycleSeconds;
   allocateCityWorkers(s, c);
@@ -3175,7 +3213,10 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
     fullNeed = population * SEASON_LENGTH * 0.8;
   let cycles = initialCycles,
     reservedNew = 0;
-  const previousNutrition = FOOD.reduce((n, r) => n + inv[r] * RESOURCE_SPECS[r].nutrition, 0);
+  const previousNutrition = FOOD.reduce(
+    (n, r) => n + (vegetarian && r !== 'food' ? 0 : (inv[r] ?? 0) * RESOURCE_SPECS[r].nutrition),
+    0,
+  );
   if (previousNutrition < fullNeed) foreignEvent(s, f, 'ENV_STARVATION', 15, ['M_02']);
   // Reserve real vegetables for the next winter's herd upkeep, accounting for
   // the intervening spoilage. Surplus meat cannot pay a vegetable requirement.
@@ -3197,13 +3238,13 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
   const reservedVegetables = Math.min(inv.food, vegetableTarget);
   const seedTarget = foreignSeedReserve(s, c);
   inv.food -= reservedVegetables;
-  c.seasonFoodConsumed = consumeNutrition(inv, fullNeed);
+  c.seasonFoodConsumed = consumeNutrition(inv, fullNeed, vegetarian);
   inv.food += reservedVegetables;
   let needed = Math.max(0, fullNeed - c.seasonFoodConsumed);
   const expectedHarvest = cityBuildings(s, c).reduce(
     (n, b) =>
       n +
-      (b.kind === 'pen' && (b.livestock ?? 0) > 0
+      (b.kind === 'pen' && !vegetarian && (b.livestock ?? 0) > 0
         ? 20 * 40
         : b.kind === 'farm' && season === 2
           ? 50 * 25 * farmYieldMultiplier(s, b)
@@ -3216,7 +3257,7 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
       0,
       cityCapacity(s, c, 'food') -
         RESOURCES.filter((r) => RESOURCE_SPECS[r].category === 'food').reduce(
-          (n, r) => n + inv[r],
+          (n, r) => n + (inv[r] ?? 0),
           0,
         ),
     );
@@ -3227,7 +3268,11 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
         (f.words.includes('V_05') && cityHas(s, c, 'storage')
           ? population * SEASON_LENGTH * 0.8
           : 0) -
-        FOOD.reduce((n, r) => n + inv[r] * RESOURCE_SPECS[r].nutrition, 0),
+        FOOD.reduce(
+          (n, r) =>
+            n + (vegetarian && r !== 'food' ? 0 : (inv[r] ?? 0) * RESOURCE_SPECS[r].nutrition),
+          0,
+        ),
     ) +
     (vegetables
       ? Math.max(0, vegetableTarget - inv.food) * 25 +
@@ -3241,7 +3286,10 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
     for (let i = 0; i < Math.floor(amount); i++)
       foreignEvent(s, f, 'ENV_CRAFT', 20, ['V_04', 'V_05', 'V_08', 'V_10'], true);
   };
-  const feedOrStore = (resource: 'food' | 'meat' | 'cooked', amount: number) => {
+  const feedOrStore = (
+    resource: 'food' | 'meat' | 'cooked' | 'fish' | 'cookedFish',
+    amount: number,
+  ) => {
     const protectedFood =
       resource === 'food'
         ? addCityResource(s, c, 'food', Math.min(amount, Math.max(0, vegetableTarget - inv.food)))
@@ -3253,22 +3301,31 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
     const stored = addCityResource(s, c, resource, amount - eaten - protectedFood);
     return eaten + stored + protectedFood;
   };
-  const harvest = (node: GameState['entities'][number], resource: 'food' | 'meat') => {
+  const harvest = (node: GameState['entities'][number], resource: 'food' | 'meat' | 'fish') => {
     const nutrition = RESOURCE_SPECS[resource].nutrition,
       appetite = Math.max(0, wantedNutrition(resource === 'food'));
-    if (appetite <= 0 || cycles < 1) return 0;
+    if (appetite <= 0 || cycles < 1 || (vegetarian && resource !== 'food')) return 0;
+    const collectionWork = (amount: number) =>
+      resource === 'fish' ? 3 * Math.ceil(amount / loadSize) : amount;
     let amount = Math.min(
       node.amount,
       Math.ceil(appetite / nutrition),
-      Math.floor(cycles),
+      Math.floor(resource === 'fish' ? (cycles * loadSize) / 3 : cycles),
       Math.ceil(needed / nutrition) + Math.floor(foodRoom()),
     );
-    while (amount > 0 && amount + travelCycles(node) * Math.ceil(amount / loadSize) > cycles)
+    while (
+      amount > 0 &&
+      collectionWork(amount) + travelCycles(node) * Math.ceil(amount / loadSize) > cycles
+    )
       amount--;
     if (amount <= 0) return 0;
     const tripWork = travelCycles(node) * Math.ceil(amount / loadSize);
     let raw = amount;
-    if (resource === 'meat' && cityHas(s, c, 'campfire') && inv.wood >= 1) {
+    if (
+      (resource === 'meat' || resource === 'fish') &&
+      cityHas(s, c, 'campfire') &&
+      inv.wood >= 1
+    ) {
       const cooked = Math.min(
         raw,
         Math.floor(
@@ -3280,23 +3337,23 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
                 : (BUILDING_SPECS.campfire.upkeep.wood ?? 0)),
           ),
         ),
-        Math.max(0, Math.floor(cycles - amount - tripWork)),
+        Math.max(0, Math.floor(cycles - collectionWork(amount) - tripWork)),
       );
       if (cooked > 0) {
         inv.wood -= cooked;
         raw -= cooked;
         cycles -= cooked;
-        feedOrStore('cooked', cooked);
+        feedOrStore(resource === 'fish' ? 'cookedFish' : 'cooked', cooked);
         for (let i = 0; i < cooked; i++)
           foreignEvent(s, f, 'ENV_CRAFT', 20, ['V_07', 'V_12'], true);
       }
     }
     const received = feedOrStore(resource, raw) + (amount - raw);
     node.amount = Math.max(0, node.amount - received);
-    cycles -= received + tripWork;
+    cycles -= collectionWork(received) + tripWork;
     physicalDelivery(received);
     if (received > 0) witnessRegionalWork(s, f, c, node);
-    if (resource === 'meat') {
+    if (resource === 'meat' || resource === 'fish') {
       foreignEvent(s, f, 'ENV_HUNT_MEAL', 100, ['O_04']);
       for (let i = 0; i < Math.floor(received); i++)
         foreignEvent(s, f, 'ENV_CRAFT', 20, ['O_04'], true);
@@ -3311,10 +3368,14 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
   };
   for (const node of nodes.filter((e) => e.kind === 'berries' && e.amount > 0 && season !== 3))
     harvest(node, 'food');
+  if (coastal && !vegetarian && ['V_04', 'O_04'].every((word) => f.words.includes(word)))
+    for (const bank of nodes.filter((e) => e.kind === 'fishery' && e.amount > 0))
+      harvest(bank, 'fish');
   // A leftover carcass remains a real food source; no second hunt is necessary.
   for (const prey of nodes.filter((e) => e.kind === 'deer' && e.hp <= 0 && e.amount > 0))
     harvest(prey, 'meat');
   for (const prey of nodes.filter((e) => e.kind === 'deer' && e.hp > 0 && !e.domesticated)) {
+    if (vegetarian) break;
     if (wantedNutrition() <= 0 || cycles < 1) break;
     if (
       f.words.includes('V_10') &&
@@ -3475,9 +3536,17 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
     foreignEvent(s, f, 'ENV_RESOURCE_STEWARDSHIP', 100, ['M_04']);
   if (cityHas(s, c, 'campfire') && inv.wood >= 10 && nodes.some((e) => e.kind === 'ore'))
     foreignEvent(s, f, 'ENV_HIGH_HEAT', 50, ['O_07']);
-  if (cityHas(s, c, 'campfire') && inv.meat >= 1 && inv.wood >= 1 && cycles >= 1) {
+  const cookInput: 'meat' | 'fish' = inv.meat >= 1 ? 'meat' : 'fish';
+  if (
+    !vegetarian &&
+    (cookInput === 'meat' || coastal) &&
+    cityHas(s, c, 'campfire') &&
+    (inv[cookInput] ?? 0) >= 1 &&
+    inv.wood >= 1 &&
+    cycles >= 1
+  ) {
     const cooked = Math.min(
-      Math.floor(inv.meat),
+      Math.floor(inv[cookInput]),
       Math.floor(
         Math.max(
           0,
@@ -3490,12 +3559,12 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
       Math.floor(cycles),
       5,
     );
-    inv.meat -= cooked;
+    inv[cookInput] -= cooked;
     inv.wood -= cooked;
     cycles -= cooked;
-    const made = addCityResource(s, c, 'cooked', cooked);
+    const made = addCityResource(s, c, cookInput === 'fish' ? 'cookedFish' : 'cooked', cooked);
     // Both inputs and food space were freed; no output can overflow its stores.
-    if (made < cooked) inv.meat += cooked - made;
+    if (made < cooked) inv[cookInput] += cooked - made;
     for (let i = 0; i < made; i++) foreignEvent(s, f, 'ENV_CRAFT', 20, ['V_07', 'V_12'], true);
   }
   if (f.words.includes('O_12') && inv.ingot >= 1 && cycles >= 1) {
@@ -3557,7 +3626,7 @@ export function seasonalImperial(s: GameState) {
               ? resourceSpoilage(base, summer, cityHas(s, city, 'storage'), inv.pottery > 0) *
                 openingFoodSpoilageMultiplier(s, getCalendar(s).seasonIndex - 1)
               : base;
-          inv[r] *= 1 - rate;
+          inv[r] = (inv[r] ?? 0) * (1 - rate);
         }
       }
     }

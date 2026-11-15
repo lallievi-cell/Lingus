@@ -127,6 +127,22 @@ const materialForms: Record<Resource, ResourceLanguage> = {
     much: 'Molto',
     abundant: 'Cibo cotto in abbondanza',
   },
+  fish: {
+    noun: 'pesce crudo',
+    none: 'Nessun pesce crudo',
+    little: 'Poco',
+    enough: 'Un po’ di',
+    much: 'Molto',
+    abundant: 'Pesce crudo in abbondanza',
+  },
+  cookedFish: {
+    noun: 'pesce cotto',
+    none: 'Nessun pesce cotto',
+    little: 'Poco',
+    enough: 'Un po’ di',
+    much: 'Molto',
+    abundant: 'Pesce cotto in abbondanza',
+  },
   wood: {
     noun: 'legno',
     none: 'Niente legno',

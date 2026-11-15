@@ -5,6 +5,41 @@ import { getUnitAnimation } from './unitAnimation';
 const adult = () => ({ ...createGame(6842).units[0], age: 6 });
 
 describe('action animation follows real movement and interaction', () => {
+  it('fishes only while working at the actual dry shore point and carries the real catch away', () => {
+    const unit = { ...adult(), action: 'gathering', progress: 1.5 };
+    const target = { x: unit.x + 1, y: unit.y };
+    expect(getUnitAnimation(unit, 10, { moving: false, targetKind: 'fishery', target }).kind).toBe(
+      'fish',
+    );
+    expect(getUnitAnimation(unit, 10, { moving: true, targetKind: 'fishery', target }).kind).toBe(
+      'walk',
+    );
+    expect(
+      getUnitAnimation({ ...unit, progress: 0 }, 10, {
+        moving: false,
+        targetKind: 'fishery',
+        target,
+      }).kind,
+    ).toBe('idle');
+    expect(
+      getUnitAnimation(unit, 10, {
+        moving: false,
+        targetKind: 'fishery',
+        target: { x: unit.x + 4, y: unit.y },
+      }).kind,
+    ).toBe('idle');
+    expect(
+      getUnitAnimation(unit, 10, { moving: false, ready: false, targetKind: 'fishery', target })
+        .kind,
+    ).toBe('idle');
+    expect(
+      getUnitAnimation(
+        { ...unit, action: 'returning', carry: { resource: 'fish', amount: 1 } },
+        10,
+        { moving: true, targetKind: 'fishery', target },
+      ).kind,
+    ).toBe('carry');
+  });
   it('walks to a resource before chopping, and stops walking when the worker arrives', () => {
     const unit = { ...adult(), action: 'gathering', tx: 280, ty: 250 };
     expect(getUnitAnimation(unit, 10, { moving: true, targetKind: 'tree' }).kind).toBe('walk');

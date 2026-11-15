@@ -81,20 +81,24 @@ export function settlementObjective(state: GameState): Objective | undefined {
   if (
     !state.urbanized &&
     hasWord(state, 'V_07') &&
-    state.resources.meat >= Math.max(2, population / 3) &&
-    state.resources.cooked < Math.ceil(population / 2)
+    state.resources.meat + (state.resources.fish ?? 0) >= Math.max(2, population / 3) &&
+    state.resources.cooked + (state.resources.cookedFish ?? 0) < Math.ceil(population / 2)
   )
     return objective(
       'Cuocere per la comunità',
       state.tier >= 3 && hasWord(state, 'C_02')
-        ? 'Organizza Sempre · Gruppo · Cuocere · Preda · Fuoco: gli adulti liberi preparano pasti durante il giorno, usando carne realmente disponibile.'
-        : 'Cuoci la carne vicino al Falò. I pasti cotti nutrono di più e riducono le malattie della carne cruda.',
-      state.resources.cooked,
+        ? 'Organizza Sempre · Gruppo · Cuocere · Preda · Fuoco: gli adulti liberi preparano pasti durante il giorno, usando carne o pesce realmente disponibili.'
+        : 'Cuoci carne o pesce vicino al Falò. I pasti cotti nutrono di più e riducono le malattie del cibo animale crudo.',
+      state.resources.cooked + (state.resources.cookedFish ?? 0),
       Math.ceil(population / 2),
     );
   if (state.tier >= 3 && !state.urbanized) {
     const food =
-      state.resources.food * 25 + state.resources.meat * 40 + state.resources.cooked * 60;
+      state.resources.food * 25 +
+      state.resources.meat * 40 +
+      state.resources.cooked * 60 +
+      (state.resources.fish ?? 0) * 40 +
+      (state.resources.cookedFish ?? 0) * 60;
     if (food < population * 36)
       return objective(
         'Rifornimenti per un villaggio più grande',

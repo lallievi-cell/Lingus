@@ -5,6 +5,7 @@ import { CUSTODIAN_RISK_LABELS, getCustodianStatuses } from '../game/custodianSt
 import { resolveUnitSex } from '../game/demography';
 import { visibleUnitEquipment } from '../game/unitEquipment';
 import { getRiverFords, isLandPoint } from '../game/landNavigation';
+import { isSeaPoint } from '../game/coastGeometry';
 import { isWorldPointRevealed } from '../game/worldDimensions';
 import type { GameState, MapEntity, WorldTarget } from '../game/types';
 import { groundPileFor, resourceKnown, resourcePileLabel } from './mapResourceLayout';
@@ -70,6 +71,22 @@ export function entityTargetPresentation(
   entity: MapEntity,
 ): TargetPresentation | null {
   const carries = hasWord(state, 'V_04');
+  if (entity.kind === 'fishery') {
+    if (!isWorldPointRevealed(state, entity.x, entity.y)) return null;
+    const known = hasWord(state, 'O_04');
+    return {
+      label: known ? `Punto di pesca · ${remaining(state, entity)}` : 'Movimenti nell’acqua',
+      stage: entity.amount <= 0 ? 'Esaurito' : known ? 'Da pescare dalla riva' : 'Da conoscere',
+      kind: 'source',
+      description: known
+        ? 'Qui si pesca dalla terraferma. Il pescato viene catturato con lavoro reale e portato al campo; la riserva può esaurirsi.'
+        : 'Dalla riva si intravedono movimenti nell’acqua. La tribù non ha ancora una parola per riconoscerli.',
+      hint:
+        known && carries && entity.amount > 0
+          ? 'Usa Portare · Preda per pescare e consegnare il carico. Mangiare, Colpire e Addomesticare non agiscono su questo punto.'
+          : undefined,
+    };
+  }
   if (entity.kind === 'ground') {
     const pile = groundPileFor(state, entity.id);
     return {
@@ -182,6 +199,15 @@ export function targetPresentation(
   if (target.type === 'point' && state.mapGeneration?.landNavigation === 1) {
     const revealed = isWorldPointRevealed(state, target.x, target.y);
     if (!revealed) return null;
+    if (isSeaPoint(state, target))
+      return {
+        label: 'Mare',
+        stage: 'Acqua non percorribile a piedi',
+        kind: 'landmark',
+        description:
+          'Il mare aperto non si attraversa a piedi. La pesca si svolge nei punti sulla terraferma lungo la costa.',
+        hint: 'Scegli un punto di pesca osservato sulla riva.',
+      };
     const ford = getRiverFords(state).find(
       (entry) => Math.hypot(entry.x - target.x, entry.y - target.y) <= entry.width / 2,
     );

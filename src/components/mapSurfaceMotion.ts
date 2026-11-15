@@ -1,6 +1,8 @@
 import type { GameState } from '../game/types';
 import { isWorldPointRevealed } from '../game/worldDimensions';
 import { createRiverArtGeometry, sampleRiverArt, type RiverArtGeometry } from './mapRiverGeometry';
+import { coastInlandDistance, createCoastGeometry } from '../game/coastGeometry';
+import { getCoastHighlights } from './mapCoastArt';
 
 type Viewport = { minX: number; minY: number; maxX: number; maxY: number };
 const geometries = new WeakMap<HTMLCanvasElement, RiverArtGeometry>();
@@ -15,6 +17,7 @@ export function getRiverHighlights(
 ) {
   if (reducedMotion || state.disasters.blizzard || geometry.length <= 0) return [];
   const clock = state.paused ? state.time : time;
+  const coast = createCoastGeometry(state);
   const count = Math.min(48, Math.ceil(geometry.length / 12));
   const visible = (point: { x: number; y: number }) =>
     (!viewport ||
@@ -22,19 +25,22 @@ export function getRiverHighlights(
         point.x <= viewport.maxX + 2 &&
         point.y >= viewport.minY - 2 &&
         point.y <= viewport.maxY + 2)) &&
-    isWorldPointRevealed(state, point.x, point.y);
+    isWorldPointRevealed(state, point.x, point.y) &&
+    (!coast || coastInlandDistance(coast, point) > 0.25);
   const highlights = [];
   for (let i = 0; i < count; i++) {
     const distance = ((i / count) * geometry.length + clock * 1.1) % geometry.length;
     const a = sampleRiverArt(geometry, distance);
     const b = sampleRiverArt(geometry, Math.min(geometry.length, distance + 1.5 + (i % 3) * 0.4));
-    if (!visible(a) || !visible(b)) continue;
     const offset = ((i % 3) - 1) * 0.55;
+    const from = { x: a.x - a.dy * offset, y: a.y + a.dx * offset };
+    const to = { x: b.x - b.dy * offset, y: b.y + b.dx * offset };
+    if (!visible(from) || !visible(to)) continue;
     highlights.push({
-      x1: a.x - a.dy * offset,
-      y1: a.y + a.dx * offset,
-      x2: b.x - b.dy * offset,
-      y2: b.y + b.dx * offset,
+      x1: from.x,
+      y1: from.y,
+      x2: to.x,
+      y2: to.y,
       opacity:
         (state.seasonIndex % 4 === 3 ? 0.12 : 0.22) *
         (0.45 + 0.55 * (0.5 + 0.5 * Math.sin(clock * 0.8 + i * 2.4))),
@@ -58,7 +64,8 @@ export function drawMapSurfaceMotion(
     geometries.set(terrain, geometry);
   }
   const highlights = getRiverHighlights(geometry, state, time, viewport);
-  if (!highlights.length) return;
+  const waves = getCoastHighlights(state, time, viewport, reducedMotion);
+  if (!highlights.length && !waves.length) return;
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineWidth = 0.35;
@@ -69,6 +76,15 @@ export function drawMapSurfaceMotion(
     ctx.beginPath();
     ctx.moveTo(mark.x1 * 2.4, mark.y1 * 1.6);
     ctx.lineTo(mark.x2 * 2.4, mark.y2 * 1.6);
+    ctx.stroke();
+  }
+  ctx.lineWidth = 0.55;
+  ctx.strokeStyle = '#e9edd5';
+  for (const mark of waves) {
+    ctx.globalAlpha = alpha * mark.opacity;
+    ctx.beginPath();
+    ctx.moveTo(mark.a.x * 2.4, mark.a.y * 1.6);
+    ctx.lineTo(mark.b.x * 2.4, mark.b.y * 1.6);
     ctx.stroke();
   }
   ctx.restore();

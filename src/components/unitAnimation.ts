@@ -9,6 +9,7 @@ export type UnitAnimationKind =
   | 'chop'
   | 'mine'
   | 'gather'
+  | 'fish'
   | 'craft'
   | 'cook'
   | 'build'
@@ -71,6 +72,7 @@ function workKind(unit: Unit, context: UnitAnimationContext): UnitAnimationKind 
   if (['hunting', 'combat', 'frontline'].includes(action))
     return context.equipment?.held === 'spear' ? 'thrust' : 'strike';
   if (action === 'gathering') {
+    if (target === 'fishery') return 'fish';
     if (target === 'tree' || (!target && unit.command?.includes('O_03'))) return 'chop';
     if (target === 'stone' || target === 'ore' || (!target && unit.command?.includes('O_02')))
       return 'mine';
@@ -121,6 +123,7 @@ export function getUnitAnimation(
         ? 'carry'
         : 'walk'
     : workKind(unit, context);
+  if (kind === 'fish' && (unit.progress <= 0 || distance > 3)) kind = 'idle';
   if (!moving && context.ready === false && kind !== 'sleep') kind = 'idle';
   // The scene supplies this only after a real delivery/meal, for a short time.
   // A new active task or a moving unit always has priority over the gesture.
@@ -192,6 +195,18 @@ export function getUnitAnimation(
       pose.rightArm.hand = { x: 7 + lift, y: -4 + lift };
       pose.leftArm = { elbow: { x: -3.7, y: -9 }, hand: { x: 3 + lift, y: -4.5 + lift } };
     }
+  } else if (kind === 'fish') {
+    const haul = (1 + Math.sin(phase * 0.42)) / 2;
+    pose.bodyDrop = 1.1;
+    pose.torsoAngle = 0.1 + (1 - haul) * 0.09;
+    pose.rightArm = {
+      elbow: { x: 7 + (1 - haul) * 1.8, y: -15 },
+      hand: { x: 9 + (1 - haul) * 5, y: -11 - haul * 3 },
+    };
+    pose.leftArm = {
+      elbow: { x: -3.8, y: -13.5 },
+      hand: { x: 1.8 + haul * 2, y: -12 - haul * 1.5 },
+    };
   } else if (kind === 'craft') {
     pose.bodyDrop = 3.4;
     pose.torsoAngle = 0.15;

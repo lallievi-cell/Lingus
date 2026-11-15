@@ -263,3 +263,11 @@ Questi valori sono scelte di implementazione visibili nel codice, non citazioni 
 Tutti gli indefiniti qui registrati hanno ora una decisione eseguibile, con valori e motivazioni in [DECISIONS.md](DECISIONS.md), incluse le ulteriori risoluzioni A23–A31. Restano distinte le verifiche aperte elencate in [REMAINING.md](REMAINING.md). Nessun totale di test trasforma una scelta di progetto in un numero letterale della fonte.
 
 Il termine “100%” può riferirsi soltanto a un insieme di requisiti esplicitamente risolti e verificati. Il numero di parole, edifici o test non chiude queste ambiguità, né dimostra una partita completa dall'inizio a ciascuna vittoria.
+
+## Estensione costiera 0.8.0
+
+Coste e pesca sono un ampliamento concordato del prodotto, distinto dalle quattordici risorse del documento originale. Le quarantacinque parole restano invariate; i due inventari di pesce portano a sedici le risorse fisiche senza sostituire carne cruda o cotta. La decisione è registrata come A-67 in [DECISIONS.md](DECISIONS.md).
+
+`coastGeneration`, `coastNavigation` e `coastalSave` verificano geometria, percorsi, campi e compatibilità; `fishingGameplay`, `coastFoodEconomy` e `delegateIdentity` controllano lavoro, input, carichi, interruzioni e società autonome. `mapCoastArt` e `coastPresentation` verificano rappresentazione e informazioni osservabili. Le prove browser costiere usano un campo esplicitamente preparato, controllano ordini reali, consegne, inventari e ricaricamento; non certificano una campagna completa partita dai sette fondatori. [RELEASE-080.md](RELEASE-080.md) raccoglie comportamento e immagini.
+
+La correzione [0.7.1](RELEASE-071.md) distingue inoltre il vecchio fallimento CI dalle prove locali della 0.7.0: la trace mostrava un gruppo selezionato senza destinazione. Il seed `518` riproduce la scelta sovrapposta; la verifica usa ora il flusso pubblico «Punto sul terreno», controllando focus, ordini e Voce.

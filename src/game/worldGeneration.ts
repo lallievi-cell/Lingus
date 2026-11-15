@@ -1,6 +1,7 @@
 import { emptyInventory, HOME } from './content';
 import type { City, Faction, MapEntity, Sector } from './types';
 import { getRegionalCultureProfile } from './regionalCultures';
+import { createCoastGeometry, coastInlandDistance } from './coastGeometry';
 import {
   getInitialWorldHome,
   LEGACY_WORLD_SIZE,
@@ -66,6 +67,7 @@ export function generateWorld(
   factions: Faction[],
   worldSize: WorldSize = LEGACY_WORLD_SIZE,
   biomeRules = false,
+  coastalRules = false,
 ): {
   sectors: Sector[];
   entities: MapEntity[];
@@ -195,8 +197,34 @@ export function generateWorld(
     }
   }
 
+  const coast =
+    regional && biomeRules && coastalRules
+      ? createCoastGeometry({
+          mapGeneration: {
+            mode: 'random',
+            seed,
+            version: 1,
+            landNavigation: 1,
+            worldSize: 1000,
+            regionalCultures: 1,
+            biomeRules: 1,
+            coastalRules: 1,
+          },
+          sectors,
+        })
+      : undefined;
+  if (coast)
+    for (const sector of sectors) {
+      // The river chain remains intact: riverSegments needs every link to
+      // derive its connected physical course through the mouth.
+      if (sector.biome === 'river') continue;
+      const inland = coastInlandDistance(coast, { x: sector.x * 100 + 50, y: sector.y * 100 + 50 });
+      if (inland < 0) sector.biome = 'sea';
+      else if (inland < 80) sector.biome = 'coast';
+    }
   const river = riverSegments(sectors);
-  const dry = (point: Point, margin = 12) =>
+  const dry = (point: Point, margin = 12, coastalMargin = margin) =>
+    (!coast || coastInlandDistance(coast, point) >= coastalMargin) &&
     river.every((segment) => segmentDistance(point, segment) >= margin);
   const cityCandidates = outerLand
     .map((sector) => ({
@@ -205,6 +233,30 @@ export function generateWorld(
       y: sector.y * 100 + integer(30, 70),
     }))
     .filter((point) => dry(point, 20) && distance(point, home) >= 160);
+  if (coast) {
+    // Flooding the old edge can remove too many of its candidate towns.
+    // An inner ring guarantees eight separated sites without squeezing the
+    // cultures together or placing one in the marine band. Old generators
+    // never enter this branch, retaining their geography and random stream.
+    for (const [x, y] of [
+      [220, 220],
+      [500, 220],
+      [780, 220],
+      [780, 500],
+      [780, 780],
+      [500, 780],
+      [220, 780],
+      [220, 500],
+    ]) {
+      const sector = sectors[Math.floor(y / 100) * grid + Math.floor(x / 100)];
+      const point = { x, y, sector };
+      // Prefer a complete inland catchment before the remaining world edges.
+      // An edge town loses half its finite 180 m gathering area; removing a
+      // fourth edge for the sea otherwise leaves several cultures competing
+      // for sparse border food before their paid farming/herding develops.
+      if (dry(point, 20) && distance(point, home) >= 160) cityCandidates.unshift(point);
+    }
+  }
   const chooseCities = (
     spacing: number,
     selected: typeof cityCandidates = [],
@@ -313,13 +365,13 @@ export function generateWorld(
           return false;
     return true;
   };
-  const free = (point: Point, spacing = 4, predator = false) =>
+  const free = (point: Point, spacing = 4, predator = false, coastalMargin = 12) =>
     point.x >= 2 &&
     point.x <= size - 2 &&
     point.y >= 2 &&
     point.y <= size - 2 &&
     distance(point, home) >= (predator ? 110 : 9) &&
-    dry(point) &&
+    dry(point, 12, coastalMargin) &&
     cities.every((city) => distance(city, point) >= (predator ? 60 : 20)) &&
     clearOfEntities(point, spacing);
   const add = (kind: MapEntity['kind'], point: Point, amount: number, hp: number) => {
@@ -473,6 +525,28 @@ export function generateWorld(
       }
     }
     if (entities.length > before) break;
+  }
+  if (coast) {
+    for (let index = 1; index < coast.points.length; index += 2) {
+      const a = coast.points[index - 1],
+        b = coast.points[index];
+      const dx = b.x - a.x,
+        dy = b.y - a.y,
+        length = Math.hypot(dx, dy);
+      const sign = coast.side === 'north' || coast.side === 'east' ? 1 : -1;
+      // A fishery is a real dry workstation, separate from the river mouth.
+      // Try neighbouring positions on this reach if a physical tree occupies
+      // the midpoint; never move the workstation onto water to fit it.
+      for (const fraction of [0.5, 0.3, 0.7]) {
+        const point = {
+          x: a.x + dx * fraction - ((sign * dy) / length) * 10,
+          y: a.y + dy * fraction + ((sign * dx) / length) * 10,
+        };
+        if (!free(point, 4, false, 8)) continue;
+        add('fishery', point, 40 + (((seed + index * 17) >>> 0) % 21), 1);
+        break;
+      }
+    }
   }
   for (const sector of sectors) {
     sector.initialFauna = entities.filter(
