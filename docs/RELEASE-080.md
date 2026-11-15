@@ -32,3 +32,9 @@ Approdi, imbarcazioni, isole e collegamenti marittimi restano traguardi successi
 - [Scorte distinte sul telefono](images/ui080-coastal-stocks-390.png).
 
 Le immagini provengono da una scena preparata: una postazione e la riva sono generate dal seed `123`; il campo viene collocato nell’entroterra vicino, con un adulto e le conoscenze necessarie. La prova impartisce ordini dall’interfaccia e lascia alla simulazione lavoro e consegna; non rappresenta una campagna iniziata con i sette fondatori.
+
+## Verifiche della release
+
+Sul codice della 0.8.0 sono passati 1.723 test unitari in 150 file. Sono stati verificati 246 casi browser: la suite completa ha passato 243 casi; i tre casi grafici con attese precedenti sono stati aggiornati e rieseguiti con esito positivo. Le attese ora distinguono tutti gli otto biomi e le sedici risorse; il benchmark della panoramica mantiene esplicitamente un carico di 1.800 elementi disegnati. Le verifiche di conservazione, conoscenze, focus, Voce e costo del rendering rimangono attive.
+
+Il browser locale è Chrome Headless Shell 156.0.8078.4 di Playwright 1.64.1, indicato con percorso esplicito. La build definitiva viene generata dopo il commit e controllata sotto `/Lingus/`; push, risultato del workflow e lettura del sito pubblico sono verifiche separate.

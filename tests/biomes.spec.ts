@@ -91,14 +91,16 @@ test('early ground inspection does not reveal crop effects before agriculture', 
   await expect(card).not.toContainText(/Raccolto|fertilità|125%/i);
 });
 
-test('a prepared regional overview renders six generated biomes without browser errors', async ({
+test('a prepared regional overview renders eight generated biomes without browser errors', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const state = createGame(42, 'guided', 'random', 1000);
   Object.assign(state, { started: true, paused: true, tier: 4, time: 20, sparks: [] });
   for (const sector of state.sectors) sector.explored = true;
-  expect(new Set(state.sectors.map((sector) => sector.biome)).size).toBe(6);
+  expect([...new Set(state.sectors.map((sector) => sector.biome))].sort()).toEqual(
+    ['plain', 'forest', 'mountain', 'river', 'wetland', 'dryland', 'coast', 'sea'].sort(),
+  );
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.addInitScript((raw) => {

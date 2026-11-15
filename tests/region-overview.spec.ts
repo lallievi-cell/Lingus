@@ -187,6 +187,15 @@ test('a populated overview avoids full limb painting while keeping state and res
     state.sectors.forEach((sector) => (sector.explored = true));
     for (const id of WORD_ORDER)
       state.words[id] = { retention: 100, custodians: [state.units[0].id], uses: 0 };
+    // A fixed rendering workload keeps this prepared benchmark comparable
+    // when the new sea replaces land and its naturally generated resources.
+    // Extra sprites reuse known dry resource positions; no game time is run.
+    const natural = state.entities.filter((entity) => entity.kind !== 'fishery');
+    const generated = state.entities.length;
+    for (let index = generated; index < 1800; index++) {
+      const source = natural[((index - generated) * 7) % natural.length];
+      state.entities.push({ ...source, id: `overview-stress-${index}` });
+    }
     const before = JSON.stringify(state);
     const terrain = createTerrain(42, 0, state);
     const canvas = document.createElement('canvas');

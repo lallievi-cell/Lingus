@@ -206,12 +206,12 @@ test('stored goods remain an ordinary destination while an order is ready', asyn
   await expect(page.locator('.lingus-world')).toHaveClass(/is-targeting/);
 });
 
-test('all fourteen held materials are listed without granting their words or revealing counts', async ({
+test('all sixteen held resources are listed without granting their words or revealing counts', async ({
   page,
 }) => {
   const initial = await seedStocks(page, 'all-materials');
   await openStocks(page);
-  await expect(stocksDialog(page).locator('.camp-inventory-row')).toHaveCount(14);
+  await expect(stocksDialog(page).locator('.camp-inventory-row')).toHaveCount(16);
   for (const resource of Object.keys(initial.resources)) {
     await expect(stockRow(page, resource).locator('.camp-inventory-quantity')).not.toContainText(
       /\d/,
