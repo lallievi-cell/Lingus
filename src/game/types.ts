@@ -1,4 +1,5 @@
 import type { RecordedTaskResult } from './taskResults';
+import type { WorldState } from './worldTypes';
 
 export type Tier = 0 | 1 | 2 | 3 | 4 | 5;
 export type WordKind = 'S' | 'V' | 'O' | 'M' | 'C';
@@ -315,6 +316,8 @@ export interface Target {
   unitIds?: string[];
   /** Explicit physical cargo choice, valid only for maritime boat targets. */
   cargoResource?: Resource;
+  /** Destination of a physical boundary crossing in a connected world. */
+  regionId?: string;
 }
 export type WorldTarget = Target;
 /** Small coastal craft. Paid hull materials remain physical while work is interrupted. */
@@ -577,6 +580,11 @@ export interface MapGeneration {
   coastalRules?: 1;
   /** Coastal craft, harbors and offshore islets; omitted saves keep their coast. */
   maritimeRules?: 1;
+  /** Connected geography is opt-in; regional coordinates never alter old saves. */
+  worldRules?: 1;
+  worldSeed?: number;
+  regionX?: number;
+  regionY?: number;
 }
 export interface GameState {
   version: 2;
@@ -585,6 +593,7 @@ export interface GameState {
   openingBalanceVersion?: 1;
   openingCouncilsCompleted?: number;
   mapGeneration?: MapGeneration;
+  world?: WorldState;
   seed: number;
   time: number;
   seasonIndex: number;

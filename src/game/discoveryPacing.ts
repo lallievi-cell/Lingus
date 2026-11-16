@@ -2,6 +2,7 @@ import { getCalendar } from './calendar';
 import { validLearnedRecipe } from './knowledgeRecovery';
 import { hasWord, log } from './runtime';
 import type { GameState, Spark } from './types';
+import { allWorldUnits } from './worldRuntime';
 
 export const GUIDED_DISCOVERY_PACING = {
   visibleLimit: 2,
@@ -62,10 +63,11 @@ function presentationRank(state: GameState, spark: Spark) {
  * Existing visible save entries keep their original expiry and presentation. */
 export function promoteDeferredSparks(state: GameState): void {
   if (state.playMode !== 'guided') return;
+  const people = allWorldUnits(state);
   const occupiedWords = new Set(visibleSparks(state).map((spark) => spark.wordId));
   state.sparks = state.sparks.filter((spark) => {
     if (!spark.deferred) return true;
-    const witness = state.units.find((unit) => unit.id === spark.unitId);
+    const witness = people.find((unit) => unit.id === spark.unitId);
     if (
       !Number.isFinite(spark.earnedAt) ||
       spark.earnedAt! < 0 ||
@@ -94,7 +96,7 @@ export function promoteDeferredSparks(state: GameState): void {
     );
   for (const spark of pending) {
     if (visibleCount >= GUIDED_DISCOVERY_PACING.visibleLimit) break;
-    const witness = state.units.find((unit) => unit.id === spark.unitId)!;
+    const witness = people.find((unit) => unit.id === spark.unitId)!;
     if (
       !spark.recipe.every((id) => hasWord(state, id)) ||
       (witness.cooldowns?.[spark.wordId] ?? 0) > state.time ||

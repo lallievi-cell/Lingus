@@ -2225,7 +2225,12 @@ function battleArmies(s: GameState, dt: number) {
   }
 }
 
-export function updateImperial(s: GameState, dt: number) {
+export interface ImperialUpdateOptions {
+  /** A local material shift inside one shared world clock. */
+  regional?: boolean;
+}
+
+export function updateImperial(s: GameState, dt: number, options: ImperialUpdateOptions = {}) {
   synchronizeDelegateIdentities(s);
   bindCapital(s);
   condenseCities(s);
@@ -2260,7 +2265,7 @@ export function updateImperial(s: GameState, dt: number) {
   s.revoltTension = clamp(
     s.revoltTension + ((slaves * 0.5) / 60) * socialTime * effects.slaveRevolt,
   );
-  if (hasWord(s, 'M_04'))
+  if (!options.regional && hasWord(s, 'M_04'))
     s.inequality = clamp(s.inequality + (Math.max(0, effects.inequality - 1) * socialTime) / 60);
   for (const c of ownCities(s))
     c.revoltTension = clamp(
@@ -2343,9 +2348,9 @@ export function updateImperial(s: GameState, dt: number) {
       log(s, `${c.name} si ribella all’Impero.`, 'danger');
     }
   }
-  if (s.urbanized && !ownCities(s).length)
+  if (!options.regional && s.urbanized && !ownCities(s).length)
     s.gameOver = 'Tutte le città sono state perdute. L’Impero non ha più una casa.';
-  evaluateVictory(s, false);
+  if (!options.regional) evaluateVictory(s, false);
 }
 
 /** Only living, represented people who occupied this building's finite slots gain experience. */
@@ -2957,14 +2962,14 @@ function taxCities(s: GameState) {
     }
 }
 
-function applySeasonalLaws(s: GameState) {
+function applySeasonalLaws(s: GameState, regional = false) {
   const settled = {
     ...s,
     time: Math.max(0, getCalendar(s).seasonStart - 1e-6),
   };
   const legal = imperialLawEffects(settled);
   for (const law of s.laws) {
-    law.age++;
+    if (!regional) law.age++;
     if (law.objectId === 'O_11' && law.verbId === 'V_04') continue;
     const archetype = lawArchetype(law);
     if (archetype === 'draconian_theft') {
@@ -2993,12 +2998,12 @@ function applySeasonalLaws(s: GameState) {
       }
     }
     if (archetype === 'agrarian_reform' && fulfilledAny) {
-      s.revoltTension = clamp(s.revoltTension - 20);
+      if (!regional) s.revoltTension = clamp(s.revoltTension - 20);
       for (const c of ownCities(s))
         if (seasonalDutyFulfilled(settled, law, c)) c.revoltTension = clamp(c.revoltTension - 20);
     }
   }
-  if (legal.winterCorveeCohesionCost)
+  if (!regional && legal.winterCorveeCohesionCost)
     s.cohesion = clamp(s.cohesion - legal.winterCorveeCohesionCost);
 }
 function teachProvinces(s: GameState) {
@@ -3056,12 +3061,12 @@ function teachProvinces(s: GameState) {
     log(s, `${city.name} apprende ${missing.length} parole della capitale.`, 'good');
   }
 }
-function theftAndInequality(s: GameState) {
+function theftAndInequality(s: GameState, regional = false) {
   if (!hasWord(s, 'M_04')) return;
   const units = activeUnits(s),
     avg = units.reduce((n, u) => n + (u.wealth ?? 0), 0) / Math.max(1, units.length),
     rich = units.filter((u) => (u.wealth ?? 0) > avg).length;
-  s.inequality = clamp(s.inequality + rich * 0.5);
+  if (!regional) s.inequality = clamp(s.inequality + rich * 0.5);
   const immune =
     imperialLawEffects(s).theftMultiplier === 0 ||
     getDogmaEffects(s).collectiveFood ||
@@ -3662,7 +3667,7 @@ function maintainForeignCity(s: GameState, c: City) {
     }
   }
 }
-export function seasonalImperial(s: GameState) {
+export function seasonalImperial(s: GameState, options: ImperialUpdateOptions = {}) {
   bindCapital(s);
   condenseCities(s);
   for (const city of s.cities.filter((c) => c.factionId !== 'ruins')) {
@@ -3695,6 +3700,40 @@ export function seasonalImperial(s: GameState) {
       developForeignCulture(s, city, faction);
     }
   }
+  if (!options.regional) applyImperialReforms(s);
+  for (const faction of s.factions) {
+    const city = s.cities.find((c) => c.id === faction.cityId);
+    if (faction.culture)
+      faction.subjugated = !s.cities.some(
+        (entry) => entry.factionId === faction.id && cityPopulation(entry) > 0,
+      );
+    else if (city && city.factionId === PLAYER) faction.subjugated = true;
+  }
+  teachProvinces(s);
+  applySeasonalLaws(s, options.regional);
+  if (imperialLawEffects(s).educationProgress >= 1) {
+    for (const u of activeUnits(s).filter((u) => u.caste !== 'slave'))
+      for (const id of known(s).filter((id) => WORDS[id].tier <= 1)) {
+        if (!u.knows.includes(id)) u.knows.push(id);
+        if (!s.words[id].custodians.includes(u.id)) s.words[id].custodians.push(u.id);
+      }
+  }
+  taxCities(s);
+  payArmyUpkeep(s);
+  theftAndInequality(s, options.regional);
+  dispatchForeignPolicy(s);
+  if (
+    hasWord(s, 'O_12') &&
+    activeUnits(s).some((u) => u.action === 'saving' && u.command?.includes('O_12'))
+  )
+    s.resources.coin *= 1.05;
+  s.corruption = ownCities(s).length
+    ? ownCities(s).reduce((n, c) => n + (c.corruption ?? 0), 0) / ownCities(s).length
+    : 0;
+  if (!options.regional) evaluateVictory(s, true);
+}
+
+function applyImperialReforms(s: GameState) {
   for (const d of s.dogmas.filter((d) => d.reforming)) {
     const school = s.buildings.find(
       (b) =>
@@ -3710,36 +3749,35 @@ export function seasonalImperial(s: GameState) {
       if (d.weight === 0) s.eventTimes[`reformed:${d.id}`] = 1;
     }
   }
-  for (const faction of s.factions) {
-    const city = s.cities.find((c) => c.id === faction.cityId);
-    if (faction.culture)
-      faction.subjugated = !s.cities.some(
-        (entry) => entry.factionId === faction.id && cityPopulation(entry) > 0,
-      );
-    else if (city && city.factionId === PLAYER) faction.subjugated = true;
+}
+
+/** Run once on the aggregate view. It never transports or credits inventories. */
+export function finishWorldImperial(s: GameState, dt: number, seasonal = false) {
+  const effects = getDogmaEffects(s);
+  const socialTime = hasOpeningBalance(s) ? effectiveElapsed(s, s.time - dt, s.time) : dt;
+  if (hasWord(s, 'M_04'))
+    s.inequality = clamp(s.inequality + (Math.max(0, effects.inequality - 1) * socialTime) / 60);
+  if (seasonal) {
+    applyImperialReforms(s);
+    for (const law of s.laws) law.age++;
+    const settled = { ...s, time: Math.max(0, getCalendar(s).seasonStart - 1e-6) };
+    const legal = imperialLawEffects(settled);
+    if (legal.winterCorveeCohesionCost)
+      s.cohesion = clamp(s.cohesion - legal.winterCorveeCohesionCost);
+    for (const law of s.laws.filter((law) => lawArchetype(law) === 'agrarian_reform'))
+      if (ownCities(s).some((city) => seasonalDutyFulfilled(settled, law, city)))
+        s.revoltTension = clamp(s.revoltTension - 20);
+    if (hasWord(s, 'M_04')) {
+      const people = activeUnits(s);
+      const mean = people.reduce((sum, person) => sum + (person.wealth ?? 0), 0) / Math.max(1, people.length);
+      s.inequality = clamp(s.inequality + people.filter((person) => (person.wealth ?? 0) > mean).length * 0.5);
+    }
   }
-  teachProvinces(s);
-  applySeasonalLaws(s);
-  if (imperialLawEffects(s).educationProgress >= 1) {
-    for (const u of activeUnits(s).filter((u) => u.caste !== 'slave'))
-      for (const id of known(s).filter((id) => WORDS[id].tier <= 1)) {
-        if (!u.knows.includes(id)) u.knows.push(id);
-        if (!s.words[id].custodians.includes(u.id)) s.words[id].custodians.push(u.id);
-      }
-  }
-  taxCities(s);
-  payArmyUpkeep(s);
-  theftAndInequality(s);
-  dispatchForeignPolicy(s);
-  if (
-    hasWord(s, 'O_12') &&
-    activeUnits(s).some((u) => u.action === 'saving' && u.command?.includes('O_12'))
-  )
-    s.resources.coin *= 1.05;
-  s.corruption = ownCities(s).length
-    ? ownCities(s).reduce((n, c) => n + (c.corruption ?? 0), 0) / ownCities(s).length
-    : 0;
-  evaluateVictory(s, true);
+  const owned = ownCities(s);
+  s.corruption = owned.length ? owned.reduce((sum, city) => sum + (city.corruption ?? 0), 0) / owned.length : 0;
+  if (s.urbanized && !owned.length)
+    s.gameOver = 'Tutte le città sono state perdute. L’Impero non ha più una casa.';
+  evaluateVictory(s, seasonal);
 }
 
 export function evaluateVictory(s: GameState, seasonal = false) {

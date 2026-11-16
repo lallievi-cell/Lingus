@@ -1,5 +1,6 @@
 import { HOME, INNATE_WORDS, BASE_HOUSING, ADULT_AGE, emptyInventory } from './content';
 import { generateWorld } from './worldGeneration';
+import { initializeWorld } from './worldRegions';
 import { createRegionalFactions } from './regionalCultures';
 import {
   getInitialWorldHome,
@@ -19,6 +20,7 @@ export function createInitialState(
   playMode: 'guided' | 'classic' = 'classic',
   mapMode: MapMode = 'seed-zero',
   worldSize: WorldSize = LEGACY_WORLD_SIZE,
+  worldMode = false,
 ): GameState {
   const size =
     mapMode === 'random' && worldSize === REGION_WORLD_SIZE ? REGION_WORLD_SIZE : LEGACY_WORLD_SIZE;
@@ -356,6 +358,8 @@ export function createInitialState(
     if (size === REGION_WORLD_SIZE)
       state.revision = Math.max(state.revision, state.entities.length + 100);
   }
-  return state;
+  return worldMode && mapMode === 'random' && size === REGION_WORLD_SIZE
+    ? initializeWorld(state)
+    : state;
 }
 export const INITIAL_HOUSING = BASE_HOUSING;

@@ -18,7 +18,7 @@ const models = new Map<string, SeaModel>();
 /** Water has its own graph. A terrestrial ford never becomes a sailing lane. */
 function modelFor(state: GameState) {
   const generation = state.mapGeneration;
-  const key = `${getWorldSize(state)}:${generation?.seed}:${generation?.coastalRules}:${generation?.maritimeRules}`;
+  const key = `${getWorldSize(state)}:${generation?.seed}:${generation?.coastalRules}:${generation?.maritimeRules}:${generation?.worldRules}:${generation?.worldSeed}:${generation?.regionX}:${generation?.regionY}`;
   let model = models.get(key);
   if (!model) {
     const side = getWorldSize(state) / STEP + 1;

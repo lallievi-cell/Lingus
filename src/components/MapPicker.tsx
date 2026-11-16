@@ -1,7 +1,7 @@
 import { RotateCcw } from 'lucide-react';
 import './MapPicker.css';
 
-export type MapChoice = 'seed-zero' | 'random';
+export type MapChoice = 'seed-zero' | 'random' | 'world';
 const MAX_SEED = 4294967295;
 
 export function freshMapSeed(previous?: number) {
@@ -35,7 +35,7 @@ export function MapPicker({
   onSeedChange: (seed: string) => void;
   onNewSeed: () => void;
 }) {
-  const invalid = value === 'random' && !mapSeedValid(seed);
+  const invalid = value !== 'seed-zero' && !mapSeedValid(seed);
   return (
     <div className="map-picker" role="group" aria-label="Mappa della nuova partita">
       <div className="map-picker-heading">Il territorio</div>
@@ -44,6 +44,12 @@ export function MapPicker({
           <strong>Casuale</strong>
           <small>
             Una regione quattro volte più ampia, con sei ambienti e otto culture da incontrare.
+          </small>
+        </button>
+        <button type="button" aria-pressed={value === 'world'} onClick={() => onChange('world')}>
+          <strong>Mondo</strong>
+          <small>
+            Sedici regioni collegate, continenti e isole da esplorare a piedi e in barca.
           </small>
         </button>
         <button
@@ -55,7 +61,7 @@ export function MapPicker({
           <small>La valle originaria, con la stessa disposizione iniziale.</small>
         </button>
       </div>
-      {value === 'random' && (
+      {value !== 'seed-zero' && (
         <div className="map-seed-control">
           <label htmlFor="new-map-seed">Seed della mappa</label>
           <div className="map-seed-entry">

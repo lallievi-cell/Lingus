@@ -1,5 +1,6 @@
 import type { GameState } from './types';
 import { riverSegments } from './worldGeneration';
+import { getWorldRiverSegments } from './worldGeography';
 
 type Point = { x: number; y: number };
 type World = Pick<GameState, 'mapGeneration' | 'sectors'>;
@@ -25,7 +26,26 @@ export function createRiverArtGeometry(world?: World): RiverArtGeometry {
       add({ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t });
     }
   };
-  const segments = world?.mapGeneration?.mode === 'random' ? riverSegments(world.sectors) : [];
+  const generation = world?.mapGeneration;
+  const worldRiver = generation?.worldRules === 1;
+  const segments = worldRiver
+    ? getWorldRiverSegments({
+        seed: generation.worldSeed ?? generation.seed,
+        regionX: generation.regionX ?? 0,
+        regionY: generation.regionY ?? 0,
+      })
+    : generation?.mode === 'random'
+      ? riverSegments(world!.sectors)
+      : [];
+  if (worldRiver) {
+    // Corners belong to the global stream. Local clipping adds no smoothing
+    // that could move its banks differently on opposite sides of a seam.
+    if (segments.length) {
+      add(segments[0][0]);
+      for (const [, end] of segments) line(end);
+    }
+    return { points, length: points.at(-1)?.distance ?? 0 };
+  }
   if (segments.length) {
     const corners = [segments[0][0], ...segments.map((segment) => segment[1])];
     add(corners[0]);

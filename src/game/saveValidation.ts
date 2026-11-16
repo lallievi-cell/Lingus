@@ -1,5 +1,6 @@
 import { BUILDING_SPECS, INNATE_WORDS, RESOURCE_ORDER, WORDS } from './content';
-import type { GameState } from './types';
+import type { GameState, Unit } from './types';
+import { WORLD_LOCAL_KEYS } from './worldTypes';
 import { isDryLandPoint } from './landNavigation';
 import { isSeaPoint, isSeaSegment } from './coastGeometry';
 import { isShoreConnection } from './shoreAccess';
@@ -41,7 +42,36 @@ const combatSource = (v: unknown) =>
   ['wolf', 'alpha', 'mammoth', 'deer', 'human', 'army'].includes(v.kind as string) &&
   optional(v.id, text) &&
   number(v.time);
-function validatorFor(worldSize: 500 | 1000, maritimeTargets = false) {
+const worldCoordinate = (v: unknown) => number(v, 0, 3) && Number.isInteger(v);
+const worldRegionId = (v: unknown): v is string => typeof v === 'string' && /^[0-3]:[0-3]$/.test(v);
+const worldMetadata = (generation: RecordValue) => {
+  const fields = ['worldRules', 'worldSeed', 'regionX', 'regionY'];
+  if (fields.every((key) => generation[key] === undefined)) return true;
+  return (
+    generation.worldRules === 1 &&
+    generation.mode === 'random' &&
+    generation.worldSize === 1000 &&
+    generation.landNavigation === 1 &&
+    generation.regionalCultures === 1 &&
+    generation.biomeRules === 1 &&
+    generation.coastalRules === 1 &&
+    generation.maritimeRules === 1 &&
+    number(generation.worldSeed, 0, 4294967295) &&
+    Number.isInteger(generation.worldSeed) &&
+    worldCoordinate(generation.regionX) &&
+    worldCoordinate(generation.regionY)
+  );
+};
+
+interface WorldValidationContext {
+  units: Unit[];
+}
+
+function validatorFor(
+  worldSize: 500 | 1000,
+  maritimeTargets = false,
+  worldContext?: WorldValidationContext,
+) {
   const sectorCount = worldSize / 100;
   const point = (v: unknown) => record(v) && number(v.x, 0, worldSize) && number(v.y, 0, worldSize);
   const regionalRoad = (v: unknown) => {
@@ -80,6 +110,7 @@ function validatorFor(worldSize: 500 | 1000, maritimeTargets = false) {
     ) &&
     optional(v.id, text) &&
     (v.type !== 'boat' || text(v.id)) &&
+    optional(v.regionId, (id) => !!worldContext && v.type === 'point' && worldRegionId(id)) &&
     optional(v.unitIds, ids) &&
     optional(
       v.cargoResource,
@@ -378,7 +409,8 @@ function validatorFor(worldSize: 500 | 1000, maritimeTargets = false) {
               value.regionalCultures === 1 &&
               value.biomeRules === 1 &&
               value.coastalRules === 1,
-          ),
+          ) &&
+          worldMetadata(value),
       )
     )
       return false;
@@ -517,7 +549,15 @@ function validatorFor(worldSize: 500 | 1000, maritimeTargets = false) {
       )
     )
       return false;
-    if (!validKnowledgeHistory(s.knowledgeHistory, s as unknown as GameState)) return false;
+    if (
+      !validKnowledgeHistory(
+        s.knowledgeHistory,
+        worldContext
+          ? { ...(s as unknown as GameState), units: worldContext.units }
+          : (s as unknown as GameState),
+      )
+    )
+      return false;
     if (!validPhrasebook(s.phrasebook, s as unknown as GameState)) return false;
     if (
       !list(
@@ -1054,8 +1094,205 @@ const validateValley = validatorFor(500);
 const validateRegion = validatorFor(1000);
 const validateMaritimeRegion = validatorFor(1000, true);
 
+/** Regions are validated through the same local rules as a single map. Global
+ * records are shared explicitly, rather than recursively embedding whole saves. */
+function validWorldSave(value: RecordValue): boolean {
+  const world = value.world;
+  if (
+    !record(world) ||
+    Object.keys(world).some(
+      (key) =>
+        ![
+          'version',
+          'seed',
+          'width',
+          'height',
+          'activeRegionId',
+          'homeRegionId',
+          'regions',
+          'transfers',
+        ].includes(key),
+    ) ||
+    world.version !== 1 ||
+    world.width !== 4 ||
+    world.height !== 4 ||
+    !number(world.seed, 0, 4294967295) ||
+    !Number.isInteger(world.seed) ||
+    !worldRegionId(world.activeRegionId) ||
+    !worldRegionId(world.homeRegionId) ||
+    !record(world.regions) ||
+    !Array.isArray(world.transfers)
+  )
+    return false;
+  const entries = Object.entries(world.regions);
+  if (
+    entries.length === 0 ||
+    entries.length > 16 ||
+    !Object.hasOwn(world.regions, world.activeRegionId) ||
+    !Object.hasOwn(world.regions, world.homeRegionId)
+  )
+    return false;
+
+  const projections = new Map<string, RecordValue>();
+  const allUnits: Unit[] = [];
+  const physicalIds = new Set<string>();
+  for (const [id, region] of entries) {
+    if (
+      !worldRegionId(id) ||
+      !record(region) ||
+      Object.keys(region).some(
+        (key) => !['id', 'x', 'y', 'discovered', 'snapshot'].includes(key),
+      ) ||
+      region.id !== id ||
+      !worldCoordinate(region.x) ||
+      !worldCoordinate(region.y) ||
+      id !== `${region.x}:${region.y}` ||
+      !flag(region.discovered) ||
+      ((id === world.activeRegionId || id === world.homeRegionId) && !region.discovered)
+    )
+      return false;
+    let projection: RecordValue;
+    if (id === world.activeRegionId) {
+      if (region.snapshot !== undefined) return false;
+      projection = { ...value };
+    } else {
+      if (
+        !record(region.snapshot) ||
+        Object.keys(region.snapshot).some(
+          (key) => !(WORLD_LOCAL_KEYS as readonly string[]).includes(key),
+        )
+      )
+        return false;
+      projection = { ...value };
+      for (const key of WORLD_LOCAL_KEYS) delete projection[key];
+      Object.assign(projection, region.snapshot);
+    }
+    delete projection.world;
+    const generation = projection.mapGeneration;
+    if (
+      !record(generation) ||
+      !worldMetadata(generation) ||
+      generation.worldRules !== 1 ||
+      generation.worldSeed !== world.seed ||
+      generation.regionX !== region.x ||
+      generation.regionY !== region.y
+    )
+      return false;
+
+    // Sector IDs address the regional grid; people and physical objects own
+    // identities that must survive crossing a border without duplication.
+    for (const key of [
+      'units',
+      'entities',
+      'buildings',
+      'boats',
+      'cities',
+      'factions',
+      'battalions',
+      'caravans',
+    ]) {
+      const actors = projection[key];
+      if (!Array.isArray(actors)) return false;
+      for (const actor of actors) {
+        if (!record(actor) || !text(actor.id) || physicalIds.has(actor.id as string)) return false;
+        physicalIds.add(actor.id as string);
+      }
+    }
+    allUnits.push(...(projection.units as Unit[]));
+    projections.set(id, projection);
+  }
+
+  const validateRegion = validatorFor(1000, true, { units: allUnits });
+  for (const projection of projections.values()) if (!validateRegion(projection)) return false;
+
+  const transferIds = new Set<string>();
+  const travellingActors = new Set<string>();
+  for (const transfer of world.transfers) {
+    if (
+      !record(transfer) ||
+      Object.keys(transfer).some(
+        (key) => !['id', 'from', 'to', 'kind', 'actorIds', 'exit', 'entry'].includes(key),
+      ) ||
+      !text(transfer.id) ||
+      transferIds.has(transfer.id as string) ||
+      !worldRegionId(transfer.from) ||
+      !worldRegionId(transfer.to) ||
+      transfer.from === transfer.to ||
+      !['boat', 'people'].includes(transfer.kind as string) ||
+      !ids(transfer.actorIds) ||
+      (transfer.actorIds as string[]).length === 0 ||
+      !record(transfer.exit) ||
+      !number(transfer.exit.x, 0, 1000) ||
+      !number(transfer.exit.y, 0, 1000) ||
+      !record(transfer.entry) ||
+      !number(transfer.entry.x, 0, 1000) ||
+      !number(transfer.entry.y, 0, 1000)
+    )
+      return false;
+    transferIds.add(transfer.id as string);
+    const source = projections.get(transfer.from);
+    const destination = projections.get(transfer.to);
+    if (!source || !destination) return false;
+    const from = world.regions[transfer.from] as RecordValue;
+    const to = world.regions[transfer.to] as RecordValue;
+    const dx = (to.x as number) - (from.x as number);
+    const dy = (to.y as number) - (from.y as number);
+    const exit = transfer.exit as { x: number; y: number };
+    const entry = transfer.entry as { x: number; y: number };
+    if (
+      Math.abs(dx) + Math.abs(dy) !== 1 ||
+      Math.abs(exit.x - entry.x - dx * 1000) > 1e-6 ||
+      Math.abs(exit.y - entry.y - dy * 1000) > 1e-6
+    )
+      return false;
+    const actors = transfer.actorIds as string[];
+    for (const actorId of actors) {
+      if (travellingActors.has(actorId)) return false;
+      travellingActors.add(actorId);
+    }
+    const people = source.units as Unit[];
+    const sourceState = source as unknown as GameState;
+    const destinationState = destination as unknown as GameState;
+    if (transfer.kind === 'people') {
+      if (
+        !isDryLandPoint(sourceState, exit) ||
+        !isDryLandPoint(destinationState, entry) ||
+        actors.some((actorId) => {
+          const person = people.find((unit) => unit.id === actorId);
+          return (
+            !person ||
+            person.hp <= 0 ||
+            !!person.boatId ||
+            !!person.cityId ||
+            (person.factionId !== undefined && person.factionId !== 'player')
+          );
+        })
+      )
+        return false;
+    } else {
+      const boats = source.boats as GameState['boats'];
+      const boat = boats?.find((vessel) => actors.includes(vessel.id));
+      if (
+        !boat ||
+        boat.ownerId !== 'player' ||
+        boat.status === 'building' ||
+        boat.status === 'landing' ||
+        !boat.passengerIds.length ||
+        actors.length !== boat.passengerIds.length + 1 ||
+        !boat.passengerIds.every((personId) => actors.includes(personId)) ||
+        !isSeaPoint(sourceState, exit) ||
+        !isSeaPoint(destinationState, entry)
+      )
+        return false;
+    }
+  }
+  return true;
+}
+
 export function validSave(value: unknown): value is GameState {
   const generation = record(value) && record(value.mapGeneration) ? value.mapGeneration : undefined;
+  if (record(value) && value.world !== undefined) return validWorldSave(value);
+  if (generation?.worldRules !== undefined) return false;
   const region = generation?.worldSize === 1000;
   const maritime = region && generation?.maritimeRules === 1;
   return (maritime ? validateMaritimeRegion : region ? validateRegion : validateValley)(value);

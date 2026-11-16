@@ -8,6 +8,7 @@ import {
   MousePointer2,
   PackageOpen,
   ListFilter,
+  Globe2,
   X,
 } from 'lucide-react';
 import type { GameState, Target, WorldTarget } from '../game/types';
@@ -59,6 +60,7 @@ interface WorldMapProps {
   selectingGroup?: boolean;
   onSpark?: (sparkId: string) => void;
   onInspectStocks?: () => void;
+  onOpenAtlas?: () => void;
   onPrepareMaritime?: (tokens: string[], destination?: Target, groupAnchor?: Target) => void;
   groupAnchor?: WorldTarget | null;
   isGroupActive?: boolean;
@@ -196,6 +198,7 @@ export function WorldMap({
   selectingGroup = false,
   onSpark,
   onInspectStocks,
+  onOpenAtlas,
   onPrepareMaritime,
   groupAnchor = null,
   isGroupActive = false,
@@ -262,6 +265,10 @@ export function WorldMap({
   const mapSeed = state.mapGeneration?.seed;
   const coastalRules = state.mapGeneration?.coastalRules;
   const maritimeRules = state.mapGeneration?.maritimeRules;
+  const worldRules = state.mapGeneration?.worldRules;
+  const worldSeed = state.mapGeneration?.worldSeed;
+  const regionX = state.mapGeneration?.regionX;
+  const regionY = state.mapGeneration?.regionY;
   const terrain = useMemo(
     () => createTerrain(mapMode === 'random' ? mapSeed! : 6842, state.seasonIndex, state),
     [
@@ -269,6 +276,10 @@ export function WorldMap({
       mapSeed,
       coastalRules,
       maritimeRules,
+      worldRules,
+      worldSeed,
+      regionX,
+      regionY,
       worldSize,
       geography,
       state.seasonIndex,
@@ -1291,11 +1302,17 @@ export function WorldMap({
           className="lingus-world__stocks"
           type="button"
           onClick={onInspectStocks}
-          aria-label={state.urbanized ? 'Scorte della capitale' : 'Scorte del campo'}
+          aria-label={state.world ? 'Scorte della regione osservata' : state.urbanized ? 'Scorte della capitale' : 'Scorte del campo'}
           title="Consulta cibo, materiali e pelli già consegnati"
         >
           <PackageOpen size={17} />
           <span>Scorte</span>
+        </button>
+      )}
+      {onOpenAtlas && (
+        <button className="lingus-world__atlas" type="button" onClick={onOpenAtlas} aria-label="Atlante del mondo">
+          <Globe2 size={17} />
+          <span>Atlante</span>
         </button>
       )}
       <div className="lingus-world__control-stack">

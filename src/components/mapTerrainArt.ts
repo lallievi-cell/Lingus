@@ -732,7 +732,16 @@ export function createPainterlyTerrain(
     detail: 500 / worldSize,
     worldSize,
   };
-  paintGround(ctx, originalSeed, season, sectors, home, projection);
+  // Coastal sectors can contain both water and a small island. The physical
+  // sea is painted afterwards, so the cached underpainting must remain earth
+  // wherever the shared polygon leaves dry land inside an otherwise sea cell.
+  const groundSectors =
+    world?.mapGeneration?.worldRules === 1
+      ? sectors.map<Sector>((sector) =>
+          sector.biome === 'sea' ? { ...sector, biome: 'coast' } : sector,
+        )
+      : sectors;
+  paintGround(ctx, originalSeed, season, groundSectors, home, projection);
   paintLandscapeMasses(ctx, originalSeed, season, sectors, home, projection);
   paintCampWear(ctx, originalSeed, season, home, projection);
   paintPigment(ctx, originalSeed, projection.detail);

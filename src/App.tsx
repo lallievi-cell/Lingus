@@ -38,6 +38,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { WorldMap } from './components/WorldMap';
+import { WorldAtlas, worldRegionLabel } from './components/WorldAtlas';
 import { SaveRecoveryPanel } from './components/SaveRecoveryPanel';
 import { SessionStatus } from './components/SessionStatus';
 import { AudioSettings } from './components/AudioSettings';
@@ -84,6 +85,7 @@ import { GrowthReadiness, IndividualGrowthReadiness } from './components/GrowthR
 import { GuidedCouncil, CouncilRules } from './components/GuidedCouncil';
 import { getCalendar, hasOpeningBalance, seasonStart } from './game/calendar';
 import { getWorldSize, REGION_WORLD_SIZE } from './game/worldDimensions';
+import { switchWorldRegion } from './game/worldRuntime';
 import { resolveUnitSex } from './game/demography';
 import { TeachingPanel } from './components/TeachingPanel';
 import { MobileActionDock } from './components/MobileActionDock';
@@ -178,6 +180,7 @@ type Panel =
   | 'stocks'
   | 'recovery'
   | 'work-team'
+  | 'world-atlas'
   | CivilizationMode
   | null;
 const KIND_NAMES: Record<WordKind, string> = {
@@ -253,9 +256,11 @@ function App() {
   const contextualSnapshot = useRef({ game, session: mapSession });
   const [newMode, setNewMode] = useState<'guided' | 'classic'>(game.playMode ?? 'guided');
   const [newMap, setNewMap] = useState<MapChoice>(
-    game.mapGeneration?.mode ?? (game.started ? 'random' : 'seed-zero'),
+    game.world ? 'world' : game.mapGeneration?.mode ?? (game.started ? 'random' : 'seed-zero'),
   );
-  const [newSeed, setNewSeed] = useState(game.mapGeneration ? String(game.mapGeneration.seed) : '');
+  const [newSeed, setNewSeed] = useState(
+    game.world ? String(game.world.seed) : game.mapGeneration ? String(game.mapGeneration.seed) : '',
+  );
   const newMapValid = newMap === 'seed-zero' || mapSeedValid(newSeed);
   const [pauseOnEvents, setPauseOnEvents] = useState(() =>
     loadEventPause(game.playMode === 'guided'),
@@ -416,7 +421,9 @@ function App() {
             : target?.type === 'boat'
               ? (targetPresentation(game, target)?.label ?? 'Imbarcazione')
               : target
-                ? 'Punto sulla mappa'
+                ? target.regionId && game.world
+                  ? `Confine verso ${worldRegionLabel(game, game.world.regions[target.regionId]?.x ?? Number(target.regionId.split(':')[0]), game.world.regions[target.regionId]?.y ?? Number(target.regionId.split(':')[1])).toLocaleLowerCase('it')}`
+                  : 'Punto sulla mappa'
                 : null;
   const livingUnits = game.units.filter(
     (u) => u.hp > 0 && (u.factionId === undefined || u.factionId === 'player'),
@@ -788,6 +795,30 @@ function App() {
     if (unit) focusTarget({ type: 'unit', id, x: unit.x, y: unit.y }, true);
   }
 
+  function focusWorldRegion(regionId: string) {
+    const next = switchWorldRegion(game, regionId);
+    if (next === game) return;
+    setGame(next);
+    setTarget(null);
+    setSentence([]);
+    setExecutorId(undefined);
+    const companion = next.units.find(
+      (unit) => unit.hp > 0 && (!unit.factionId || unit.factionId === 'player'),
+    );
+    setGroupAnchor({ type: 'point', x: companion?.x ?? next.home.x, y: companion?.y ?? next.home.y });
+    setSelectingGroup(false);
+    setFocusRequest(undefined);
+    setOrderFeedback(null);
+    setPhrasebookTab(null);
+    setTaskOutcomes([]);
+    outcomeSnapshot.current = next;
+    setTribeFilter('all');
+    setTribeTask('any');
+    closeWordBank();
+    setMobileSection('map');
+    setPanel(null);
+  }
+
   function preparePhrase(words: string[], destination?: Target, selection?: Target) {
     const issue = phraseRecallIssue(game, words);
     if (issue) {
@@ -807,7 +838,9 @@ function App() {
     setMobileSection('map');
     if (destination) focusTarget(destination);
     notify(
-      selection?.type === 'boat'
+      destination?.regionId
+        ? 'Viaggio preparato fino al confine. Controlla il gruppo e l’anteprima, poi premi Pronuncia: persone e carichi devono raggiungere il passaggio.'
+        : selection?.type === 'boat'
         ? 'Equipaggio della barca selezionato. Scegli il mare o una riva osservata, controlla l’anteprima e premi Pronuncia.'
         : 'Frase pronta da controllare. Apri l’anteprima per vedere chi agirà e dove, poi premi Pronuncia.',
     );
@@ -1045,8 +1078,8 @@ function App() {
     setHelpWordId(null);
     setCouncilInspection(false);
     setNewMode(next.playMode ?? 'classic');
-    setNewMap(next.mapGeneration?.mode ?? 'random');
-    setNewSeed(next.mapGeneration ? String(next.mapGeneration.seed) : '');
+    setNewMap(next.world ? 'world' : next.mapGeneration?.mode ?? 'random');
+    setNewSeed(next.world ? String(next.world.seed) : next.mapGeneration ? String(next.mapGeneration.seed) : '');
     setDismissedEvents(new Set());
     dismissBackgroundPause();
     eventSnapshot.current = new Set((next.tribeEvents ?? []).map((event) => event.id));
@@ -1091,16 +1124,22 @@ function App() {
   }
 
   function previewMap(map: MapChoice, seedText: string, mode = newMode, chooseNew = false) {
-    if (panel !== 'welcome' || (map === 'random' && !mapSeedValid(seedText))) return;
+    if (panel !== 'welcome' || (map !== 'seed-zero' && !mapSeedValid(seedText))) return;
     setGame((current) => {
       const seed =
         map === 'seed-zero'
           ? 6842
           : (parseMapSeed(seedText) ??
             (!chooseNew && current.mapGeneration?.mode === 'random'
-              ? current.mapGeneration.seed
+              ? (current.world?.seed ?? current.mapGeneration.seed)
               : freshMapSeed(current.mapGeneration?.seed)));
-      return createGame(seed, mode, map, map === 'random' ? REGION_WORLD_SIZE : 500);
+      return createGame(
+        seed,
+        mode,
+        map === 'seed-zero' ? 'seed-zero' : 'random',
+        map === 'seed-zero' ? 500 : REGION_WORLD_SIZE,
+        map === 'world',
+      );
     });
   }
 
@@ -1122,8 +1161,8 @@ function App() {
 
   function openRestart() {
     setNewMode(game.playMode ?? 'classic');
-    setNewMap(game.mapGeneration?.mode ?? 'random');
-    setNewSeed(String(freshMapSeed(game.mapGeneration?.seed)));
+    setNewMap(game.world ? 'world' : game.mapGeneration?.mode ?? 'random');
+    setNewSeed(String(freshMapSeed(game.world?.seed ?? game.mapGeneration?.seed)));
     setPanel('restart');
   }
 
@@ -1147,7 +1186,13 @@ function App() {
         ? 6842
         : (parseMapSeed(newSeed) ?? freshMapSeed(game.mapGeneration?.seed));
     const fresh = {
-      ...createGame(seed, newMode, newMap, newMap === 'random' ? REGION_WORLD_SIZE : 500),
+      ...createGame(
+        seed,
+        newMode,
+        newMap === 'seed-zero' ? 'seed-zero' : 'random',
+        newMap === 'seed-zero' ? 500 : REGION_WORLD_SIZE,
+        newMap === 'world',
+      ),
       started: true,
     };
     if (!preserveCurrentStory()) return;
@@ -1399,11 +1444,13 @@ function App() {
       <div className="world-strip">
         <div className="world-location">
           <span className="live-dot" />
-          <span>LA VALLE DELLE PRIME VOCI</span>
+          <span>{game.world ? 'LE TERRE DELLE MOLTE VOCI' : 'LA VALLE DELLE PRIME VOCI'}</span>
           <span className="strip-divider">/</span>
-          <span>{game.tier === 0 ? 'Terra senza nome' : 'Il nostro accampamento'}</span>
+          <span>{game.world
+            ? worldRegionLabel(game, game.world.regions[game.world.activeRegionId].x, game.world.regions[game.world.activeRegionId].y)
+            : game.tier === 0 ? 'Terra senza nome' : 'Il nostro accampamento'}</span>
         </div>
-        <div className="world-resources">
+        <div className="world-resources" aria-label={game.world ? 'Scorte della regione osservata' : undefined}>
           {hasWord(game, 'M_02') && (
             <>
               <span title="Scorte alimentari" className="stock-summary">
@@ -1941,9 +1988,10 @@ function App() {
           </div>
           <div className="map-frame">
             <WorldMap
-              key={mapSession}
+              key={`${mapSession}:${game.world?.activeRegionId ?? 'local'}`}
               state={game}
               onInspectStocks={() => setPanel('stocks')}
+              onOpenAtlas={game.world ? () => setPanel('world-atlas') : undefined}
               focusRequest={focusRequest}
               selectedTarget={target}
               groupAnchor={groupAnchor}
@@ -2760,9 +2808,19 @@ function App() {
           </button>
         </Modal>
       )}
+      {panel === 'world-atlas' && game.world && (
+        <WorldAtlas
+          state={game}
+          selectedTarget={target}
+          groupAnchor={groupAnchor}
+          onClose={closePanel}
+          onFocus={focusWorldRegion}
+          onPrepare={preparePhrase}
+        />
+      )}
       {panel === 'stocks' && (
         <Modal
-          title={game.urbanized ? 'Scorte della capitale' : 'Scorte del campo'}
+          title={game.world ? 'Scorte della regione osservata' : game.urbanized ? 'Scorte della capitale' : 'Scorte del campo'}
           onClose={closePanel}
           className="camp-inventory-modal"
         >
@@ -3347,9 +3405,9 @@ function App() {
           <p className="current-map-info" aria-label="Mappa attuale">
             {game.mapGeneration ? (
               <>
-                {game.mapGeneration.mode === 'random' ? 'Mappa casuale' : 'Seed Zero'}
+                {game.world ? 'Mondo · sedici regioni collegate' : game.mapGeneration.mode === 'random' ? 'Mappa casuale' : 'Seed Zero'}
                 {' · Seed '}
-                <code>{game.mapGeneration.seed}</code>
+                <code>{game.world?.seed ?? game.mapGeneration.seed}</code>
                 {' · '}
                 {getWorldSize(game) === REGION_WORLD_SIZE ? 'Regione' : 'Valle'}
                 {' · '}

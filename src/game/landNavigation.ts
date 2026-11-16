@@ -1,10 +1,10 @@
 import type { GameState } from './types';
 import { createRiverArtGeometry, sampleRiverArt } from './riverGeometry';
 import { getWorldSize } from './worldDimensions';
-import { islandDistanceUpperBound, islandInlandDistance } from './islandGeometry';
 import {
   createCoastGeometry,
   coastInlandDistance,
+  coastLandmassAt,
   isCoastLandSegment,
   type CoastGeometry,
 } from './coastGeometry';
@@ -36,6 +36,7 @@ type Grid = { land: Uint8Array; checked: Uint8Array; edges: Uint8Array };
 type Model = {
   worldSize: number;
   maritime: boolean;
+  worldKey: string;
   coast?: CoastGeometry;
   gridSide: number;
   nodeCount: number;
@@ -140,6 +141,7 @@ function createModel(state: GameState): Model {
   return {
     worldSize,
     maritime: state.mapGeneration?.maritimeRules === 1,
+    worldKey: `${state.mapGeneration?.worldRules}:${state.mapGeneration?.worldSeed}:${state.mapGeneration?.regionX}:${state.mapGeneration?.regionY}`,
     coast,
     gridSide,
     nodeCount: gridSide * gridSide,
@@ -178,11 +180,13 @@ function modelFor(state: GameState) {
     existing?.worldSize === getWorldSize(state) &&
     Boolean(existing.terrain) === (state.mapGeneration?.biomeRules === 1) &&
     Boolean(existing.coast) === (state.mapGeneration?.coastalRules === 1) &&
-    existing.maritime === (state.mapGeneration?.maritimeRules === 1)
+    existing.maritime === (state.mapGeneration?.maritimeRules === 1) &&
+    existing.worldKey ===
+      `${state.mapGeneration?.worldRules}:${state.mapGeneration?.worldSeed}:${state.mapGeneration?.regionX}:${state.mapGeneration?.regionY}`
   )
     return existing;
   const generation = state.mapGeneration;
-  const key = `${getWorldSize(state)}:${generation?.mode}:${generation?.seed}:${generation?.landNavigation}:${generation?.biomeRules}:${generation?.coastalRules}:${generation?.maritimeRules}:${state.sectors.map((sector) => `${sector.x},${sector.y}:${sector.biome}`).join('|')}`;
+  const key = `${getWorldSize(state)}:${generation?.mode}:${generation?.seed}:${generation?.landNavigation}:${generation?.biomeRules}:${generation?.coastalRules}:${generation?.maritimeRules}:${generation?.worldRules}:${generation?.worldSeed}:${generation?.regionX}:${generation?.regionY}:${state.sectors.map((sector) => `${sector.x},${sector.y}:${sector.biome}`).join('|')}`;
   let model = models.get(key);
   if (!model) {
     model = createModel(state);
@@ -637,15 +641,12 @@ function computeLandRoute(state: GameState, model: Model, start: LandPoint, end:
   if (!pointOnLand(model, start) || !pointOnLand(model, end)) return null;
   // Offshore polygons are separate physical landmasses. Reject their absent
   // terrestrial connection before searching the entire mainland graph.
-  if (model.coast?.islands?.length) {
-    const landmass = (point: LandPoint) =>
-      model.coast!.islands!.findIndex(
-        (island) =>
-          islandDistanceUpperBound(island, point) > 0.25 &&
-          islandInlandDistance(island, point) > 0.25,
-      );
-    if (landmass(start) !== landmass(end)) return null;
-  }
+  if (
+    model.coast &&
+    (model.coast.world || model.coast.islands?.length) &&
+    coastLandmassAt(model.coast, start) !== coastLandmassAt(model.coast, end)
+  )
+    return null;
   if (distance(start, end) <= EPSILON) return [];
   const direct = clearSegment(model, start, end);
   if (direct && directTerrainRouteIsOptimal(model, start, end)) return [{ ...end }];

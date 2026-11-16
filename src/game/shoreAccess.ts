@@ -1,10 +1,10 @@
 import {
   coastSegmentCuts,
+  coastEdges,
   createCoastGeometry,
   isSeaPoint,
   type CoastPoint,
 } from './coastGeometry';
-import { polygonOrientation } from './islandGeometry';
 import { isDryLandPoint, isDryLandSegment, isLandSegment } from './landNavigation';
 import type { GameState } from './types';
 import { isWorldPoint } from './worldDimensions';
@@ -60,19 +60,7 @@ export function findShoreAccess(
     !isDryLandPoint(state, landPoint)
   )
     return undefined;
-  const edges: { a: CoastPoint; b: CoastPoint; inward: number }[] = [];
-  const mainlandInward = coast.side === 'north' || coast.side === 'east' ? 1 : -1;
-  for (let index = 1; index < coast.points.length; index++)
-    edges.push({ a: coast.points[index - 1], b: coast.points[index], inward: mainlandInward });
-  for (const island of coast.islands ?? []) {
-    const inward = polygonOrientation(island.points);
-    for (let index = 0; index < island.points.length; index++)
-      edges.push({
-        a: island.points[index],
-        b: island.points[(index + 1) % island.points.length],
-        inward,
-      });
-  }
+  const edges = coastEdges(coast);
   const candidates: { water: CoastPoint; shoreDistance: number }[] = [];
   for (const { a, b, inward } of edges) {
     const dx = b.x - a.x,

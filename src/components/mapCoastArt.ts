@@ -1,20 +1,30 @@
 import {
   createCoastGeometry,
+  coastEdges,
   coastInlandDistance,
   type CoastGeometry,
   type CoastPoint,
   type CoastWorld,
 } from '../game/coastGeometry';
 import type { GameState } from '../game/types';
+import { WORLD_REGIONS } from '../game/worldGeography';
 import { isWorldPointRevealed } from '../game/worldDimensions';
 
 type Viewport = { minX: number; minY: number; maxX: number; maxY: number };
+type CoastView = CoastWorld & Pick<GameState, 'disasters' | 'paused' | 'time' | 'tier'>;
 const horizontal = (coast: CoastGeometry) => coast.side === 'north' || coast.side === 'south';
 const seaward = (coast: CoastGeometry) =>
   coast.side === 'north' || coast.side === 'west' ? -1 : 1;
 
 function traceShore(ctx: CanvasRenderingContext2D, coast: CoastGeometry) {
   ctx.beginPath();
+  if (coast.world) {
+    for (const edge of coastEdges(coast)) {
+      ctx.moveTo(edge.a.x, edge.a.y);
+      ctx.lineTo(edge.b.x, edge.b.y);
+    }
+    return;
+  }
   coast.points.forEach((point, index) =>
     index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y),
   );
@@ -40,6 +50,21 @@ function traceAllShores(ctx: CanvasRenderingContext2D, coast: CoastGeometry) {
 
 /** The edge is the navigation polyline; no smoothed curve can hide a dry bay. */
 function traceSea(ctx: CanvasRenderingContext2D, coast: CoastGeometry) {
+  if (coast.world) {
+    // Sea is the complement of the actual land polygons. Inner rings are
+    // physical inland seas, and a region border never becomes a beach.
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(coast.worldSize, 0);
+    ctx.lineTo(coast.worldSize, coast.worldSize);
+    ctx.lineTo(0, coast.worldSize);
+    ctx.closePath();
+    for (const landmass of coast.world.landmasses) {
+      traceIsland(ctx, landmass.points, false);
+      for (const hole of landmass.holes) traceIsland(ctx, hole, false);
+    }
+    return;
+  }
   traceShore(ctx, coast);
   const edge = seaward(coast) < 0 ? 0 : coast.worldSize;
   if (horizontal(coast)) {
@@ -104,14 +129,21 @@ export function paintCoastWater(ctx: CanvasRenderingContext2D, world: CoastWorld
   if (!coast) return;
   ctx.save();
   traceSea(ctx, coast);
-  if (coast.islands?.length) ctx.clip('evenodd');
+  if (coast.world || coast.islands?.length) ctx.clip('evenodd');
   else ctx.clip();
   const size = coast.worldSize;
   const outside = seaward(coast) < 0 ? 0 : size;
   const inside = outside + (seaward(coast) < 0 ? 155 : -155);
-  const gradient = horizontal(coast)
-    ? ctx.createLinearGradient(0, outside, 0, inside)
-    : ctx.createLinearGradient(outside, 0, inside, 0);
+  const gradient = coast.world
+    ? ctx.createLinearGradient(
+        -coast.world.regionX * size,
+        -coast.world.regionY * size,
+        (WORLD_REGIONS - coast.world.regionX) * size,
+        (WORLD_REGIONS - coast.world.regionY) * size,
+      )
+    : horizontal(coast)
+      ? ctx.createLinearGradient(0, outside, 0, inside)
+      : ctx.createLinearGradient(outside, 0, inside, 0);
   gradient.addColorStop(0, winter ? '#547e86' : '#376879');
   gradient.addColorStop(0.65, winter ? '#719c9a' : '#52888c');
   gradient.addColorStop(1, winter ? '#a0b9a9' : '#8aaa9a');
@@ -129,6 +161,29 @@ export function paintCoastWater(ctx: CanvasRenderingContext2D, world: CoastWorld
     ctx.lineWidth = width;
     ctx.strokeStyle = color;
     ctx.stroke();
+  }
+  if (coast.world) {
+    // A bounded number of pigment strokes follows the same polygon normals.
+    // The terrain cache owns these strokes; animation allocates no surface.
+    for (const [index, edge] of coastEdges(coast).entries()) {
+      const dx = edge.b.x - edge.a.x,
+        dy = edge.b.y - edge.a.y;
+      const length = Math.hypot(dx, dy);
+      if (!length) continue;
+      const count = Math.ceil(length / 18);
+      for (let mark = 0; mark < count; mark++) {
+        const fraction = (mark + 0.35) / count;
+        const across = 15 + ((index * 17 + mark * 13) % 52);
+        const x = edge.a.x + dx * fraction + (dy * edge.inward * across) / length,
+          y = edge.a.y + dy * fraction - (dx * edge.inward * across) / length;
+        ctx.beginPath();
+        ctx.moveTo(x - 2.7, y);
+        ctx.lineTo(x + 2.7, y - 0.3);
+        ctx.lineWidth = 0.23;
+        ctx.strokeStyle = mark % 2 ? '#c5d7bf28' : '#2f697026';
+        ctx.stroke();
+      }
+    }
   }
   // Broken translucent strokes give water depth without a second large texture.
   for (let index = 1; index < coast.points.length; index++) {
@@ -152,7 +207,7 @@ export function paintCoastWater(ctx: CanvasRenderingContext2D, world: CoastWorld
 
 /** A few small wavelets use simulation time, explored water and the live camera. */
 export function getCoastHighlights(
-  world: GameState,
+  world: CoastView,
   time: number,
   viewport?: Viewport,
   reducedMotion = false,
@@ -162,6 +217,8 @@ export function getCoastHighlights(
   const clock = world.paused ? world.time : time;
   const marks: { a: CoastPoint; b: CoastPoint; opacity: number }[] = [];
   const visible = (point: CoastPoint) =>
+    (!coast.world ||
+      (point.x >= 0 && point.y >= 0 && point.x <= coast.worldSize && point.y <= coast.worldSize)) &&
     (!viewport ||
       (point.x >= viewport.minX &&
         point.x <= viewport.maxX &&
@@ -169,6 +226,29 @@ export function getCoastHighlights(
         point.y <= viewport.maxY)) &&
     isWorldPointRevealed(world, point.x, point.y) &&
     coastInlandDistance(coast, point) <= 0.25;
+  if (coast.world) {
+    for (const [index, edge] of coastEdges(coast).entries()) {
+      const dx = edge.b.x - edge.a.x,
+        dy = edge.b.y - edge.a.y;
+      const length = Math.hypot(dx, dy);
+      if (!length) continue;
+      const count = Math.ceil(length / 65);
+      for (let mark = 0; mark < count; mark++) {
+        const wave = (clock * 0.085 + index * 0.317 + mark * 0.173) % 1;
+        const offset = 2 + (1 - wave) * 9;
+        const fraction = (mark + 0.5) / count;
+        const point = {
+          x: edge.a.x + dx * fraction + (dy * edge.inward * offset) / length,
+          y: edge.a.y + dy * fraction - (dx * edge.inward * offset) / length,
+        };
+        const a = { x: point.x - (dx / length) * 3.1, y: point.y - (dy / length) * 3.1 };
+        const b = { x: point.x + (dx / length) * 3.1, y: point.y + (dy / length) * 3.1 };
+        if (visible(a) && visible(b))
+          marks.push({ a, b, opacity: Math.sin(wave * Math.PI) * 0.34 });
+      }
+    }
+    return marks;
+  }
   for (let index = 1; index < coast.points.length; index++) {
     if (coast.islands?.length && index % 5 === 0) continue;
     const start = coast.points[index - 1],

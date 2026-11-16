@@ -1,6 +1,5 @@
 import { hasOpeningBalance } from './calendar';
-import { coastInlandDistance, createCoastGeometry, type CoastGeometry } from './coastGeometry';
-import { islandDistanceUpperBound, islandInlandDistance } from './islandGeometry';
+import { coastLandmassAt, createCoastGeometry } from './coastGeometry';
 import { isLandSegment, planLandRoute } from './landNavigation';
 import { addResource, distance, nextId } from './runtime';
 import { sectorIndex } from './worldDimensions';
@@ -8,24 +7,14 @@ import type { GameState, Inventory, MapEntity, Resource } from './types';
 
 type Site = { x: number; y: number };
 
-function landmassAt(coast: CoastGeometry, point: Site) {
-  for (const [index, island] of (coast.islands ?? []).entries())
-    if (
-      islandDistanceUpperBound(island, point) > 0.25 &&
-      islandInlandDistance(island, point) > 0.25
-    )
-      return index + 1;
-  return coastInlandDistance(coast, point) > 0.25 ? 0 : -1;
-}
-
 /** Cheap sea separation for candidate lists. Actual chosen land routes still
  * check rivers, fords and every intervening segment in the route planner. */
 export function sameLandmass(state: GameState, a: Site, b: Site) {
   if (state.mapGeneration?.maritimeRules !== 1) return true;
   const coast = createCoastGeometry(state);
   if (!coast) return true;
-  const from = landmassAt(coast, a);
-  return from >= 0 && from === landmassAt(coast, b);
+  const from = coastLandmassAt(coast, a);
+  return from !== undefined && from === coastLandmassAt(coast, b);
 }
 
 /** A sea crossing never grants access to the shared stock at home. */

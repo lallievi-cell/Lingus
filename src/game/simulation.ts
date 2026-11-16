@@ -133,6 +133,7 @@ import type {
   Tier,
   Unit,
 } from './types';
+import { allWorldCities, allWorldUnits } from './worldRuntime';
 
 /** Parameters the GDD does not numerically specify; kept explicit for review. */
 export const CORE_DEFAULTS = {
@@ -168,13 +169,15 @@ export function getSeason(s: GameState) {
 }
 export function population(s: GameState) {
   return s.urbanized
-    ? s.cities
+    ? allWorldCities(s)
         .filter((c) => c.factionId === 'player')
         .reduce(
           (n, c) => n + c.cohorts.workers + c.cohorts.warriors + c.cohorts.sages + c.cohorts.slaves,
           0,
         )
-    : activeUnits(s).length;
+    : allWorldUnits(s).filter(
+        (u) => u.hp > 0 && (u.factionId === undefined || u.factionId === 'player'),
+      ).length;
 }
 export function initializeUnit(u: Unit) {
   u.eventMemory ??= [];
@@ -1498,7 +1501,8 @@ export function processWork(s: GameState, u: Unit, dt: number) {
   if (u.action === 'moving' || u.action === 'fleeing' || u.action === 'patrolling') {
     const destination = { x: u.tx ?? s.home.x, y: u.ty ?? s.home.y };
     const homeward = distance(destination, s.home) < 0.01;
-    const individualPoint = u.command?.[0] === 'S_02' && !homeward;
+    const worldBoundary = !!s.world && u.targetId?.startsWith('world-boundary:') === true;
+    const individualPoint = worldBoundary || (u.command?.[0] === 'S_02' && !homeward);
     const arrived = individualPoint
       ? move(s, u, destination.x, destination.y, dt, 4)
       : moveToInteraction(
@@ -1510,7 +1514,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
           u.action === 'fleeing' ? 4.8 : 4,
           homeward && getDogmaEffects(s, { unit: u }).nightTaboo ? 3.5 : undefined,
         );
-    if (arrived) resetInstinct(u, s);
+    if (arrived && !worldBoundary) resetInstinct(u, s);
     return;
   }
   if (u.action === 'returning') {
@@ -2710,14 +2714,20 @@ export function updateAnimals(s: GameState, dt: number) {
     }
   }
 }
-export function seasonalCore(s: GameState) {
+export function seasonalCore(
+  s: GameState,
+  options: { regional?: boolean; global?: boolean } = {},
+) {
   const season = seasonOf(s),
     // Settlement runs after time crosses the boundary. Weather and spring
     // regeneration use the new season; costs, spoilage and harvest close the old one.
     endedSeason = (season.index + 3) % 4,
     live = activeUnits(s);
-  s.stats.seasonsSurvived++;
-  s.nightCount++;
+  const globalSeason = !options.regional || options.global === true;
+  if (globalSeason) {
+    s.stats.seasonsSurvived++;
+    s.nightCount++;
+  }
   const slept = live.filter((u) => u.sleptThisNight && distance(u, s.home) <= 10);
   const rested = new Set(
     live
@@ -2922,7 +2932,7 @@ export function seasonalCore(s: GameState) {
       }
     if (b.kind === 'temple') s.attention = clamp(s.attention + 20 * efficiency, 0, fx.attentionCap);
   }
-  if (hasBuilding(s, 'campfire')) {
+  if (globalSeason && hasBuilding(s, 'campfire')) {
     const hunger =
         activeUnits(s).reduce((n, u) => n + u.hunger, 0) / Math.max(1, activeUnits(s).length),
       elders = activeUnits(s).filter((u) => u.age >= ELDER_AGE).length;
@@ -2938,7 +2948,7 @@ export function seasonalCore(s: GameState) {
       temple,
     ).total;
     s.campfirePending = true;
-  } else s.attention = 0;
+  } else if (globalSeason) s.attention = 0;
   s.burntWood = 0;
   if (spring) {
     s.disasters.drought = false;
@@ -3055,6 +3065,7 @@ export function seasonalCore(s: GameState) {
     s.recentTrauma = { tag: 'STAT_PLAGUE', time: s.time };
     log(s, 'Un’epidemia colpisce il trenta per cento della comunità.', 'danger');
   }
+  if (!globalSeason) return;
   updateDogmasSeason(s);
   const threshold = [0, 6, 8, 16, 25, 35][s.tier],
     stable = availableWords(s).filter((w) => s.words[w].retention >= 50).length;
@@ -3116,7 +3127,11 @@ export function finishSeasonMemory(s: GameState) {
   }
   advanceTier(s);
 }
-export function simulationStep(s: GameState, dt: number) {
+export function simulationStep(
+  s: GameState,
+  dt: number,
+  options: { regional?: boolean } = {},
+) {
   for (const city of s.cities.filter(
     (c) => c.factionId !== 'player' && activeUnits(s).some((u) => distance(u, c) <= 30),
   )) {
@@ -3152,7 +3167,7 @@ export function simulationStep(s: GameState, dt: number) {
   updateMaritime(s, dt);
   recordLivedFireUse(s, dt);
   updateAnimals(s, dt);
-  updateDogmas(s, dt);
+  if (!options.regional) updateDogmas(s, dt);
   const survivors = activeUnits(s);
   if (
     survivors.length > 0 &&
@@ -3165,7 +3180,7 @@ export function simulationStep(s: GameState, dt: number) {
   s.cohesion = clamp(
     s.cohesion - ((corpseCount * 2) / 60) * effectiveElapsed(s, s.time - dt, s.time),
   );
-  for (const spark of [...s.sparks])
+  for (const spark of options.regional ? [] : [...s.sparks])
     if (
       (!spark.deferred && spark.expiresAt < s.time) ||
       !s.units.some((u) => u.id === spark.unitId && u.hp > 0)
@@ -3215,7 +3230,29 @@ export function simulationStep(s: GameState, dt: number) {
       recordEvent(s, u, 'ENV_MARCH', 100, ['V_13'], 60);
     evaluateDiscoveries(s, u);
   }
+  if (!options.regional) finishPopulationStep(s);
+}
+
+function finishPopulationStep(s: GameState) {
   advanceTier(s);
   if (population(s) <= 0) s.gameOver = 'La tribù si è estinta.';
   else if (s.cohesion <= 0) s.gameOver = 'La coesione è esaurita: la comunità si disperde.';
+}
+
+/** Global pressure and memory are settled once after every inhabited region moved. */
+export function finishWorldSimulationStep(s: GameState, dt: number): void {
+  updateDogmas(s, dt);
+  const people = allWorldUnits(s);
+  for (const spark of [...s.sparks]) {
+    const witness = people.find((unit) => unit.id === spark.unitId && unit.hp > 0);
+    if ((!spark.deferred && spark.expiresAt < s.time) || !witness) {
+      s.sparks = s.sparks.filter((entry) => entry.id !== spark.id);
+      if (witness) {
+        initializeUnit(witness);
+        witness.tension![spark.wordId] = 50;
+      }
+      s.tension[spark.wordId] = 50;
+    }
+  }
+  finishPopulationStep(s);
 }

@@ -14,7 +14,7 @@
 }
 .map-picker-options {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 .map-picker-options button {
@@ -104,6 +104,7 @@
     padding: 9px;
   }
   .map-picker-options {
+    grid-template-columns: 1fr;
     gap: 6px;
   }
   .map-picker-options button {

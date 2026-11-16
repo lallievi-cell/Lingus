@@ -7,6 +7,14 @@ import {
   islandSegmentInterval,
   type CoastIsland,
 } from './islandGeometry';
+import {
+  getWorldRegionGeometry,
+  worldLandDistance,
+  worldLandmassAt,
+  worldSegmentCuts,
+  type WorldRegionGeometry,
+  type WorldShoreEdge,
+} from './worldGeography';
 
 export type CoastPoint = { x: number; y: number };
 export type CoastWorld = Pick<GameState, 'mapGeneration' | 'sectors'>;
@@ -15,13 +23,14 @@ export interface CoastGeometry {
   points: readonly CoastPoint[];
   worldSize: number;
   islands?: readonly CoastIsland[];
+  world?: WorldRegionGeometry;
 }
 
 export const coastalRulesEnabled = (world: CoastWorld) => world.mapGeneration?.coastalRules === 1;
 const geometries = new Map<string, CoastGeometry>();
 const worldGeometries = new WeakMap<
   CoastWorld['sectors'],
-  { seed: number; maritime: boolean; geometry: CoastGeometry }
+  { seed: number; maritime: boolean; worldKey?: string; geometry: CoastGeometry }
 >();
 const islandDepthLimits = new WeakMap<CoastGeometry, number>();
 
@@ -31,8 +40,35 @@ export function createCoastGeometry(world: CoastWorld): CoastGeometry | undefine
   if (!coastalRulesEnabled(world)) return undefined;
   const seed = world.mapGeneration!.seed;
   const maritime = world.mapGeneration?.maritimeRules === 1;
+  const generation = world.mapGeneration!;
+  const worldKey =
+    generation.worldRules === 1
+      ? `${generation.worldSeed ?? seed}:${generation.regionX ?? 0}:${generation.regionY ?? 0}`
+      : undefined;
   const existing = worldGeometries.get(world.sectors);
-  if (existing?.seed === seed && existing.maritime === maritime) return existing.geometry;
+  if (existing?.seed === seed && existing.maritime === maritime && existing.worldKey === worldKey)
+    return existing.geometry;
+  if (worldKey) {
+    const key = `world:${worldKey}`;
+    let geometry = geometries.get(key);
+    if (!geometry) {
+      const region = getWorldRegionGeometry({
+        seed: generation.worldSeed ?? seed,
+        regionX: generation.regionX ?? 0,
+        regionY: generation.regionY ?? 0,
+      });
+      geometry = Object.freeze({
+        side: 'north' as const,
+        points: Object.freeze([]),
+        worldSize: 1000,
+        world: region,
+      });
+      if (geometries.size >= 32) geometries.delete(geometries.keys().next().value!);
+      geometries.set(key, geometry);
+    }
+    worldGeometries.set(world.sectors, { seed, maritime, worldKey, geometry });
+    return geometry;
+  }
   // The terrestrial generator's third private draw chooses river rotation.
   // Replay only that fixed decision from the original seed: neither saved
   // sector edits nor the evolving simulation RNG can rotate the sea.
@@ -88,6 +124,7 @@ function mainlandInlandDistance(coast: CoastGeometry, point: CoastPoint): number
 
 /** The land is the union of the unchanged mainland and the optional islands. */
 export function coastInlandDistance(coast: CoastGeometry, point: CoastPoint): number {
+  if (coast.world) return worldLandDistance(coast.world, point);
   let distance = mainlandInlandDistance(coast, point);
   if (!coast.islands?.length) return distance;
   let depthLimit = islandDepthLimits.get(coast);
@@ -143,6 +180,7 @@ export function coastSegmentCuts(
   b: CoastPoint,
   offset = 0.25,
 ) {
+  if (coast.world) return worldSegmentCuts(coast.world, a, b, offset);
   const from = alongValue(coast, a),
     delta = alongValue(coast, b) - from;
   const cuts = [0, 1];
@@ -176,13 +214,52 @@ export function isCoastLandSegment(coast: CoastGeometry, a: CoastPoint, b: Coast
   // Worlds without islands retain the original 0.8 calculation below.
   if (coast.islands?.length && isMainlandLandSegment(coast, a, b)) return true;
   const cuts = coastSegmentCuts(coast, a, b);
-  const observations = coast.islands?.length
-    ? [...cuts, ...cuts.slice(1).map((cut, index) => (cut + cuts[index]) / 2)]
-    : cuts;
+  const observations =
+    coast.world || coast.islands?.length
+      ? [...cuts, ...cuts.slice(1).map((cut, index) => (cut + cuts[index]) / 2)]
+      : cuts;
   return observations.every(
     (t) =>
       coastInlandDistance(coast, { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }) > 0.25,
   );
+}
+
+/** One source for fishing workstations, short jetties and coastal painting. */
+export function coastEdges(coast: CoastGeometry): readonly WorldShoreEdge[] {
+  if (coast.world) return coast.world.shoreEdges;
+  const edges: WorldShoreEdge[] = [];
+  const inward = coast.side === 'north' || coast.side === 'east' ? 1 : -1;
+  for (let index = 1; index < coast.points.length; index++)
+    edges.push({ a: coast.points[index - 1], b: coast.points[index], inward });
+  for (const island of coast.islands ?? []) {
+    // These generated ellipses are counterclockwise in simulation coordinates.
+    let area = 0;
+    for (let index = 0; index < island.points.length; index++) {
+      const a = island.points[index],
+        b = island.points[(index + 1) % island.points.length];
+      area += a.x * b.y - a.y * b.x;
+    }
+    const islandInward = area >= 0 ? 1 : -1;
+    for (let index = 0; index < island.points.length; index++)
+      edges.push({
+        a: island.points[index],
+        b: island.points[(index + 1) % island.points.length],
+        inward: islandInward,
+      });
+  }
+  return edges;
+}
+
+/** Stable across regions; an inland sea never joins separate inventories. */
+export function coastLandmassAt(coast: CoastGeometry, point: CoastPoint): string | undefined {
+  if (coast.world) return worldLandmassAt(coast.world, point);
+  for (const island of coast.islands ?? [])
+    if (
+      islandDistanceUpperBound(island, point) > 0.25 &&
+      islandInlandDistance(island, point) > 0.25
+    )
+      return island.id;
+  return coastInlandDistance(coast, point) > 0.25 ? 'mainland' : undefined;
 }
 
 /** Both endpoints and every intervening physical shore interval must be water. */

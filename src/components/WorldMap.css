@@ -18,7 +18,8 @@
   cursor: grab;
   touch-action: none;
 }
-.lingus-world__stocks {
+.lingus-world__stocks,
+.lingus-world__atlas {
   position: absolute;
   top: 76px;
   left: 24px;
@@ -38,11 +39,16 @@
     0 3px 10px #17251f26;
   cursor: pointer;
 }
-.lingus-world__stocks:hover {
+.lingus-world__atlas {
+  top: 180px;
+}
+.lingus-world__stocks:hover,
+.lingus-world__atlas:hover {
   background: var(--hud-raised);
   border-color: var(--material-accent);
 }
-.lingus-world__stocks:focus-visible {
+.lingus-world__stocks:focus-visible,
+.lingus-world__atlas:focus-visible {
   outline: 2px solid #405e3f;
   outline-offset: 3px;
 }
@@ -79,7 +85,8 @@
 @media (max-width: 860px) {
   /* One shallow row keeps the map clear throughout sentence composition. */
   .lingus-world__stocks,
-  .lingus-world__elements {
+  .lingus-world__elements,
+  .lingus-world__atlas {
     top: 8px;
     left: 8px;
     height: 44px;
@@ -94,17 +101,23 @@
   .lingus-world__elements {
     width: 68px;
   }
+  .lingus-world__atlas {
+    width: 62px;
+    left: 148px;
+  }
   .lingus-world:has(.lingus-world__stocks) .lingus-world__elements {
     left: 76px;
   }
   .lingus-world__stocks > span,
-  .lingus-world__elements > span {
+  .lingus-world__elements > span,
+  .lingus-world__atlas > span {
     font-size: 12px;
     line-height: 16px;
     white-space: nowrap;
   }
   .app[data-text-size='large'] .lingus-world__stocks > span,
-  .app[data-text-size='large'] .lingus-world__elements > span {
+  .app[data-text-size='large'] .lingus-world__elements > span,
+  .app[data-text-size='large'] .lingus-world__atlas > span {
     font-size: 14px;
     line-height: 18px;
   }

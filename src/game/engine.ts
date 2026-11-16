@@ -33,6 +33,9 @@ import { isSeaPoint } from './coastGeometry';
 import { handleMaritimeCommand } from './maritimeOrders';
 import { findShoreAccess } from './shoreAccess';
 import type { WorldSize } from './worldDimensions';
+import { allWorldUnits, globalWorldProjection, regionOfUnit, runInRegion, syncGlobalState } from './worldRuntime';
+import { issueWorldTravel } from './worldTravel';
+import { tickWorld } from './worldSimulation';
 import {
   activeUnits,
   adult,
@@ -103,8 +106,9 @@ export function createGame(
   playMode: 'guided' | 'classic' = 'classic',
   mapMode: MapMode = 'seed-zero',
   worldSize: WorldSize = 500,
+  worldMode = false,
 ) {
-  return createInitialState(seed, playMode, mapMode, worldSize);
+  return createInitialState(seed, playMode, mapMode, worldSize, worldMode);
 }
 function chooseSubjects(
   s: GameState,
@@ -229,7 +233,10 @@ export function issueCommand(
   selectionCenter?: Target,
   trace?: CommandTrace,
 ): GameState {
+  if (state.world && target?.regionId !== undefined)
+    return issueWorldTravel(state, tokens, target, executorId, selectionCenter, trace, issueCommand);
   let s = copy(state);
+  const worldBoundary = !!s.world && target?.type === 'point' && target.id?.startsWith('world-boundary:') === true;
   const compiled = compileSentence(s, tokens, target);
   if (!compiled.valid) {
     log(s, compiled.message, 'warning');
@@ -674,7 +681,7 @@ export function issueCommand(
         }
         continue;
       }
-      droppedCargo = dropCarriedLoad(s, u) || droppedCargo;
+      if (!worldBoundary) droppedCargo = dropCarriedLoad(s, u) || droppedCargo;
       assigned++;
       trace?.assignedUnitIds.push(u.id);
       resetUnitWithState(s, u);
@@ -683,7 +690,10 @@ export function issueCommand(
       u.lastOrderAt = s.time;
       if (verb === 'V_01') {
         u.action = 'moving';
-        const destination = args.includes('O_01')
+        if (worldBoundary) u.targetId = target!.id;
+        const destination = worldBoundary
+          ? target
+          : args.includes('O_01')
           ? s.home
           : args.includes('S_05')
             ? nearest(
@@ -792,7 +802,7 @@ export function issueCommand(
 export function solveSpark(state: GameState, id: string, chosen: string[]): GameState {
   const s = copy(state),
     spark = s.sparks.find((p) => p.id === id),
-    u = s.units.find((u) => u.id === spark?.unitId && u.hp > 0);
+    u = allWorldUnits(s).find((u) => u.id === spark?.unitId && u.hp > 0);
   if (!spark || spark.deferred || !u || spark.expiresAt < s.time) return s;
   initializeUnit(u);
   s.sparks = s.sparks.filter((p) => p.id !== id);
@@ -824,7 +834,9 @@ export function solveSpark(state: GameState, id: string, chosen: string[]): Game
     );
     return s;
   }
-  learnSpark(s, spark, u);
+  const regionId = regionOfUnit(s, u.id);
+  if (regionId) runInRegion(s, regionId, (local) => learnSpark(local, spark, u));
+  else learnSpark(s, spark, u);
   return s;
 }
 
@@ -1015,7 +1027,9 @@ export function prepareCampfireCouncil(state: GameState): GameState {
 export function dismissCampfire(state: GameState) {
   const s = copy(state);
   if (s.campfirePending) {
-    finishSeasonMemory(s);
+    const census = globalWorldProjection(s);
+    finishSeasonMemory(census);
+    syncGlobalState(s, census);
     if (hasOpeningBalance(s)) s.openingCouncilsCompleted = (s.openingCouncilsCompleted ?? 0) + 1;
   }
   s.campfirePending = false;
@@ -1033,6 +1047,7 @@ export function tick(state: GameState, dt: number): GameState {
     dt <= 0
   )
     return state;
+  if (state.world) return tickWorld(state, dt, resolveContextualDiscoveries);
   const s = copy(state);
   let remaining = Math.min(60, dt) * s.speed;
   while (remaining > 1e-8 && !s.gameOver && !s.campfirePending && !s.victory) {
