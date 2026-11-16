@@ -20,11 +20,31 @@ function scene(ready = false) {
     y: coast.side === 'north' ? 1 : coast.side === 'south' ? -1 : 0,
   };
   const along = { x: inward.y ? 1 : 0, y: inward.x ? 1 : 0 };
-  const vertex = coast.points
-    .slice(3, -3)
-    .find((point) =>
-      findShoreAccess(state, { x: point.x + inward.x * 8, y: point.y + inward.y * 8 }),
-    );
+  const island = coast.islands![0];
+  const expeditionSite = {
+    x: island.points.reduce((sum, point) => sum + point.x, 0) / island.points.length,
+    y: island.points.reduce((sum, point) => sum + point.y, 0) / island.points.length,
+  };
+  // A nearby mainland camp keeps this public-control test focused on the
+  // crossing. Full-length and obstructed routes have separate geometry tests.
+  const vertex = [...coast.points.slice(3, -3)]
+    .sort(
+      (a, b) =>
+        Math.hypot(a.x - expeditionSite.x, a.y - expeditionSite.y) -
+        Math.hypot(b.x - expeditionSite.x, b.y - expeditionSite.y),
+    )
+    .find((point) => {
+      const site = { x: point.x + inward.x * 8, y: point.y + inward.y * 8 };
+      const home = {
+        x: site.x + inward.x * 8 - along.x * 12,
+        y: site.y + inward.y * 8 - along.y * 12,
+      };
+      return (
+        findShoreAccess(state, site) &&
+        isDryLandPoint(state, home) &&
+        planLandRoute(state, home, site)
+      );
+    });
   if (!vertex) throw new Error('The scene needs a physical coastal workstation.');
   const site = { x: vertex.x + inward.x * 8, y: vertex.y + inward.y * 8 };
   state.home = { x: site.x + inward.x * 8 - along.x * 12, y: site.y + inward.y * 8 - along.y * 12 };
@@ -247,18 +267,32 @@ for (const width of [390, 1440]) {
         x: center.x + (vertex.x - center.x) * 0.5,
         y: center.y + (vertex.y - center.y) * 0.5,
       }))
-      .map((point) => findShoreAccess(boarded, point))
-      .find((candidate) => !!candidate)!;
+      .flatMap((point) => {
+        const candidate = findShoreAccess(boarded, point);
+        return candidate ? [candidate] : [];
+      })
+      // Leave enough real water to save and reload while the vessel is moving.
+      .filter(
+        (candidate) => Math.hypot(candidate.water.x - boat!.x, candidate.water.y - boat!.y) > 70,
+      )
+      .sort(
+        (a, b) =>
+          Math.hypot(a.water.x - boat!.x, a.water.y - boat!.y) -
+          Math.hypot(b.water.x - boat!.x, b.water.y - boat!.y),
+      )[0];
     expect(access).toBeDefined();
+    expect(Math.hypot(access.water.x - boat!.x, access.water.y - boat!.y)).toBeGreaterThan(70);
     expect(planLandRoute(boarded, boarded.home, access.land)).toBeNull();
     await openBoat(page);
     await details(page).getByRole('button', { name: 'Prepara navigazione', exact: true }).click();
-    // The map is zoomed out through public controls to choose an observed landfall.
-    for (let index = 0; index < 12; index++)
+    // Keep the desktop landfall to the left of the map's control column.
+    // A narrow phone needs a wider view to include the opposite shore.
+    const zoomSteps = width > 860 ? 8 : 12;
+    for (let index = 0; index < zoomSteps; index++)
       await page.getByRole('button', { name: 'Riduci la mappa', exact: true }).click();
     const map = page.getByRole('img', { name: /Mappa della valle/ });
     const bounds = (await map.boundingBox())!;
-    // At the full-region limit the camera is bounded to the region centre.
+    // Project the shoreline with the current zoom and the bounded camera.
     const zoomLabel = await page.locator('.lingus-world__control-stack').innerText();
     const zoom = Number(zoomLabel.match(/(\d+)\s*%/)?.[1] ?? 90) / 100;
     const fit = Math.max(bounds.width / 1200, bounds.height / 800) * zoom;
@@ -290,9 +324,12 @@ for (const width of [390, 1440]) {
     expect(departing.stats.commands).toBe(2);
     expect(departing.boats![0].status).toBe('sailing');
     expect(departing.resources).toEqual(boarded.resources);
-    await run(page, 1_000);
+    await run(page, 500);
     const sailing = await saved(page);
     expect(isSeaPoint(sailing, sailing.boats![0])).toBe(true);
+    expect(
+      Math.hypot(sailing.boats![0].x - boat!.x, sailing.boats![0].y - boat!.y),
+    ).toBeGreaterThan(0);
     expect(sailing.units[0].x).toBeCloseTo(sailing.boats![0].x);
     expect(sailing.units[0].y).toBeCloseTo(sailing.boats![0].y);
     expect(sailing.units[0].hunger).toBeGreaterThan(boarded.units[0].hunger);

@@ -263,6 +263,7 @@ for (const viaGuide of [false, true]) {
   }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
+    await page.clock.install();
     await begin(page, viaGuide);
     // The contextual bank starts with subjects, then reveals the known verbs.
     await expect(page.locator('.word-shelf .word-tile')).toHaveCount(1);
@@ -285,6 +286,11 @@ for (const viaGuide of [false, true]) {
     await page.getByRole('button', { name: 'Pronuncia', exact: true }).click();
     await expect(page.locator('.toast')).toContainText('La tribù ha ascoltato');
     const understanding = page.locator('.contextual-discovery-notice');
+    // Drive the ordinary timer, movement and work after this single order.
+    // Observe each eight-game-second step so the eighteen-second notice cannot
+    // disappear between samples. No words, resources or experiences are granted.
+    for (let step = 0; step < 11 && !(await understanding.isVisible()); step++)
+      await page.clock.runFor(2_000);
     await expect(understanding).toContainText('La tribù comprende «Legno»', { timeout: 22_000 });
     await expect(page.getByRole('dialog', { name: 'La Scintilla Cognitiva' })).toHaveCount(0);
     // Understanding a material does not stop the world; pause explicitly to inspect

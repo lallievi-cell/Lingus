@@ -27,3 +27,14 @@ Il catalogo conserva quarantacinque parole e sedici risorse. L’approdo si aggi
 ## Prove e scene di interfaccia
 
 Le prove marittime del browser usano il seed `123`, un campo collocato vicino alla costa, un solo adulto e conoscenze preparate in Classica. Costruzione, pagamenti, lavoro, imbarco, navigazione e trasferimenti successivi passano dai controlli pubblici. L’autosalvataggio ordinario conserva gli stati intermedi in pausa; la ricarica riprende una traversata realmente in corso. Gli stati preparati non dimostrano una campagna ordinaria iniziata dai sette fondatori.
+
+La suite del motore verifica **1.824 test in 157 file**. Il confronto geometrico su cento seed controlla le scorciatoie rispetto all’unione completa di costa e poligoni, comprese baie, isole e profili precedenti. Le ricerche dei percorsi mantengono i costi del terreno e il budget di movimento attraverso i settori.
+
+Le verifiche locali del browser coprono **254 casi**: 244 casi invariati dell’esecuzione completa e dieci casi aggiornati verificati separatamente. Questi ultimi controllano il primo apprendimento dalla guida e dalla schermata iniziale, approdo, barca, carico, imbarco, viaggio, ricaricamento e sbarco. Tempi massimi e asserzioni restano rigorosi; ogni ordine viene impartito una sola volta.
+
+- [Approdo sul telefono](images/ui090-harbor-390.png).
+- [Barca costruita all’approdo](images/ui090-canoe-390.png).
+- [Sbarco sull’isolotto, telefono](images/ui090-island-390.png).
+- [Sbarco sull’isolotto, desktop](images/ui090-island-1440.png).
+
+Le immagini provengono dalle scene tecniche descritte sopra. Le risorse circostanti sono rimosse per isolare selezione, movimento e consegne; nelle nuove partite gli isolotti hanno i propri nodi finiti. Il workflow di pubblicazione ripete formattazione, test, build e controllo dell’artefatto sotto `/Lingus/`, poi verifica versione, commit e asset sul sito pubblico.
