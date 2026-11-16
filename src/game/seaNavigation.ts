@@ -47,17 +47,22 @@ function waterNode(model: SeaModel, node: number) {
   return model.water[node] === 1;
 }
 function attachment(model: SeaModel, point: SeaPoint) {
-  const x = Math.round(point.x / STEP), y = Math.round(point.y / STEP);
+  const x = Math.round(point.x / STEP),
+    y = Math.round(point.y / STEP);
   const nearby: { node: number; distance: number }[] = [];
   for (let dy = -3; dy <= 3; dy++)
     for (let dx = -3; dx <= 3; dx++) {
-      const nx = x + dx, ny = y + dy;
+      const nx = x + dx,
+        ny = y + dy;
       if (nx < 0 || ny < 0 || nx >= model.side || ny >= model.side) continue;
       const node = ny * model.side + nx;
-      if (waterNode(model, node)) nearby.push({ node, distance: distance(point, nodePoint(model, node)) });
+      if (waterNode(model, node))
+        nearby.push({ node, distance: distance(point, nodePoint(model, node)) });
     }
   nearby.sort((a, b) => a.distance - b.distance);
-  return nearby.find((candidate) => isSeaSegment(model.world, point, nodePoint(model, candidate.node)))?.node;
+  return nearby.find((candidate) =>
+    isSeaSegment(model.world, point, nodePoint(model, candidate.node)),
+  )?.node;
 }
 
 class MinHeap {
@@ -68,7 +73,8 @@ class MinHeap {
     while (index > 0) {
       const parent = (index - 1) >> 1;
       if (this.values[parent].priority <= priority) break;
-      this.values[index] = this.values[parent]; index = parent;
+      this.values[index] = this.values[parent];
+      index = parent;
     }
     this.values[index] = { node, priority };
   }
@@ -79,9 +85,14 @@ class MinHeap {
     let index = 0;
     while (index * 2 + 1 < this.values.length) {
       let child = index * 2 + 1;
-      if (child + 1 < this.values.length && this.values[child + 1].priority < this.values[child].priority) child++;
+      if (
+        child + 1 < this.values.length &&
+        this.values[child + 1].priority < this.values[child].priority
+      )
+        child++;
       if (this.values[child].priority >= last.priority) break;
-      this.values[index] = this.values[child]; index = child;
+      this.values[index] = this.values[child];
+      index = child;
     }
     this.values[index] = last;
     return first;
@@ -89,8 +100,11 @@ class MinHeap {
 }
 function search(model: SeaModel, first: number, last: number): SeaPoint[] | null {
   const count = model.side * model.side;
-  const costs = new Float64Array(count); costs.fill(Infinity); costs[first] = 0;
-  const parents = new Int32Array(count); parents.fill(-1);
+  const costs = new Float64Array(count);
+  costs.fill(Infinity);
+  costs[first] = 0;
+  const parents = new Int32Array(count);
+  parents.fill(-1);
   const closed = new Uint8Array(count);
   const heap = new MinHeap();
   const goal = nodePoint(model, last);
@@ -107,11 +121,14 @@ function search(model: SeaModel, first: number, last: number): SeaPoint[] | null
       return route.reverse();
     }
     closed[node] = 1;
-    const x = node % model.side, y = Math.floor(node / model.side), from = nodePoint(model, node);
+    const x = node % model.side,
+      y = Math.floor(node / model.side),
+      from = nodePoint(model, node);
     for (let dy = -1; dy <= 1; dy++)
       for (let dx = -1; dx <= 1; dx++) {
         if (!dx && !dy) continue;
-        const nx = x + dx, ny = y + dy;
+        const nx = x + dx,
+          ny = y + dy;
         if (nx < 0 || ny < 0 || nx >= model.side || ny >= model.side) continue;
         const next = ny * model.side + nx;
         if (closed[next] || !waterNode(model, next)) continue;
@@ -119,7 +136,8 @@ function search(model: SeaModel, first: number, last: number): SeaPoint[] | null
         if (!isSeaSegment(model.world, from, to)) continue;
         const cost = costs[node] + STEP * (dx && dy ? Math.SQRT2 : 1);
         if (cost + EPSILON >= costs[next]) continue;
-        costs[next] = cost; parents[next] = node;
+        costs[next] = cost;
+        parents[next] = node;
         heap.push(next, cost + distance(to, goal));
       }
   }
@@ -128,25 +146,35 @@ function search(model: SeaModel, first: number, last: number): SeaPoint[] | null
 function simplify(world: GameState, start: SeaPoint, path: SeaPoint[]) {
   const route: SeaPoint[] = [];
   let anchor = start;
-  for (let index = 0; index < path.length;) {
+  for (let index = 0; index < path.length; ) {
     let furthest = path.length - 1;
     while (furthest > index && !isSeaSegment(world, anchor, path[furthest])) furthest--;
-    route.push({ ...path[furthest] }); anchor = path[furthest]; index = furthest + 1;
+    route.push({ ...path[furthest] });
+    anchor = path[furthest];
+    index = furthest + 1;
   }
   return route;
 }
 
 /** Exact endpoints and isolated copies: callers cannot alter another vessel's route. */
 export function planSeaRoute(state: GameState, start: SeaPoint, end: SeaPoint): SeaPoint[] | null {
-  if (state.mapGeneration?.maritimeRules !== 1 || !isWorldPoint(state, start) || !isWorldPoint(state, end) ||
-    !isSeaPoint(state, start) || !isSeaPoint(state, end)) return null;
+  if (
+    state.mapGeneration?.maritimeRules !== 1 ||
+    !isWorldPoint(state, start) ||
+    !isWorldPoint(state, end) ||
+    !isSeaPoint(state, start) ||
+    !isSeaPoint(state, end)
+  )
+    return null;
   if (distance(start, end) <= EPSILON) return [];
-  const model = modelFor(state), key = `${start.x},${start.y}>${end.x},${end.y}`;
+  const model = modelFor(state),
+    key = `${start.x},${start.y}>${end.x},${end.y}`;
   if (model.routes.has(key)) return model.routes.get(key)?.map((point) => ({ ...point })) ?? null;
   let route: SeaPoint[] | null = null;
   if (isSeaSegment(state, start, end)) route = [{ ...end }];
   else {
-    const first = attachment(model, start), last = attachment(model, end);
+    const first = attachment(model, start),
+      last = attachment(model, end);
     if (first !== undefined && last !== undefined) {
       const grid = search(model, first, last);
       if (grid) route = simplify(state, start, [...grid, { ...end }]);
@@ -158,7 +186,11 @@ export function planSeaRoute(state: GameState, start: SeaPoint, end: SeaPoint): 
 }
 
 export function seaRouteLength(start: SeaPoint, route: readonly SeaPoint[]) {
-  let length = 0, previous = start;
-  for (const point of route) { length += distance(previous, point); previous = point; }
+  let length = 0,
+    previous = start;
+  for (const point of route) {
+    length += distance(previous, point);
+    previous = point;
+  }
   return length;
 }

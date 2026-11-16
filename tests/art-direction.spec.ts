@@ -305,10 +305,10 @@ for (const width of [1440, 390]) {
   });
 }
 
-test('all twenty building materials render consistently without changing their source state', async ({
+test('all twenty-one building materials render consistently without changing their source state', async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 1440, height: 1050 });
+  await page.setViewportSize({ width: 1440, height: 1300 });
   await page.goto('/');
   const result = await page.evaluate(async () => {
     const { BUILDING_ORDER, BUILDING_SPECS } = await import('/src/game/content.ts');
@@ -316,7 +316,7 @@ test('all twenty building materials render consistently without changing their s
     document.body.innerHTML = '';
     const canvas = document.createElement('canvas');
     canvas.width = 1440;
-    canvas.height = 1050;
+    canvas.height = 1300;
     canvas.style.cssText = 'display:block;width:100vw;height:100vh';
     document.body.append(canvas);
     const ctx = canvas.getContext('2d')!;
@@ -351,7 +351,7 @@ test('all twenty building materials render consistently without changing their s
     });
     return { count: buildings.length, unchanged: JSON.stringify(buildings) === before };
   });
-  expect(result).toEqual({ count: 20, unchanged: true });
+  expect(result).toEqual({ count: 21, unchanged: true });
   await page.screenshot({ path: test.info().outputPath('valley-all-buildings.png') });
 });
 

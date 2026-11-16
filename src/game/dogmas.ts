@@ -58,7 +58,7 @@ const resourceFor = (token: string): Resource | undefined =>
             : token === 'O_12'
               ? 'coin'
               : undefined;
-const resourceToken = (r: Resource) =>
+export const resourceToken = (r: Resource) =>
   r === 'wood'
     ? 'O_03'
     : ['stone', 'tool', 'spear', 'pottery'].includes(r)
@@ -664,21 +664,24 @@ export function forbiddenByDogma(
       ? tokens[3]
       : undefined;
   const entity = target?.type === 'entity' ? s.entities.find((e) => e.id === target.id) : undefined;
-  const resource = entity
-    ? entity.kind === 'tree'
-      ? 'O_03'
-      : entity.kind === 'stone'
-        ? 'O_02'
-        : entity.kind === 'ore'
-          ? 'O_07'
-          : ['deer', 'wolf', 'alpha', 'mammoth', 'berries'].includes(entity.kind)
-            ? 'O_04'
-            : entity.kind === 'corpse'
-              ? 'O_06'
-              : entity.resource
-                ? resourceToken(entity.resource)
-                : undefined
-    : undefined;
+  const resource =
+    target?.type === 'boat' && target.cargoResource
+      ? resourceToken(target.cargoResource)
+      : entity
+        ? entity.kind === 'tree'
+          ? 'O_03'
+          : entity.kind === 'stone'
+            ? 'O_02'
+            : entity.kind === 'ore'
+              ? 'O_07'
+              : ['deer', 'wolf', 'alpha', 'mammoth', 'berries'].includes(entity.kind)
+                ? 'O_04'
+                : entity.kind === 'corpse'
+                  ? 'O_06'
+                  : entity.resource
+                    ? resourceToken(entity.resource)
+                    : undefined
+        : undefined;
   const foreign =
     target?.type === 'city'
       ? s.cities.find((c) => c.id === target.id)?.factionId !== 'player'

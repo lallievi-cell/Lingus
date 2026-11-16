@@ -11,6 +11,8 @@ import {
 } from './simulation';
 import { freeCapacity, hasBuilding, hasWord } from './runtime';
 import { COLD_RESCUE } from './thermal';
+import { BOAT_BUILD_SECONDS, BOAT_CARGO_CAPACITY } from './maritimeConfig';
+import { distance } from './runtime';
 import type { GameState, Target, Unit } from './types';
 
 export const TASK_OUTCOME_REASONS = [
@@ -125,12 +127,61 @@ function workTarget(state: GameState, unit: Unit): Target | undefined {
     (entry) => entry.id === (unit.jobBuildingId ?? unit.targetId),
   );
   if (building) return { type: 'building', id: building.id, x: building.x, y: building.y };
+  const boat = state.boats?.find((entry) => entry.id === (unit.boatId ?? unit.targetBoatId));
+  if (boat) {
+    const harbor =
+      unit.action === 'boatbuilding'
+        ? state.buildings.find((entry) => entry.id === boat.harborId)
+        : undefined;
+    if (harbor) return { type: 'building', id: harbor.id, x: harbor.x, y: harbor.y };
+    if (unit.action === 'disembarking' && boat.landing) return { type: 'point', ...boat.landing };
+    return {
+      type: 'boat',
+      id: boat.id,
+      x: boat.x,
+      y: boat.y,
+      ...(['loadingBoat', 'unloadingBoat'].includes(unit.action) &&
+      unit.cargoResources?.length === 1
+        ? { cargoResource: unit.cargoResources[0] }
+        : {}),
+    };
+  }
   if (unit.tx !== undefined && unit.ty !== undefined)
     return { type: 'point', x: unit.tx, y: unit.ty };
   return undefined;
 }
 
 function completedWork(previous: GameState, next: GameState, unit: Unit, after: Unit) {
+  if (previous.mapGeneration?.maritimeRules === 1) {
+    const beforeBoat = previous.boats?.find(
+      (boat) => boat.id === (unit.boatId ?? unit.targetBoatId),
+    );
+    const boat = next.boats?.find((entry) => entry.id === beforeBoat?.id);
+    if (
+      unit.action === 'boatbuilding' &&
+      beforeBoat?.status === 'building' &&
+      boat?.status === 'moored' &&
+      boat.progress >= BOAT_BUILD_SECONDS
+    )
+      return true;
+    const landing = beforeBoat?.landing ?? boat?.accessLand;
+    if (
+      unit.action === 'disembarking' &&
+      unit.boatId &&
+      !after.boatId &&
+      landing &&
+      distance(after, landing) < 1e-7
+    )
+      return true;
+    if (
+      unit.action === 'unloadingBoat' &&
+      boat &&
+      !after.carry &&
+      unit.cargoResources?.length &&
+      unit.cargoResources.every((resource) => boat.resources[resource] <= 1e-7)
+    )
+      return true;
+  }
   const verb = unit.command?.find((id) => WORDS[id]?.kind === 'V');
   if (!verb || (after.lastEventAt?.[`WORK:${verb}`] ?? -Infinity) <= previous.time) return false;
   if (unit.action === 'building')
@@ -252,6 +303,26 @@ export function observeTaskOutcomes(previous: GameState, next: GameState): TaskO
       reason = 'cold';
     else if ((suspended && outsideShift) || (endedDirectDayTask && night)) reason = 'rest';
     else if (
+      before.action === 'loadingBoat' &&
+      next.boats?.some(
+        (boat) =>
+          boat.id === before.targetBoatId &&
+          Object.entries(boat.resources).reduce(
+            (sum, [resource, amount]) => sum + (resource === 'coin' ? 0 : amount),
+            0,
+          ) +
+            next.units
+              .filter((unit) => unit.boatId === boat.id && unit.hp > 0)
+              .reduce(
+                (sum, unit) =>
+                  sum + (unit.carry?.resource === 'coin' ? 0 : (unit.carry?.amount ?? 0)),
+                0,
+              ) >=
+            BOAT_CARGO_CAPACITY - 1e-7,
+      )
+    )
+      reason = 'full';
+    else if (
       source &&
       source.amount > 0 &&
       source.amount <= resourcePreservationFloor(next, source) &&
@@ -292,6 +363,8 @@ export function observeTaskOutcomes(previous: GameState, next: GameState): TaskO
             ? 'cookedFish'
             : 'cooked'
           : 'tool',
+        1,
+        after,
       )
     )
       reason = 'full';

@@ -131,16 +131,35 @@ export function getUnitWorkStatus(state: GameState, unit: Unit): WorkStatus {
         atBoat,
       );
     if (unit.action === 'boatbuilding')
-      return result('working', 'Costruisce una barca', 'Raggiunge l’approdo e lavora sullo scafo. I materiali pagati e il lavoro restano nello scafo se l’incarico si interrompe.', 'neutral', atBoat);
+      return result(
+        'working',
+        'Costruisce una barca',
+        'Raggiunge l’approdo e lavora sullo scafo. I materiali pagati e il lavoro restano nello scafo se l’incarico si interrompe.',
+        'neutral',
+        atBoat,
+      );
     if (unit.action === 'embarking')
-      return result('working', 'Si imbarca', 'Raggiunge la riva d’attracco e sale a bordo. La navigazione attende il completamento dell’imbarco.', 'neutral', atBoat);
+      return result(
+        'working',
+        'Si imbarca',
+        'Raggiunge la riva d’attracco e sale a bordo. La navigazione attende il completamento dell’imbarco.',
+        'neutral',
+        atBoat,
+      );
     if (unit.action === 'loadingBoat' || unit.action === 'unloadingBoat') {
-      const resource = unit.carry ? observedResource(state, unit.carry.resource) : undefined;
+      const requested =
+        unit.carry?.resource ??
+        (unit.cargoResources?.length === 1 ? unit.cargoResources[0] : undefined);
+      const resource = requested ? observedResource(state, requested) : undefined;
       return result(
         'working',
         unit.action === 'loadingBoat'
-          ? resource ? `Carica ${resource} sulla barca` : 'Carica la barca'
-          : resource ? `Scarica ${resource} dalla barca` : 'Scarica la barca',
+          ? resource
+            ? `Carica ${resource} sulla barca`
+            : 'Carica la barca'
+          : resource
+            ? `Scarica ${resource} dalla barca`
+            : 'Scarica la barca',
         unit.action === 'loadingBoat'
           ? 'Preleva risorse reali e le porta al punto d’attracco. La stiva aumenta solo al trasferimento.'
           : 'Preleva un carico dalla stiva e lo consegna a terra. Le scorte del campo aumentano solo dopo il viaggio di ritorno.',
@@ -150,7 +169,32 @@ export function getUnitWorkStatus(state: GameState, unit: Unit): WorkStatus {
     }
     if (unit.action === 'returning' && unit.deliveryBoatId && boat) {
       const resource = unit.carry ? observedResource(state, unit.carry.resource) : 'il carico';
-      return result('working', `Porta ${resource} alla barca`, 'Raggiunge la riva d’attracco e trasferisce il carico nella stiva, finché rimane spazio.', 'neutral', atBoat);
+      return result(
+        'working',
+        `Porta ${resource} alla barca`,
+        'Raggiunge la riva d’attracco e trasferisce il carico nella stiva, finché rimane spazio.',
+        'neutral',
+        atBoat,
+      );
+    }
+    if (
+      unit.action === 'returning' &&
+      unit.deliveryPoint &&
+      distance(unit.deliveryPoint, state.home) > 15
+    ) {
+      const cargo = unit.carry?.amount ? observedResource(state, unit.carry.resource) : undefined;
+      const arrived = distance(unit, unit.deliveryPoint) <= 1;
+      return result(
+        'working',
+        cargo
+          ? arrived
+            ? `Consegna ${cargo} sulla riva`
+            : `Porta ${cargo} sulla riva`
+          : 'Raggiunge il punto sulla riva',
+        'Il carico viene lasciato fisicamente sulla riva. Per raggiungere le scorte del campo deve essere trasportato su una barca e poi consegnato al campo.',
+        'neutral',
+        { type: 'point', ...unit.deliveryPoint },
+      );
     }
   }
   if (unit.age < ADULT_AGE)

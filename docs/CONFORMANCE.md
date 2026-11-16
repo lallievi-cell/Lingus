@@ -271,3 +271,9 @@ Coste e pesca sono un ampliamento concordato del prodotto, distinto dalle quatto
 `coastGeneration`, `coastNavigation` e `coastalSave` verificano geometria, percorsi, campi e compatibilità; `fishingGameplay`, `coastFoodEconomy` e `delegateIdentity` controllano lavoro, input, carichi, interruzioni e società autonome. `mapCoastArt` e `coastPresentation` verificano rappresentazione e informazioni osservabili. Le prove browser costiere usano un campo esplicitamente preparato, controllano ordini reali, consegne, inventari e ricaricamento; non certificano una campagna completa partita dai sette fondatori. [RELEASE-080.md](RELEASE-080.md) raccoglie comportamento e immagini.
 
 La correzione [0.7.1](RELEASE-071.md) distingue inoltre il vecchio fallimento CI dalle prove locali della 0.7.0: la trace mostrava un gruppo selezionato senza destinazione. Il seed `518` riproduce la scelta sovrapposta; la verifica usa ora il flusso pubblico «Punto sul terreno», controllando focus, ordini e Voce.
+
+## Estensione marittima 0.9.0
+
+La decisione A-68 aggiunge l’approdo ai venti edifici originali, senza attribuirlo al catalogo della fonte. Parole e risorse rimangono rispettivamente quarantacinque e sedici. Le barche, i carichi e gli isolotti sono un’estensione locale delle nuove regioni, distinta dal futuro mondo a più regioni.
+
+`maritimeGeography`, `maritimeSave`, `maritimeGameplay`, `maritimeOrders` e `maritimeSupply` verificano geografia deterministica, rotte d’acqua, pagamento e lavoro degli scafi, riferimenti dell’equipaggio, trasferimenti e assenza di accesso remoto alle scorte. Le prove browser marittime partono da un campo costiero e da conoscenze preparati: costruzione, imbarco, viaggio, ricaricamento e sbarco usano poi i controlli pubblici. Queste prove non dimostrano una campagna ordinaria dall’apertura fino alla navigazione. Parametri e scala sono descritti in [RELEASE-090.md](RELEASE-090.md) e [WORLD-SCALE.md](WORLD-SCALE.md).

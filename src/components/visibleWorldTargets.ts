@@ -187,7 +187,12 @@ export function getVisibleWorldTargets(
       if (boat.hp <= 0) continue;
       const presentation = getBoatPresentation(state, boat);
       if (!presentation) continue;
-      add('travel', presentation.label, { type: 'boat', id: boat.id, x: boat.x, y: boat.y }, `${presentation.stage} · ${relativePlace(boat, state.home)}`);
+      add(
+        'travel',
+        presentation.label,
+        { type: 'boat', id: boat.id, x: boat.x, y: boat.y },
+        `${presentation.stage} · ${relativePlace(boat, state.home)}`,
+      );
     }
   const order = VISIBLE_TARGET_CATEGORIES.map((category) => category.id);
   return entries.sort(

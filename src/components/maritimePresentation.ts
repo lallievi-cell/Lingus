@@ -1,4 +1,4 @@
-import { WORDS } from '../game/content';
+import { RESOURCE_ORDER, RESOURCE_SPECS, WORDS } from '../game/content';
 import { cognitiveSlots } from '../game/grammar';
 import {
   BOAT_BUILD_SECONDS,
@@ -8,9 +8,11 @@ import {
   boatPassengers,
 } from '../game/maritime';
 import { hasWord } from '../game/runtime';
+import { suggestedBoardingGroup } from '../game/phrasebook';
 import { isWorldPointRevealed } from '../game/worldDimensions';
-import type { Boat, GameState, Target } from '../game/types';
+import type { Boat, GameState, Resource, Target } from '../game/types';
 import { describeStockQuantity, getInventoryEntries } from './campInventory';
+import { resourceKnown } from './mapResourceLayout';
 
 export interface MaritimePreparation {
   id: string;
@@ -19,6 +21,7 @@ export interface MaritimePreparation {
   target?: Target;
   groupAnchor?: Target;
   issue?: string;
+  detail?: string;
 }
 
 export const boatTarget = (boat: Boat): Target => ({
@@ -27,6 +30,47 @@ export const boatTarget = (boat: Boat): Target => ({
   x: boat.x,
   y: boat.y,
 });
+
+/** The material is chosen explicitly, rather than being silently converted to
+ * the first stock that shares its word. Unknown, unobserved goods stay hidden. */
+export function getBoatCargoChoices(state: GameState, boat: Boat) {
+  if (!getBoatPresentation(state, boat)?.owned) return [];
+  const camp = getInventoryEntries(state);
+  const aboard = getInventoryEntries(state, boat.resources);
+  return RESOURCE_ORDER.flatMap((resource) => {
+    const owned = (state.resources[resource] ?? 0) > 0 || (boat.resources[resource] ?? 0) > 0;
+    if (!owned && !resourceKnown(state, resource)) return [];
+    const entry =
+      aboard.find((item) => item.resource === resource) ??
+      camp.find((item) => item.resource === resource);
+    return [{ resource, label: entry?.label ?? RESOURCE_SPECS[resource].label }];
+  });
+}
+
+export function getSelectedCargoPreparations(
+  state: GameState,
+  boat: Boat,
+  resource: Resource,
+): MaritimePreparation[] {
+  if (!getBoatCargoChoices(state, boat).some((choice) => choice.resource === resource)) return [];
+  const issue =
+    boat.status !== 'moored' || !boat.accessLand
+      ? 'Le risorse si trasferiscono presso una riva di attracco.'
+      : undefined;
+  return [true, false].map((loading) =>
+    maritimePreparation(
+      state,
+      {
+        id: loading ? 'load-selected' : 'unload-selected',
+        label: loading ? 'Prepara carico selezionato' : 'Prepara scarico selezionato',
+        tokens: ['S_01', 'V_04', loading ? 'M_02' : 'O_01'],
+        target: { ...boatTarget(boat), cargoResource: resource },
+        groupAnchor: boat.accessLand ? { type: 'point', ...boat.accessLand } : undefined,
+      },
+      issue,
+    ),
+  );
+}
 
 export function boatStage(boat: Boat) {
   return boat.status === 'building'
@@ -60,6 +104,7 @@ export function maritimePreparation(
 export function getBoatPresentation(state: GameState, boat: Boat) {
   if (
     state.mapGeneration?.maritimeRules !== 1 ||
+    boat.hp <= 0 ||
     !isWorldPointRevealed(state, boat.x, boat.y)
   )
     return null;
@@ -95,7 +140,9 @@ export function getBoatPresentation(state: GameState, boat: Boat) {
             : 'Materiali già riservati allo scafo.'
         : undefined,
     boarding,
-    inventory: owned ? getInventoryEntries(state, boat.resources).filter((entry) => entry.amount > 0) : [],
+    inventory: owned
+      ? getInventoryEntries(state, boat.resources).filter((entry) => entry.amount > 0)
+      : [],
   };
 }
 
@@ -122,21 +169,25 @@ export function getBoatPreparations(state: GameState, boat: Boat): MaritimePrepa
         ]
       : [];
   const moored = boat.status === 'moored' && !!boat.accessLand;
+  const boardingGroup = suggestedBoardingGroup(state, boat);
   const preparations = [
     maritimePreparation(
       state,
       {
         id: 'board',
-        label: 'Prepara imbarco',
+        label: boardingGroup.crew ? 'Prepara piccolo equipaggio' : 'Prepara imbarco del gruppo',
         tokens: ['S_01', 'V_01'],
         target,
-        groupAnchor,
+        groupAnchor: boardingGroup.groupAnchor,
+        detail: boardingGroup.crew
+          ? boardingGroup.crew.map((unit) => unit.name).join(' · ')
+          : undefined,
       },
       !moored
         ? 'Per imbarcare occorre una riva di attracco.'
-        : boatPassengers(state, boat).length >= BOAT_CAPACITY
-          ? 'I posti sono occupati.'
-          : undefined,
+        : presentation.boarding
+          ? 'Attendi che l’imbarco sia concluso.'
+          : boardingGroup.issue,
     ),
     maritimePreparation(
       state,

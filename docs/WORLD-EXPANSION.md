@@ -43,4 +43,10 @@ La [0.8.0](RELEASE-080.md) introduce coste e mare fisici nelle nuove regioni Cas
 
 La pesca consuma riserve finite e lavoro; il pescato entra nelle scorte soltanto dopo il trasporto. Pesce crudo e cotto sono risorse distinte dalla carne, con cottura pagata e restituzione fisica dell’input interrotto. Le culture autonome condividono i costi. I mondi senza `coastalRules: 1` conservano le proprie regole.
 
-Approdi, imbarcazioni, isole e collegamenti marittimi restano fasi successive.
+## Sesto traguardo: navigazione costiera locale
+
+La [0.9.0](RELEASE-090.md) aggiunge due piccoli isolotti alle nuove regioni, approdi e barche con equipaggi e carichi fisici. L’approdo e lo scafo richiedono materiali e lavoro; gli spostamenti seguono rotte d’acqua e lo sbarco porta le persone sulla riva asciutta. Sulle isole, materiali, cibo e prodotti rimangono locali finché qualcuno li trasporta realmente.
+
+Le regioni precedenti mantengono la geografia già salvata. La navigazione richiede il nuovo metadato `maritimeRules: 1` e conserva i cataloghi di quarantacinque parole e sedici risorse.
+
+Continenti, mari interni e collegamenti tra regioni restano il traguardo successivo. [WORLD-SCALE.md](WORLD-SCALE.md) spiega la distinzione tra il chilometro quadrato locale e il futuro mondo strategico.

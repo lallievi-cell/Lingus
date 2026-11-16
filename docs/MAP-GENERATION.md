@@ -69,3 +69,11 @@ Le prove browser coprono default casuale, seed esplicito, difficoltà indipenden
 Le nuove regioni registrano anche `coastalRules: 1`, che richiede dimensioni regionali, otto culture, biomi e guadi. Una fascia marina di circa cento metri segue una linea spezzata deterministica, derivata dal seed originale e indipendente dal generatore casuale evolutivo. La direzione consente al fiume di raggiungere il mare; la catena dei settori fluviali rimane conservata. Disegno, navigazione e fertilità interrogano la stessa geometria.
 
 Le città e le risorse iniziali restano sulla terraferma. Le postazioni di pesca hanno una posizione reale asciutta, circa dieci metri dentro la riva, con riserve finite. I test di compatibilità mantengono gli SHA geografici precedenti escludendo esclusivamente le nuove chiavi `fish` e `cookedFish` quando valgono zero. Nessuna geografia viene rigenerata caricando un vecchio salvataggio.
+
+## Regioni marittime della 0.9.0
+
+`maritimeRules: 1` richiede il profilo costiero precedente e aggiunge due isolotti deterministici nella fascia marina. La terraferma, i settori fluviali, il campo, le otto città e il prefisso delle risorse continentali conservano la disposizione della 0.8.0 per lo stesso seed. Le risorse aggiuntive appartengono agli isolotti e non sono raggiungibili a piedi dal campo.
+
+La geometria degli isolotti è condivisa da mare, sabbia, fertilità e navigazione. Un segmento con entrambi gli estremi asciutti non può tagliare il mare; una rotta d’acqua non può tagliare un’isola. Gli accessi alla riva verificano un solo passaggio da terra asciutta ad acqua e restano brevi. Le cache distinguono il profilo marittimo da quello costiero precedente.
+
+Importare un mondo senza questo metadato conserva la costa e la geografia già giocate. La regione resta di 1.000 × 1.000 metri; la generazione di continenti e bacini interni richiederà il successivo passaggio a più regioni descritto in [WORLD-SCALE.md](WORLD-SCALE.md).

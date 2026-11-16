@@ -75,7 +75,7 @@ describe('persistent player phrasebook', () => {
     const state = knownCamp();
     const constructions = getPhrasebook(state).filter((item) => item.category === 'construction');
     expect(new Set(constructions.map((item) => item.buildingKind))).toEqual(
-      new Set(BUILDING_ORDER),
+      new Set(BUILDING_ORDER.filter((kind) => kind !== 'harbor')),
     );
     const fire = constructions.find((item) => item.buildingKind === 'campfire')!;
     expect(fire.tokens).toEqual(['S_01', 'V_05', 'O_05']);

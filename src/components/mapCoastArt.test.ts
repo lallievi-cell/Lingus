@@ -44,6 +44,7 @@ describe('physical coastal art', () => {
       const coast = createCoastGeometry(state)!;
       orientations.add(coast.side);
       const paths: number[][][] = [];
+      const clips: { path: number[][]; rule?: CanvasFillRule }[] = [];
       let path: number[][] = [];
       const context = {
         save() {},
@@ -61,9 +62,10 @@ describe('physical coastal art', () => {
         stroke() {
           paths.push(path);
         },
-        clip() {
-          paths.push(path);
+        clip(rule?: CanvasFillRule) {
+          clips.push({ path: [...path], rule });
         },
+        fill() {},
         fillRect() {},
         createLinearGradient() {
           return { addColorStop() {} };
@@ -72,9 +74,15 @@ describe('physical coastal art', () => {
       paintCoastSand(context, state, false);
       paintCoastWater(context, state, false);
       const vertices = coast.points.map(({ x, y }) => [x, y]);
-      // The first three strokes are beach bands, the fourth path is the sea clip.
+      // Mainland and every offshore polygon share the exact navigation vertices.
       for (const shore of paths.slice(0, 3)) expect(shore).toEqual(vertices);
-      expect(paths[3].slice(0, vertices.length)).toEqual(vertices);
+      expect(clips[0].path.slice(0, vertices.length)).toEqual(vertices);
+      expect(clips[0].rule).toBe('evenodd');
+      for (const island of coast.islands!) {
+        const points = island.points.map(({ x, y }) => [x, y]);
+        expect(paths).toContainEqual(points);
+        expect(clips[0].path).toEqual(expect.arrayContaining(points));
+      }
     }
     expect([...orientations].sort()).toEqual(['east', 'north', 'south', 'west']);
   });

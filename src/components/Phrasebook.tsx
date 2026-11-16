@@ -489,7 +489,9 @@ export function Phrasebook({
                   className="phrasebook-use"
                   disabled={!item.available}
                   aria-label={`Prepara la frase: ${item.title}`}
-                  onClick={() => onUse([...item.tokens], item.suggestedTarget, item.suggestedGroupAnchor)}
+                  onClick={() =>
+                    onUse([...item.tokens], item.suggestedTarget, item.suggestedGroupAnchor)
+                  }
                 >
                   Prepara <ArrowRight size={15} aria-hidden="true" />
                 </button>

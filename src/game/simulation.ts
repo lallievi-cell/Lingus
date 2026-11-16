@@ -82,6 +82,27 @@ import { resolveInteractionPosition, type InteractionKind } from './interactionP
 import { warmShelterDestination } from './shelterSeeking';
 import { moveWildlifeToward, wanderDestination } from './wildlifeMovement';
 import { isDryLandPoint, isLandPoint, moveOnLand, planLandRoute } from './landNavigation';
+import { findShoreAccess } from './shoreAccess';
+import {
+  consumeMaritimeFood,
+  boatFreeCapacity,
+  detachBoatPassenger,
+  expeditionBoat,
+  maritimeEnabled,
+  processBoatDelivery,
+  processMaritimeCargo,
+  processMaritimeWork,
+  releaseMaritimeAssignment,
+  updateMaritime,
+} from './maritime';
+import {
+  availableResourceAt,
+  canPayAt,
+  depositResourceAt,
+  hasHomeLandAccess,
+  payAt,
+  sameLandmass,
+} from './maritimeInventory';
 import { getWorldSize, sectorIndex } from './worldDimensions';
 import {
   PERSONAL_DISCOVERY,
@@ -319,6 +340,10 @@ export function createBuilding(
   cityId?: string,
 ) {
   const spec = BUILDING_SPECS[kind];
+  if (cityId && maritimeEnabled(s)) {
+    const city = s.cities.find((entry) => entry.id === cityId);
+    if (city && !planLandRoute(s, { x, y }, city)) cityId = undefined;
+  }
   const b: Building = {
     id: nextId(s, 'building'),
     kind,
@@ -331,6 +356,7 @@ export function createBuilding(
     completed: true,
     livestock: kind === 'pen' ? 0 : undefined,
   };
+  if (kind === 'harbor' && maritimeEnabled(s)) b.seaAccess = findShoreAccess(s, b, 16)?.water;
   s.buildings.push(b);
   if (cityId) s.cities.find((c) => c.id === cityId)?.buildingIds.push(b.id);
   log(s, `${spec.label}: la costruzione è terminata.`, 'good');
@@ -339,13 +365,21 @@ export function createBuilding(
 function localFuel(s: GameState, x: number, y: number) {
   return s.entities.filter(
     (e) =>
-      e.kind === 'ground' && e.resource === 'wood' && e.amount > 0 && distance(e, { x, y }) <= 15,
+      e.kind === 'ground' &&
+      e.resource === 'wood' &&
+      e.amount > 0 &&
+      distance(e, { x, y }) <= 15 &&
+      (!maritimeEnabled(s) || !!planLandRoute(s, { x, y }, e)),
   );
 }
 function payLocalFuel(s: GameState, required: number, x: number, y: number) {
-  if (s.resources.wood + localFuel(s, x, y).reduce((n, e) => n + e.amount, 0) < required)
+  const home = hasHomeLandAccess(s, { x, y });
+  if (
+    (home ? s.resources.wood : 0) + localFuel(s, x, y).reduce((n, e) => n + e.amount, 0) <
+    required
+  )
     return false;
-  const stored = Math.min(required, s.resources.wood);
+  const stored = home ? Math.min(required, s.resources.wood) : 0;
   s.resources.wood -= stored;
   let remaining = required - stored;
   for (const e of localFuel(s, x, y)) {
@@ -357,18 +391,19 @@ function payLocalFuel(s: GameState, required: number, x: number, y: number) {
   return true;
 }
 export function canIgnite(s: GameState, x = s.home.x, y = s.home.y) {
-  const fire = s.buildings.find((b) => isPlayerBuilding(s, b) && b.kind === 'campfire' && b.hp > 0);
+  const fire = ignitionFire(s, { x, y });
   if (fire?.active) return true;
   const location = fire ?? { x, y };
   if (s.mapGeneration?.landNavigation === 1 && !isDryLandPoint(s, location)) return false;
   return (
     hasWord(s, 'O_05') &&
-    s.resources.wood + localFuel(s, location.x, location.y).reduce((n, e) => n + e.amount, 0) >=
+    (hasHomeLandAccess(s, location) ? s.resources.wood : 0) +
+      localFuel(s, location.x, location.y).reduce((n, e) => n + e.amount, 0) >=
       (fire ? 1 : 5)
   );
 }
 export function tryIgnite(s: GameState, x = s.home.x, y = s.home.y) {
-  const fire = s.buildings.find((b) => isPlayerBuilding(s, b) && b.kind === 'campfire' && b.hp > 0);
+  const fire = ignitionFire(s, { x, y });
   if (fire?.active) return true;
   if (!canIgnite(s, x, y)) return false;
   const required = fire ? 1 : 5;
@@ -377,6 +412,16 @@ export function tryIgnite(s: GameState, x = s.home.x, y = s.home.y) {
   if (fire) fire.active = true;
   else createBuilding(s, 'campfire', x, y);
   return true;
+}
+function ignitionFire(s: GameState, site: { x: number; y: number }) {
+  const candidates = s.buildings.filter(
+    (b) =>
+      isPlayerBuilding(s, b) &&
+      b.kind === 'campfire' &&
+      b.hp > 0 &&
+      (!maritimeEnabled(s) || !!planLandRoute(s, site, b)),
+  );
+  return maritimeEnabled(s) ? closest(candidates, site) : candidates[0];
 }
 function recordSurvivalTrauma(s: GameState, tag: string, penalty: number) {
   const key = `TRAUMA_COOLDOWN:${tag}`;
@@ -427,7 +472,13 @@ function detachForeignResident(s: GameState, unit: Unit) {
 export function killUnit(s: GameState, u: Unit, cause = 'trauma') {
   if (u.hp <= 0 && u.action === 'dead') return;
   refundPaidCooking(s, u);
-  if (fishingEnabled(s)) dropCarriedLoad(s, u);
+  const vessel =
+    maritimeEnabled(s) && u.boatId ? s.boats?.find((boat) => boat.id === u.boatId) : undefined;
+  if (vessel && u.carry) {
+    vessel.resources[u.carry.resource] += u.carry.amount;
+    u.carry = undefined;
+  } else if (fishingEnabled(s)) dropCarriedLoad(s, u);
+  detachBoatPassenger(s, u);
   const own = u.factionId === undefined || u.factionId === 'player',
     wordIds = Object.entries(s.words)
       .filter(
@@ -471,8 +522,9 @@ export function killUnit(s: GameState, u: Unit, cause = 'trauma') {
     s.kingId = null;
   }
   const cremation = getDogmaEffects(s).cremation;
-  if (cremation && s.resources.wood >= 5) {
-    s.resources.wood -= 5;
+  if (cremation && (maritimeEnabled(s) ? canPayAt(s, u, { wood: 5 }) : s.resources.wood >= 5)) {
+    if (maritimeEnabled(s)) payAt(s, u, { wood: 5 });
+    else s.resources.wood -= 5;
     s.burntWood += 5;
     s.attention = clamp(s.attention + 5, 0, getDogmaEffects(s).attentionCap);
   } else
@@ -525,6 +577,7 @@ export function killUnit(s: GameState, u: Unit, cause = 'trauma') {
 }
 export function resetUnitWithState(s: GameState, u: Unit) {
   refundPaidCooking(s, u);
+  releaseMaritimeAssignment(s, u);
   resetUnit(u);
 }
 export function resetUnit(u: Unit) {
@@ -631,8 +684,9 @@ function inventoryAt(s: GameState, u: Unit): Inventory {
     : s.resources;
 }
 function nearInventory(s: GameState, u: Unit) {
-  if (u.factionId !== undefined && u.factionId !== 'player') return distance(u, s.home) <= 10;
-  return !!(u.cityId && s.urbanized) || distance(u, s.home) <= 10;
+  const own = u.factionId === undefined || u.factionId === 'player';
+  const inRange = (own && !!(u.cityId && s.urbanized)) || distance(u, s.home) <= 10;
+  return inRange && (!maritimeEnabled(s) || (!u.boatId && hasHomeLandAccess(s, u)));
 }
 function physicalStoreAccess(s: GameState, u: Unit, inventory: Inventory) {
   if (['frontline', 'frontline-returning'].includes(u.action)) return false;
@@ -668,7 +722,10 @@ export function foodAccessRank(s: GameState, u: Unit): number {
 }
 function rationCandidates(s: GameState) {
   const own = activeUnits(s);
-  if (s.foodPriority?.subjectId !== 'S_05') return own;
+  const foreignPassengers = maritimeEnabled(s)
+    ? s.units.filter((u) => u.hp > 0 && !!u.boatId && !own.includes(u))
+    : [];
+  if (s.foodPriority?.subjectId !== 'S_05') return [...own, ...foreignPassengers];
   const radius = hasBuilding(s, 'palace') ? 100 : 35;
   return [
     ...own,
@@ -677,7 +734,7 @@ function rationCandidates(s: GameState) {
         u.hp > 0 &&
         u.factionId !== undefined &&
         u.factionId !== 'player' &&
-        distance(u, s.home) <= radius,
+        (distance(u, s.home) <= radius || foreignPassengers.includes(u)),
     ),
   ];
 }
@@ -762,6 +819,7 @@ export function consume(s: GameState, u: Unit, e?: MapEntity) {
       if (u.factionId === undefined || u.factionId === 'player') killUnit(s, u, 'STAT_PARASITES');
       else {
         refundPaidCooking(s, u);
+        detachBoatPassenger(s, u);
         if (fishingEnabled(s)) dropCarriedLoad(s, u);
         detachForeignResident(s, u);
         u.hp = 0;
@@ -785,7 +843,10 @@ export function matchingEntities(s: GameState, tokens: string[], u?: Unit) {
   // The source specifically names alpha predators and mammoths, with no fallback.
   if (tokens.includes('V_03') && tokens.includes('O_04') && tokens.includes('M_01'))
     return s.entities.filter(
-      (e) => ['alpha', 'mammoth'].includes(e.kind) && e.amount > 0 && (!u || distance(e, u) <= 100),
+      (e) =>
+        ['alpha', 'mammoth'].includes(e.kind) &&
+        e.amount > 0 &&
+        (!u || (distance(e, u) <= 100 && sameLandmass(s, u, e))),
     );
   let kinds: MapEntity['kind'][] = [];
   if (tokens.includes('O_02')) kinds.push('stone');
@@ -819,6 +880,7 @@ export function matchingEntities(s: GameState, tokens: string[], u?: Unit) {
         !['deer', 'wolf', 'alpha', 'mammoth'].includes(e.kind) ||
         e.hp <= 0) &&
       (e.kind !== 'berries' || seasonOf(s).index !== 3) &&
+      (!u || sameLandmass(s, u, e)) &&
       (!u || !tokens.includes('O_04') || !tokens.includes('V_03') || distance(e, u) <= 100),
   );
 }
@@ -939,7 +1001,9 @@ function finishConstruction(s: GameState, u: Unit) {
               .sort((a, b) => s.words[a].retention - s.words[b].retention)[0];
     if (b.kind === 'pen') {
       const prey = closest(
-        s.entities.filter((e) => e.kind === 'deer' && e.hp > 0 && !e.domesticated),
+        s.entities.filter(
+          (e) => e.kind === 'deer' && e.hp > 0 && !e.domesticated && sameLandmass(s, b, e),
+        ),
         b,
       );
       if (prey) {
@@ -1214,6 +1278,7 @@ function guidedTransportSources(s: GameState, u: Unit, tokens: string[], source?
       entityResource(entry) === entityResource(source) &&
       entry.amount > 0 &&
       (entry.kind !== 'berries' || seasonOf(s).index !== 3) &&
+      sameLandmass(s, u, entry) &&
       (!['deer', 'wolf', 'alpha', 'mammoth'].includes(entry.kind) || entry.hp <= 0),
   );
 }
@@ -1229,7 +1294,7 @@ function nextGuidedGatherSource(s: GameState, u: Unit, tokens: string[], source?
       distance(entry, origin) <= 20 &&
       (!u.workOrigin?.groundOnly || entry.kind === 'ground') &&
       entry.amount > resourcePreservationFloor(s, entry) &&
-      freeCapacity(s, entityResource(entry)) > 0 &&
+      gatherCapacity(s, u, entityResource(entry)) > 0 &&
       safeAutonomousRoute(s, u, entry) &&
       s.sectors.some(
         (sector) =>
@@ -1253,7 +1318,31 @@ export function plainFoodCook(tokens: string[]) {
     !tokens.includes('O_02')
   );
 }
+/** A fire across the sea cannot heat an island artisan's paid input. */
+export function canCookAt(s: GameState, artisan: Unit) {
+  if (!maritimeEnabled(s)) return hasBuilding(s, 'campfire');
+  return (
+    !artisan.boatId &&
+    s.buildings.some(
+      (building) =>
+        isPlayerBuilding(s, building) &&
+        building.kind === 'campfire' &&
+        building.hp > 0 &&
+        building.active &&
+        building.completed !== false &&
+        !!planLandRoute(s, artisan, building),
+    )
+  );
+}
+function gatherCapacity(s: GameState, artisan: Unit, resource: Resource) {
+  if (hasHomeLandAccess(s, artisan)) return freeCapacity(s, resource);
+  const boat = expeditionBoat(s, artisan);
+  return boat && resource !== 'coin' ? boatFreeCapacity(s, boat) : Infinity;
+}
 export function processWork(s: GameState, u: Unit, dt: number) {
+  if (processMaritimeWork(s, u, dt) || processMaritimeCargo(s, u, dt)) return;
+  // A moored passenger has no land task. Disembarking is advanced above.
+  if (maritimeEnabled(s) && u.boatId) return;
   let e = s.entities.find((e) => e.id === u.targetId);
   const tokens = u.command ?? [],
     verb = tokens.find((t) => WORDS[t]?.kind === 'V');
@@ -1425,8 +1514,20 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     return;
   }
   if (u.action === 'returning') {
-    if (!moveToInteraction(s, u, s.home, 'return', dt)) return;
-    if (u.carry) {
+    const homeAccess = hasHomeLandAccess(s, u);
+    if (!homeAccess) {
+      u.deliveryBoatId ??= expeditionBoat(s, u)?.id;
+      if (u.carry && !u.deliveryBoatId) {
+        dropCarriedLoad(s, u);
+        resetUnitWithState(s, u);
+        return;
+      }
+      if (u.carry) {
+        processBoatDelivery(s, u, dt);
+        if (u.carry) return;
+      }
+    } else if (!moveToInteraction(s, u, s.home, 'return', dt)) return;
+    if (homeAccess && u.carry) {
       const carried = u.carry;
       u.carry = undefined;
       const n = addResource(s, carried.resource, carried.amount);
@@ -1500,7 +1601,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       ['wood', 'stone', 'ore', 'food', 'meat', 'cooked', 'fish', 'cookedFish'].includes(
         entityResource(e),
       ) &&
-      freeCapacity(s, entityResource(e)) > 0 &&
+      gatherCapacity(s, u, entityResource(e)) > 0 &&
       guidedTransportSources(s, u, tokens, e).includes(e) &&
       !forbiddenByDogma(s, tokens, { type: 'entity', id: e.id, x: e.x, y: e.y }, u) &&
       enforceActionLaws(s, tokens, { type: 'entity', id: e.id, x: e.x, y: e.y }, [u.id])
@@ -1514,7 +1615,8 @@ export function processWork(s: GameState, u: Unit, dt: number) {
   }
   if (u.action === 'building') {
     if (!moveToInteraction(s, u, { x: u.tx ?? s.home.x, y: u.ty ?? s.home.y }, 'build', dt)) return;
-    if (workCycle(s, u, dt, CORE_DEFAULTS.constructionSeconds)) finishConstruction(s, u);
+    if (workCycle(s, u, dt, u.buildingKind === 'harbor' ? 20 : CORE_DEFAULTS.constructionSeconds))
+      finishConstruction(s, u);
     return;
   }
   if (u.action === 'crafting' || u.action === 'cooking') {
@@ -1535,7 +1637,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     // unheated portion physically beside the cook, once, rather than losing it
     // or leaving an invisible work reservation. This also applies to pottery
     // and Classic's single paid cycle; only Guided's food task repeats.
-    if (verb === 'V_07' && !hasBuilding(s, 'campfire')) {
+    if (verb === 'V_07' && !canCookAt(s, u)) {
       refundPaidCooking(s, u, 'fire-out');
       resetUnitWithState(s, u);
       return;
@@ -1544,7 +1646,13 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       if (
         !repeatable ||
         !guidedDirectTask(s, u, tokens) ||
-        !canFitCraftOutput(s, nextCook ? cookingPaymentCost(nextCook) : cycleCost, cycleOutput) ||
+        !canFitCraftOutput(
+          s,
+          nextCook ? cookingPaymentCost(nextCook) : cycleCost,
+          cycleOutput,
+          1,
+          u,
+        ) ||
         (foodCook ? !nextCook : !canPayLocally(s, cycleCost, u)) ||
         forbiddenByDogma(s, tokens, undefined, u) ||
         !enforceActionLaws(s, tokens, undefined, [u.id])
@@ -1561,7 +1669,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     if (!workCycle(s, u, dt, 5)) return;
     if (verb === 'V_06') {
       const output = tokens.includes('O_03') ? 'spear' : 'tool';
-      drop(s, u, output, 1 - addResource(s, output, 1));
+      drop(s, u, output, 1 - depositResourceAt(s, u, output, 1));
       recordCraft(s, u, 'O_05');
       recordCraft(s, u, 'O_13');
     }
@@ -1571,7 +1679,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
         : u.cookInput === 'fish'
           ? 'cookedFish'
           : 'cooked';
-      drop(s, u, output, 1 - addResource(s, output, 1));
+      drop(s, u, output, 1 - depositResourceAt(s, u, output, 1));
       recordCraft(s, u, 'V_12');
     }
     // Completion consumes the paid input exactly once before any reset.
@@ -1596,7 +1704,13 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       return;
     }
     let fire = closest(
-      s.buildings.filter((b) => isPlayerBuilding(s, b) && b.kind === 'campfire' && b.hp > 0),
+      s.buildings.filter(
+        (b) =>
+          isPlayerBuilding(s, b) &&
+          b.kind === 'campfire' &&
+          b.hp > 0 &&
+          (!maritimeEnabled(s) || !!planLandRoute(s, u, b)),
+      ),
       u,
     );
     if (!fire) {
@@ -1605,7 +1719,13 @@ export function processWork(s: GameState, u: Unit, dt: number) {
         return;
       }
       fire = closest(
-        s.buildings.filter((b) => isPlayerBuilding(s, b) && b.kind === 'campfire' && b.hp > 0),
+        s.buildings.filter(
+          (b) =>
+            isPlayerBuilding(s, b) &&
+            b.kind === 'campfire' &&
+            b.hp > 0 &&
+            (!maritimeEnabled(s) || !!planLandRoute(s, u, b)),
+        ),
         u,
       );
     }
@@ -1613,8 +1733,8 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     u.jobBuildingId = fire.id;
     fire.workerIds ??= [];
     if (!fire.workerIds.includes(u.id)) fire.workerIds.push(u.id);
-    if (!fire.active && s.resources.wood >= 1) {
-      s.resources.wood--;
+    if (!fire.active && canPayAt(s, fire, { wood: 1 })) {
+      payAt(s, fire, { wood: 1 });
       s.burntWood++;
       fire.active = true;
     }
@@ -1623,10 +1743,10 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       if (
         !hasWord(s, 'O_07') &&
         !s.sparks.some((spark) => spark.wordId === 'O_07') &&
-        s.resources.wood >= 10 &&
+        canPayAt(s, fire, { wood: 10 }) &&
         s.entities.some((e) => e.kind === 'ore' && e.amount > 0 && distance(e, fire!) < 30)
       ) {
-        s.resources.wood -= 10;
+        payAt(s, fire, { wood: 10 });
         s.burntWood += 10;
         recordEvent(s, u, 'ENV_HIGH_HEAT', 50, ['O_07'], 5);
       }
@@ -1670,9 +1790,9 @@ export function processWork(s: GameState, u: Unit, dt: number) {
         arms = tokens.includes('V_03') || tokens.includes('S_08'),
         cost: Partial<Inventory> = coin ? { ingot: 1 } : arms ? { ingot: 1 } : { ore: 1, wood: 2 };
       const out: Resource = coin ? 'coin' : arms ? 'metalArms' : 'ingot';
-      if (canPay(s.resources, cost) && freeCapacity(s, out) > 0) {
-        pay(s.resources, cost);
-        addResource(s, out, coin ? 100 : 1);
+      if (canPayAt(s, b, cost) && (!hasHomeLandAccess(s, b) || freeCapacity(s, out) > 0)) {
+        payAt(s, b, cost);
+        depositResourceAt(s, b, out, coin ? 100 : 1);
         recordLawWork(s, u.id, tokens, coin ? 100 : 1);
         recordCraft(s, u, coin ? 'O_12' : 'V_12');
         recordCraft(s, u, 'O_13');
@@ -1908,7 +2028,7 @@ export function processWork(s: GameState, u: Unit, dt: number) {
             : [e],
         amount = Math.min(
           cap,
-          freeCapacity(s, resource),
+          gatherCapacity(s, u, resource),
           pieces.reduce(
             (sum, piece) => sum + Math.max(0, piece.amount - resourcePreservationFloor(s, piece)),
             0,
@@ -1918,7 +2038,11 @@ export function processWork(s: GameState, u: Unit, dt: number) {
         resetUnitWithState(s, u);
         return;
       }
-      if (gatherTool) s.resources.tool = Math.max(0, s.resources.tool - 0.1);
+      if (gatherTool) {
+        if (maritimeEnabled(s))
+          payAt(s, u, { tool: Math.min(0.1, availableResourceAt(s, u, 'tool')) });
+        else s.resources.tool = Math.max(0, s.resources.tool - 0.1);
+      }
       let remaining = amount;
       for (const piece of pieces) {
         const taken = Math.min(
@@ -1931,11 +2055,11 @@ export function processWork(s: GameState, u: Unit, dt: number) {
       }
       u.carry = { resource, amount };
       u.action = 'returning';
-      if (e.kind === 'berries' && random(s) < 0.1) addResource(s, 'seed', 1);
+      if (e.kind === 'berries' && random(s) < 0.1) depositResourceAt(s, u, 'seed', 1);
       if (resource === 'meat' && hasWord(s, 'V_06')) {
         const pelt = FAUNA_SPECS[e.kind as keyof typeof FAUNA_SPECS]?.pelt ?? 1;
         if (!s.eventTimes[`pelt-${e.id}`]) {
-          addResource(s, 'pelt', pelt);
+          depositResourceAt(s, u, 'pelt', pelt);
           s.eventTimes[`pelt-${e.id}`] = s.time || 0.01;
         }
       }
@@ -1962,7 +2086,11 @@ export function processWork(s: GameState, u: Unit, dt: number) {
         n,
       );
       drop(s, u, resource, n, e);
-      if (gatherTool) s.resources.tool = Math.max(0, s.resources.tool - 0.1);
+      if (gatherTool) {
+        if (maritimeEnabled(s))
+          payAt(s, u, { tool: Math.min(0.1, availableResourceAt(s, u, 'tool')) });
+        else s.resources.tool = Math.max(0, s.resources.tool - 0.1);
+      }
       if (
         s.playMode !== 'guided' &&
         s.sparks.some((p) => p.unitId === u.id && ['O_02', 'O_03'].includes(p.wordId))
@@ -2133,9 +2261,15 @@ function assignTradition(s: GameState, u: Unit) {
             ? { stone: 1, wood: 1 }
             : { stone: 1 };
       if (
-        (verb === 'V_07' && !hasBuilding(s, 'campfire')) ||
+        (verb === 'V_07' && !canCookAt(s, u)) ||
         !canPayLocally(s, cost, u) ||
-        !canFitCraftOutput(s, cookingChoice ? cookingPaymentCost(cookingChoice) : cost, output)
+        !canFitCraftOutput(
+          s,
+          cookingChoice ? cookingPaymentCost(cookingChoice) : cost,
+          output,
+          1,
+          u,
+        )
       ) {
         resetKeepingJob(u, s);
         continue;
@@ -2194,13 +2328,19 @@ export function updateUnits(s: GameState, dt: number) {
     ordered.sort((a, b) => foodAccessRank(s, b) - foodAccessRank(s, a));
   for (const u of ordered) {
     initializeUnit(u);
+    const maritimeTask =
+      maritimeEnabled(s) &&
+      (!!u.boatId ||
+        ['boatbuilding', 'embarking', 'disembarking', 'loadingBoat', 'unloadingBoat'].includes(
+          u.action,
+        ));
     // GDD COMBAT_FLEE is an interrupt for a new wound, not a permanent injury state.
     // Capture the threshold before this update's ordinary home healing.
     const combatWound = u.pendingCombatDamage === true && u.hp <= 30;
     u.pendingCombatDamage = false;
     // The foreign selector admits visitors to our stores without simulating
     // their entire civilization or charging their distant city's inventory.
-    if (u.factionId !== undefined && u.factionId !== 'player') {
+    if (!maritimeTask && u.factionId !== undefined && u.factionId !== 'player') {
       if (u.hunger >= 60 || (u.action === 'eating' && u.hunger > 0)) {
         if (nearInventory(s, u)) consume(s, u);
         else if (u.command?.includes('V_02')) move(s, u, s.home.x, s.home.y, dt);
@@ -2208,7 +2348,7 @@ export function updateUnits(s: GameState, dt: number) {
       continue;
     }
     const protectedFromFamine = elderPrivilege && u.age >= ELDER_AGE;
-    if (s.urbanized && u.cityId && !u.isKing) {
+    if (!maritimeTask && s.urbanized && u.cityId && !u.isKing && hasHomeLandAccess(s, u)) {
       const city = s.cities.find(
         (c) =>
           c.id === u.cityId && (c.factionId === 'player' || residentForeignDelegate(s, u, c.id)),
@@ -2264,6 +2404,16 @@ export function updateUnits(s: GameState, dt: number) {
               ? 'STAT_PLAGUE'
               : 'trauma',
       );
+      continue;
+    }
+    // Embarking and landing briefly cross the dry shore boundary. During that
+    // crossing, and throughout a voyage, biology continues but land instincts
+    // cannot replace the physical bridge with a walk home through the sea.
+    if (maritimeTask && (u.boatId || u.embarkFrom)) {
+      if (u.boatId && u.hunger >= 60) consumeMaritimeFood(s, u, consume);
+      if (u.hp <= 0) continue;
+      processMaritimeWork(s, u, dt);
+      evaluateDiscoveries(s, u);
       continue;
     }
     if (foodAccessRank(s, u) > 0 && u.hunger >= 60 && nearInventory(s, u)) consume(s, u);
@@ -2626,11 +2776,17 @@ export function seasonalCore(s: GameState) {
       if (sharedCoins) delete materials.coin;
       const localFire =
         b.kind === 'campfire' && !b.cityId && payLocalFuel(s, cost.wood ?? 0, b.x, b.y);
+      const disconnected = maritimeEnabled(s) && !b.cityId && !hasHomeLandAccess(s, b);
+      const localUpkeep = disconnected && !localFire && canPayAt(s, b, cost);
       if (
         localFire ||
-        (canPay(inv, materials) && (!sharedCoins || s.resources.coin >= (cost.coin ?? 0)))
+        localUpkeep ||
+        (!disconnected &&
+          canPay(inv, materials) &&
+          (!sharedCoins || s.resources.coin >= (cost.coin ?? 0)))
       ) {
-        if (!localFire) pay(inv, materials);
+        if (localUpkeep) payAt(s, b, cost);
+        else if (!localFire) pay(inv, materials);
         if (sharedCoins) s.resources.coin -= cost.coin ?? 0;
         b.active = true;
         if (b.kind === 'campfire') s.burntWood += cost.wood ?? 0;
@@ -2688,14 +2844,28 @@ export function seasonalCore(s: GameState) {
       s.resources[r] *= 1 - factor;
     }
   }
+  if (maritimeEnabled(s))
+    for (const boat of s.boats ?? []) {
+      for (const resource of RESOURCE_ORDER) {
+        const spec = RESOURCE_SPECS[resource];
+        if (spec.spoil <= 0) continue;
+        const factor =
+          spec.category === 'food'
+            ? resourceSpoilage(spec.spoil, endedSeason === 1, false, boat.resources.pottery > 0) *
+              openingFoodSpoilageMultiplier(s, getCalendar(s).seasonIndex - 1)
+            : spec.spoil;
+        boat.resources[resource] *= 1 - factor;
+      }
+    }
   for (const b of s.buildings.filter((b) => !b.cityId)) {
     const efficiency = villageWork.get(b.id) ?? 0;
     b.lastEfficiency = efficiency;
     if (efficiency <= 0) continue;
     if (b.kind === 'farm' && endedSeason === 2) {
       const workshop = hadWorkshop ? 3 : 1;
-      const harvested = addResource(
+      const harvested = depositResourceAt(
         s,
+        b,
         'food',
         50 *
           efficiency *
@@ -2737,8 +2907,8 @@ export function seasonalCore(s: GameState) {
         }
     }
     if (b.kind === 'pen' && (b.livestock ?? 0) > 0) {
-      addResource(s, 'meat', 20 * efficiency * fx.herding);
-      if (!fx.vegetarian) addResource(s, 'pelt', 5 * efficiency);
+      depositResourceAt(s, b, 'meat', 20 * efficiency * fx.herding);
+      if (!fx.vegetarian) depositResourceAt(s, b, 'pelt', 5 * efficiency);
     }
     if (b.kind === 'grave' && efficiency > 0 && !fx.cremation)
       for (const corpse of s.entities.filter(
@@ -2979,6 +3149,7 @@ export function simulationStep(s: GameState, dt: number) {
   recordBuildingWork(s, dt);
   updateCivilConflicts(s, dt, civilStrike);
   updateUnits(s, dt);
+  updateMaritime(s, dt);
   recordLivedFireUse(s, dt);
   updateAnimals(s, dt);
   updateDogmas(s, dt);

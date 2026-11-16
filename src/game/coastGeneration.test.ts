@@ -2,13 +2,22 @@ import { describe, expect, it } from 'vitest';
 import { createInitialState } from './state';
 import { createCoastGeometry, coastInlandDistance, isSeaPoint } from './coastGeometry';
 import { isDryLandPoint, isLandSegment, planLandRoute } from './landNavigation';
-import { riverSegments } from './worldGeneration';
+import { generateWorld, riverSegments } from './worldGeneration';
 import { farmYieldMultiplier, terrainBiomeAt, terrainTravelCost } from './biomes';
+
+/** This contract describes the original, completely land-connected 0.8 coast. */
+function coastal080(seed: number) {
+  const state = createInitialState(seed, 'guided', 'random', 1000);
+  delete state.mapGeneration!.maritimeRules;
+  delete state.boats;
+  Object.assign(state, generateWorld(seed, state.factions, 1000, true, true, false));
+  return state;
+}
 
 describe('seeded physical coasts', () => {
   it('leaves a complete world-bounded gathering catchment for the eight starting societies', () => {
     for (const seed of [1, 42, 6842]) {
-      const state = createInitialState(seed, 'guided', 'random', 1000);
+      const state = coastal080(seed);
       for (const city of state.cities) {
         // Their physical food search has a 180 m limit. A town squeezed
         // against the outer edge must not lose half that finite catchment.
@@ -48,7 +57,7 @@ describe('seeded physical coasts', () => {
       ...Array.from({ length: 95 }, (_, i) => Math.imul(i + 1, 2654435761) >>> 0),
     ];
     for (const seed of seeds) {
-      const state = createInitialState(seed, 'guided', 'random', 1000);
+      const state = coastal080(seed);
       const coast = createCoastGeometry(state)!;
       expect(state.cities).toHaveLength(8);
       expect(riverSegments(state.sectors).length).toBeGreaterThanOrEqual(11);

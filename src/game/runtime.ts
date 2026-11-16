@@ -1,4 +1,5 @@
 import { BUILDING_SPECS, RESOURCE_SPECS, WORDS } from './content';
+import { hasHomeLandAccess } from './maritimeInventory';
 import type {
   Building,
   BuildingKind,
@@ -79,20 +80,23 @@ export function freeCapacity(s: GameState, r: Resource) {
   const food = resourceCategory(r) === 'food';
   const sharedStores = s.buildings.filter(
     (b) =>
-      !b.cityId || s.cities.some((c) => c.id === b.cityId && c.factionId === 'player' && c.capital),
+      b.hp > 0 &&
+      b.completed !== false &&
+      (b.kind === 'storage' || b.kind === 'depot') &&
+      (!b.cityId ||
+        s.cities.some((c) => c.id === b.cityId && c.factionId === 'player' && c.capital)) &&
+      hasHomeLandAccess(s, b),
   );
-  const stores = sharedStores.filter(
-    (b) => b.hp > 0 && b.completed !== false && b.kind === 'storage',
-  ).length;
-  const depots = sharedStores.filter(
-    (b) => b.hp > 0 && b.completed !== false && b.kind === 'depot',
-  ).length;
+  const stores = sharedStores.filter((b) => b.kind === 'storage').length;
+  const depots = sharedStores.filter((b) => b.kind === 'depot').length;
   const keys = Object.keys(s.resources) as Resource[];
   const ground = keys.filter((k) => k !== 'coin').reduce((n, k) => n + s.resources[k], 0);
-  const reserved = s.units
-    .filter((u) => u.hp > 0 && u.carry && u.carry.resource !== 'coin')
-    .reduce((n, u) => n + u.carry!.amount, 0);
-  if (stores === 0 && depots === 0) return Math.max(0, 30 - ground - reserved);
+  if (stores === 0 && depots === 0) {
+    const reserved = s.units
+      .filter((u) => u.hp > 0 && u.carry && u.carry.resource !== 'coin' && hasHomeLandAccess(s, u))
+      .reduce((n, u) => n + u.carry!.amount, 0);
+    return Math.max(0, 30 - ground - reserved);
+  }
   const cap = food ? stores * 200 : depots * 500;
   const used = keys
     .filter((k) => resourceCategory(k) === (food ? 'food' : 'material'))
@@ -100,7 +104,10 @@ export function freeCapacity(s: GameState, r: Resource) {
   const carried = s.units
     .filter(
       (u) =>
-        u.hp > 0 && u.carry && resourceCategory(u.carry.resource) === (food ? 'food' : 'material'),
+        u.hp > 0 &&
+        u.carry &&
+        resourceCategory(u.carry.resource) === (food ? 'food' : 'material') &&
+        hasHomeLandAccess(s, u),
     )
     .reduce((n, u) => n + u.carry!.amount, 0);
   // The original 30-place ground pile remains usable for the category with no dedicated store.

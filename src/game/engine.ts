@@ -51,6 +51,7 @@ import {
 import {
   advanceTier,
   canIgnite,
+  canCookAt,
   createBuilding,
   dropCarriedLoad,
   finishSeasonMemory,
@@ -113,7 +114,8 @@ function chooseSubjects(
   selectionCenter?: Target,
 ) {
   const living = activeUnits(s);
-  const availableOnLand = (unit: Unit) => !unit.boatId && !['embarking', 'disembarking'].includes(unit.action);
+  const availableOnLand = (unit: Unit) =>
+    !unit.boatId && !['embarking', 'disembarking'].includes(unit.action);
   const units = living.filter((unit) => adult(unit) && availableOnLand(unit));
   if (subject === 'S_02') {
     const chosen = units.find((u) => u.id === executorId) ?? units.find((u) => u.id === target?.id);
@@ -133,10 +135,13 @@ function chooseSubjects(
         distance(u, s.home) <= (hasBuilding(s, 'palace') ? 100 : 35),
     );
   const anchor = selectionCenter ?? { ...s.home, type: 'point' as const };
-  if (subject === 'S_01' && isAllAdultsAnchor(anchor)) return selectableTribeAdults(s).filter(availableOnLand);
+  if (subject === 'S_01' && isAllAdultsAnchor(anchor))
+    return selectableTribeAdults(s).filter(availableOnLand);
   if (subject === 'S_01' && anchor.type === 'point' && anchor.id === 'selection:custom')
     return hasWord(s, 'S_02')
-      ? selectableTribeAdults(s).filter((unit) => availableOnLand(unit) && anchor.unitIds?.includes(unit.id))
+      ? selectableTribeAdults(s).filter(
+          (unit) => availableOnLand(unit) && anchor.unitIds?.includes(unit.id),
+        )
       : [];
   if (
     anchor.type === 'building' &&
@@ -177,6 +182,7 @@ function assignBuildingJob(
         b.hp > 0 &&
         (b.active || (s.playMode === 'guided' && kind === 'pen' && !!buildingId && !b.cityId)) &&
         b.completed !== false &&
+        (s.mapGeneration?.maritimeRules !== 1 || !!planLandRoute(s, u, b)) &&
         (b.workerIds ?? []).filter(
           (id) =>
             id !== u.id && s.units.find((u) => u.id === id && u.hp > 0)?.jobBuildingId === b.id,
@@ -186,8 +192,13 @@ function assignBuildingJob(
   );
   if (!b) return false;
   if (!b.active) {
-    if (!canPay(s.resources, spec.upkeep)) return false;
-    pay(s.resources, spec.upkeep);
+    if (s.mapGeneration?.maritimeRules === 1) {
+      if (!canPayLocally(s, spec.upkeep, u)) return false;
+      payLocally(s, spec.upkeep, u);
+    } else {
+      if (!canPay(s.resources, spec.upkeep)) return false;
+      pay(s.resources, spec.upkeep);
+    }
     b.active = true;
     log(s, 'Il mangime consegnato riapre il recinto; gli addetti riprendono il lavoro.', 'good');
   }
@@ -228,8 +239,15 @@ export function issueCommand(
     log(s, 'Indica un bersaglio sulla mappa.', 'warning');
     return s;
   }
-  if (selectionCenter?.type === 'boat' && (compiled.kind !== 'direct' || getPredicate(tokens).verb !== 'V_01')) {
-    log(s, 'L’equipaggio guida la barca con Andare. Scegli un gruppo sulla terraferma per gli altri incarichi.', 'warning');
+  if (
+    selectionCenter?.type === 'boat' &&
+    (compiled.kind !== 'direct' || getPredicate(tokens).verb !== 'V_01')
+  ) {
+    log(
+      s,
+      'L’equipaggio guida la barca con Andare. Scegli un gruppo sulla terraferma per gli altri incarichi.',
+      'warning',
+    );
     return s;
   }
   if (compiled.kind === 'law') return inscribeLaw(s, tokens);
@@ -279,7 +297,9 @@ export function issueCommand(
     return s;
   }
   const workers = chooseSubjects(s, subject, target, executorId, selectionCenter);
-  const maritime = handleMaritimeCommand(s, tokens, target, selectionCenter, workers, (unit) => resetUnitWithState(s, unit));
+  const maritime = handleMaritimeCommand(s, tokens, target, selectionCenter, workers, (unit) =>
+    resetUnitWithState(s, unit),
+  );
   if (maritime.handled) {
     if (maritime.valid) {
       s.voice--;
@@ -288,6 +308,22 @@ export function issueCommand(
       trace?.assignedUnitIds.push(...(maritime.unitIds ?? []));
     }
     if (maritime.message) log(s, maritime.message, maritime.valid ? 'good' : 'warning');
+    return s;
+  }
+  if (
+    subject === 'S_02' &&
+    executorId &&
+    s.units.some(
+      (unit) =>
+        unit.id === executorId &&
+        (unit.boatId || ['embarking', 'disembarking'].includes(unit.action)),
+    )
+  ) {
+    log(
+      s,
+      'Questo compagno è a bordo o sta attraversando il pontile. Sbarca prima di affidargli lavori sulla terraferma.',
+      'warning',
+    );
     return s;
   }
   if (
@@ -318,14 +354,20 @@ export function issueCommand(
     return s;
   }
   if (!workers.length) {
-    const aboard = executorId && s.units.find((unit) => unit.id === executorId && (unit.boatId || ['embarking', 'disembarking'].includes(unit.action)));
+    const aboard =
+      executorId &&
+      s.units.find(
+        (unit) =>
+          unit.id === executorId &&
+          (unit.boatId || ['embarking', 'disembarking'].includes(unit.action)),
+      );
     log(
       s,
       aboard
         ? 'Questo compagno è a bordo o sta attraversando il pontile. Sbarca prima di affidargli lavori sulla terraferma.'
         : subject === 'S_02'
-        ? 'Seleziona prima l’individuo che deve agire.'
-        : 'Nessun adulto disponibile è vicino al punto scelto. Sposta la selezione del gruppo o usa Tutti gli adulti.',
+          ? 'Seleziona prima l’individuo che deve agire.'
+          : 'Nessun adulto disponibile è vicino al punto scelto. Sposta la selezione del gruppo o usa Tutti gli adulti.',
       'warning',
     );
     return s;
@@ -346,7 +388,16 @@ export function issueCommand(
         isPlayerBuilding(s, b),
     );
   if (workplace && BUILDING_SPECS[workplace.kind].workers > 0) {
-    if (!workplace.active && !canPay(s.resources, BUILDING_SPECS[workplace.kind].upkeep)) {
+    if (
+      !workplace.active &&
+      !(s.mapGeneration?.maritimeRules === 1
+        ? workers.some(
+            (worker) =>
+              !!planLandRoute(s, worker, workplace) &&
+              canPayLocally(s, BUILDING_SPECS[workplace.kind].upkeep, worker),
+          )
+        : canPay(s.resources, BUILDING_SPECS[workplace.kind].upkeep))
+    ) {
       log(
         s,
         hasWord(s, 'O_08')
@@ -386,9 +437,23 @@ export function issueCommand(
   if (recipe) {
     kind = recipe.kind;
     cost = { ...recipe.cost };
-    const canPayConstruction = (payment: Partial<Inventory>) => s.mapGeneration?.maritimeRules === 1
-      ? workers.some((worker) => canPayLocally(s, payment, worker))
-      : canPay(s.resources, payment);
+    const canPayConstruction = (payment: Partial<Inventory>) =>
+      s.mapGeneration?.maritimeRules === 1
+        ? workers.some(
+            (worker) =>
+              canPayLocally(s, payment, worker) &&
+              !!planLandRoute(
+                s,
+                worker,
+                target?.type === 'point'
+                  ? target
+                  : {
+                      x: s.home.x + 5 + (s.buildings.length % 5) * 3,
+                      y: s.home.y + 5 + Math.floor(s.buildings.length / 5) * 3,
+                    },
+              ),
+          )
+        : canPay(s.resources, payment);
     if (kind === 'storage' && !canPayConstruction(cost) && canPayConstruction({ stone: 10 }))
       cost = { stone: 10 };
   }
@@ -407,8 +472,16 @@ export function issueCommand(
     log(s, 'Questa costruzione è già presente.', 'warning');
     return s;
   }
+  const cookingWorkers =
+    verb === 'V_07' ? workers.filter((worker) => canCookAt(s, worker)) : workers;
+  if (verb === 'V_07' && !cookingWorkers.length) {
+    log(s, 'Occorre un falò attivo raggiungibile dal cuoco sulla stessa terraferma.', 'warning');
+    return s;
+  }
   const cookingChoice =
-    verb === 'V_07' && !args.includes('O_02') ? chooseCookingInput(s, workers, target) : undefined;
+    verb === 'V_07' && !args.includes('O_02')
+      ? chooseCookingInput(s, cookingWorkers, target)
+      : undefined;
   if (cookingChoice) {
     const index = workers.indexOf(cookingChoice.worker);
     if (index > 0) workers.unshift(...workers.splice(index, 1));
@@ -419,6 +492,49 @@ export function issueCommand(
       : cookingChoice?.input === 'fish'
         ? { fish: 1 }
         : { meat: 1 };
+  const localCraft = ['V_06', 'V_07'].includes(verb) && !kind;
+  const localConstruction = !!kind && s.mapGeneration?.maritimeRules === 1;
+  const constructionSite = kind
+    ? target?.type === 'point'
+      ? target
+      : {
+          x: s.home.x + 5 + (s.buildings.length % 5) * 3,
+          y: s.home.y + 5 + Math.floor(s.buildings.length / 5) * 3,
+        }
+    : undefined;
+  // A group order chooses a real artisan who can reach the inputs. Work places
+  // around the same source differ by a few metres; roster order is not a cost rule.
+  if ((localCraft || localConstruction) && !cookingChoice && subject !== 'S_02') {
+    const index = workers.findIndex(
+      (worker) =>
+        canPayLocally(s, cost, worker) &&
+        (verb !== 'V_07' || canCookAt(s, worker)) &&
+        (!localConstruction || !constructionSite || !!planLandRoute(s, worker, constructionSite)),
+    );
+    if (index > 0) workers.unshift(...workers.splice(index, 1));
+  }
+  if (verb === 'V_07' && !canCookAt(s, workers[0])) {
+    log(
+      s,
+      'Il cuoco deve poter raggiungere sia gli ingredienti sia un falò attivo sulla stessa terraferma.',
+      'warning',
+    );
+    return s;
+  }
+  if (
+    localCraft || localConstruction
+      ? !canPayLocally(s, cost, workers[0])
+      : !canPay(s.resources, cost)
+  ) {
+    log(
+      s,
+      `Materiali insufficienti. Per questo lavoro servono: ${Object.entries(cost)
+        .map(([r, n]) => `${n} ${RESOURCE_SPECS[r as Resource].label}`)
+        .join(', ')}.`,
+      'warning',
+    );
+    return s;
+  }
   if (
     (verb === 'V_06' || (s.playMode === 'guided' && plainFoodCook(tokens))) &&
     !kind &&
@@ -432,6 +548,8 @@ export function issueCommand(
         : args.includes('O_03')
           ? 'spear'
           : 'tool',
+      1,
+      workers[0],
     )
   ) {
     log(
@@ -439,24 +557,6 @@ export function issueCommand(
       verb === 'V_07'
         ? 'Non c’è spazio per un altro pasto nelle scorte.'
         : 'Non c’è spazio per un nuovo manufatto.',
-      'warning',
-    );
-    return s;
-  }
-  const localCraft = ['V_06', 'V_07'].includes(verb) && !kind;
-  const localConstruction = !!kind && s.mapGeneration?.maritimeRules === 1;
-  // A group order chooses a real artisan who can reach the inputs. Work places
-  // around the same source differ by a few metres; roster order is not a cost rule.
-  if ((localCraft || localConstruction) && !cookingChoice && subject !== 'S_02') {
-    const index = workers.findIndex((worker) => canPayLocally(s, cost, worker));
-    if (index > 0) workers.unshift(...workers.splice(index, 1));
-  }
-  if ((localCraft || localConstruction) ? !canPayLocally(s, cost, workers[0]) : !canPay(s.resources, cost)) {
-    log(
-      s,
-      `Materiali insufficienti. Per questo lavoro servono: ${Object.entries(cost)
-        .map(([r, n]) => `${n} ${RESOURCE_SPECS[r as Resource].label}`)
-        .join(', ')}.`,
       'warning',
     );
     return s;
@@ -487,13 +587,7 @@ export function issueCommand(
     }
   }
   if (kind && s.mapGeneration?.landNavigation === 1) {
-    const site =
-      target?.type === 'point'
-        ? target
-        : {
-            x: s.home.x + 5 + (s.buildings.length % 5) * 3,
-            y: s.home.y + 5 + Math.floor(s.buildings.length / 5) * 3,
-          };
+    const site = constructionSite!;
     if (!isDryLandPoint(s, site) || !planLandRoute(s, workers[0], site)) {
       log(
         s,
@@ -503,7 +597,11 @@ export function issueCommand(
       return s;
     }
     if (kind === 'harbor' && !findShoreAccess(s, site)) {
-      log(s, 'L’approdo richiede una riva asciutta e accessibile, vicina al mare aperto. Scegli un altro punto sulla costa.', 'warning');
+      log(
+        s,
+        'L’approdo richiede una riva asciutta e accessibile, vicina al mare aperto. Scegli un altro punto sulla costa.',
+        'warning',
+      );
       return s;
     }
   }

@@ -2,6 +2,13 @@ import { RESOURCE_ORDER, RESOURCE_SPECS } from './content';
 import { issueCommand } from './engine';
 import { compileSentence, getPredicate } from './grammar';
 import { orderAcknowledged } from './commandAcknowledgement';
+import { hasWord } from './runtime';
+import {
+  BOAT_BUILD_SECONDS,
+  BOAT_CARGO_CAPACITY,
+  BOAT_PASSENGER_CAPACITY,
+  BOAT_SPEED,
+} from './maritimeConfig';
 import { guidedRepeatTransport, plainFoodCook, plainToolCraft } from './simulation';
 import type { GameState, Resource, Target } from './types';
 
@@ -58,13 +65,26 @@ export function getOrderPreview(
         const unit = next.units.find((u) => u.id === id)!;
         const entity = next.entities.find((e) => e.id === unit.targetId);
         const building = next.buildings.find((b) => b.id === unit.jobBuildingId);
-        const destination: Target | undefined = entity
-          ? { type: 'entity', id: entity.id, x: entity.x, y: entity.y }
-          : building
-            ? { type: 'building', id: building.id, x: building.x, y: building.y }
-            : unit.tx !== undefined && unit.ty !== undefined
-              ? { type: 'point', x: unit.tx, y: unit.ty }
-              : undefined;
+        const boat = next.boats?.find((entry) => entry.id === (unit.boatId ?? unit.targetBoatId));
+        const harbor =
+          unit.action === 'boatbuilding'
+            ? next.buildings.find((entry) => entry.id === boat?.harborId)
+            : undefined;
+        const sailingDestination =
+          unit.action === 'sailing' ? (boat?.landing ?? boat?.destination) : undefined;
+        const destination: Target | undefined = sailingDestination
+          ? { type: 'point', ...sailingDestination }
+          : harbor
+            ? { type: 'building', id: harbor.id, x: harbor.x, y: harbor.y }
+            : boat
+              ? { type: 'boat', id: boat.id, x: boat.x, y: boat.y }
+              : entity
+                ? { type: 'entity', id: entity.id, x: entity.x, y: entity.y }
+                : building
+                  ? { type: 'building', id: building.id, x: building.x, y: building.y }
+                  : unit.tx !== undefined && unit.ty !== undefined
+                    ? { type: 'point', x: unit.tx, y: unit.ty }
+                    : undefined;
         return destination
           ? [
               [
@@ -103,7 +123,10 @@ export function getOrderPreview(
       .reduce((n, e) => n + Math.max(0, e.amount), 0) +
     s.cities
       .filter((c) => c.factionId === 'player' && !c.capital)
-      .reduce((n, c) => n + (c.resources[r] ?? 0), 0);
+      .reduce((n, c) => n + (c.resources[r] ?? 0), 0) +
+    (s.boats ?? [])
+      .filter((boat) => boat.ownerId === 'player')
+      .reduce((n, boat) => n + boat.resources[r], 0);
   const costs = RESOURCE_ORDER.map((resource) => ({
     resource,
     amount: accessibleTotal(state, resource) - accessibleTotal(next, resource),
@@ -113,6 +136,8 @@ export function getOrderPreview(
     ['law', 'dogma', 'tradition'].includes(compilation.kind ?? '') ||
     ['S_08', 'S_09'].includes(predicate.subject);
   let behaviour = '';
+  const actions = unitIds.map((id) => next.units.find((unit) => unit.id === id)?.action);
+  const numbered = hasWord(state, 'O_08');
   if (['S_08', 'S_09'].includes(predicate.subject)) behaviour = compilation.message;
   else if (compilation.kind === 'tradition')
     behaviour =
@@ -122,6 +147,17 @@ export function getOrderPreview(
       'Incide una legge: controlla anche sanzione, costi e condizioni nel pannello delle leggi.';
   else if (compilation.kind === 'dogma')
     behaviour = 'Incide un dogma: influenza il comportamento della comunità e la sua libertà.';
+  else if (actions.includes('boatbuilding'))
+    behaviour = `Un artigiano raggiunge l’approdo e lavora allo scafo già pagato${numbered ? ` per ${BOAT_BUILD_SECONDS} secondi` : ''}. Uno scafo interrotto rimane all’ormeggio e può essere ripreso senza pagare di nuovo i materiali.`;
+  else if (actions.includes('embarking'))
+    behaviour = `Il gruppo raggiunge la riva a piedi, poi sale davvero sulla barca con i propri carichi.${numbered ? ` Ci sono ${BOAT_PASSENGER_CAPACITY} posti e ${BOAT_CARGO_CAPACITY} unità di carico, compresi i carichi personali.` : ' Il gruppo e i suoi carichi devono trovare posto insieme a chi è già a bordo.'} Le scorte del campo restano sulla terraferma.`;
+  else if (actions.includes('sailing'))
+    behaviour = `L’equipaggio segue una rotta interamente in mare${numbered ? ` a ${BOAT_SPEED} metri al secondo` : ''}. Persone e carichi viaggiano sulla barca. Una destinazione sulla riva osservata comprende lo sbarco fisico; in mare aperto l’equipaggio resta a bordo.`;
+  else if (actions.includes('loadingBoat'))
+    behaviour = `Gli addetti prelevano risorse realmente disponibili su questa terraferma e le trasportano fino alla barca.${numbered ? ` La stiva contiene al massimo ${BOAT_CARGO_CAPACITY} unità, compresi i carichi dei passeggeri.` : ' Il carico si ferma quando la stiva è piena o non ci sono altre scorte raggiungibili.'} Il trasferimento richiede lavoro e viaggi: nessuna scorta lontana viene assegnata alla barca.`;
+  else if (actions.includes('unloadingBoat'))
+    behaviour =
+      'Gli addetti prelevano il carico reale dalla barca e lo portano al campo solo se raggiungibile a piedi. Su un’isola lasciano mucchi fisici sulla riva, da consumare o trasportare con altri ordini.';
   else if (unitIds.some((id) => next.units.find((u) => u.id === id)?.action === 'building'))
     behaviour =
       'Un costruttore usa i materiali prelevati subito dalle scorte. L’edificio funzionerà quando la costruzione sarà completata.';

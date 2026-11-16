@@ -1,6 +1,12 @@
 import { BUILDING_SPECS, WORD_ORDER, WORDS } from './content';
 import { getDogmaVectors, SACRED_TARGETS } from './dogmas';
-import { cognitiveSlots, compileSentence, getPredicate, SANCTIONS } from './grammar';
+import {
+  cognitiveSlots,
+  compileSentence,
+  getPredicate,
+  resolveConstruction,
+  SANCTIONS,
+} from './grammar';
 import { hasWord } from './runtime';
 import type { Compilation, GameState, Target } from './types';
 
@@ -75,7 +81,10 @@ function knownConstructionNext(state: GameState, tokens: string[]) {
   const predicate = getPredicate(tokens);
   const sequence = [predicate.verb, ...predicate.args];
   const leading = predicate.condition ? 2 : 1;
-  const recipes = Object.values(BUILDING_SPECS).map((spec) => spec.recipe);
+  const recipes = Object.entries(BUILDING_SPECS)
+    .filter(([kind]) => kind !== 'harbor' || state.mapGeneration?.maritimeRules === 1)
+    .map(([, spec]) => spec.recipe);
+  if (state.mapGeneration?.maritimeRules === 1) recipes.push(['V_06', 'O_03', 'O_01']);
   if (predicate.verb === 'V_08') recipes.push(['V_08', 'O_01', 'O_10'], ['V_08', 'O_13', 'S_08']);
   return recipes
     .filter(
@@ -241,7 +250,15 @@ function buildSyntaxSuggestions(state: GameState, tokens: string[]): SyntaxSugge
   const available = tokens.every((id) => !!WORDS[id] && hasWord(state, id));
   const syntax = syntaxState(state);
   const phrases = sacredPhrases(state);
-  const compile = (phrase: string[]) => compileSentence(syntax, phrase, syntaxTarget);
+  const compile = (phrase: string[]) => {
+    const predicate = getPredicate(phrase);
+    const marineRecipe =
+      resolveConstruction(phrase)?.kind === 'harbor' ||
+      (predicate.verb === 'V_06' && predicate.args.join('|') === 'O_03|O_01');
+    // These recipes select a real coastal point or harbor when pronounced.
+    // A fabricated entity would reject their otherwise complete grammar.
+    return compileSentence(syntax, phrase, marineRecipe ? undefined : syntaxTarget);
+  };
   const current = available ? compile(tokens) : undefined;
   const isSacred = phrases.some(
     (phrase) => phrase.length === tokens.length && isPrefix(tokens, phrase),
@@ -356,6 +373,7 @@ export function getSyntaxSuggestions(state: GameState, tokens: string[]): Syntax
     state.tier,
     Number(!!state.lockedSlot),
     Number(!!state.gameOver),
+    Number(state.mapGeneration?.maritimeRules === 1),
     WORD_ORDER.filter((id) => hasWord(state, id)).join(','),
     state.dogmas.map((dogma) => `${dogma.targetId}:${dogma.vectorId}`).join(','),
     tokens.join('|'),

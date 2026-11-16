@@ -4,12 +4,53 @@
   color: inherit;
 }
 
+.lingus-world__target-card.has-maritime-controls {
+  pointer-events: auto;
+  max-height: min(70%, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+@media (min-width: 861px) {
+  .lingus-world__target-card.has-maritime-controls {
+    /* Leave the Scorte / Elementi column and the map footer unobstructed. */
+    max-height: min(70%, calc(100% - 253px));
+  }
+}
+
+@media (min-width: 861px) and (max-height: 850px) {
+  .lingus-world__target-card.has-maritime-controls {
+    /* A shallow map has room beside the two controls, rather than below them. */
+    left: 144px;
+    width: min(286px, calc(100% - 224px));
+    max-height: 70%;
+  }
+}
+
+.lingus-world__target-card .boat-panel small {
+  display: block !important;
+  border-top: 0;
+  padding-top: 0;
+}
+
 .boat-panel summary {
   display: flex;
   align-items: center;
   min-height: 44px;
   cursor: pointer;
   font-weight: 700;
+}
+
+.boat-panel summary::after {
+  content: '▸';
+  margin-left: auto;
+  padding-left: 0.5rem;
+}
+
+.boat-panel[open] > summary::after,
+.boat-other-cargo[open] > summary::after {
+  content: '▾';
 }
 
 .boat-panel-content {
@@ -48,6 +89,23 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 135px), 1fr));
   gap: 0.45rem;
+}
+
+.boat-other-cargo > label {
+  display: grid;
+  gap: 0.3rem;
+  margin-bottom: 0.45rem;
+  font-size: 0.8rem;
+}
+
+.boat-other-cargo select {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid rgb(56 77 53 / 35%);
+  border-radius: 6px;
+  background: #fbf7eb;
+  color: inherit;
+  font: inherit;
 }
 
 .boat-preparation button {
@@ -89,4 +147,10 @@
   padding-inline: 0.45rem;
   color: #304d48;
   font-weight: 700;
+}
+
+@media (max-width: 860px) {
+  .lingus-world .lingus-world__target-card.has-maritime-controls:has(.boat-panel[open]) {
+    max-height: min(52%, 230px, calc(100% - 68px));
+  }
 }

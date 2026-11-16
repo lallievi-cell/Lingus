@@ -1,4 +1,4 @@
-import { BUILDING_SPECS, WORDS } from './content';
+import { BUILDING_SPECS, RESOURCE_ORDER, WORDS } from './content';
 import { forbiddenByDogma, getDogmaConflict, getDogmaVectors, SACRED_TARGETS } from './dogmas';
 import { hasBuilding, hasWord } from './runtime';
 import type { BuildingKind, Compilation, GameState, Inventory, Target } from './types';
@@ -177,43 +177,64 @@ export function compileSentence(s: GameState, tokens: string[], target?: Target)
   const a = p.args;
   const construction = resolveConstruction(tokens);
   const boatRecipe = p.verb === 'V_06' && a.join('|') === 'O_03|O_01';
-  const harbor = target?.type === 'building'
-    ? s.buildings.find((building) => building.id === target.id && building.kind === 'harbor')
-    : undefined;
+  const harbor =
+    target?.type === 'building'
+      ? s.buildings.find((building) => building.id === target.id && building.kind === 'harbor')
+      : undefined;
   if (construction?.kind === 'harbor' && s.mapGeneration?.maritimeRules !== 1)
     return no('Questo mondo conserva la costa precedente e non prevede approdi.');
   if (construction?.kind === 'harbor') {
     if (target && target.type !== 'point')
       return no('Scegli un punto asciutto sulla costa per costruire l’approdo.');
     return out('Costruire un approdo su una riva asciutta e raggiungibile.', 'building', !target, {
-      buildingKind: 'harbor', cost: construction.cost,
+      buildingKind: 'harbor',
+      cost: construction.cost,
     });
   }
   if (boatRecipe || target?.type === 'boat') {
     if (s.mapGeneration?.maritimeRules !== 1)
       return no('Questo mondo non prevede imbarcazioni e viaggi marittimi.');
-    if (p.condition)
-      return no('Imbarco, carico e navigazione richiedono un ordine diretto.');
+    if (p.condition) return no('Imbarco, carico e navigazione richiedono un ordine diretto.');
     if (['S_05', 'S_08', 'S_09'].includes(p.subject))
       return no('Scegli i compagni della tribù che lavoreranno all’imbarcazione.');
     if (boatRecipe) {
       if (target && !harbor)
         return no('Per costruire una barca, scegli un approdo della tribù completato.');
-      return out('Costruire una barca presso l’approdo: quindici legni e un utensile.', 'boatbuilding', !harbor, {
-        cost: { wood: 15, tool: 1 },
-      });
+      return out(
+        hasWord(s, 'O_08')
+          ? 'Costruire una barca presso l’approdo: 15 legni e 1 utensile.'
+          : 'Costruire una barca presso l’approdo con legno e un utensile.',
+        'boatbuilding',
+        !harbor,
+        {
+          cost: { wood: 15, tool: 1 },
+        },
+      );
     }
     if (p.verb === 'V_01' && allArgs(a, ['O_01']))
-      return out('Raggiunge l’approdo e sale sulla barca. I carichi rimangono fisici.', 'embarking');
+      return out(
+        'Raggiunge l’approdo e sale sulla barca. I carichi rimangono fisici.',
+        'embarking',
+      );
     if (p.verb === 'V_04') {
       const resource = a.filter((id) => resourceTokens.includes(id));
-      const loading = a.includes('M_02'), unloading = a.includes('O_01');
-      if (resource.length !== 1 || loading === unloading || !allArgs(a, [...resourceTokens, 'M_02', 'O_01']))
+      const pointed = target?.cargoResource !== undefined;
+      if (pointed && !RESOURCE_ORDER.includes(target!.cargoResource!))
+        return no('Il carico scelto non è disponibile.');
+      const loading = a.includes('M_02'),
+        unloading = a.includes('O_01');
+      if (
+        (pointed ? resource.length > 1 : resource.length !== 1) ||
+        loading === unloading ||
+        !allArgs(a, [...resourceTokens, 'M_02', 'O_01'])
+      )
         return no('Per il carico usa Portare, una risorsa e Domani; per scaricare usa Qui.');
-      return out(loading
-        ? 'Raccoglie il carico reale e lo consegna alla barca. Le scorte del campo non aumentano.'
-        : 'Preleva il carico della barca e lo trasporta al campo o sulla riva raggiungibile.',
-      loading ? 'loadingBoat' : 'unloadingBoat');
+      return out(
+        loading
+          ? 'Raccoglie il carico reale e lo consegna alla barca. Le scorte del campo non aumentano.'
+          : 'Preleva il carico della barca e lo trasporta al campo o sulla riva raggiungibile.',
+        loading ? 'loadingBoat' : 'unloadingBoat',
+      );
     }
     return no('Una barca si raggiunge con Andare e si carica o scarica con Portare.');
   }

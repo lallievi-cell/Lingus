@@ -1,6 +1,7 @@
 import type { GameState } from './types';
 import { createRiverArtGeometry, sampleRiverArt } from './riverGeometry';
 import { getWorldSize } from './worldDimensions';
+import { islandDistanceUpperBound, islandInlandDistance } from './islandGeometry';
 import {
   createCoastGeometry,
   coastInlandDistance,
@@ -34,6 +35,7 @@ type Segment = { a: LandPoint; b: LandPoint };
 type Grid = { land: Uint8Array; checked: Uint8Array; edges: Uint8Array };
 type Model = {
   worldSize: number;
+  maritime: boolean;
   coast?: CoastGeometry;
   gridSide: number;
   nodeCount: number;
@@ -137,6 +139,7 @@ function createModel(state: GameState): Model {
   }
   return {
     worldSize,
+    maritime: state.mapGeneration?.maritimeRules === 1,
     coast,
     gridSide,
     nodeCount: gridSide * gridSide,
@@ -174,11 +177,12 @@ function modelFor(state: GameState) {
   if (
     existing?.worldSize === getWorldSize(state) &&
     Boolean(existing.terrain) === (state.mapGeneration?.biomeRules === 1) &&
-    Boolean(existing.coast) === (state.mapGeneration?.coastalRules === 1)
+    Boolean(existing.coast) === (state.mapGeneration?.coastalRules === 1) &&
+    existing.maritime === (state.mapGeneration?.maritimeRules === 1)
   )
     return existing;
   const generation = state.mapGeneration;
-  const key = `${getWorldSize(state)}:${generation?.mode}:${generation?.seed}:${generation?.landNavigation}:${generation?.biomeRules}:${generation?.coastalRules}:${state.sectors.map((sector) => `${sector.x},${sector.y}:${sector.biome}`).join('|')}`;
+  const key = `${getWorldSize(state)}:${generation?.mode}:${generation?.seed}:${generation?.landNavigation}:${generation?.biomeRules}:${generation?.coastalRules}:${generation?.maritimeRules}:${state.sectors.map((sector) => `${sector.x},${sector.y}:${sector.biome}`).join('|')}`;
   let model = models.get(key);
   if (!model) {
     model = createModel(state);
@@ -364,6 +368,17 @@ export function isLandSegment(state: GameState, a: LandPoint, b: LandPoint) {
   return navigationEnabled(state)
     ? clearSegment(modelFor(state), a, b)
     : finitePoint(a) && finitePoint(b);
+}
+
+/** A shore workstation's approach cannot cross river water, including a ford. */
+export function isDryLandSegment(state: GameState, a: LandPoint, b: LandPoint) {
+  if (!isDryLandPoint(state, a) || !isDryLandPoint(state, b)) return false;
+  if (!navigationEnabled(state)) return true;
+  const model = modelFor(state);
+  if (model.coast && !isCoastLandSegment(model.coast, a, b)) return false;
+  const dx = b.x - a.x,
+    dy = b.y - a.y;
+  return [...crossedSegments(model, a, b)].every((segment) => !capsuleInterval(a, dx, dy, segment));
 }
 
 function gridFor(model: Model) {
@@ -620,6 +635,17 @@ export function planLandRoute(
 
 function computeLandRoute(state: GameState, model: Model, start: LandPoint, end: LandPoint) {
   if (!pointOnLand(model, start) || !pointOnLand(model, end)) return null;
+  // Offshore polygons are separate physical landmasses. Reject their absent
+  // terrestrial connection before searching the entire mainland graph.
+  if (model.coast?.islands?.length) {
+    const landmass = (point: LandPoint) =>
+      model.coast!.islands!.findIndex(
+        (island) =>
+          islandDistanceUpperBound(island, point) > 0.25 &&
+          islandInlandDistance(island, point) > 0.25,
+      );
+    if (landmass(start) !== landmass(end)) return null;
+  }
   if (distance(start, end) <= EPSILON) return [];
   const direct = clearSegment(model, start, end);
   if (direct && directTerrainRouteIsOptimal(model, start, end)) return [{ ...end }];

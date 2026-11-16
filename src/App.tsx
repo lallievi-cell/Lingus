@@ -415,9 +415,9 @@ function App() {
             ? (game.battalions.find((b) => b.id === target.id)?.name ?? 'Un battaglione')
             : target?.type === 'boat'
               ? (targetPresentation(game, target)?.label ?? 'Imbarcazione')
-            : target
-              ? 'Punto sulla mappa'
-              : null;
+              : target
+                ? 'Punto sulla mappa'
+                : null;
   const livingUnits = game.units.filter(
     (u) => u.hp > 0 && (u.factionId === undefined || u.factionId === 'player'),
   );
@@ -806,9 +806,11 @@ function App() {
     setPanel(null);
     setMobileSection('map');
     if (destination) focusTarget(destination);
-    notify(selection?.type === 'boat'
-      ? 'Equipaggio della barca selezionato. Scegli il mare o una riva osservata, controlla l’anteprima e premi Pronuncia.'
-      : 'Frase pronta da controllare. Apri l’anteprima per vedere chi agirà e dove, poi premi Pronuncia.');
+    notify(
+      selection?.type === 'boat'
+        ? 'Equipaggio della barca selezionato. Scegli il mare o una riva osservata, controlla l’anteprima e premi Pronuncia.'
+        : 'Frase pronta da controllare. Apri l’anteprima per vedere chi agirà e dove, poi premi Pronuncia.',
+    );
   }
 
   const closePhrasebook = useCallback(() => {
@@ -1204,7 +1206,9 @@ function App() {
   const nearbySelectionControls = () => (
     <>
       {groupAnchor.type === 'boat' && (
-        <span className="maritime-group-context" role="status">Equipaggio della barca</span>
+        <span className="maritime-group-context" role="status">
+          Equipaggio della barca
+        </span>
       )}
       <button
         className="text-button"

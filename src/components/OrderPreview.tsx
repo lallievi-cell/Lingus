@@ -4,7 +4,7 @@ import { getOrderPreview, previewResourceLabel } from '../game/orderPreview';
 import { hasWord } from '../game/runtime';
 import type { GameState, Target } from '../game/types';
 import { visibleUnitName } from './unitReadability';
-import { entityTargetPresentation } from './targetPresentation';
+import { entityTargetPresentation, targetPresentation } from './targetPresentation';
 import { BUILDING_SPECS } from '../game/content';
 import { isVisibleAt } from './mapDrawing';
 import { visiblePerson } from './TribeEvents';
@@ -48,6 +48,8 @@ export function OrderPreview({
           return 'Destinazione nelle terre inesplorate';
         const entity = state.entities.find((e) => e.id === destination.id);
         const building = state.buildings.find((b) => b.id === destination.id);
+        if (destination.type === 'boat')
+          return targetPresentation(state, destination)?.label ?? 'Una barca';
         return entity
           ? (entityTargetPresentation(state, entity)?.label ?? 'Una fonte')
           : building

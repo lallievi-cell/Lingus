@@ -4,7 +4,9 @@ import { activeUnits, adult, distance, hasWord } from './runtime';
 import { isDryLandPoint, planLandRoute } from './landNavigation';
 import { coastalRulesEnabled } from './coastGeometry';
 import { isWorldPointRevealed } from './worldDimensions';
-import type { BuildingKind, GameState, PhrasebookEntry, Target } from './types';
+import { customGroupAnchor, selectableTribeAdults } from './tribeSelection';
+import { BOAT_PASSENGER_CAPACITY } from './maritimeConfig';
+import type { Boat, Building, BuildingKind, GameState, PhrasebookEntry, Target } from './types';
 
 export const PHRASEBOOK_LIMIT = 64;
 export type PhraseCategory = 'construction' | 'work' | 'tradition' | 'law' | 'dogma' | 'other';
@@ -19,6 +21,8 @@ export interface PhrasebookItem extends PhrasebookEntry {
   buildingKind?: BuildingKind;
   /** Observed physical destination suggested only while preparing this reference. */
   suggestedTarget?: Target;
+  /** Preparing a reference may also select an explicit, reviewable crew. */
+  suggestedGroupAnchor?: Target;
 }
 
 export const phraseKey = (tokens: readonly string[]) => tokens.join('|');
@@ -57,6 +61,8 @@ export function buildingPurpose(kind: BuildingKind): string {
       'Contiene la corruzione e applica le sanzioni previste dalle leggi, con gli addetti necessari.',
     school: 'Permette ai saggi di praticare Dubitare e sostiene l’Intelligenza dei giovani.',
     workshop: 'Con gli addetti al lavoro aumenta la produzione dei campi e dei giacimenti.',
+    harbor:
+      'Collega una riva asciutta al mare. Permette di costruire barche, imbarcare persone e trasferire carichi reali.',
   };
   return descriptions[kind];
 }
@@ -504,19 +510,165 @@ export function suggestedFishingTarget(state: GameState): Target | undefined {
   return point ? { type: 'entity', id: point.id, x: point.x, y: point.y } : undefined;
 }
 
+const maritimeWorkers = (state: GameState) =>
+  activeUnits(state).filter(
+    (unit) =>
+      adult(unit) &&
+      !unit.boatId &&
+      ![
+        'frontline',
+        'frontline-returning',
+        'delegating',
+        'embarking',
+        'disembarking',
+        'colonizing',
+        'assimilating',
+        'captured',
+        'trading',
+      ].includes(unit.action),
+  );
+
+/** An explicit crew selection uses the existing Io roster controls. Without Io,
+ * the ordinary local group is preserved and oversized groups remain visible. */
+export function suggestedBoardingGroup(state: GameState, boat: Boat) {
+  const land = boat.accessLand;
+  const groupAnchor: Target = { type: 'point', ...(land ?? boat) };
+  if (!land) return { groupAnchor, issue: 'Per imbarcare occorre una riva di attracco.' };
+  const nearby = maritimeWorkers(state)
+    .filter((unit) => distance(unit, land) <= 15 && planLandRoute(state, unit, land) !== null)
+    .sort((a, b) => distance(a, land) - distance(b, land) || a.id.localeCompare(b.id));
+  const available =
+    BOAT_PASSENGER_CAPACITY -
+    boat.passengerIds.filter((id) =>
+      state.units.some((unit) => unit.id === id && unit.hp > 0 && unit.boatId === boat.id),
+    ).length;
+  if (available <= 0) return { groupAnchor, issue: 'I posti sono occupati.' };
+  if (!nearby.length)
+    return { groupAnchor, issue: 'Avvicina un gruppo alla riva prima di imbarcare.' };
+  if (hasWord(state, 'S_02') && !state.urbanized) {
+    const selectable = new Set(selectableTribeAdults(state).map((unit) => unit.id));
+    const crew = nearby.filter((unit) => selectable.has(unit.id)).slice(0, available);
+    if (crew.length)
+      return {
+        groupAnchor: customGroupAnchor(
+          state,
+          crew.map((unit) => unit.id),
+        ),
+        crew,
+      };
+  }
+  return {
+    groupAnchor,
+    issue:
+      nearby.length > available
+        ? 'Il gruppo supera i posti liberi. Scegli un gruppo più piccolo vicino alla riva.'
+        : undefined,
+  };
+}
+
+/** The artisan is selected where they stand; selecting an empty harbor must
+ * not pretend that an adult is already waiting on its shore. */
+export function suggestedBoatBuilderGroup(state: GameState, harbor: Building): Target | undefined {
+  const builder = maritimeWorkers(state)
+    .sort((a, b) => distance(a, harbor) - distance(b, harbor) || a.id.localeCompare(b.id))
+    .find((unit) => planLandRoute(state, unit, harbor) !== null);
+  if (!builder) return undefined;
+  if (
+    hasWord(state, 'S_02') &&
+    !state.urbanized &&
+    selectableTribeAdults(state).some((unit) => unit.id === builder.id)
+  )
+    return customGroupAnchor(state, [builder.id]);
+  return { type: 'point', x: builder.x, y: builder.y };
+}
+
+function maritimeReferences(state: GameState) {
+  const references = new Map<string, Partial<PhrasebookItem>>();
+  if (state.mapGeneration?.maritimeRules !== 1) return references;
+  const workers = maritimeWorkers(state);
+  const harbor = state.buildings
+    .filter(
+      (building) =>
+        building.kind === 'harbor' &&
+        building.hp > 0 &&
+        building.completed !== false &&
+        building.active &&
+        (!building.cityId ||
+          state.cities.some(
+            (city) => city.id === building.cityId && city.factionId === 'player',
+          )) &&
+        isWorldPointRevealed(state, building.x, building.y),
+    )
+    .sort((a, b) => distance(a, state.home) - distance(b, state.home))
+    .find((building) => workers.some((unit) => planLandRoute(state, unit, building) !== null));
+  if (harbor)
+    references.set('S_01|V_06|O_03|O_01', {
+      title: 'Costruisci una barca all’approdo',
+      description:
+        'Un artigiano raggiunge l’approdo e lavora uno scafo con materiali realmente pagati. Un lavoro interrotto può essere ripreso. Prepara seleziona l’approdo senza iniziare il lavoro.',
+      category: 'work',
+      suggestedTarget: { type: 'building', id: harbor.id, x: harbor.x, y: harbor.y },
+      suggestedGroupAnchor: suggestedBoatBuilderGroup(state, harbor),
+    });
+  const boats = (state.boats ?? []).filter(
+    (boat) =>
+      boat.ownerId === 'player' && boat.hp > 0 && isWorldPointRevealed(state, boat.x, boat.y),
+  );
+  const boarding = boats.find(
+    (boat) =>
+      boat.status === 'moored' &&
+      !suggestedBoardingGroup(state, boat).issue &&
+      !state.units.some(
+        (unit) => unit.hp > 0 && unit.action === 'embarking' && unit.targetBoatId === boat.id,
+      ),
+  );
+  if (boarding)
+    references.set('S_01|V_01', {
+      title: 'Imbarca un equipaggio',
+      description:
+        'Prepara il gruppo presso la riva e la barca osservata. Controlla chi agirà nell’anteprima: l’imbarco richiede di raggiungere fisicamente il punto di attracco.',
+      category: 'work',
+      suggestedTarget: { type: 'boat', id: boarding.id, x: boarding.x, y: boarding.y },
+      suggestedGroupAnchor: suggestedBoardingGroup(state, boarding).groupAnchor,
+    });
+  const sailing = boats.find(
+    (boat) =>
+      !['building', 'landing'].includes(boat.status) &&
+      boat.passengerIds.some((id) =>
+        state.units.some((unit) => unit.id === id && unit.hp > 0 && unit.boatId === boat.id),
+      ) &&
+      !state.units.some(
+        (unit) => unit.hp > 0 && unit.targetBoatId === boat.id && unit.action === 'embarking',
+      ),
+  );
+  if (sailing)
+    references.set('S_01|V_01|O_01', {
+      title: 'Naviga con la barca',
+      description:
+        'Seleziona l’equipaggio già a bordo. Dopo Prepara, scegli il mare o una riva osservata e consulta l’anteprima prima di pronunciare. I carichi restano nella barca durante il viaggio.',
+      category: 'work',
+      suggestedGroupAnchor: { type: 'boat', id: sailing.id, x: sailing.x, y: sailing.y },
+    });
+  return references;
+}
+
 /** Read-only catalogue: knowledge creates recipes, actual accepted use creates history. */
 export function getPhrasebook(state: GameState): PhrasebookItem[] {
   const entries = new Map((state.phrasebook ?? []).map((entry) => [entry.id, entry]));
   const fishingTarget = suggestedFishingTarget(state);
+  const maritime = maritimeReferences(state);
   const candidates = new Map<string, string[]>();
   const addKnown = (tokens: readonly string[]) => {
     if (tokens.every((id) => hasWord(state, id))) candidates.set(phraseKey(tokens), [...tokens]);
   };
-  for (const kind of BUILDING_ORDER)
+  for (const kind of BUILDING_ORDER) {
+    if (kind === 'harbor' && state.mapGeneration?.maritimeRules !== 1) continue;
     addKnown(
       kind === 'campfire' ? ['S_01', 'V_05', 'O_05'] : ['S_01', ...BUILDING_SPECS[kind].recipe],
     );
+  }
   for (const tokens of WORK_TEMPLATES) addKnown(tokens);
+  for (const key of maritime.keys()) addKnown(key.split('|'));
   for (const entry of entries.values()) candidates.set(entry.id, [...entry.tokens]);
   return [...candidates]
     .map(([id, tokens]) => {
@@ -533,6 +685,7 @@ export function getPhrasebook(state: GameState): PhrasebookItem[] {
         available: !issue,
         issue,
         ...describe(state, tokens),
+        ...maritime.get(id),
         ...(fishing
           ? {
               title: 'Pesca e porta al campo',

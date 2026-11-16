@@ -2,6 +2,7 @@ import type { Boat, Building, GameState, Resource } from '../game/types';
 import { isWorldPointRevealed } from '../game/worldDimensions';
 import { resourceKnown } from './mapResourceLayout';
 import { drawFishSprite } from './mapCoastArt';
+import { BOAT_BUILD_SECONDS } from '../game/maritimeConfig';
 
 type Point = { x: number; y: number };
 const projected = (point: Point) => ({ x: point.x * 2.4, y: point.y * 1.6 });
@@ -37,7 +38,7 @@ export function boatArtFrame(state: GameState, boat: Boat, time: number, reduced
     stroke: rowing && !reducedMotion ? Math.sin(clock * 3.1) : 0,
     rowing,
     passengers,
-    progress: Math.max(0, Math.min(1, boat.progress / 20)),
+    progress: Math.max(0, Math.min(1, boat.progress / BOAT_BUILD_SECONDS)),
     cargo: Object.entries(boat.resources)
       .filter(([, amount]) => amount > 0)
       .map(([resource]) => resource as Resource),

@@ -1,6 +1,7 @@
 import { ADULT_AGE } from './content';
 import { getDogmaEffects } from './dogmas';
-import { activeUnits } from './runtime';
+import { availableResourceAt, hasHomeLandAccess } from './maritimeInventory';
+import { activeUnits, distance } from './runtime';
 import type { GameState, Inventory, Resource, Unit } from './types';
 
 export interface CombatEquipment {
@@ -26,10 +27,12 @@ function fightersAt(state: GameState, inventory: Inventory) {
     .filter(
       (unit) =>
         ownAdult(unit) &&
+        !unit.boatId &&
         (['hunting', 'combat'].includes(unit.action) ||
           (unit.action === 'guarding' &&
             unit.command?.includes('V_05') &&
             unit.command.includes('O_01'))) &&
+        hasHomeLandAccess(state, unit) &&
         equipmentInventoryAt(state, unit) === inventory,
     )
     .sort((a, b) => a.id.localeCompare(b.id));
@@ -39,7 +42,7 @@ function fightersAt(state: GameState, inventory: Inventory) {
 export function combatEquipmentFor(state: GameState, unit: Unit): CombatEquipment {
   const inventory = equipmentInventoryAt(state, unit);
   const unarmed = { damage: 5, armor: 0, inventory };
-  if (!ownAdult(unit)) return unarmed;
+  if (!ownAdult(unit) || unit.boatId || !hasHomeLandAccess(state, unit)) return unarmed;
   const fighters = fightersAt(state, inventory);
   // Civil assault explicitly queries an otherwise idle attacker or defender.
   // Preserve that immediate defensive query; idle people do not display gear.
@@ -76,21 +79,31 @@ export function gatheringEquipmentFor(
   resource = gatheredMaterial(state, unit),
 ) {
   const inventory = state.resources;
-  if (!ownAdult(unit) || unit.action !== 'gathering' || !['wood', 'stone'].includes(resource ?? ''))
+  if (
+    !ownAdult(unit) ||
+    unit.boatId ||
+    unit.action !== 'gathering' ||
+    !['wood', 'stone'].includes(resource ?? '')
+  )
     return { kind: undefined, speed: 1, inventory };
+  const home = hasHomeLandAccess(state, unit);
   const workers = activeUnits(state).filter(
     (worker) =>
       ownAdult(worker) &&
+      !worker.boatId &&
       worker.action === 'gathering' &&
-      ['wood', 'stone'].includes(gatheredMaterial(state, worker) ?? ''),
+      ['wood', 'stone'].includes(gatheredMaterial(state, worker) ?? '') &&
+      hasHomeLandAccess(state, worker) === home &&
+      (home || distance(worker, unit) <= 30),
   );
   const rank = workers.findIndex((worker) => worker.id === unit.id);
-  const fighters = fightersAt(state, inventory).length;
+  const fighters = home ? fightersAt(state, inventory).length : 0;
+  const tools = home ? inventory.tool : availableResourceAt(state, unit, 'tool');
   const combatTools = Math.min(
-    Math.floor(inventory.tool),
+    Math.floor(tools),
     Math.max(0, fighters - Math.floor(inventory.metalArms) - Math.floor(inventory.spear)),
   );
-  const equipped = rank >= 0 && rank < Math.floor(inventory.tool) - combatTools;
+  const equipped = rank >= 0 && rank < Math.floor(tools) - combatTools;
   return { kind: equipped ? ('tool' as const) : undefined, speed: equipped ? 1.5 : 1, inventory };
 }
 

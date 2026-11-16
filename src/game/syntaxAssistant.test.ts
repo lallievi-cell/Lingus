@@ -9,8 +9,8 @@ import {
   rememberRecentPhrase,
 } from './syntaxAssistant';
 
-function lateGame() {
-  const state = createGame(6842);
+function lateGame(maritime = false) {
+  const state = maritime ? createGame(6842, 'classic', 'random', 1000) : createGame(6842);
   state.tier = 5;
   for (const id of WORD_ORDER) state.words[id] = { retention: 100, custodians: [], uses: 0 };
   state.buildings.push({
@@ -146,14 +146,61 @@ describe('contextual palette preserves complete grammatical paths', () => {
     expect(getSyntaxSuggestions(state, phrase).isComplete, phrase.join(' · ')).toBe(true);
   }
 
-  it('keeps every known building recipe reachable with ordinary and permanent subjects', () => {
+  it('keeps all twenty legacy buildings reachable with ordinary and permanent subjects', () => {
     const state = lateGame();
-    for (const [kind, spec] of Object.entries(BUILDING_SPECS)) {
+    const legacy = Object.entries(BUILDING_SPECS).filter(([kind]) => kind !== 'harbor');
+    expect(legacy).toHaveLength(20);
+    for (const [kind, spec] of legacy) {
       if (kind === 'campfire') continue;
       expectReachable(state, ['S_01', ...spec.recipe]);
       expectReachable(state, ['C_02', 'S_01', ...spec.recipe]);
     }
     expectReachable(state, ['S_01', 'V_05', 'O_05']);
+  });
+
+  it('keeps all twenty-one buildings and the direct boat recipe reachable in new maritime regions', () => {
+    const state = lateGame(true);
+    expect(state.mapGeneration?.maritimeRules).toBe(1);
+    expect(Object.keys(BUILDING_SPECS)).toHaveLength(21);
+    for (const [kind, spec] of Object.entries(BUILDING_SPECS)) {
+      if (kind === 'campfire') continue;
+      expectReachable(state, ['S_01', ...spec.recipe]);
+      expectReachable(state, ['C_02', 'S_01', ...spec.recipe]);
+    }
+    expectReachable(state, ['S_01', 'V_06', 'O_03', 'O_01']);
+    expect(getSyntaxSuggestions(state, ['S_01', 'V_06', 'O_03']).tokenIds).toContain('O_01');
+    expect(getSyntaxSuggestions(state, ['C_02', 'S_01', 'V_06', 'O_03']).tokenIds).not.toContain(
+      'O_01',
+    );
+    expect(getSyntaxSuggestions(state, ['C_02', 'S_01', 'V_06', 'O_03', 'O_01']).isComplete).toBe(
+      false,
+    );
+  });
+
+  it('keeps maritime grammar out of legacy worlds and separates cached coastal profiles', () => {
+    const legacy = lateGame();
+    const maritime = lateGame(true);
+    // No legal branch should disguise a missing ordinary recipe continuation.
+    legacy.words.C_03.retention = 0;
+    maritime.words.C_03.retention = 0;
+    const harbor = ['S_01', 'V_08', 'O_03', 'M_02'];
+    const boat = ['S_01', 'V_06', 'O_03', 'O_01'];
+    for (const state of [legacy, maritime, legacy, maritime]) {
+      const enabled = state.mapGeneration?.maritimeRules === 1;
+      expect(getSyntaxSuggestions(state, harbor).isComplete).toBe(enabled);
+      expect(getSyntaxSuggestions(state, harbor.slice(0, -1)).tokenIds.includes('M_02')).toBe(
+        enabled,
+      );
+      expect(getSyntaxSuggestions(state, boat).isComplete).toBe(enabled);
+      expect(getSyntaxSuggestions(state, boat.slice(0, -1)).tokenIds.includes('O_01')).toBe(
+        enabled,
+      );
+    }
+    maritime.words.O_01.retention = 0;
+    expect(getSyntaxSuggestions(maritime, boat.slice(0, -1)).tokenIds).not.toContain('O_01');
+    maritime.words.O_01.retention = 100;
+    maritime.tier = 1;
+    expect(getSyntaxSuggestions(maritime, boat.slice(0, -1)).tokenIds).not.toContain('O_01');
   });
 
   it('preserves ordinary actions, destination modifiers, cooking permutations and imperial modes', () => {

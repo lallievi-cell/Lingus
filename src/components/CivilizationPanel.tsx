@@ -176,8 +176,10 @@ export function CivilizationPanel({
       )
     );
   };
-  const knownBuildings = BUILDING_ORDER.filter((kind) =>
-    known(['S_01', ...BUILDING_SPECS[kind].recipe]),
+  const knownBuildings = BUILDING_ORDER.filter(
+    (kind) =>
+      (kind !== 'harbor' || s.mapGeneration?.maritimeRules === 1) &&
+      known(['S_01', ...BUILDING_SPECS[kind].recipe]),
   );
   const matchingBuildings = knownBuildings.filter(
     (kind) =>

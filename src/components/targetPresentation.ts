@@ -12,7 +12,7 @@ import { groundPileFor, resourceKnown, resourcePileLabel } from './mapResourceLa
 import { getCityPresentation } from './cityPresentation';
 import { deriveSiegePresentation, type SiegePresentation } from './mapSiegeArt';
 import { biomePresentation } from './biomePresentation';
-import { getBoatPresentation } from './maritimePresentation';
+import { getBoatCargoChoices, getBoatPresentation } from './maritimePresentation';
 import {
   lastCustodianLabel,
   lifeStageLabel,
@@ -201,6 +201,12 @@ export function targetPresentation(
     const boat = state.boats?.find((item) => item.id === target.id && item.hp > 0);
     const presentation = boat && getBoatPresentation(state, boat);
     if (!boat || !presentation) return null;
+    const cargo =
+      target.cargoResource && presentation.owned
+        ? getBoatCargoChoices(state, boat).find(
+            (choice) => choice.resource === target.cargoResource,
+          )?.label
+        : undefined;
     return {
       label: presentation.label,
       stage: presentation.stage,
@@ -208,7 +214,7 @@ export function targetPresentation(
       description: presentation.owned
         ? boat.status === 'building'
           ? 'Lo scafo conserva i materiali pagati e il lavoro già svolto. Va completato presso l’approdo prima di imbarcare.'
-          : 'Equipaggio e carichi viaggiano realmente sul mare. La stiva è distinta dalle scorte del campo.'
+          : `Equipaggio e carichi viaggiano realmente sul mare. La stiva è distinta dalle scorte del campo.${cargo ? ` Carico scelto: ${cargo}.` : ''}`
         : 'Un’imbarcazione di un’altra comunità. Le sue scorte e i suoi ordini non sono disponibili.',
       hint: presentation.owned
         ? boat.status === 'sailing'
@@ -227,7 +233,10 @@ export function targetPresentation(
         kind: 'landmark',
         description:
           'Il mare aperto non si attraversa a piedi. La pesca si svolge nei punti sulla terraferma lungo la costa.',
-        hint: 'Scegli un punto di pesca osservato sulla riva.',
+        hint:
+          state.mapGeneration?.maritimeRules === 1
+            ? 'Prepara la navigazione da una barca con equipaggio, oppure scegli un punto di pesca osservato sulla riva.'
+            : 'Scegli un punto di pesca osservato sulla riva.',
       };
     const ford = getRiverFords(state).find(
       (entry) => Math.hypot(entry.x - target.x, entry.y - target.y) <= entry.width / 2,
@@ -387,9 +396,15 @@ export function targetPresentation(
       if (!isWorldPointRevealed(state, building.x, building.y)) return null;
       return {
         label: BUILDING_NAMES.harbor,
-        stage: building.completed === false ? 'In costruzione' : building.active ? 'Accesso al mare' : 'Approdo inattivo',
+        stage:
+          building.completed === false
+            ? 'In costruzione'
+            : building.active
+              ? 'Accesso al mare'
+              : 'Approdo inattivo',
         kind: 'landmark',
-        description: 'Collega la riva asciutta al punto di ormeggio. Qui si costruiscono barche, si imbarcano persone e si trasferiscono carichi reali.',
+        description:
+          'Collega la riva asciutta al punto di ormeggio. Qui si costruiscono barche, si imbarcano persone e si trasferiscono carichi reali.',
         hint: 'Le barche richiedono materiali e lavoro. Preparare una frase non avvia la costruzione o la partenza.',
       };
     }

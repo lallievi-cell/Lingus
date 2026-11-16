@@ -34,6 +34,8 @@ describe('versioned terrestrial biome rules', () => {
     const state = createGame(42, 'guided', 'random', 1000);
     delete state.mapGeneration!.biomeRules;
     delete state.mapGeneration!.coastalRules;
+    delete state.mapGeneration!.maritimeRules;
+    delete state.boats;
     Object.assign(state, generateWorld(42, state.factions, 1000));
     expect(validSave(state)).toBe(true);
     const restored = parseGame(serializeGame(state))!;

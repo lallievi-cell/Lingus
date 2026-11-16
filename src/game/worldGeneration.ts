@@ -2,6 +2,7 @@ import { emptyInventory, HOME } from './content';
 import type { City, Faction, MapEntity, Sector } from './types';
 import { getRegionalCultureProfile } from './regionalCultures';
 import { createCoastGeometry, coastInlandDistance } from './coastGeometry';
+import { islandInlandDistance, polygonOrientation } from './islandGeometry';
 import {
   getInitialWorldHome,
   LEGACY_WORLD_SIZE,
@@ -68,6 +69,7 @@ export function generateWorld(
   worldSize: WorldSize = LEGACY_WORLD_SIZE,
   biomeRules = false,
   coastalRules = false,
+  maritimeRules = false,
 ): {
   sectors: Sector[];
   entities: MapEntity[];
@@ -545,6 +547,71 @@ export function generateWorld(
         if (!free(point, 4, false, 8)) continue;
         add('fishery', point, 40 + (((seed + index * 17) >>> 0) % 21), 1);
         break;
+      }
+    }
+  }
+  if (coast && maritimeRules) {
+    // Populate only after the complete 0.8 mainland has consumed its private
+    // stream. Its cities, opening resources and finite fishing banks stay
+    // identical; island scenery owns a separate deterministic stream.
+    const maritimeCoast = createCoastGeometry({
+      mapGeneration: {
+        mode: 'random',
+        seed,
+        version: 1,
+        landNavigation: 1,
+        worldSize: 1000,
+        regionalCultures: 1,
+        biomeRules: 1,
+        coastalRules: 1,
+        maritimeRules: 1,
+      },
+      sectors,
+    })!;
+    const islandRandom = generator(seed ^ 0x71b04a9d);
+    for (const island of maritimeCoast.islands ?? []) {
+      const xs = island.points.map((point) => point.x),
+        ys = island.points.map((point) => point.y);
+      const minX = Math.min(...xs),
+        maxX = Math.max(...xs),
+        minY = Math.min(...ys),
+        maxY = Math.max(...ys);
+      const available = (point: Point, margin = 4) =>
+        islandInlandDistance(island, point) >= margin &&
+        river.every((segment) => segmentDistance(point, segment) >= 12) &&
+        clearOfEntities(point, 4);
+      const orientation = polygonOrientation(island.points);
+      let fisheries = 0;
+      for (let index = 0; index < island.points.length && fisheries < 2; index++) {
+        const a = island.points[index],
+          b = island.points[(index + 1) % island.points.length];
+        const dx = b.x - a.x,
+          dy = b.y - a.y,
+          length = Math.hypot(dx, dy);
+        const point = {
+          x: (a.x + b.x) / 2 - (dy * orientation * 10) / length,
+          y: (a.y + b.y) / 2 + (dx * orientation * 10) / length,
+        };
+        const inland = islandInlandDistance(island, point);
+        if (inland < 8 || inland > 12 || !available(point, 8)) continue;
+        add('fishery', point, 40 + Math.floor(islandRandom() * 21), 1);
+        fisheries++;
+      }
+      for (const [kind, count, minimum, spread, hp] of [
+        ['tree', 4, 18, 11, 100],
+        ['berries', 3, 18, 9, 1],
+        ['stone', 2, 80, 51, 100],
+      ] as const) {
+        for (let index = 0; index < count; index++)
+          for (let attempt = 0; attempt < 300; attempt++) {
+            const point = {
+              x: minX + islandRandom() * (maxX - minX),
+              y: minY + islandRandom() * (maxY - minY),
+            };
+            if (!available(point)) continue;
+            add(kind, point, minimum + Math.floor(islandRandom() * spread), hp);
+            break;
+          }
       }
     }
   }

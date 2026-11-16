@@ -2,7 +2,7 @@
 
 Un gioco di sopravvivenza e civiltà nel quale il linguaggio determina ciò che una comunità può comprendere, ordinare e ricordare. Si comincia con sette persone e quattro parole innate. Le esperienze producono Scintille, le frasi dirigono le azioni, il Falò tramanda la memoria e i dogmi trasformano i traumi in vincoli duraturi.
 
-Questa revisione estende il primo prototipo all'intero catalogo del documento `lingus.docx`: **45 parole, sei Tier, 16 risorse fisiche, 20 edifici**, tradizioni, scrittura, leggi, città, diplomazia e tre condizioni finali. L'esistenza del catalogo e dei moduli non certifica la conformità al 100% né il completamento di una partita ordinaria fino a ogni vittoria: requisiti, prove e decisioni sono distinti in [CONFORMANCE.md](docs/CONFORMANCE.md).
+Questa revisione estende il primo prototipo all'intero catalogo del documento `lingus.docx`: **45 parole, sei Tier, 16 risorse fisiche, i 20 edifici originali e l’approdo**, tradizioni, scrittura, leggi, città, diplomazia e tre condizioni finali. L'esistenza del catalogo e dei moduli non certifica la conformità al 100% né il completamento di una partita ordinaria fino a ogni vittoria: requisiti, prove e decisioni sono distinti in [CONFORMANCE.md](docs/CONFORMANCE.md).
 
 ## Avvio
 
@@ -48,7 +48,7 @@ Nelle nuove mappe casuali della [0.4.0](docs/RELEASE-040.md), persone, animali, 
 
 La [0.5.0](docs/RELEASE-050.md) ha ampliato il territorio conservando le distanze del lavoro vicino al campo e lo zoom locale. La vista urbana e la minimappa coprono l’intera regione; esplorazione, colonie e collegamenti possono estendersi oltre i confini precedenti.
 
-La [0.7.0](docs/RELEASE-070.md) rende funzionali sei ambienti nelle nuove regioni: prateria, foresta, montagna, fiume, zona umida e terra arida. Risorse, fertilità dei campi e tempi di viaggio differiscono secondo il terreno. Le otto culture introdotte nella [0.6.0](docs/RELEASE-060.md) pagano gli stessi costi del terreno per i viaggi e ne considerano la fertilità quando conoscono l’agricoltura. Seleziona un elemento o un punto esplorato e apri **Terreno** per leggere gli effetti. Le partite precedenti conservano geografia ed equilibri salvati. La [0.8.0](docs/RELEASE-080.md) aggiunge coste e mare fisici alle nuove regioni, con pesca dalla riva, pescato crudo e cotto distinti, riserve finite e trasporto reale. Nel Frasario, **Pesca e porta al campo** prepara l’ordine verso una postazione osservata e raggiungibile. Approdi e navigazione restano traguardi successivi.
+La [0.7.0](docs/RELEASE-070.md) rende funzionali sei ambienti nelle nuove regioni: prateria, foresta, montagna, fiume, zona umida e terra arida. Risorse, fertilità dei campi e tempi di viaggio differiscono secondo il terreno. Le otto culture introdotte nella [0.6.0](docs/RELEASE-060.md) pagano gli stessi costi del terreno per i viaggi e ne considerano la fertilità quando conoscono l’agricoltura. Seleziona un elemento o un punto esplorato e apri **Terreno** per leggere gli effetti. Le partite precedenti conservano geografia ed equilibri salvati. La [0.8.0](docs/RELEASE-080.md) aggiunge coste e mare fisici alle nuove regioni, con pesca dalla riva, pescato crudo e cotto distinti, riserve finite e trasporto reale. Nel Frasario, **Pesca e porta al campo** prepara l’ordine verso una postazione osservata e raggiungibile. La [0.9.0](docs/RELEASE-090.md) aggiunge l’approdo, scafi costruiti con lavoro e materiali reali, equipaggi, stive e traversate verso due piccoli isolotti. Le azioni contestuali preparano le parole; **Pronuncia** impartisce l’ordine. La regione rimane di un chilometro per lato: continenti, mari interni e regioni collegate sono il passo successivo, descritto in [WORLD-SCALE.md](docs/WORLD-SCALE.md).
 
 In Guidata, **Io** può nascere da un pasto autonomo o da manufatti personali: non occorre isolare un compagno. Le Scintille diverse dalle tre scoperte contestuali richiedono il primo puzzle; per una parola già compresa e poi perduta, una nuova esperienza e una nuova Scintilla permettono **Ricorda la parola**. Prima del consiglio puoi preparare una breve lezione al Falò con due unità di legno consegnate: ottieni fino a dieci punti Attenzione, poi paghi la lezione ordinaria. Il pannello mostra maestro, allievo, costo ed eventuali impedimenti. La Classica mantiene la risoluzione dei puzzle e la preparazione stagionale precedenti.
 
@@ -121,7 +121,7 @@ Il server di sviluppo viene avviato automaticamente dai test oppure riutilizzato
 
 ## Struttura e fedeltà
 
-La valle usa uno stile **2D pittorico e naturale**, con terreno materico, vegetazione e animali illustrati, persone differenziate per età ed equipaggiamento, e venti edifici coerenti. [GRAPHICS.md](docs/GRAPHICS.md) mostra un'anteprima e descrive copertura, interazione e prove.
+La valle usa uno stile **2D pittorico e naturale**, con terreno materico, vegetazione e animali illustrati, persone differenziate per età ed equipaggiamento, i venti edifici originali e il nuovo approdo. [GRAPHICS.md](docs/GRAPHICS.md) mostra un'anteprima e descrive copertura, interazione e prove.
 
 Le azioni hanno pose specifiche e il gruppo occupa posti distinti attorno a fonti, edifici e giacigli. [ANIMATION.md](docs/ANIMATION.md) descrive movimento, animazioni e limiti della distribuzione.
 

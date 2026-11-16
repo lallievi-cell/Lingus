@@ -313,6 +313,8 @@ export interface Target {
   y: number;
   /** Ephemeral player selection scope, never an extra subject word. */
   unitIds?: string[];
+  /** Explicit physical cargo choice, valid only for maritime boat targets. */
+  cargoResource?: Resource;
 }
 export type WorldTarget = Target;
 /** Small coastal craft. Paid hull materials remain physical while work is interrupted. */

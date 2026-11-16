@@ -14,6 +14,7 @@ type WorldSave = {
     regionalCultures?: 1;
     biomeRules?: 1;
     coastalRules?: 1;
+    maritimeRules?: 1;
   };
   entities: {
     id: string;
@@ -121,6 +122,7 @@ test('an explicit map seed reproduces its geometry independently from Guided or 
     regionalCultures: 1,
     biomeRules: 1,
     coastalRules: 1,
+    maritimeRules: 1,
   });
 
   await openRestart(page);
@@ -183,6 +185,7 @@ test('the picker rejects invalid seeds and accepts the reproducible seed zero', 
     regionalCultures: 1,
     biomeRules: 1,
     coastalRules: 1,
+    maritimeRules: 1,
   });
 });
 

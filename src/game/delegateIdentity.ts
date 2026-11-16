@@ -1,6 +1,7 @@
 import { activeUnits, distance } from './runtime';
 import { refundPaidCooking } from './fishing';
 import { killUnit } from './simulation';
+import { planLandRoute } from './landNavigation';
 import type { Caravan, City, GameState, Unit } from './types';
 
 /** Anonymous cohorts need no invented person; fully represented cities send an actual Sage. */
@@ -15,12 +16,16 @@ export function chooseDelegateIdentity(state: GameState, source: City) {
     (person) =>
       person.age >= 4 &&
       !person.isKing &&
+      !person.boatId &&
       !person.carry &&
-      !['frontline', 'frontline-returning', 'delegating'].includes(person.action) &&
+      !['frontline', 'frontline-returning', 'delegating', 'embarking', 'disembarking'].includes(
+        person.action,
+      ) &&
       !state.caravans.some(
         (caravan) => caravan.delegateUnitId === person.id && caravan.population > 0,
       ) &&
-      distance(person, source) <= 15,
+      distance(person, source) <= 15 &&
+      (state.mapGeneration?.maritimeRules !== 1 || !!planLandRoute(state, person, source)),
   );
   return { available: !!unit, unit };
 }

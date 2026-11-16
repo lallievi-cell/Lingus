@@ -1,11 +1,14 @@
 import { BOAT_BUILD_COST } from '../game/maritime';
 import { hasWord } from '../game/runtime';
+import { suggestedBoatBuilderGroup } from '../game/phrasebook';
 import { isWorldPointRevealed } from '../game/worldDimensions';
-import type { GameState, Target } from '../game/types';
+import type { GameState, Resource, Target } from '../game/types';
 import { describeResourceAmount } from './semanticReadability';
 import {
   getBoatPreparations,
   getBoatPresentation,
+  getBoatCargoChoices,
+  getSelectedCargoPreparations,
   maritimePreparation,
   type MaritimePreparation,
 } from './maritimePresentation';
@@ -18,6 +21,9 @@ export interface BoatPanelProps {
 }
 
 export function BoatPanel({ state, target, onPrepare }: BoatPanelProps) {
+  const [cargoChoice, setCargoChoice] = useState<{ boatId: string; resource: Resource } | null>(
+    null,
+  );
   if (state.mapGeneration?.maritimeRules !== 1) return null;
   const numbered = hasWord(state, 'O_08');
   const button = (action: MaritimePreparation) => (
@@ -29,6 +35,7 @@ export function BoatPanel({ state, target, onPrepare }: BoatPanelProps) {
       >
         {action.label}
       </button>
+      {action.detail && <small>{action.detail}</small>}
       {action.issue && <small>{action.issue}</small>}
     </div>
   );
@@ -44,6 +51,7 @@ export function BoatPanel({ state, target, onPrepare }: BoatPanelProps) {
     const unfinished = state.boats?.find(
       (boat) => boat.harborId === harbor.id && boat.status === 'building',
     );
+    const builderGroup = suggestedBoatBuilderGroup(state, harbor);
     const action = maritimePreparation(
       state,
       {
@@ -51,9 +59,13 @@ export function BoatPanel({ state, target, onPrepare }: BoatPanelProps) {
         label: unfinished ? 'Prepara ripresa della barca' : 'Prepara una barca',
         tokens: ['S_01', 'V_06', 'O_03', 'O_01'],
         target: { type: 'building', id: harbor.id, x: harbor.x, y: harbor.y },
-        groupAnchor: { type: 'point', x: harbor.x, y: harbor.y },
+        groupAnchor: builderGroup,
       },
-      !harbor.active ? 'L’approdo deve essere attivo.' : undefined,
+      harbor.active === false
+        ? 'L’approdo deve essere attivo.'
+        : !builderGroup
+          ? 'Nessun artigiano può raggiungere questo approdo a piedi.'
+          : undefined,
     );
     return (
       <details className="boat-panel">
@@ -65,7 +77,9 @@ export function BoatPanel({ state, target, onPrepare }: BoatPanelProps) {
               : `Una barca richiede ${describeResourceAmount('wood', BOAT_BUILD_COST.wood ?? 0, numbered).toLocaleLowerCase('it')} e ${describeResourceAmount('tool', BOAT_BUILD_COST.tool ?? 0, numbered).toLocaleLowerCase('it')}. L’artigiano deve raggiungere l’approdo e lavorare sullo scafo.`}
           </p>
           {button(action)}
-          <p className="boat-panel-note">Prepara compone le parole. L’ordine parte con Pronuncia.</p>
+          <p className="boat-panel-note">
+            Prepara compone le parole. L’ordine parte con Pronuncia.
+          </p>
         </div>
       </details>
     );
@@ -76,29 +90,77 @@ export function BoatPanel({ state, target, onPrepare }: BoatPanelProps) {
   const presentation = getBoatPresentation(state, boat);
   if (!presentation?.owned) return null;
   const preparations = getBoatPreparations(state, boat);
+  const cargoChoices = getBoatCargoChoices(state, boat);
+  const preferred = cargoChoice?.boatId === boat.id ? cargoChoice.resource : target.cargoResource;
+  const selectedResource =
+    cargoChoices.find((choice) => choice.resource === preferred)?.resource ??
+    cargoChoices.find(
+      (choice) =>
+        (state.resources[choice.resource] ?? 0) > 0 || (boat.resources[choice.resource] ?? 0) > 0,
+    )?.resource ??
+    cargoChoices[0]?.resource;
   return (
     <details className="boat-panel">
       <summary>Equipaggio, carico e ordini</summary>
       <div className="boat-panel-content">
         <dl className="boat-state">
-          <div><dt>Equipaggio</dt><dd>{presentation.crew}</dd></div>
-          <div><dt>Stiva e carichi personali</dt><dd>{presentation.cargo}</dd></div>
-          {presentation.construction && <div><dt>Scafo</dt><dd>{presentation.construction}</dd></div>}
+          <div>
+            <dt>Equipaggio</dt>
+            <dd>{presentation.crew}</dd>
+          </div>
+          <div>
+            <dt>Stiva e carichi personali</dt>
+            <dd>{presentation.cargo}</dd>
+          </div>
+          {presentation.construction && (
+            <div>
+              <dt>Scafo</dt>
+              <dd>{presentation.construction}</dd>
+            </div>
+          )}
         </dl>
         {presentation.inventory.length > 0 && (
           <dl className="boat-cargo" aria-label="Carico nella barca">
             {presentation.inventory.map((entry) => (
               <div key={entry.resource} data-resource={entry.resource}>
-                <dt>{entry.label}</dt><dd>{entry.quantity}</dd>
+                <dt>{entry.label}</dt>
+                <dd>{entry.quantity}</dd>
               </div>
             ))}
           </dl>
         )}
         <div className="boat-preparations">{preparations.map(button)}</div>
+        {boat.status === 'moored' && cargoChoices.length > 0 && selectedResource && (
+          <details className="boat-other-cargo">
+            <summary>Altri carichi</summary>
+            <label>
+              Risorsa da trasportare
+              <select
+                aria-label="Risorsa da trasportare"
+                value={selectedResource}
+                onChange={(event) =>
+                  setCargoChoice({ boatId: boat.id, resource: event.target.value as Resource })
+                }
+              >
+                {cargoChoices.map((choice) => (
+                  <option key={choice.resource} value={choice.resource}>
+                    {choice.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="boat-preparations">
+              {getSelectedCargoPreparations(state, boat, selectedResource).map(button)}
+            </div>
+          </details>
+        )}
         <p className="boat-panel-note">
-          Prepara compone la frase senza eseguirla. Per navigare scegli poi il mare o una riva osservata e premi Pronuncia. I carichi entrano nelle scorte del campo soltanto dopo la consegna.
+          Prepara compone la frase senza eseguirla. Per navigare scegli poi il mare o una riva
+          osservata e premi Pronuncia. I carichi entrano nelle scorte del campo soltanto dopo la
+          consegna.
         </p>
       </div>
     </details>
   );
 }
+import { useState } from 'react';

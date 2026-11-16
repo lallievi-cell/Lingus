@@ -2,6 +2,7 @@ import { RESOURCE_ORDER, RESOURCE_SPECS } from '../game/content';
 import { freeCapacity, hasWord } from '../game/runtime';
 import type { GameState, Inventory, Resource } from '../game/types';
 import { getWorldSize } from '../game/worldDimensions';
+import { hasHomeLandAccess } from '../game/maritimeInventory';
 
 export type StockLevel = 0 | 1 | 2 | 3;
 export type CampStockGroup = 'food' | 'wood' | 'stone' | 'pelt' | 'goods';
@@ -56,8 +57,12 @@ function incomingAtCamp(state: GameState): Inventory {
       (unit.factionId !== undefined && unit.factionId !== 'player') ||
       unit.action !== 'returning' ||
       (state.mapGeneration?.maritimeRules === 1 &&
-        (unit.boatId || unit.deliveryBoatId ||
-          (unit.deliveryPoint && Math.hypot(unit.deliveryPoint.x - state.home.x, unit.deliveryPoint.y - state.home.y) > 15))) ||
+        (unit.boatId ||
+          unit.deliveryBoatId ||
+          !hasHomeLandAccess(state, unit) ||
+          (unit.deliveryPoint &&
+            Math.hypot(unit.deliveryPoint.x - state.home.x, unit.deliveryPoint.y - state.home.y) >
+              15))) ||
       !unit.carry
     )
       continue;

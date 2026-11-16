@@ -1,8 +1,14 @@
 import { BUILDING_SPECS, INNATE_WORDS, RESOURCE_ORDER, WORDS } from './content';
 import type { GameState } from './types';
 import { isDryLandPoint } from './landNavigation';
-import { isSeaPoint } from './coastGeometry';
-import { BOAT_BUILD_COST, BOAT_CARGO_CAPACITY, BOAT_PASSENGER_CAPACITY } from './maritimeConfig';
+import { isSeaPoint, isSeaSegment } from './coastGeometry';
+import { isShoreConnection } from './shoreAccess';
+import {
+  BOAT_BUILD_COST,
+  BOAT_BUILD_SECONDS,
+  BOAT_CARGO_CAPACITY,
+  BOAT_PASSENGER_CAPACITY,
+} from './maritimeConfig';
 import { TRIBE_EVENT_LIMIT } from './demography';
 import { validLearnedRecipe } from './knowledgeRecovery';
 import { seasonLength } from './calendar';
@@ -35,7 +41,7 @@ const combatSource = (v: unknown) =>
   ['wolf', 'alpha', 'mammoth', 'deer', 'human', 'army'].includes(v.kind as string) &&
   optional(v.id, text) &&
   number(v.time);
-function validatorFor(worldSize: 500 | 1000) {
+function validatorFor(worldSize: 500 | 1000, maritimeTargets = false) {
   const sectorCount = worldSize / 100;
   const point = (v: unknown) => record(v) && number(v.x, 0, worldSize) && number(v.y, 0, worldSize);
   const regionalRoad = (v: unknown) => {
@@ -74,7 +80,14 @@ function validatorFor(worldSize: 500 | 1000) {
     ) &&
     optional(v.id, text) &&
     (v.type !== 'boat' || text(v.id)) &&
-    optional(v.unitIds, ids);
+    optional(v.unitIds, ids) &&
+    optional(
+      v.cargoResource,
+      (resource) =>
+        maritimeTargets &&
+        v.type === 'boat' &&
+        RESOURCE_ORDER.includes(resource as (typeof RESOURCE_ORDER)[number]),
+    );
   const dogma = (v: unknown) =>
     named(v) &&
     word(v.targetId) &&
@@ -759,6 +772,8 @@ function validatorFor(worldSize: 500 | 1000) {
       if (s.boats !== undefined || people.some(maritimePerson)) return false;
     } else {
       if (!unique(s.boats) || !Array.isArray(s.boats) || s.boats.length > 128) return false;
+      const vesselInventory = (value: unknown) =>
+        inventory(value) && record(value) && Object.keys(value).length === RESOURCE_ORDER.length;
       if (
         !list(
           s.boats,
@@ -776,9 +791,9 @@ function validatorFor(worldSize: 500 | 1000) {
             new Set(boat.passengerIds as string[]).size ===
               (boat.passengerIds as string[]).length &&
             (boat.passengerIds as string[]).length <= BOAT_PASSENGER_CAPACITY &&
-            inventory(boat.resources) &&
-            inventory(boat.paidMaterials) &&
-            number(boat.progress) &&
+            vesselInventory(boat.resources) &&
+            vesselInventory(boat.paidMaterials) &&
+            number(boat.progress, 0, BOAT_BUILD_SECONDS) &&
             optional(boat.harborId, text) &&
             optional(boat.builderId, text) &&
             optional(
@@ -808,6 +823,16 @@ function validatorFor(worldSize: 500 | 1000) {
           .map((harbor) => [harbor.id, harbor]),
       );
       const world = s as unknown as GameState;
+      type Position = { x: number; y: number };
+      const position = (value: RecordValue) => value as unknown as Position;
+      const distance = (a: Position, b: Position) => Math.hypot(a.x - b.x, a.y - b.y);
+      const onBridge = (person: RecordValue, from: Position, to: Position) => {
+        const length = distance(from, to);
+        return (
+          length <= 20 + 1e-8 &&
+          distance(from, position(person)) + distance(position(person), to) <= length + 1e-6
+        );
+      };
       const passengerIds = boats.flatMap((boat) => boat.passengerIds as string[]);
       if (new Set(passengerIds).size !== passengerIds.length) return false;
       for (const person of people) {
@@ -825,20 +850,51 @@ function validatorFor(worldSize: 500 | 1000) {
             (person.factionId ?? 'player') !== boat.ownerId
           )
             return false;
+          if (person.action === 'disembarking') {
+            if (
+              boat.status !== 'landing' ||
+              !point(person.embarkFrom) ||
+              !point(boat.landing) ||
+              distance(person.embarkFrom as Position, position(boat)) > 1e-6 ||
+              !onBridge(person, person.embarkFrom as Position, boat.landing as Position)
+            )
+              return false;
+          } else if (distance(position(person), position(boat)) > 1e-6) return false;
+        } else if (person.embarkFrom !== undefined) {
+          const boat = byBoat.get(person.targetBoatId);
+          if (
+            person.action !== 'embarking' ||
+            !boat ||
+            boat.status !== 'moored' ||
+            !point(boat.accessLand) ||
+            !isDryLandPoint(world, person.embarkFrom as Position) ||
+            distance(person.embarkFrom as Position, boat.accessLand as Position) > 1e-6 ||
+            !onBridge(person, person.embarkFrom as Position, position(boat))
+          )
+            return false;
         }
       }
       for (const harbor of harbors.values()) {
         if (!isDryLandPoint(world, harbor as unknown as { x: number; y: number })) return false;
         if (harbor.seaAccess !== undefined) {
           const access = harbor.seaAccess as { x: number; y: number };
-          if (
-            !isSeaPoint(world, access) ||
-            Math.hypot(access.x - (harbor.x as number), access.y - (harbor.y as number)) > 20
-          )
-            return false;
+          if (!isShoreConnection(world, position(harbor), access)) return false;
         }
       }
       for (const boat of boats) {
+        const route = boat.route as Position[] | undefined;
+        const boarding = people.filter(
+          (person) =>
+            (person.hp as number) > 0 &&
+            person.boatId === undefined &&
+            person.targetBoatId === boat.id &&
+            person.action === 'embarking',
+        );
+        if (
+          (boat.passengerIds as string[]).length + boarding.length > BOAT_PASSENGER_CAPACITY ||
+          (boarding.length > 0 && (boat.status !== 'moored' || boat.accessLand === undefined))
+        )
+          return false;
         if (!isSeaPoint(world, boat as unknown as { x: number; y: number })) return false;
         if (
           (boat.passengerIds as string[]).some((id) => {
@@ -847,7 +903,16 @@ function validatorFor(worldSize: 500 | 1000) {
           })
         )
           return false;
-        if (boat.harborId !== undefined && !harbors.has(boat.harborId)) return false;
+        if (boat.harborId !== undefined) {
+          const harbor = harbors.get(boat.harborId);
+          if (
+            !harbor ||
+            (harbor.hp as number) <= 0 ||
+            !point(harbor.seaAccess) ||
+            distance(position(boat), harbor.seaAccess as Position) > 1e-6
+          )
+            return false;
+        }
         if (boat.builderId !== undefined) {
           const builder = byPerson.get(boat.builderId);
           if (
@@ -859,6 +924,11 @@ function validatorFor(worldSize: 500 | 1000) {
             return false;
         }
         if (boat.status === 'building' && (boat.passengerIds as string[]).length > 0) return false;
+        if (
+          (boat.status === 'building' && (boat.progress as number) >= BOAT_BUILD_SECONDS) ||
+          (boat.status !== 'building' && boat.progress !== BOAT_BUILD_SECONDS)
+        )
+          return false;
         if (
           boat.status === 'building' &&
           RESOURCE_ORDER.some((resource) => (boat.resources as RecordValue)[resource] !== 0)
@@ -876,8 +946,10 @@ function validatorFor(worldSize: 500 | 1000) {
             sum + (resource === 'coin' ? 0 : (boat.resources as Record<string, number>)[resource]),
           0,
         );
-        const carried = (boat.passengerIds as string[]).reduce((sum, id) => {
-          const person = byPerson.get(id)!;
+        const carried = [
+          ...(boat.passengerIds as string[]).map((id) => byPerson.get(id)!),
+          ...boarding,
+        ].reduce((sum, person) => {
           return (
             sum +
             (record(person.carry) && person.carry.resource !== 'coin'
@@ -891,18 +963,46 @@ function validatorFor(worldSize: 500 | 1000) {
             (land) =>
               land !== undefined && !isDryLandPoint(world, land as { x: number; y: number }),
           ) ||
-          (Array.isArray(boat.route) && boat.route.some((position) => !isSeaPoint(world, position)))
+          route?.some((position) => !isSeaPoint(world, position))
+        )
+          return false;
+        if (
+          route?.some(
+            (waypoint, index) => index > 0 && !isSeaSegment(world, route[index - 1], waypoint),
+          )
+        )
+          return false;
+        if (
+          boat.accessLand !== undefined &&
+          !isShoreConnection(world, boat.accessLand as Position, position(boat))
         )
           return false;
         if (
           boat.status === 'sailing' &&
-          (!Array.isArray(boat.route) ||
-            boat.route.length === 0 ||
-            boat.destination === undefined ||
+          boat.landing !== undefined &&
+          point(boat.destination) &&
+          !isShoreConnection(world, boat.landing as Position, boat.destination as Position)
+        )
+          return false;
+        if (
+          boat.status === 'sailing' &&
+          (!route ||
+            route.length === 0 ||
+            boat.routeIndex === undefined ||
+            (boat.routeIndex as number) >= route.length ||
+            !point(boat.destination) ||
+            !isSeaPoint(world, boat.destination as Position) ||
+            distance(route[route.length - 1], boat.destination as Position) > 1e-6 ||
+            !isSeaSegment(world, position(boat), route[boat.routeIndex as number]) ||
             !(boat.passengerIds as string[]).some((id) => (byPerson.get(id)!.age as number) >= 4))
         )
           return false;
-        if (boat.status === 'landing' && boat.landing === undefined) return false;
+        if (
+          boat.status === 'landing' &&
+          (boat.landing === undefined ||
+            !isShoreConnection(world, boat.landing as Position, position(boat)))
+        )
+          return false;
       }
     }
     if (
@@ -949,12 +1049,14 @@ function validatorFor(worldSize: 500 | 1000) {
   return validSave;
 }
 
-// Separate immutable closures preserve each imported world's coordinate rules.
+// Separate immutable closures preserve each imported world's coordinate and target rules.
 const validateValley = validatorFor(500);
 const validateRegion = validatorFor(1000);
+const validateMaritimeRegion = validatorFor(1000, true);
 
 export function validSave(value: unknown): value is GameState {
-  const region =
-    record(value) && record(value.mapGeneration) && value.mapGeneration.worldSize === 1000;
-  return (region ? validateRegion : validateValley)(value);
+  const generation = record(value) && record(value.mapGeneration) ? value.mapGeneration : undefined;
+  const region = generation?.worldSize === 1000;
+  const maritime = region && generation?.maritimeRules === 1;
+  return (maritime ? validateMaritimeRegion : region ? validateRegion : validateValley)(value);
 }

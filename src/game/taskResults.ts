@@ -33,6 +33,20 @@ export function snapshotTaskResultInputs(state: GameState): GameState | undefine
     entities: state.entities.map((entity) => ({ ...entity })),
     buildings: state.buildings.map((building) => ({ ...building })),
     resources: { ...state.resources },
+    ...(state.mapGeneration?.maritimeRules === 1
+      ? {
+          boats: state.boats?.map((boat) => ({
+            ...boat,
+            passengerIds: [...boat.passengerIds],
+            resources: { ...boat.resources },
+            paidMaterials: { ...boat.paidMaterials },
+            route: boat.route?.map((point) => ({ ...point })),
+            destination: boat.destination ? { ...boat.destination } : undefined,
+            landing: boat.landing ? { ...boat.landing } : undefined,
+            accessLand: boat.accessLand ? { ...boat.accessLand } : undefined,
+          })),
+        }
+      : {}),
     stats: { ...state.stats },
     words: Object.fromEntries(
       Object.entries(state.words).map(([id, memory]) => [id, { ...memory }]),

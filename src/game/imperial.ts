@@ -16,6 +16,7 @@ import {
 } from './calendar';
 import { rememberCombatWound } from './damageAttribution';
 import { refundPaidCooking } from './fishing';
+import { hasHomeLandAccess, sameLandmass } from './maritimeInventory';
 import { recordCaravanTravel } from './regionalHistory';
 import { isDryLandPoint, landRouteEffort, moveOnLand, planLandRoute } from './landNavigation';
 import { farmYieldMultiplier } from './biomes';
@@ -67,6 +68,7 @@ import {
   onDogmaticUse,
   protectedByDogma,
   resourcePreservationFloor,
+  resourceToken,
   sanctuaryProtected,
 } from './dogmas';
 import {
@@ -171,7 +173,13 @@ const playerHas = (s: GameState, kind: BuildingKind) =>
       (!b.cityId || s.cities.some((c) => c.id === b.cityId && c.factionId === PLAYER)),
   );
 const cityBuildings = (s: GameState, c: City) =>
-  s.buildings.filter((b) => b.cityId === c.id && b.hp > 0 && b.completed !== false);
+  s.buildings.filter(
+    (b) =>
+      b.cityId === c.id &&
+      b.hp > 0 &&
+      b.completed !== false &&
+      (s.mapGeneration?.maritimeRules !== 1 || !!planLandRoute(s, c, b)),
+  );
 const cityHas = (s: GameState, c: City, k: BuildingKind) =>
   cityBuildings(s, c).some((b) => b.kind === k && b.active);
 const capital = (s: GameState) => ownCities(s).find((c) => c.capital) ?? ownCities(s)[0];
@@ -196,7 +204,10 @@ export const playerPopulation = (s: GameState) =>
             !c.arrived &&
             c.hp > 0,
         )
-        .reduce((n, c) => n + c.population, 0)
+        .reduce((n, c) => n + c.population, 0) +
+      (s.mapGeneration?.maritimeRules === 1
+        ? activeUnits(s).filter((u) => !u.cityId && !travellingDelegate(s, u)).length
+        : 0)
     : activeUnits(s).length;
 export const getIntelligibility = (s: GameState, words: Iterable<string>) =>
   mutualIntelligibility(known(s), words);
@@ -308,9 +319,15 @@ function moveTo(
 
 export function condenseCities(s: GameState) {
   if (s.urbanized || !hasWord(s, 'S_09') || activeUnits(s).length < 150) return;
+  const residents = activeUnits(s).filter(
+    (u) =>
+      s.mapGeneration?.maritimeRules !== 1 ||
+      (!u.boatId && !['embarking', 'disembarking'].includes(u.action) && hasHomeLandAccess(s, u)),
+  );
+  if (residents.length < 150) return;
   const cohorts: Cohorts = { workers: 0, warriors: 0, sages: 0, slaves: 0 };
   const home = s.home;
-  for (const u of activeUnits(s)) {
+  for (const u of residents) {
     const cohort =
       u.caste === 'slave'
         ? 'slaves'
@@ -347,7 +364,7 @@ export function condenseCities(s: GameState) {
     housing: Math.max(
       BASE_HOUSING,
       s.buildings
-        .filter((b) => b.hp > 0)
+        .filter((b) => b.hp > 0 && hasHomeLandAccess(s, b))
         .reduce((n, b) => n + (BUILDING_SPECS[b.kind].housing ?? 0), BASE_HOUSING),
     ),
     buildingIds: [],
@@ -361,11 +378,11 @@ export function condenseCities(s: GameState) {
     foundedAt: s.time,
   };
   s.cities.push(c);
-  for (const b of s.buildings.filter((b) => !b.cityId)) {
+  for (const b of s.buildings.filter((b) => !b.cityId && hasHomeLandAccess(s, b))) {
     b.cityId = c.id;
     c.buildingIds.push(b.id);
   }
-  for (const u of activeUnits(s)) {
+  for (const u of residents) {
     refundPaidCooking(s, u);
     if (s.mapGeneration?.coastalRules === 1) dropCarriedLoad(s, u);
     u.cityId = c.id;
@@ -401,9 +418,21 @@ function buildingSelector(s: GameState, c: City, b: Building) {
   );
 }
 /** Named children remain in population counts, but cannot supply a worker slot. */
+function presentCityResident(s: GameState, unit: Unit, city: { x: number; y: number }) {
+  return (
+    s.mapGeneration?.maritimeRules !== 1 ||
+    (!unit.boatId &&
+      !['embarking', 'disembarking'].includes(unit.action) &&
+      sameLandmass(s, unit, city) &&
+      !!planLandRoute(s, unit, city))
+  );
+}
+
 function workingCityCohorts(s: GameState, c: City): Cohorts {
   const pools = { ...c.cohorts };
-  for (const unit of s.units.filter((u) => u.hp > 0 && u.cityId === c.id && !adult(u))) {
+  for (const unit of s.units.filter(
+    (u) => u.hp > 0 && u.cityId === c.id && (!adult(u) || !presentCityResident(s, u, c)),
+  )) {
     const cohort = unitCohort(unit);
     pools[cohort] = Math.max(0, pools[cohort] - 1);
   }
@@ -429,7 +458,10 @@ export function allocateCityWorkers(s: GameState, c: City) {
   // so an individual or royal monopoly cannot reuse them in another building.
   const residents = activeUnits(s).filter(
     (u) =>
-      u.cityId === c.id && adult(u) && !['frontline', 'frontline-returning'].includes(u.action),
+      u.cityId === c.id &&
+      adult(u) &&
+      presentCityResident(s, u, c) &&
+      !['frontline', 'frontline-returning'].includes(u.action),
   );
   const reserved = new Set<string>();
   const takeCohort = (cohort: keyof Cohorts, slots: number) => {
@@ -956,6 +988,9 @@ export function enforceActionLaws(
   const victim = target?.type === 'unit' ? s.units.find((u) => u.id === target.id) : undefined;
   const touches = (l: Law) =>
     p.slice(2).includes(l.objectId) ||
+    (target?.type === 'boat' &&
+      !!target.cargoResource &&
+      resourceToken(target.cargoResource) === l.objectId) ||
     (l.objectId === 'C_01' && phase(s).night) ||
     (l.objectId === 'S_05' &&
       ((victim?.factionId && victim.factionId !== PLAYER) ||
@@ -1347,7 +1382,12 @@ export function handleImperialCommand(
         'Il centro del settore non è raggiungibile via terra. Scegli un settore con un luogo asciutto per fondare la colonia.',
       );
     const inv = inventoryFor(s, source);
-    if (source.cohorts.workers < 30 || inv.wood < 50 || inv.stone < 50 || !foodCost(inv, 50))
+    if (
+      workingCityCohorts(s, source).workers < 30 ||
+      inv.wood < 50 ||
+      inv.stone < 50 ||
+      !foodCost(inv, 50)
+    )
       return output(
         false,
         'Servono trenta lavoratori e cinquanta unità di ciascuna risorsa: legno, pietra e cibo.',
@@ -1441,18 +1481,19 @@ export function handleImperialCommand(
     }
     if (verb === 'V_12' && args.includes('S_08')) {
       const legal = imperialLawEffects(s),
+        available = workingCityCohorts(s, c),
         auxiliary =
           legal.auxiliaryRecruitmentPoolMultiplier > 1
-            ? Math.min(c.cohorts.workers, c.cohorts.warriors)
+            ? Math.min(available.workers, available.warriors)
             : 0;
-      if (c.cohorts.warriors + auxiliary < 20 || inventoryFor(s, c).metalArms < 20)
+      if (available.warriors + auxiliary < 20 || inventoryFor(s, c).metalArms < 20)
         return output(false, 'Servono venti reclute disponibili e venti armi metalliche.');
       const ready = s.eventTimes[`recruitmentReady:${c.id}`] ?? 0;
       if (s.time < ready)
         return output(false, 'Il centro di reclutamento sta ancora riorganizzando le leve.');
       s.eventTimes[`recruitmentReady:${c.id}`] =
         s.time + IMPERIAL_ASSUMPTIONS.recruitmentCooldownSeconds / legal.recruitmentSpeedMultiplier;
-      const warriors = Math.min(20, c.cohorts.warriors);
+      const warriors = Math.min(20, available.warriors);
       c.cohorts.warriors -= warriors;
       c.cohorts.workers -= 20 - warriors;
       c.garrisonHp = c.cohorts.warriors * 100;
@@ -1878,6 +1919,8 @@ function updateFrontline(s: GameState, dt: number) {
     for (const u of activeUnits(s).filter(
       (u) =>
         u.cityId === cityId &&
+        !u.boatId &&
+        presentCityResident(s, u, host) &&
         unitCohort(u) === 'sages' &&
         !u.isKing &&
         !['frontline', 'frontline-returning'].includes(u.action) &&
@@ -1952,7 +1995,13 @@ function damageGarrison(s: GameState, city: City, damage: number, attackerId?: s
   if (city.factionId === PLAYER && city.garrisonHp < previous) recordAttackTrauma(s);
   const lost = Math.max(0, Math.ceil(previous / 100) - Math.ceil(city.garrisonHp / 100));
   const represented = s.units
-    .filter((u) => u.hp > 0 && u.cityId === city.id && (u.caste === 'warrior' || u.strength >= 7))
+    .filter(
+      (u) =>
+        u.hp > 0 &&
+        u.cityId === city.id &&
+        presentCityResident(s, u, city) &&
+        (u.caste === 'warrior' || u.strength >= 7),
+    )
     .slice(0, lost);
   for (const u of represented) {
     if (city.factionId === PLAYER) {
@@ -2184,12 +2233,14 @@ export function updateImperial(s: GameState, dt: number) {
     for (const unit of activeUnits(s)) {
       if (
         unit.cityId ||
+        unit.boatId ||
+        ['embarking', 'disembarking'].includes(unit.action) ||
         (unit.caste !== 'slave' && !(unit.caste === 'citizen' && unit.emancipated)) ||
         travellingDelegate(s, unit)
       )
         continue;
       const destination = ownCities(s)
-        .filter((city) => distance(unit, city) <= 10)
+        .filter((city) => distance(unit, city) <= 10 && presentCityResident(s, unit, city))
         .sort((left, right) => distance(unit, left) - distance(unit, right))[0];
       if (!destination) continue;
       // A field captive is already a real person. Count them in the city only
@@ -2468,7 +2519,8 @@ function produceCity(s: GameState, c: City, spentCycles = 0) {
         Math.floor(e.x / 100) === c.sectorX &&
         Math.floor(e.y / 100) === c.sectorY &&
         ['tree', 'stone', 'ore'].includes(e.kind) &&
-        e.amount > 0,
+        e.amount > 0 &&
+        (s.mapGeneration?.maritimeRules !== 1 || !!planLandRoute(s, c, e)),
     );
   const regionalFaction = s.factions.find(
     (faction) => faction.id === c.factionId && faction.culture,
@@ -2716,6 +2768,7 @@ function cityNutritionAndBirths(s: GameState, c: City) {
     activeUnits(s).filter(
       (u) =>
         u.cityId === c.id &&
+        presentCityResident(s, u, c) &&
         u.age >= 4 &&
         u.age < 14 &&
         u.hunger <= 50 &&
@@ -2745,6 +2798,7 @@ function cityNutritionAndBirths(s: GameState, c: City) {
       activeUnits(s).filter(
         (u) =>
           u.cityId === c.id &&
+          presentCityResident(s, u, c) &&
           u.age >= 4 &&
           u.age < 14 &&
           u.hunger <= 50 &&
@@ -3129,6 +3183,7 @@ function prepareForeignEconomy(s: GameState, c: City, f: Faction) {
         // Exhausted sources and animals already living in a pen cannot pay
         // this shift. Reject them before asking the shared route planner.
         if (e.amount <= 0 || (e.kind === 'deer' && e.hp > 0 && e.domesticated)) return false;
+        if (!sameLandmass(s, c, e)) return false;
         if (f.culture) {
           if (!['berries', 'deer', 'ore', ...(coastal ? ['fishery'] : [])].includes(e.kind))
             return false;

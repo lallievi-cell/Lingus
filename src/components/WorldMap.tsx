@@ -1331,7 +1331,7 @@ export function WorldMap({
       </div>
       {details && (
         <div
-          className={`lingus-world__target-card ${biomeDetails ? 'has-biome-details' : ''}`}
+          className={`lingus-world__target-card ${biomeDetails ? 'has-biome-details' : ''} ${state.mapGeneration?.maritimeRules === 1 && (focusedTarget?.type === 'boat' || (focusedTarget?.type === 'building' && state.buildings.some((building) => building.id === focusedTarget.id && building.kind === 'harbor'))) ? 'has-maritime-controls' : ''}`}
           role="status"
           aria-label="Dettagli del bersaglio"
           tabIndex={0}
