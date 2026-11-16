@@ -1,6 +1,8 @@
 import { BUILDING_SPECS, INNATE_WORDS, RESOURCE_ORDER, WORDS } from './content';
 import type { GameState } from './types';
 import { isDryLandPoint } from './landNavigation';
+import { isSeaPoint } from './coastGeometry';
+import { BOAT_BUILD_COST, BOAT_CARGO_CAPACITY, BOAT_PASSENGER_CAPACITY } from './maritimeConfig';
 import { TRIBE_EVENT_LIMIT } from './demography';
 import { validLearnedRecipe } from './knowledgeRecovery';
 import { seasonLength } from './calendar';
@@ -67,10 +69,11 @@ function validatorFor(worldSize: 500 | 1000) {
   const target = (v: unknown) =>
     point(v) &&
     record(v) &&
-    ['point', 'entity', 'unit', 'building', 'city', 'battalion', 'caravan'].includes(
+    ['point', 'entity', 'unit', 'building', 'city', 'battalion', 'caravan', 'boat'].includes(
       v.type as string,
     ) &&
     optional(v.id, text) &&
+    (v.type !== 'boat' || text(v.id)) &&
     optional(v.unitIds, ids);
   const dogma = (v: unknown) =>
     named(v) &&
@@ -141,6 +144,22 @@ function validatorFor(worldSize: 500 | 1000) {
     number(v.isolation) &&
     words(v.knows) &&
     optional(v.command, words) &&
+    optional(v.boatId, text) &&
+    optional(v.targetBoatId, text) &&
+    optional(
+      v.cargoResources,
+      (resources) =>
+        Array.isArray(resources) &&
+        resources.length > 0 &&
+        resources.length <= RESOURCE_ORDER.length &&
+        resources.every((resource) => RESOURCE_ORDER.includes(resource)) &&
+        new Set(resources).size === resources.length &&
+        ['loadingBoat', 'unloadingBoat'].includes(v.action as string) &&
+        text(v.targetBoatId),
+    ) &&
+    optional(v.deliveryBoatId, text) &&
+    optional(v.deliveryPoint, point) &&
+    optional(v.embarkFrom, point) &&
     optional(v.restedThisSeason, flag) &&
     optional(v.pendingCombatDamage, flag) &&
     optional(v.lastCombatSource, combatSource) &&
@@ -335,6 +354,17 @@ function validatorFor(worldSize: 500 | 1000) {
               value.landNavigation === 1 &&
               value.regionalCultures === 1 &&
               value.biomeRules === 1,
+          ) &&
+          optional(
+            value.maritimeRules,
+            (version) =>
+              version === 1 &&
+              value.mode === 'random' &&
+              value.worldSize === 1000 &&
+              value.landNavigation === 1 &&
+              value.regionalCultures === 1 &&
+              value.biomeRules === 1 &&
+              value.coastalRules === 1,
           ),
       )
     )
@@ -523,6 +553,13 @@ function validatorFor(worldSize: 500 | 1000) {
           number(v.hp) &&
           flag(v.active) &&
           optional(v.workerIds, ids) &&
+          optional(v.seaAccess, point) &&
+          (v.kind === 'harbor' || v.seaAccess === undefined) &&
+          (v.kind !== 'harbor' ||
+            (record(s.mapGeneration) &&
+              s.mapGeneration.maritimeRules === 1 &&
+              optional(v.completed, flag) &&
+              (v.completed === false || point(v.seaAccess)))) &&
           optional(v.productionMode, (mode) =>
             ['ingot', 'metalArms', 'coin'].includes(mode as string),
           ) &&
@@ -708,6 +745,166 @@ function validatorFor(worldSize: 500 | 1000) {
       )
     )
       return false;
+    const maritime = record(s.mapGeneration) && s.mapGeneration.maritimeRules === 1;
+    const people = s.units as RecordValue[];
+    const maritimePerson = (person: RecordValue) =>
+      person.boatId !== undefined ||
+      person.targetBoatId !== undefined ||
+      person.cargoResources !== undefined ||
+      person.deliveryBoatId !== undefined ||
+      person.deliveryPoint !== undefined ||
+      person.embarkFrom !== undefined;
+    if (!maritime) {
+      // Importing an old world never creates or enables vessels implicitly.
+      if (s.boats !== undefined || people.some(maritimePerson)) return false;
+    } else {
+      if (!unique(s.boats) || !Array.isArray(s.boats) || s.boats.length > 128) return false;
+      if (
+        !list(
+          s.boats,
+          (boat) =>
+            named(boat) &&
+            point(boat) &&
+            number(boat.hp, Number.MIN_VALUE) &&
+            number(boat.maxHp, Number.MIN_VALUE) &&
+            (boat.hp as number) <= (boat.maxHp as number) &&
+            text(boat.ownerId) &&
+            (boat.ownerId === 'player' ||
+              (s.factions as RecordValue[]).some((faction) => faction.id === boat.ownerId)) &&
+            ['building', 'moored', 'sailing', 'landing'].includes(boat.status as string) &&
+            ids(boat.passengerIds) &&
+            new Set(boat.passengerIds as string[]).size ===
+              (boat.passengerIds as string[]).length &&
+            (boat.passengerIds as string[]).length <= BOAT_PASSENGER_CAPACITY &&
+            inventory(boat.resources) &&
+            inventory(boat.paidMaterials) &&
+            number(boat.progress) &&
+            optional(boat.harborId, text) &&
+            optional(boat.builderId, text) &&
+            optional(
+              boat.route,
+              (route) => Array.isArray(route) && route.length <= 8192 && route.every(point),
+            ) &&
+            optional(
+              boat.routeIndex,
+              (index) =>
+                number(index) &&
+                Number.isInteger(index) &&
+                Array.isArray(boat.route) &&
+                (index as number) <= boat.route.length,
+            ) &&
+            optional(boat.destination, point) &&
+            optional(boat.landing, point) &&
+            optional(boat.accessLand, point),
+        )
+      )
+        return false;
+      const boats = s.boats as RecordValue[];
+      const byBoat = new Map(boats.map((boat) => [boat.id, boat]));
+      const byPerson = new Map(people.map((person) => [person.id, person]));
+      const harbors = new Map(
+        (s.buildings as RecordValue[])
+          .filter((building) => building.kind === 'harbor')
+          .map((harbor) => [harbor.id, harbor]),
+      );
+      const world = s as unknown as GameState;
+      const passengerIds = boats.flatMap((boat) => boat.passengerIds as string[]);
+      if (new Set(passengerIds).size !== passengerIds.length) return false;
+      for (const person of people) {
+        if (
+          [person.boatId, person.targetBoatId, person.deliveryBoatId].some(
+            (id) => id !== undefined && !byBoat.has(id),
+          )
+        )
+          return false;
+        if (person.boatId !== undefined) {
+          const boat = byBoat.get(person.boatId)!;
+          if (
+            (person.hp as number) <= 0 ||
+            !(boat.passengerIds as string[]).includes(person.id as string) ||
+            (person.factionId ?? 'player') !== boat.ownerId
+          )
+            return false;
+        }
+      }
+      for (const harbor of harbors.values()) {
+        if (!isDryLandPoint(world, harbor as unknown as { x: number; y: number })) return false;
+        if (harbor.seaAccess !== undefined) {
+          const access = harbor.seaAccess as { x: number; y: number };
+          if (
+            !isSeaPoint(world, access) ||
+            Math.hypot(access.x - (harbor.x as number), access.y - (harbor.y as number)) > 20
+          )
+            return false;
+        }
+      }
+      for (const boat of boats) {
+        if (!isSeaPoint(world, boat as unknown as { x: number; y: number })) return false;
+        if (
+          (boat.passengerIds as string[]).some((id) => {
+            const person = byPerson.get(id);
+            return !person || (person.hp as number) <= 0 || person.boatId !== boat.id;
+          })
+        )
+          return false;
+        if (boat.harborId !== undefined && !harbors.has(boat.harborId)) return false;
+        if (boat.builderId !== undefined) {
+          const builder = byPerson.get(boat.builderId);
+          if (
+            !builder ||
+            (builder.hp as number) <= 0 ||
+            boat.status !== 'building' ||
+            builder.targetBoatId !== boat.id
+          )
+            return false;
+        }
+        if (boat.status === 'building' && (boat.passengerIds as string[]).length > 0) return false;
+        if (
+          boat.status === 'building' &&
+          RESOURCE_ORDER.some((resource) => (boat.resources as RecordValue)[resource] !== 0)
+        )
+          return false;
+        if (
+          RESOURCE_ORDER.some(
+            (resource) =>
+              (boat.paidMaterials as RecordValue)[resource] !== (BOAT_BUILD_COST[resource] ?? 0),
+          )
+        )
+          return false;
+        const cargo = RESOURCE_ORDER.reduce(
+          (sum, resource) =>
+            sum + (resource === 'coin' ? 0 : (boat.resources as Record<string, number>)[resource]),
+          0,
+        );
+        const carried = (boat.passengerIds as string[]).reduce((sum, id) => {
+          const person = byPerson.get(id)!;
+          return (
+            sum +
+            (record(person.carry) && person.carry.resource !== 'coin'
+              ? (person.carry.amount as number)
+              : 0)
+          );
+        }, 0);
+        if (cargo + carried > BOAT_CARGO_CAPACITY + 1e-8) return false;
+        if (
+          [boat.landing, boat.accessLand].some(
+            (land) =>
+              land !== undefined && !isDryLandPoint(world, land as { x: number; y: number }),
+          ) ||
+          (Array.isArray(boat.route) && boat.route.some((position) => !isSeaPoint(world, position)))
+        )
+          return false;
+        if (
+          boat.status === 'sailing' &&
+          (!Array.isArray(boat.route) ||
+            boat.route.length === 0 ||
+            boat.destination === undefined ||
+            !(boat.passengerIds as string[]).some((id) => (byPerson.get(id)!.age as number) >= 4))
+        )
+          return false;
+        if (boat.status === 'landing' && boat.landing === undefined) return false;
+      }
+    }
     if (
       !record(s.stats) ||
       ['commands', 'discoveries', 'hunts', 'deaths', 'births', 'taught', 'seasonsSurvived'].some(

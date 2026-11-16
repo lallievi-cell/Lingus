@@ -252,6 +252,7 @@ export function createInitialState(
             regionalCultures: 1 as const,
             biomeRules: 1 as const,
             coastalRules: 1 as const,
+            maritimeRules: 1 as const,
           }
         : {}),
     },
@@ -264,6 +265,7 @@ export function createInitialState(
     units,
     entities,
     buildings: [],
+    ...(size === REGION_WORLD_SIZE ? { boats: [] } : {}),
     resources: emptyInventory(),
     words: Object.fromEntries(
       INNATE_WORDS.map((id) => [
@@ -348,6 +350,7 @@ export function createInitialState(
         size,
         state.mapGeneration?.biomeRules === 1,
         state.mapGeneration?.coastalRules === 1,
+        state.mapGeneration?.maritimeRules === 1,
       ),
     );
     if (size === REGION_WORLD_SIZE)

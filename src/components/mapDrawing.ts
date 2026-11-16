@@ -35,6 +35,7 @@ import { drawRiverFords } from './mapFordArt';
 import { boundedMapLabelX, drawOverviewNature, usesOverviewNature } from './mapOverviewArt';
 import { planCityLabels } from './mapCityLabels';
 import { drawFisheryMarker, drawFishSprite } from './mapCoastArt';
+import { drawBoat, drawHarbor, unitIsSeatedAboard } from './mapMaritimeArt';
 
 const fallbackMotionSession = createMapMotionSession();
 
@@ -85,6 +86,7 @@ export const entityNames: Record<string, string> = {
   menhir: 'Pietra sacra',
   grave: 'Tumulo',
   house: 'Casa in pietra',
+  harbor: 'Approdo',
 };
 
 export function seededRandom(seed: number) {
@@ -1123,6 +1125,21 @@ export function drawWorld(
       ] as const;
     }),
   );
+  const renderBoats = new Map(
+    (state.boats ?? [])
+      .filter((boat) => boat.hp > 0)
+      .map((boat) => {
+        const next = boat.route?.[boat.routeIndex ?? 0];
+        const motion = observeUnitMotion(
+          motionSession,
+          { ...boat, action: boat.status, tx: next?.x, ty: next?.y },
+          state.time,
+          time,
+          state.paused,
+        );
+        return [boat.id, { ...boat, x: motion.displayX, y: motion.displayY }] as const;
+      }),
+  );
   const renderEntities = new Map(
     state.entities.map((entity) => {
       if (!['deer', 'wolf', 'alpha', 'mammoth'].includes(entity.kind) || entity.hp <= 0)
@@ -1194,7 +1211,9 @@ export function drawWorld(
     groupAnchor && !state.urbanized
       ? groupAnchor.type === 'unit'
         ? (state.units.find((u) => u.id === groupAnchor.id && u.hp > 0) ?? groupAnchor)
-        : groupAnchor
+        : groupAnchor.type === 'boat'
+          ? (renderBoats.get(groupAnchor.id ?? '') ?? groupAnchor)
+          : groupAnchor
       : null;
   const explicitGroup = isCustomGroupAnchor(groupAnchor)
     ? customGroupMembers(state, groupAnchor)
@@ -1270,16 +1289,18 @@ export function drawWorld(
       ? (renderUnits.get(target.id ?? '') ?? target)
       : target.type === 'entity'
         ? (groundPileFor(state, target.id, piles) ?? renderEntities.get(target.id ?? '') ?? target)
-        : target.type === 'city'
-          ? (state.cities.find((c) => c.id === target.id) ?? target)
-          : target.type === 'battalion'
-            ? (() => {
-                const army = state.battalions.find((b) => b.id === target.id);
-                return army ? getBattalionDisplayPoint(state, army) : target;
-              })()
-            : target.type === 'caravan'
-              ? (state.caravans.find((c) => c.id === target.id) ?? target)
-              : target;
+        : target.type === 'boat'
+          ? (renderBoats.get(target.id ?? '') ?? target)
+          : target.type === 'city'
+            ? (state.cities.find((c) => c.id === target.id) ?? target)
+            : target.type === 'battalion'
+              ? (() => {
+                  const army = state.battalions.find((b) => b.id === target.id);
+                  return army ? getBattalionDisplayPoint(state, army) : target;
+                })()
+              : target.type === 'caravan'
+                ? (state.caravans.find((c) => c.id === target.id) ?? target)
+                : target;
   const sprite = (point: { x: number; y: number }, draw: () => void, scale = SPRITE_SCALE) => {
     const p = worldPoint(point.x, point.y);
     ctx.save();
@@ -1296,7 +1317,7 @@ export function drawWorld(
       () => drawSelection(ctx, p.x, p.y, time, commandReady),
       selected.type === 'unit'
         ? UNIT_ART_SCALE
-        : ['city', 'battalion', 'caravan'].includes(selected.type)
+        : ['city', 'battalion', 'caravan', 'boat'].includes(selected.type)
           ? 1
           : SPRITE_SCALE,
     );
@@ -1308,7 +1329,7 @@ export function drawWorld(
       () => drawSelection(ctx, p.x, p.y, time, commandReady, true),
       hovered.type === 'unit'
         ? UNIT_ART_SCALE
-        : ['city', 'battalion', 'caravan'].includes(hovered.type)
+        : ['city', 'battalion', 'caravan', 'boat'].includes(hovered.type)
           ? 1
           : SPRITE_SCALE,
     );
@@ -1384,26 +1405,39 @@ export function drawWorld(
       draw: () => sprite(stock, () => drawCampStock(ctx, stock)),
     });
   }
-  if (!state.urbanized)
-    for (const b of state.buildings.filter(
-      (b) => b.hp > 0 && inView(b) && isVisibleAt(state, b.x, b.y),
-    ))
-      objects.push({
-        y: b.y,
-        draw: () =>
-          sprite(b, () =>
-            drawBuilding(
-              ctx,
-              b,
-              time,
-              b.kind === 'foundry' ? isFoundryProducing(state, b) : undefined,
-              calendar.season,
+  for (const b of state.buildings.filter(
+    (b) =>
+      b.hp > 0 &&
+      (!state.urbanized || b.kind === 'harbor') &&
+      inView(b) &&
+      isVisibleAt(state, b.x, b.y),
+  ))
+    objects.push({
+      y: b.y,
+      draw: () =>
+        b.kind === 'harbor'
+          ? drawHarbor(ctx, state, b)
+          : sprite(b, () =>
+              drawBuilding(
+                ctx,
+                b,
+                time,
+                b.kind === 'foundry' ? isFoundryProducing(state, b) : undefined,
+                calendar.season,
+              ),
             ),
-          ),
-      });
+    });
+  for (const boat of renderBoats.values()) {
+    if (!inView(boat) || !isVisibleAt(state, boat.x, boat.y)) continue;
+    objects.push({
+      y: boat.y + 0.2,
+      draw: () => drawBoat(ctx, state, boat, time, atmosphereOptions?.reducedMotion),
+    });
+  }
   for (const unit of [...renderUnits.values()].filter(
     (u) =>
       u.hp > 0 &&
+      !unitIsSeatedAboard(state, u) &&
       inView(u) &&
       isVisibleAt(state, u.x, u.y) &&
       (!state.urbanized ||
@@ -1422,8 +1456,10 @@ export function drawWorld(
               (explicitGroupIds
                 ? explicitGroupIds.has(unit.id)
                 : liveAnchor &&
-                  unit.age >= 4 &&
-                  Math.hypot(unit.x - liveAnchor.x, unit.y - liveAnchor.y) <= 15)
+                  (groupAnchor?.type === 'boat'
+                    ? unit.boatId === groupAnchor.id
+                    : unit.age >= 4 &&
+                      Math.hypot(unit.x - liveAnchor.x, unit.y - liveAnchor.y) <= 15))
             );
             const actual = state.units.find((u) => u.id === unit.id)!;
             const target =
@@ -1440,6 +1476,7 @@ export function drawWorld(
                   )
                 : undefined) ??
               state.units.find((u) => u.id === actual.targetId) ??
+              state.boats?.find((boat) => boat.id === actual.targetBoatId) ??
               (actual.tx !== undefined && actual.ty !== undefined
                 ? { x: actual.tx, y: actual.ty }
                 : undefined);
@@ -1459,6 +1496,7 @@ export function drawWorld(
               'crafting',
               'cooking',
               'building',
+              'boatbuilding',
               'planting',
               'eating',
               'domesticating',

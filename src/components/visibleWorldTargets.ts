@@ -7,6 +7,7 @@ import { getGroundPiles, resourcePileLabel } from './mapResourceLayout';
 import { isVisibleAt, hasConcept } from './mapDrawing';
 import { getBattalionDisplayPoint } from './regionalLayout';
 import { entityTargetPresentation } from './targetPresentation';
+import { getBoatPresentation } from './maritimePresentation';
 import { lifeStageLabel, visibleUnitName } from './unitReadability';
 
 export type VisibleTargetCategory =
@@ -181,6 +182,13 @@ export function getVisibleWorldTargets(
             : 'Carovana commerciale';
     add('travel', label, { type: 'caravan', id: caravan.id, x: caravan.x, y: caravan.y });
   }
+  if (state.mapGeneration?.maritimeRules === 1)
+    for (const boat of state.boats ?? []) {
+      if (boat.hp <= 0) continue;
+      const presentation = getBoatPresentation(state, boat);
+      if (!presentation) continue;
+      add('travel', presentation.label, { type: 'boat', id: boat.id, x: boat.x, y: boat.y }, `${presentation.stage} · ${relativePlace(boat, state.home)}`);
+    }
   const order = VISIBLE_TARGET_CATEGORIES.map((category) => category.id);
   return entries.sort(
     (a, b) =>

@@ -12,6 +12,7 @@ import { groundPileFor, resourceKnown, resourcePileLabel } from './mapResourceLa
 import { getCityPresentation } from './cityPresentation';
 import { deriveSiegePresentation, type SiegePresentation } from './mapSiegeArt';
 import { biomePresentation } from './biomePresentation';
+import { getBoatPresentation } from './maritimePresentation';
 import {
   lastCustodianLabel,
   lifeStageLabel,
@@ -196,6 +197,26 @@ export function targetPresentation(
   target: WorldTarget | null,
 ): TargetPresentation | null {
   if (!target) return null;
+  if (target.type === 'boat') {
+    const boat = state.boats?.find((item) => item.id === target.id && item.hp > 0);
+    const presentation = boat && getBoatPresentation(state, boat);
+    if (!boat || !presentation) return null;
+    return {
+      label: presentation.label,
+      stage: presentation.stage,
+      kind: 'landmark',
+      description: presentation.owned
+        ? boat.status === 'building'
+          ? 'Lo scafo conserva i materiali pagati e il lavoro già svolto. Va completato presso l’approdo prima di imbarcare.'
+          : 'Equipaggio e carichi viaggiano realmente sul mare. La stiva è distinta dalle scorte del campo.'
+        : 'Un’imbarcazione di un’altra comunità. Le sue scorte e i suoi ordini non sono disponibili.',
+      hint: presentation.owned
+        ? boat.status === 'sailing'
+          ? 'I bisogni dell’equipaggio continuano durante la traversata. Gli ordini della barca si preparano nella scheda.'
+          : 'Apri equipaggio, carico e ordini per preparare una frase. L’esecuzione richiede Pronuncia.'
+        : undefined,
+    };
+  }
   if (target.type === 'point' && state.mapGeneration?.landNavigation === 1) {
     const revealed = isWorldPointRevealed(state, target.x, target.y);
     if (!revealed) return null;
@@ -362,6 +383,16 @@ export function targetPresentation(
   }
   if (target.type === 'building') {
     const building = state.buildings.find((b) => b.id === target.id);
+    if (building?.kind === 'harbor') {
+      if (!isWorldPointRevealed(state, building.x, building.y)) return null;
+      return {
+        label: BUILDING_NAMES.harbor,
+        stage: building.completed === false ? 'In costruzione' : building.active ? 'Accesso al mare' : 'Approdo inattivo',
+        kind: 'landmark',
+        description: 'Collega la riva asciutta al punto di ormeggio. Qui si costruiscono barche, si imbarcano persone e si trasferiscono carichi reali.',
+        hint: 'Le barche richiedono materiali e lavoro. Preparare una frase non avvia la costruzione o la partenza.',
+      };
+    }
     if (building?.kind === 'farm' && biomePresentation(state, building))
       return {
         label: BUILDING_NAMES.farm,

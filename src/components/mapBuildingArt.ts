@@ -1,5 +1,6 @@
 import { BUILDING_SPECS } from '../game/content';
 import type { Building, BuildingKind } from '../game/types';
+import { drawHarborBase } from './mapMaritimeArt';
 
 type Point = [number, number];
 const supported = new Set<BuildingKind>([
@@ -23,6 +24,7 @@ const supported = new Set<BuildingKind>([
   'court',
   'school',
   'workshop',
+  'harbor',
 ]);
 const textures = new Map<BuildingKind, HTMLCanvasElement>();
 
@@ -2020,7 +2022,9 @@ export function drawPainterlyBuilding(
 ): boolean {
   if (!supported.has(building.kind)) return false;
   ctx.save();
-  if (building.completed === false) {
+  if (building.kind === 'harbor') {
+    drawHarborBase(ctx, building);
+  } else if (building.completed === false) {
     scaffold(ctx);
   } else if (building.kind === 'campfire') {
     fire(ctx, time, building.active);

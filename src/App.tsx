@@ -69,7 +69,7 @@ import {
   unitLifeHint,
   visibleUnitName,
 } from './components/unitReadability';
-import { entityTargetPresentation } from './components/targetPresentation';
+import { entityTargetPresentation, targetPresentation } from './components/targetPresentation';
 import { BrandMark, Glyph } from './components/Glyph';
 import { Modal } from './components/Modal';
 import { LexiconPanel } from './components/LexiconPanel';
@@ -383,6 +383,16 @@ function App() {
         set.add('V_04');
         set.add('O_03');
       }
+      if (b?.kind === 'harbor') {
+        set.add('V_06');
+        set.add('O_03');
+        set.add('O_01');
+      }
+    } else if (target.type === 'boat') {
+      set.add('V_01');
+      set.add('V_04');
+      set.add('O_01');
+      set.add('M_02');
     }
     return set;
   }, [target, game.entities, game.buildings, game.home]);
@@ -403,6 +413,8 @@ function App() {
           ? game.cities.find((c) => c.id === target.id)?.name
           : target?.type === 'battalion'
             ? (game.battalions.find((b) => b.id === target.id)?.name ?? 'Un battaglione')
+            : target?.type === 'boat'
+              ? (targetPresentation(game, target)?.label ?? 'Imbarcazione')
             : target
               ? 'Punto sulla mappa'
               : null;
@@ -776,7 +788,7 @@ function App() {
     if (unit) focusTarget({ type: 'unit', id, x: unit.x, y: unit.y }, true);
   }
 
-  function preparePhrase(words: string[], destination?: Target) {
+  function preparePhrase(words: string[], destination?: Target, selection?: Target) {
     const issue = phraseRecallIssue(game, words);
     if (issue) {
       notify(issue);
@@ -784,6 +796,8 @@ function App() {
     }
     setSentence([...words]);
     setTarget(null);
+    if (selection) setGroupAnchor(selection);
+    else if (groupAnchor.type === 'boat') setGroupAnchor({ type: 'point', ...game.home });
     setSelectingGroup(false);
     setPhrasebookTab(null);
     closeWordBank();
@@ -792,9 +806,9 @@ function App() {
     setPanel(null);
     setMobileSection('map');
     if (destination) focusTarget(destination);
-    notify(
-      'Frase pronta da controllare. Apri l’anteprima per vedere chi agirà e dove, poi premi Pronuncia.',
-    );
+    notify(selection?.type === 'boat'
+      ? 'Equipaggio della barca selezionato. Scegli il mare o una riva osservata, controlla l’anteprima e premi Pronuncia.'
+      : 'Frase pronta da controllare. Apri l’anteprima per vedere chi agirà e dove, poi premi Pronuncia.');
   }
 
   const closePhrasebook = useCallback(() => {
@@ -1189,6 +1203,9 @@ function App() {
 
   const nearbySelectionControls = () => (
     <>
+      {groupAnchor.type === 'boat' && (
+        <span className="maritime-group-context" role="status">Equipaggio della barca</span>
+      )}
       <button
         className="text-button"
         data-map-selection
@@ -1929,6 +1946,7 @@ function App() {
               isGroupActive={sentence.includes('S_01')}
               orderFeedback={orderFeedback}
               onSelectGroupAnchor={handleSetGroupAnchor}
+              onPrepareMaritime={preparePhrase}
               onSelect={(picked) => {
                 setPhrasebookTab(null);
                 if (wordBankMode === 'catalog') closeWordBank();
@@ -2473,8 +2491,8 @@ function App() {
                 : undefined
             }
             onChange={setGame}
-            onUse={(words, suggestedTarget) => {
-              preparePhrase(words, suggestedTarget);
+            onUse={(words, suggestedTarget, suggestedGroup) => {
+              preparePhrase(words, suggestedTarget, suggestedGroup);
               sentenceSlotsRef.current?.focus({ preventScroll: true });
             }}
             onClose={closePhrasebook}

@@ -105,7 +105,8 @@ export type BuildingKind =
   | 'market'
   | 'court'
   | 'school'
-  | 'workshop';
+  | 'workshop'
+  | 'harbor';
 export interface BuildingSpec {
   id: string;
   label: string;
@@ -136,6 +137,8 @@ export interface Building {
   progress?: number;
   livestock?: number;
   lastEfficiency?: number;
+  /** Water berth belonging to a real coastal harbor; never a walking destination. */
+  seaAccess?: { x: number; y: number };
   /** Urban foundry order; omitted in older saves means refining ore into ingots. */
   productionMode?: 'ingot' | 'metalArms' | 'coin';
   /** Real village work, retained across the boundary until settlement (decision A-34). */
@@ -183,6 +186,16 @@ export interface Unit {
   knows: string[];
   command?: string[];
   carry?: { resource: Resource; amount: number };
+  /** Physical vessel membership, retained through save/reload and needs. */
+  boatId?: string;
+  /** Vessel being built, boarded, loaded or unloaded by this person. */
+  targetBoatId?: string;
+  /** Requested physical cargo kinds for a paid shore-side transfer order. */
+  cargoResources?: Resource[];
+  /** A finite gathering task can deliver to its actual expedition vessel. */
+  deliveryBoatId?: string;
+  deliveryPoint?: { x: number; y: number };
+  embarkFrom?: { x: number; y: number };
   isolation: number;
   sleptThisNight?: boolean;
   restedThisSeason?: boolean;
@@ -294,7 +307,7 @@ export interface PhrasebookEntry {
   lastUsedAt?: number;
 }
 export interface Target {
-  type: 'point' | 'entity' | 'unit' | 'building' | 'city' | 'battalion' | 'caravan';
+  type: 'point' | 'entity' | 'unit' | 'building' | 'city' | 'battalion' | 'caravan' | 'boat';
   id?: string;
   x: number;
   y: number;
@@ -302,6 +315,27 @@ export interface Target {
   unitIds?: string[];
 }
 export type WorldTarget = Target;
+/** Small coastal craft. Paid hull materials remain physical while work is interrupted. */
+export interface Boat {
+  id: string;
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  ownerId: string;
+  harborId?: string;
+  status: 'building' | 'moored' | 'sailing' | 'landing';
+  passengerIds: string[];
+  resources: Inventory;
+  paidMaterials: Inventory;
+  progress: number;
+  builderId?: string;
+  route?: { x: number; y: number }[];
+  routeIndex?: number;
+  destination?: { x: number; y: number };
+  landing?: { x: number; y: number };
+  accessLand?: { x: number; y: number };
+}
 export interface Compilation {
   valid: boolean;
   message: string;
@@ -539,6 +573,8 @@ export interface MapGeneration {
   biomeRules?: 1;
   /** Physical seeded coast and finite fisheries; never retrofitted to older maps. */
   coastalRules?: 1;
+  /** Coastal craft, harbors and offshore islets; omitted saves keep their coast. */
+  maritimeRules?: 1;
 }
 export interface GameState {
   version: 2;
@@ -556,6 +592,8 @@ export interface GameState {
   units: Unit[];
   entities: MapEntity[];
   buildings: Building[];
+  /** Only maritime worlds own vessels; absence preserves previous saves exactly. */
+  boats?: Boat[];
   resources: Inventory;
   words: Record<string, WordMemory>;
   tier: Tier;

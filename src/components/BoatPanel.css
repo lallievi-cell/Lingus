@@ -1,0 +1,92 @@
+.boat-panel {
+  margin-top: 0.55rem;
+  border-top: 1px solid rgb(85 98 62 / 22%);
+  color: inherit;
+}
+
+.boat-panel summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.boat-panel-content {
+  display: grid;
+  gap: 0.6rem;
+  padding-bottom: 0.6rem;
+  overflow-wrap: anywhere;
+}
+
+.boat-panel-content p,
+.boat-panel-content dl {
+  margin: 0;
+}
+
+.boat-state,
+.boat-cargo {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.boat-state > div,
+.boat-cargo > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  column-gap: 0.65rem;
+}
+
+.boat-state dd,
+.boat-cargo dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.boat-preparations {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 135px), 1fr));
+  gap: 0.45rem;
+}
+
+.boat-preparation button {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid rgb(56 77 53 / 35%);
+  border-radius: 7px;
+  background: rgb(229 235 211 / 80%);
+  color: #304331;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.boat-preparation button:focus-visible {
+  outline: 3px solid #8f6e25;
+  outline-offset: 2px;
+}
+
+.boat-preparation button:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.boat-preparation small,
+.boat-panel-note {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.maritime-group-context {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-inline: 0.45rem;
+  color: #304d48;
+  font-weight: 700;
+}

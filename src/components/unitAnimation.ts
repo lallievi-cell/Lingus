@@ -68,7 +68,8 @@ function workKind(unit: Unit, context: UnitAnimationContext): UnitAnimationKind 
   if (action === 'eating') return 'eat';
   if (action === 'crafting') return 'craft';
   if (action === 'cooking') return 'cook';
-  if (action === 'building') return 'build';
+  if (action === 'building' || action === 'boatbuilding') return 'build';
+  if (action === 'loadingBoat' || action === 'unloadingBoat') return 'deposit';
   if (['hunting', 'combat', 'frontline'].includes(action))
     return context.equipment?.held === 'spear' ? 'thrust' : 'strike';
   if (action === 'gathering') {

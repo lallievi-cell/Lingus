@@ -55,6 +55,9 @@ function incomingAtCamp(state: GameState): Inventory {
       unit.hp <= 0 ||
       (unit.factionId !== undefined && unit.factionId !== 'player') ||
       unit.action !== 'returning' ||
+      (state.mapGeneration?.maritimeRules === 1 &&
+        (unit.boatId || unit.deliveryBoatId ||
+          (unit.deliveryPoint && Math.hypot(unit.deliveryPoint.x - state.home.x, unit.deliveryPoint.y - state.home.y) > 15))) ||
       !unit.carry
     )
       continue;

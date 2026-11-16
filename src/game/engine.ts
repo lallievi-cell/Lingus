@@ -30,6 +30,8 @@ import { promoteDeferredSparks } from './discoveryPacing';
 import { safeAutonomousRoute } from './safeForaging';
 import { isDryLandPoint, isLandPoint, planLandRoute } from './landNavigation';
 import { isSeaPoint } from './coastGeometry';
+import { handleMaritimeCommand } from './maritimeOrders';
+import { findShoreAccess } from './shoreAccess';
 import type { WorldSize } from './worldDimensions';
 import {
   activeUnits,
@@ -111,7 +113,8 @@ function chooseSubjects(
   selectionCenter?: Target,
 ) {
   const living = activeUnits(s);
-  const units = living.filter(adult);
+  const availableOnLand = (unit: Unit) => !unit.boatId && !['embarking', 'disembarking'].includes(unit.action);
+  const units = living.filter((unit) => adult(unit) && availableOnLand(unit));
   if (subject === 'S_02') {
     const chosen = units.find((u) => u.id === executorId) ?? units.find((u) => u.id === target?.id);
     return chosen ? [chosen] : [];
@@ -124,15 +127,16 @@ function chooseSubjects(
     return s.units.filter(
       (u) =>
         u.hp > 0 &&
+        availableOnLand(u) &&
         u.factionId !== undefined &&
         u.factionId !== 'player' &&
         distance(u, s.home) <= (hasBuilding(s, 'palace') ? 100 : 35),
     );
   const anchor = selectionCenter ?? { ...s.home, type: 'point' as const };
-  if (subject === 'S_01' && isAllAdultsAnchor(anchor)) return selectableTribeAdults(s);
+  if (subject === 'S_01' && isAllAdultsAnchor(anchor)) return selectableTribeAdults(s).filter(availableOnLand);
   if (subject === 'S_01' && anchor.type === 'point' && anchor.id === 'selection:custom')
     return hasWord(s, 'S_02')
-      ? selectableTribeAdults(s).filter((unit) => anchor.unitIds?.includes(unit.id))
+      ? selectableTribeAdults(s).filter((unit) => availableOnLand(unit) && anchor.unitIds?.includes(unit.id))
       : [];
   if (
     anchor.type === 'building' &&
@@ -224,6 +228,10 @@ export function issueCommand(
     log(s, 'Indica un bersaglio sulla mappa.', 'warning');
     return s;
   }
+  if (selectionCenter?.type === 'boat' && (compiled.kind !== 'direct' || getPredicate(tokens).verb !== 'V_01')) {
+    log(s, 'L’equipaggio guida la barca con Andare. Scegli un gruppo sulla terraferma per gli altri incarichi.', 'warning');
+    return s;
+  }
   if (compiled.kind === 'law') return inscribeLaw(s, tokens);
   if (compiled.kind === 'dogma') {
     const args = compiled.args ?? tokens.filter((t) => t !== 'M_03');
@@ -270,6 +278,18 @@ export function issueCommand(
     );
     return s;
   }
+  const workers = chooseSubjects(s, subject, target, executorId, selectionCenter);
+  const maritime = handleMaritimeCommand(s, tokens, target, selectionCenter, workers, (unit) => resetUnitWithState(s, unit));
+  if (maritime.handled) {
+    if (maritime.valid) {
+      s.voice--;
+      s.stats.commands++;
+      for (const id of tokens) s.words[id].uses++;
+      trace?.assignedUnitIds.push(...(maritime.unitIds ?? []));
+    }
+    if (maritime.message) log(s, maritime.message, maritime.valid ? 'good' : 'warning');
+    return s;
+  }
   if (
     s.mapGeneration?.landNavigation === 1 &&
     target?.type === 'point' &&
@@ -284,7 +304,6 @@ export function issueCommand(
     );
     return s;
   }
-  const workers = chooseSubjects(s, subject, target, executorId, selectionCenter);
   const selectedIds =
     ['S_08', 'S_09'].includes(subject) && executorId ? [executorId] : workers.map((u) => u.id);
   if (!enforceActionLaws(s, tokens, target, selectedIds)) return s;
@@ -299,9 +318,12 @@ export function issueCommand(
     return s;
   }
   if (!workers.length) {
+    const aboard = executorId && s.units.find((unit) => unit.id === executorId && (unit.boatId || ['embarking', 'disembarking'].includes(unit.action)));
     log(
       s,
-      subject === 'S_02'
+      aboard
+        ? 'Questo compagno è a bordo o sta attraversando il pontile. Sbarca prima di affidargli lavori sulla terraferma.'
+        : subject === 'S_02'
         ? 'Seleziona prima l’individuo che deve agire.'
         : 'Nessun adulto disponibile è vicino al punto scelto. Sposta la selezione del gruppo o usa Tutti gli adulti.',
       'warning',
@@ -364,7 +386,10 @@ export function issueCommand(
   if (recipe) {
     kind = recipe.kind;
     cost = { ...recipe.cost };
-    if (kind === 'storage' && !canPay(s.resources, cost) && canPay(s.resources, { stone: 10 }))
+    const canPayConstruction = (payment: Partial<Inventory>) => s.mapGeneration?.maritimeRules === 1
+      ? workers.some((worker) => canPayLocally(s, payment, worker))
+      : canPay(s.resources, payment);
+    if (kind === 'storage' && !canPayConstruction(cost) && canPayConstruction({ stone: 10 }))
       cost = { stone: 10 };
   }
   const existing =
@@ -419,13 +444,14 @@ export function issueCommand(
     return s;
   }
   const localCraft = ['V_06', 'V_07'].includes(verb) && !kind;
+  const localConstruction = !!kind && s.mapGeneration?.maritimeRules === 1;
   // A group order chooses a real artisan who can reach the inputs. Work places
   // around the same source differ by a few metres; roster order is not a cost rule.
-  if (localCraft && !cookingChoice && subject !== 'S_02') {
+  if ((localCraft || localConstruction) && !cookingChoice && subject !== 'S_02') {
     const index = workers.findIndex((worker) => canPayLocally(s, cost, worker));
     if (index > 0) workers.unshift(...workers.splice(index, 1));
   }
-  if (!canPay(s.resources, cost) && !(localCraft && canPayLocally(s, cost, workers[0]))) {
+  if ((localCraft || localConstruction) ? !canPayLocally(s, cost, workers[0]) : !canPay(s.resources, cost)) {
     log(
       s,
       `Materiali insufficienti. Per questo lavoro servono: ${Object.entries(cost)
@@ -476,11 +502,15 @@ export function issueCommand(
       );
       return s;
     }
+    if (kind === 'harbor' && !findShoreAccess(s, site)) {
+      log(s, 'L’approdo richiede una riva asciutta e accessibile, vicina al mare aperto. Scegli un altro punto sulla costa.', 'warning');
+      return s;
+    }
   }
   if (verb === 'V_06' && args.includes('O_09') && target?.id?.startsWith('word:'))
     s.lastCraftWord = target.id.slice(5);
   if (cookingChoice) payCookingInput(s, cookingChoice);
-  else if (localCraft) payLocally(s, cost, workers[0]);
+  else if (localCraft || localConstruction) payLocally(s, cost, workers[0]);
   else pay(s.resources, cost);
   if (
     verb === 'V_02' &&

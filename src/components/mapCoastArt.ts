@@ -20,6 +20,24 @@ function traceShore(ctx: CanvasRenderingContext2D, coast: CoastGeometry) {
   );
 }
 
+function traceIsland(ctx: CanvasRenderingContext2D, points: readonly CoastPoint[], begin = true) {
+  if (begin) ctx.beginPath();
+  points.forEach((point, index) =>
+    index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y),
+  );
+  ctx.closePath();
+}
+
+const islandCenter = (points: readonly CoastPoint[]) => ({
+  x: points.reduce((sum, point) => sum + point.x, 0) / points.length,
+  y: points.reduce((sum, point) => sum + point.y, 0) / points.length,
+});
+
+function traceAllShores(ctx: CanvasRenderingContext2D, coast: CoastGeometry) {
+  traceShore(ctx, coast);
+  for (const island of coast.islands ?? []) traceIsland(ctx, island.points, false);
+}
+
 /** The edge is the navigation polyline; no smoothed curve can hide a dry bay. */
 function traceSea(ctx: CanvasRenderingContext2D, coast: CoastGeometry) {
   traceShore(ctx, coast);
@@ -32,6 +50,7 @@ function traceSea(ctx: CanvasRenderingContext2D, coast: CoastGeometry) {
     ctx.lineTo(edge, 0);
   }
   ctx.closePath();
+  for (const island of coast.islands ?? []) traceIsland(ctx, island.points, false);
 }
 
 /** Cached before the river, so sand cannot make a false dam at its mouth. */
@@ -51,6 +70,30 @@ export function paintCoastSand(ctx: CanvasRenderingContext2D, world: CoastWorld,
     ctx.strokeStyle = color;
     ctx.stroke();
   }
+  for (const island of coast.islands ?? []) {
+    const center = islandCenter(island.points);
+    traceIsland(ctx, island.points);
+    ctx.fillStyle = winter ? '#d2d7bd' : '#b7b782';
+    ctx.fill();
+    for (const [width, color] of [
+      [10, winter ? '#e1dfc4' : '#d7c694'],
+      [3.2, '#e5d6ae'],
+    ] as const) {
+      traceIsland(ctx, island.points);
+      ctx.lineWidth = width;
+      ctx.strokeStyle = color;
+      ctx.stroke();
+    }
+    traceIsland(
+      ctx,
+      island.points.map((point) => ({
+        x: center.x + (point.x - center.x) * 0.58,
+        y: center.y + (point.y - center.y) * 0.58,
+      })),
+    );
+    ctx.fillStyle = winter ? '#bbc9ad55' : '#8da06e66';
+    ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -61,7 +104,8 @@ export function paintCoastWater(ctx: CanvasRenderingContext2D, world: CoastWorld
   if (!coast) return;
   ctx.save();
   traceSea(ctx, coast);
-  ctx.clip();
+  if (coast.islands?.length) ctx.clip('evenodd');
+  else ctx.clip();
   const size = coast.worldSize;
   const outside = seaward(coast) < 0 ? 0 : size;
   const inside = outside + (seaward(coast) < 0 ? 155 : -155);
@@ -81,7 +125,7 @@ export function paintCoastWater(ctx: CanvasRenderingContext2D, world: CoastWorld
     [5, '#e5e8ce70'],
     [1.2, '#edf0d7a8'],
   ] as const) {
-    traceShore(ctx, coast);
+    traceAllShores(ctx, coast);
     ctx.lineWidth = width;
     ctx.strokeStyle = color;
     ctx.stroke();
@@ -126,6 +170,7 @@ export function getCoastHighlights(
     isWorldPointRevealed(world, point.x, point.y) &&
     coastInlandDistance(coast, point) <= 0.25;
   for (let index = 1; index < coast.points.length; index++) {
+    if (coast.islands?.length && index % 5 === 0) continue;
     const start = coast.points[index - 1],
       end = coast.points[index];
     const wave = (clock * 0.085 + index * 0.317) % 1;
@@ -140,6 +185,32 @@ export function getCoastHighlights(
     const a = { x: point.x - dx, y: point.y - dy },
       b = { x: point.x + dx, y: point.y + dy };
     if (visible(a) && visible(b)) marks.push({ a, b, opacity: Math.sin(wave * Math.PI) * 0.34 });
+  }
+  for (const [islandIndex, island] of (coast.islands ?? []).entries()) {
+    const center = islandCenter(island.points);
+    for (let mark = 0; mark < 2; mark++) {
+      const index =
+        (mark * Math.floor(island.points.length / 2) + islandIndex * 3) % island.points.length;
+      const start = island.points[index],
+        end = island.points[(index + 1) % island.points.length];
+      const dx = end.x - start.x,
+        dy = end.y - start.y;
+      const length = Math.hypot(dx, dy);
+      if (!length) continue;
+      const middle = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+      let nx = -dy / length,
+        ny = dx / length;
+      if ((middle.x - center.x) * nx + (middle.y - center.y) * ny < 0) {
+        nx = -nx;
+        ny = -ny;
+      }
+      const wave = (clock * 0.085 + islandIndex * 0.27 + mark * 0.41) % 1;
+      const offset = 2 + (1 - wave) * 4;
+      const point = { x: middle.x + nx * offset, y: middle.y + ny * offset };
+      const a = { x: point.x - (dx / length) * 2.8, y: point.y - (dy / length) * 2.8 };
+      const b = { x: point.x + (dx / length) * 2.8, y: point.y + (dy / length) * 2.8 };
+      if (visible(a) && visible(b)) marks.push({ a, b, opacity: Math.sin(wave * Math.PI) * 0.34 });
+    }
   }
   return marks;
 }

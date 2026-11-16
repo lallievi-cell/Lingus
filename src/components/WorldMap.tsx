@@ -10,7 +10,7 @@ import {
   ListFilter,
   X,
 } from 'lucide-react';
-import type { GameState, WorldTarget } from '../game/types';
+import type { GameState, Target, WorldTarget } from '../game/types';
 import { getCalendar } from '../game/calendar';
 import { getWorldSize, getWorldSectorCount, sectorIndex } from '../game/worldDimensions';
 import {
@@ -46,6 +46,8 @@ import { ensureNaturalAtlas } from './mapNaturalAtlas';
 import { getVisibleWorldTargets } from './visibleWorldTargets';
 import { VisibleWorldTargets } from './VisibleWorldTargets';
 import { targetBiomePresentation } from './biomePresentation';
+import { BoatPanel } from './BoatPanel';
+import { unitIsSeatedAboard } from './mapMaritimeArt';
 import './WorldMap.css';
 
 interface WorldMapProps {
@@ -57,6 +59,7 @@ interface WorldMapProps {
   selectingGroup?: boolean;
   onSpark?: (sparkId: string) => void;
   onInspectStocks?: () => void;
+  onPrepareMaritime?: (tokens: string[], destination?: Target, groupAnchor?: Target) => void;
   groupAnchor?: WorldTarget | null;
   isGroupActive?: boolean;
   orderFeedback?: {
@@ -106,6 +109,7 @@ function targetLabel(state: GameState, target: WorldTarget | null) {
     if (terrain) return terrain.label;
   }
   const numbered = hasConcept(state, 'O_08');
+  if (target.type === 'boat') return targetPresentation(state, target)?.label ?? 'Una barca';
   if (target.type === 'unit') {
     const unit = state.units.find((u) => u.id === target.id);
     return unit ? visibleUnitName(state, unit) : 'Una persona';
@@ -175,7 +179,9 @@ function liveMapChoice(state: GameState, target: WorldTarget): WorldTarget | nul
             ? state.cities.find((c) => c.id === target.id && c.factionId !== 'ruins')
             : target.type === 'battalion'
               ? state.battalions.find((b) => b.id === target.id && b.hp > 0)
-              : state.caravans.find((c) => c.id === target.id && c.hp > 0 && !c.arrived);
+              : target.type === 'boat'
+                ? state.boats?.find((boat) => boat.id === target.id && boat.hp > 0)
+                : state.caravans.find((c) => c.id === target.id && c.hp > 0 && !c.arrived);
   return source && isVisibleAt(state, source.x, source.y)
     ? { ...target, x: source.x, y: source.y }
     : null;
@@ -190,6 +196,7 @@ export function WorldMap({
   selectingGroup = false,
   onSpark,
   onInspectStocks,
+  onPrepareMaritime,
   groupAnchor = null,
   isGroupActive = false,
   orderFeedback = null,
@@ -254,12 +261,14 @@ export function WorldMap({
   const mapMode = state.mapGeneration?.mode;
   const mapSeed = state.mapGeneration?.seed;
   const coastalRules = state.mapGeneration?.coastalRules;
+  const maritimeRules = state.mapGeneration?.maritimeRules;
   const terrain = useMemo(
     () => createTerrain(mapMode === 'random' ? mapSeed! : 6842, state.seasonIndex, state),
     [
       mapMode,
       mapSeed,
       coastalRules,
+      maritimeRules,
       worldSize,
       geography,
       state.seasonIndex,
@@ -410,6 +419,7 @@ export function WorldMap({
         .filter(
           (u) =>
             u.hp > 0 &&
+            !unitIsSeatedAboard(current, u) &&
             (!current.urbanized ||
               (u.factionId !== undefined && u.factionId !== 'player') ||
               u.isKing ||
@@ -433,7 +443,7 @@ export function WorldMap({
         });
       for (const status of getCustodianStatuses(current)) {
         const unit = current.units.find((u) => u.id === status.unitId);
-        if (!unit || current.urbanized) continue;
+        if (!unit || current.urbanized || unitIsSeatedAboard(current, unit)) continue;
         addArt('unit', unit.id, unit.x, unit.y, 8, 7, 38, 9, -15);
       }
       for (const pile of getGroundPiles(current)) {
@@ -468,28 +478,59 @@ export function WorldMap({
           addArt('entity', e.id, e.x, e.y, e.kind === 'berries' ? 31 : 39, 24, 16, 20);
         }
       });
-      if (!current.urbanized)
-        current.buildings
-          .filter((b) => b.hp > 0)
-          .forEach((b) => {
-            const flat = ['farm', 'pen', 'palisade', 'walls', 'storage', 'grave'].includes(b.kind);
-            const tall = ['temple', 'palace', 'archive', 'foundry'].includes(b.kind);
-            const narrow = ['menhir', 'stele'].includes(b.kind);
-            if (b.kind === 'campfire') {
-              addArt('building', b.id, b.x, b.y, 25, b.active ? 29 : 13, b.active ? 16 : 3, 22);
-            } else {
-              addArt(
-                'building',
-                b.id,
-                b.x,
-                b.y,
-                narrow ? 22 : flat ? 49 : 41,
-                tall ? 51 : flat ? 28 : 37,
-                tall ? 43 : flat ? 15 : 29,
-                22,
-              );
+      current.buildings
+        .filter((b) => b.hp > 0 && (!current.urbanized || b.kind === 'harbor'))
+        .forEach((b) => {
+          const flat = ['farm', 'pen', 'palisade', 'walls', 'storage', 'grave', 'harbor'].includes(
+            b.kind,
+          );
+          const tall = ['temple', 'palace', 'archive', 'foundry'].includes(b.kind);
+          const narrow = ['menhir', 'stele'].includes(b.kind);
+          if (b.kind === 'campfire') {
+            addArt('building', b.id, b.x, b.y, 25, b.active ? 29 : 13, b.active ? 16 : 3, 22);
+          } else {
+            addArt(
+              'building',
+              b.id,
+              b.x,
+              b.y,
+              narrow ? 22 : flat ? 49 : 41,
+              tall ? 51 : flat ? 28 : 37,
+              tall ? 43 : flat ? 15 : 29,
+              22,
+            );
+          }
+          if (b.kind === 'harbor' && b.seaAccess && b.completed !== false) {
+            const length = Math.hypot(b.seaAccess.x - b.x, b.seaAccess.y - b.y);
+            const steps = Math.max(1, Math.ceil(length / 2));
+            for (let step = 1; step <= steps; step++) {
+              const position = {
+                x: b.x + ((b.seaAccess.x - b.x) * step) / steps,
+                y: b.y + ((b.seaAccess.y - b.y) * step) / steps,
+              };
+              if (isVisibleAt(current, position.x, position.y))
+                add('building', b.id, b.x, b.y, Math.max(7, 2 * t.scale), 0, position);
             }
-          });
+          }
+        });
+      for (const boat of current.boats ?? []) {
+        if (boat.hp <= 0) continue;
+        const display = current.paused
+          ? undefined
+          : readUnitDisplay(motionSessionRef.current, boat.id);
+        addArt(
+          'boat',
+          boat.id,
+          boat.x,
+          boat.y,
+          17 / SPRITE_SCALE,
+          11 / SPRITE_SCALE,
+          0,
+          22,
+          0,
+          display,
+        );
+      }
       current.cities
         .filter((c) => c.factionId !== 'ruins')
         .forEach((c) => {
@@ -794,6 +835,7 @@ export function WorldMap({
         .filter(
           (u) =>
             u.hp > 0 &&
+            !unitIsSeatedAboard(current, u) &&
             isVisibleAt(current, u.x, u.y) &&
             (!current.urbanized ||
               (u.factionId !== undefined && u.factionId !== 'player') ||
@@ -806,6 +848,18 @@ export function WorldMap({
           miniCtx.arc((u.x / worldSize) * mw, (u.y / worldSize) * mh, 1.5, 0, Math.PI * 2);
           miniCtx.fill();
         });
+      for (const boat of current.boats ?? []) {
+        if (boat.hp <= 0 || !isVisibleAt(current, boat.x, boat.y)) continue;
+        const x = (boat.x / worldSize) * mw,
+          y = (boat.y / worldSize) * mh;
+        miniCtx.fillStyle = boat.status === 'building' ? '#b69560' : '#725337';
+        miniCtx.beginPath();
+        miniCtx.ellipse(x, y, 2.8, 1.4, 0, 0, Math.PI * 2);
+        miniCtx.fill();
+        miniCtx.strokeStyle = '#f2dfad';
+        miniCtx.lineWidth = 0.5;
+        miniCtx.stroke();
+      }
       current.cities
         .filter((c) => isVisibleAt(current, c.x, c.y))
         .forEach((c) => {
@@ -901,7 +955,9 @@ export function WorldMap({
       centerX: stateRef.current.home?.x ?? 250,
       centerY: stateRef.current.home?.y ?? 250,
     });
-  const focusedTarget = hovered && hovered.type !== 'point' ? hovered : selectedTarget;
+  const focusCandidate = hovered && hovered.type !== 'point' ? hovered : selectedTarget;
+  const focusedTarget =
+    focusCandidate?.type === 'boat' ? liveMapChoice(state, focusCandidate) : focusCandidate;
   const label = targetLabel(state, focusedTarget ?? null);
   const details = targetPresentation(state, focusedTarget ?? null);
   const biomeDetails =
@@ -1303,6 +1359,10 @@ export function WorldMap({
           <strong>{details.label}</strong>
           <p>{details.description}</p>
           {details.hint && <small>{details.hint}</small>}
+          {focusedTarget &&
+            (focusedTarget.type === 'boat' || focusedTarget.type === 'building') && (
+              <BoatPanel state={state} target={focusedTarget} onPrepare={onPrepareMaritime} />
+            )}
           {biomeDetails && (
             <details className="map-biome-details" key={biomeDetails.biome}>
               <summary>Terreno · {biomeDetails.label}</summary>

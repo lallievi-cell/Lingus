@@ -109,6 +109,50 @@ export function getUnitWorkStatus(state: GameState, unit: Unit): WorkStatus {
     target?: Target,
   ): WorkStatus => ({ category, title, detail, tone, target, assignment });
   if (unit.hp <= 0) return result('dead', 'Vita conclusa', 'Non può ricevere incarichi.');
+  if (state.mapGeneration?.maritimeRules === 1) {
+    const boat = state.boats?.find(
+      (item) => item.id === (unit.boatId ?? unit.targetBoatId ?? unit.deliveryBoatId),
+    );
+    const atBoat = boat ? { type: 'boat' as const, id: boat.id, x: boat.x, y: boat.y } : undefined;
+    if (unit.boatId && boat)
+      return result(
+        'working',
+        unit.action === 'disembarking' || boat.status === 'landing'
+          ? 'Sbarca sulla riva'
+          : boat.status === 'sailing'
+            ? 'Naviga con l’equipaggio'
+            : 'A bordo della barca',
+        boat.status === 'sailing'
+          ? 'Viaggia con la barca. Fame e freddo continuano; i pasti consumano i viveri effettivamente trasportati.'
+          : boat.status === 'landing'
+            ? 'Raggiunge la terraferma dal punto di attracco prima di riprendere gli incarichi a terra.'
+            : 'Attende a bordo. La barca deve avere un equipaggio vivo per navigare.',
+        unit.hunger >= 75 || unit.temp <= 30 ? 'warning' : 'neutral',
+        atBoat,
+      );
+    if (unit.action === 'boatbuilding')
+      return result('working', 'Costruisce una barca', 'Raggiunge l’approdo e lavora sullo scafo. I materiali pagati e il lavoro restano nello scafo se l’incarico si interrompe.', 'neutral', atBoat);
+    if (unit.action === 'embarking')
+      return result('working', 'Si imbarca', 'Raggiunge la riva d’attracco e sale a bordo. La navigazione attende il completamento dell’imbarco.', 'neutral', atBoat);
+    if (unit.action === 'loadingBoat' || unit.action === 'unloadingBoat') {
+      const resource = unit.carry ? observedResource(state, unit.carry.resource) : undefined;
+      return result(
+        'working',
+        unit.action === 'loadingBoat'
+          ? resource ? `Carica ${resource} sulla barca` : 'Carica la barca'
+          : resource ? `Scarica ${resource} dalla barca` : 'Scarica la barca',
+        unit.action === 'loadingBoat'
+          ? 'Preleva risorse reali e le porta al punto d’attracco. La stiva aumenta solo al trasferimento.'
+          : 'Preleva un carico dalla stiva e lo consegna a terra. Le scorte del campo aumentano solo dopo il viaggio di ritorno.',
+        'neutral',
+        atBoat,
+      );
+    }
+    if (unit.action === 'returning' && unit.deliveryBoatId && boat) {
+      const resource = unit.carry ? observedResource(state, unit.carry.resource) : 'il carico';
+      return result('working', `Porta ${resource} alla barca`, 'Raggiunge la riva d’attracco e trasferisce il carico nella stiva, finché rimane spazio.', 'neutral', atBoat);
+    }
+  }
   if (unit.age < ADULT_AGE)
     return result('young', 'Cresce e impara', 'Non lavora. Può imparare attorno al falò.');
   if (unit.suspendedJob && building) {

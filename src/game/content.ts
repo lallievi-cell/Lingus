@@ -917,6 +917,16 @@ export const BUILDING_SPECS: Record<BuildingKind, BuildingSpec> = {
     'Triplica la produzione agricola e mineraria.',
     { unique: true },
   ),
+  harbor: building(
+    'BLD_21',
+    'Approdo',
+    250,
+    0,
+    { wood: 10, stone: 5 },
+    { wood: 1 },
+    ['V_08', 'O_03', 'M_02'],
+    'Un pontile sulla riva asciutta permette di costruire barche, imbarcare persone e trasferire carichi reali.',
+  ),
 };
 export const BUILDING_ORDER = Object.keys(BUILDING_SPECS) as BuildingKind[];
 export const BUILDING_NAMES = Object.fromEntries(

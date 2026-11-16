@@ -124,7 +124,7 @@ export function Phrasebook({
 }: {
   state: GameState;
   onChange: (next: GameState) => void;
-  onUse: (tokens: string[], suggestedTarget?: Target) => void;
+  onUse: (tokens: string[], suggestedTarget?: Target, suggestedGroupAnchor?: Target) => void;
   onClose: () => void;
   initialTab?: PhrasebookTab;
   draft?: string[];
@@ -489,7 +489,7 @@ export function Phrasebook({
                   className="phrasebook-use"
                   disabled={!item.available}
                   aria-label={`Prepara la frase: ${item.title}`}
-                  onClick={() => onUse([...item.tokens], item.suggestedTarget)}
+                  onClick={() => onUse([...item.tokens], item.suggestedTarget, item.suggestedGroupAnchor)}
                 >
                   Prepara <ArrowRight size={15} aria-hidden="true" />
                 </button>

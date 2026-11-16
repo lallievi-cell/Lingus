@@ -416,9 +416,17 @@ describe('GDD building register, staffing and actual maximum-HP upkeep', () => {
   it.each(buildings)('%s has source ID %s, HP %s and workers %s', (kind, id, maxHp, workers) => {
     expect(BUILDING_SPECS[kind]).toMatchObject({ id, maxHp, workers });
   });
-  it('keeps exactly twenty distinct buildings and source construction costs', () => {
-    expect(BUILDING_ORDER).toHaveLength(20);
-    expect(new Set(BUILDING_ORDER.map((k) => BUILDING_SPECS[k].id)).size).toBe(20);
+  it('keeps the twenty original buildings distinct from the paid maritime extension', () => {
+    const original = BUILDING_ORDER.filter((kind) => kind !== 'harbor');
+    expect(original).toHaveLength(20);
+    expect(new Set(original.map((kind) => BUILDING_SPECS[kind].id)).size).toBe(20);
+    expect(BUILDING_ORDER).toHaveLength(21);
+    expect(new Set(BUILDING_ORDER.map((kind) => BUILDING_SPECS[kind].id)).size).toBe(21);
+    expect(BUILDING_SPECS.harbor).toMatchObject({
+      id: 'BLD_21',
+      cost: { wood: 10, stone: 5 },
+      recipe: ['V_08', 'O_03', 'M_02'],
+    });
     expect(BUILDING_SPECS.campfire.cost).toEqual({ wood: 5 });
     expect(BUILDING_SPECS.menhir.cost).toEqual({ stone: 20 });
     expect(BUILDING_SPECS.hut.cost).toEqual({ wood: 10, pelt: 5 });
