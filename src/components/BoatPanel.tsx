@@ -18,12 +18,24 @@ export interface BoatPanelProps {
   state: GameState;
   target: Target;
   onPrepare?: (tokens: string[], target?: Target, groupAnchor?: Target) => void;
+  cargoChoice?: { boatId: string; resource: Resource } | null;
+  onCargoChoiceChange?: (choice: { boatId: string; resource: Resource }) => void;
 }
 
-export function BoatPanel({ state, target, onPrepare }: BoatPanelProps) {
-  const [cargoChoice, setCargoChoice] = useState<{ boatId: string; resource: Resource } | null>(
-    null,
-  );
+export function BoatPanel({
+  state,
+  target,
+  onPrepare,
+  cargoChoice: controlledCargoChoice,
+  onCargoChoiceChange,
+}: BoatPanelProps) {
+  const [localCargoChoice, setLocalCargoChoice] = useState<{
+    boatId: string;
+    resource: Resource;
+  } | null>(null);
+  const cargoChoice =
+    controlledCargoChoice !== undefined ? controlledCargoChoice : localCargoChoice;
+  const setCargoChoice = onCargoChoiceChange ?? setLocalCargoChoice;
   if (state.mapGeneration?.maritimeRules !== 1) return null;
   const numbered = hasWord(state, 'O_08');
   const button = (action: MaritimePreparation) => (

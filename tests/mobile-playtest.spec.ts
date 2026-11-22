@@ -160,6 +160,10 @@ for (const viewport of [
       const choices = page.locator('.map-target-choice-list > button');
       if (await choices.first().isVisible()) await choices.first().tap();
       const card = page.getByRole('status', { name: 'Dettagli del bersaglio' });
+      await expect(card).toHaveCount(0);
+      const toggle = page.locator('.map-toolbar .map-toolbar-target');
+      await expectTappable(toggle, viewport);
+      await toggle.tap();
       await expect(card).toHaveAttribute('data-mobile-placement', 'bottom');
       const cardBounds = (await card.boundingBox())!;
       const minimap = page.locator('.lingus-world__minimap');
@@ -170,6 +174,14 @@ for (const viewport of [
         'the selected-person card must leave the landscape minimap uncovered',
       ).toBe(true);
       await expectTappable(minimap, viewport);
+      const dismiss = card.getByRole('button', {
+        name: 'Chiudi dettagli del bersaglio',
+        exact: true,
+      });
+      await expectTappable(dismiss, viewport);
+      await dismiss.tap();
+      await expect(card).toHaveCount(0);
+      await expect(toggle).toBeVisible();
     }
   });
 

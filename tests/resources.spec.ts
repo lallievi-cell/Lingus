@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openTargetDetails } from './mobile-ui';
 
 const SAVE_KEY = 'lingus.save.v2';
 const details = (page: Page) => page.getByRole('status', { name: 'Dettagli del bersaglio' });
@@ -300,6 +301,9 @@ test('the resource explanation remains readable and selectable on a narrow scree
   await seedResources(page);
   const point = await pilePoint(page, 'stone');
   await mapClick(page, point);
+  await expect(details(page)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Mostra dettagli di .*Pietra/i })).toBeVisible();
+  await openTargetDetails(page);
   await expect(details(page)).toBeVisible();
   await expect(details(page)).toContainText(/Pietra/i);
   const map = await page.getByRole('img', { name: /Mappa della valle/ }).boundingBox();
@@ -390,6 +394,7 @@ test('a fire explains its actual heat coverage and distinguishes a cold hearth w
   await expect(details(page)).toContainText('Per riaccenderlo serve un’unità di legno');
   await page.setViewportSize({ width: 375, height: 812 });
   await showFire(260, true, true);
+  await openTargetDetails(page);
   const map = (await page.getByRole('img', { name: /Mappa della valle/ }).boundingBox())!;
   const card = (await details(page).boundingBox())!;
   const scale = Math.max(map.width / 1200, map.height / 800) * 4.5;

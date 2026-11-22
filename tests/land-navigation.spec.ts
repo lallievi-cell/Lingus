@@ -3,7 +3,7 @@ import { createGame } from '../src/game/engine';
 import { getRiverFords, isLandPoint, type LandPoint } from '../src/game/landNavigation';
 import { createRiverArtGeometry } from '../src/game/riverGeometry';
 import type { GameState, WorldTarget } from '../src/game/types';
-import { closeWordBank, openWordBank } from './mobile-ui';
+import { closeWordBank, openTargetDetails, openWordBank } from './mobile-ui';
 
 /** Prepared shoreline scenes exercise real commands and movement, not campaign progress. */
 function shoreScene() {
@@ -249,6 +249,10 @@ test('a mobile deep-water order preserves Voice, cargo and the existing task', a
     .click();
   await closeWordBank(page);
   await clickWorldPoint(page, deepWater, start);
+  await expect(
+    page.getByRole('button', { name: /Mostra dettagli di .*Acqua profonda/ }),
+  ).toBeVisible();
+  await openTargetDetails(page);
   await expect(page.getByRole('status', { name: 'Dettagli del bersaglio' })).toContainText(
     'Acqua profonda',
   );

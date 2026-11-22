@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { createGame } from '../src/game/engine';
-import { closeWordBank } from './mobile-ui';
+import { closeWordBank, openTargetDetails } from './mobile-ui';
 
 async function scene(page: Page, agriculture = true, legacy = false) {
   const state = createGame(42, 'guided', 'random', 1000);
@@ -41,6 +41,16 @@ for (const width of [320, 390, 1440])
     await scene(page);
     await selectGround(page);
     const card = page.getByRole('status', { name: 'Dettagli del bersaglio' });
+    if (width <= 860) {
+      await expect(card).toHaveCount(0);
+      const toggle = page.getByRole('button', {
+        name: 'Mostra dettagli di Zona umida',
+        exact: true,
+      });
+      await expect(toggle).toBeVisible();
+      expect((await toggle.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      await toggle.click();
+    }
     const disclosure = card.locator('.map-biome-details');
     await expect(disclosure).not.toHaveAttribute('open', '');
     const summary = disclosure.locator('summary');
@@ -55,6 +65,18 @@ for (const width of [320, 390, 1440])
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(map.x + map.width + 1);
     expect(bounds.y).toBeGreaterThanOrEqual(map.y);
     expect(bounds.y + bounds.height).toBeLessThanOrEqual(map.y + map.height + 1);
+    if (width <= 860) {
+      const dismiss = card.getByRole('button', {
+        name: 'Chiudi dettagli del bersaglio',
+        exact: true,
+      });
+      expect((await dismiss.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      await dismiss.click();
+      await expect(card).toHaveCount(0);
+      await expect(
+        page.getByRole('button', { name: 'Deseleziona bersaglio', exact: true }),
+      ).toBeVisible();
+    }
     await page.getByRole('button', { name: 'Ingrandisci la mappa', exact: true }).click();
     await expect(page.locator('.lingus-world__control-stack')).toContainText('480');
     await page.getByRole('button', { name: 'Riduci la mappa', exact: true }).click();
@@ -85,6 +107,7 @@ test('early ground inspection does not reveal crop effects before agriculture', 
   await page.setViewportSize({ width: 390, height: 844 });
   await scene(page, false);
   await selectGround(page);
+  await openTargetDetails(page);
   const card = page.getByRole('status', { name: 'Dettagli del bersaglio' });
   await card.locator('.map-biome-details summary').click();
   await expect(card).toContainText('20% di tempo in più');

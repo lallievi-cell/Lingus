@@ -13,6 +13,7 @@ import {
   History,
   Hammer,
   Home,
+  Info,
   Leaf,
   LockKeyhole,
   MapPin,
@@ -231,6 +232,7 @@ function App() {
   const [groupAnchor, setGroupAnchor] = useState<Target>({ type: 'point', ...game.home });
   const [selectingGroup, setSelectingGroup] = useState(false);
   const [target, setTarget] = useState<Target | null>(null);
+  const [mobileTargetDetailsOpen, setMobileTargetDetailsOpen] = useState(false);
   const [tab, setTab] = useState<'tribe' | 'chronicle'>('tribe');
   const [tribeFilter, setTribeFilter] = useState<TribeFilter>('all');
   const [tribeSort, setTribeSort] = useState<'original' | 'urgent'>('original');
@@ -401,6 +403,30 @@ function App() {
     target?.type === 'entity' ? game.entities.find((e) => e.id === target.id) : null;
   const selectedBuilding =
     target?.type === 'building' ? game.buildings.find((b) => b.id === target.id) : null;
+  const targetDetails = targetPresentation(game, target);
+  const targetHasMaritimeControls =
+    game.mapGeneration?.maritimeRules === 1 &&
+    (target?.type === 'boat' ||
+      (target?.type === 'building' &&
+        game.buildings.some(
+          (building) =>
+            building.id === target.id &&
+            building.kind === 'harbor' &&
+            building.completed !== false &&
+            (!building.cityId ||
+              game.cities.some(
+                (city) => city.id === building.cityId && city.factionId === 'player',
+              )),
+        )));
+  const targetSelectionKey = target
+    ? `${target.type}:${target.id ?? `${Math.round(target.x)},${Math.round(target.y)}`}`
+    : '';
+  useEffect(() => {
+    setMobileTargetDetailsOpen(false);
+  }, [targetSelectionKey, mobile]);
+  useEffect(() => {
+    if (!targetDetails || wordBankOpen) setMobileTargetDetailsOpen(false);
+  }, [targetDetails, wordBankOpen]);
   const targetName = selectedUnit
     ? hasWord(game, 'S_02')
       ? selectedUnit.name
@@ -414,9 +440,9 @@ function App() {
           : target?.type === 'battalion'
             ? (game.battalions.find((b) => b.id === target.id)?.name ?? 'Un battaglione')
             : target?.type === 'boat'
-              ? (targetPresentation(game, target)?.label ?? 'Imbarcazione')
+              ? (targetDetails?.label ?? 'Imbarcazione')
               : target
-                ? 'Punto sulla mappa'
+                ? (targetDetails?.label ?? 'Punto sulla mappa')
                 : null;
   const livingUnits = game.units.filter(
     (u) => u.hp > 0 && (u.factionId === undefined || u.factionId === 'player'),
@@ -796,6 +822,7 @@ function App() {
     }
     setSentence([...words]);
     setTarget(null);
+    setMobileTargetDetailsOpen(false);
     if (selection) setGroupAnchor(selection);
     else if (groupAnchor.type === 'boat') setGroupAnchor({ type: 'point', ...game.home });
     setSelectingGroup(false);
@@ -1951,8 +1978,11 @@ function App() {
               orderFeedback={orderFeedback}
               onSelectGroupAnchor={handleSetGroupAnchor}
               onPrepareMaritime={preparePhrase}
+              mobileDetailsOpen={mobile ? mobileTargetDetailsOpen : undefined}
+              onMobileDetailsOpenChange={mobile ? setMobileTargetDetailsOpen : undefined}
               onSelect={(picked) => {
                 setPhrasebookTab(null);
+                setMobileTargetDetailsOpen(false);
                 if (wordBankMode === 'catalog') closeWordBank();
                 if (selectingGroup) {
                   handleSetGroupAnchor(picked);
@@ -2002,8 +2032,27 @@ function App() {
               <span className="status-dot" />
               {targetName ? (
                 <>
-                  <MapPin size={13} />
-                  <strong>{targetName}</strong>
+                  {mobile && targetDetails ? (
+                    <button
+                      type="button"
+                      className={`map-toolbar-target ${mobileTargetDetailsOpen ? 'active' : ''} ${targetHasMaritimeControls ? 'has-maritime' : ''}`}
+                      onClick={() => setMobileTargetDetailsOpen((open) => !open)}
+                      aria-expanded={mobileTargetDetailsOpen}
+                      aria-label={
+                        mobileTargetDetailsOpen
+                          ? `Nascondi dettagli di ${targetName}`
+                          : `Mostra dettagli di ${targetName}`
+                      }
+                    >
+                      <Info size={13} aria-hidden="true" />
+                      <strong>{targetName}</strong>
+                    </button>
+                  ) : (
+                    <>
+                      <MapPin size={13} />
+                      <strong>{targetName}</strong>
+                    </>
+                  )}
                   <button
                     className="icon-button small"
                     onClick={() => setTarget(null)}
