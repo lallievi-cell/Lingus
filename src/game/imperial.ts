@@ -3751,6 +3751,11 @@ function applyImperialReforms(s: GameState) {
   }
 }
 
+/** Laws age before each local settlement, exactly as in a single region. */
+export function beginWorldImperialSeason(s: GameState) {
+  for (const law of s.laws) law.age++;
+}
+
 /** Run once on the aggregate view. It never transports or credits inventories. */
 export function finishWorldImperial(s: GameState, dt: number, seasonal = false) {
   const effects = getDogmaEffects(s);
@@ -3759,7 +3764,6 @@ export function finishWorldImperial(s: GameState, dt: number, seasonal = false) 
     s.inequality = clamp(s.inequality + (Math.max(0, effects.inequality - 1) * socialTime) / 60);
   if (seasonal) {
     applyImperialReforms(s);
-    for (const law of s.laws) law.age++;
     const settled = { ...s, time: Math.max(0, getCalendar(s).seasonStart - 1e-6) };
     const legal = imperialLawEffects(settled);
     if (legal.winterCorveeCohesionCost)

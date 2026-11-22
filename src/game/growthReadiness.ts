@@ -23,8 +23,12 @@ export interface FertilityContext {
 }
 
 export function villageHousing(state: GameState): number {
+  const nativeCamp =
+    state.mapGeneration?.worldRules !== 1 ||
+    !state.world ||
+    `${state.mapGeneration.regionX}:${state.mapGeneration.regionY}` === state.world.homeRegionId;
   return (
-    BASE_HOUSING +
+    (nativeCamp ? BASE_HOUSING : 0) +
     state.buildings
       .filter(
         (building) =>
