@@ -87,6 +87,59 @@ describe('action animation follows real movement and interaction', () => {
     ).toBe('strike');
   });
 
+  it('braces a depicted bundle with both hands and keeps its short stride separate from an empty walk', () => {
+    const carrier = {
+      ...adult(),
+      action: 'returning',
+      carry: { resource: 'wood' as const, amount: 2 },
+    };
+    const frames = Array.from({ length: 24 }, (_, frame) => frame / 24);
+    const widestStep = (carrying: boolean) =>
+      Math.max(
+        ...frames.map((time) =>
+          Math.abs(
+            getUnitAnimation(carrying ? carrier : { ...carrier, carry: undefined }, time, {
+              moving: true,
+              facing: 1,
+              wideCarry: true,
+            }).step,
+          ),
+        ),
+      );
+    expect(widestStep(true)).toBeLessThan(widestStep(false));
+    const compact = getUnitAnimation(carrier, 2, { moving: false, facing: 1 });
+    const wide = getUnitAnimation(carrier, 2, { moving: false, facing: 1, wideCarry: true });
+    expect(wide.step).toBe(0);
+    expect(wide.rightHand.x - wide.leftHand.x).toBeGreaterThan(
+      compact.rightHand.x - compact.leftHand.x,
+    );
+    const mirrored = getUnitAnimation(carrier, 2, { moving: false, facing: -1, wideCarry: true });
+    expect(mirrored.leftHand).toEqual({ x: -wide.leftHand.x, y: wide.leftHand.y });
+    expect(mirrored.rightHand).toEqual({ x: -wide.rightHand.x, y: wide.rightHand.y });
+    const unloaded = { ...carrier, carry: undefined };
+    expect(getUnitAnimation(unloaded, 2, { moving: false, wideCarry: true })).toEqual(
+      getUnitAnimation(unloaded, 2, { moving: false }),
+    );
+  });
+
+  it('strikes low into stone, swings higher into wood and never depicts contact while waiting', () => {
+    const unit = { ...adult(), action: 'gathering' };
+    const frames = Array.from({ length: 90 }, (_, frame) => frame / 60);
+    const poses = (targetKind: 'tree' | 'stone', ready: boolean) =>
+      frames.map((time) =>
+        getUnitAnimation(unit, time, { moving: false, facing: 1, targetKind, ready }),
+      );
+    const wood = poses('tree', true).find((pose) => pose.impact > 0.8);
+    const stone = poses('stone', true).find((pose) => pose.impact > 0.8);
+    expect(wood).toBeDefined();
+    expect(stone).toBeDefined();
+    expect(stone!.bodyDrop).toBeGreaterThan(wood!.bodyDrop);
+    expect(stone!.rightHand.y).toBeGreaterThan(wood!.rightHand.y + 3);
+    expect(poses('tree', false).every((pose) => pose.kind === 'idle' && pose.impact === 0)).toBe(
+      true,
+    );
+  });
+
   it('keeps the pose and grip deterministic in paused time without changing game state', () => {
     const unit = { ...adult(), action: 'crafting' };
     const before = JSON.stringify(unit);

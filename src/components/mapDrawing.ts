@@ -37,6 +37,7 @@ import { boundedMapLabelX, drawOverviewNature, usesOverviewNature } from './mapO
 import { planCityLabels } from './mapCityLabels';
 import { drawFisheryMarker, drawFishSprite } from './mapCoastArt';
 import { drawBoat, drawHarbor, unitIsSeatedAboard } from './mapMaritimeArt';
+import { drawObservedVoyage } from './mapVoyageArt';
 
 const fallbackMotionSession = createMapMotionSession();
 
@@ -627,7 +628,7 @@ function drawHandheld(
   ctx.scale(pose.facing, 1);
   ctx.rotate(pose.toolAngle);
   // Scale the object around its grip; the person's hand keeps its true size.
-  const size = equipment.held === 'spear' ? 1 : equipment.held === 'metal-blade' ? 0.82 : 0.75;
+  const size = equipment.held === 'spear' ? 1 : equipment.held === 'metal-blade' ? 0.9 : 0.84;
   ctx.save();
   ctx.scale(size, size);
   if (equipment.held === 'spear') {
@@ -737,15 +738,24 @@ function drawHandheld(
     // The lithic recipe pays only stone: this is a hand axe, with no free handle.
     polygon(
       ctx,
-      [
-        [-3.4, 1],
-        [-5.3, -4],
-        [-3.5, -10],
-        [0, -14],
-        [3.3, -10],
-        [4.6, -4],
-        [2.3, 1],
-      ],
+      workpiece
+        ? [
+            [-4.6, 1],
+            [-6.1, -5],
+            [-4, -10.5],
+            [2.6, -11.4],
+            [5.3, -7],
+            [3.7, 0.8],
+          ]
+        : [
+            [-3.4, 1],
+            [-5.3, -4],
+            [-3.5, -10],
+            [0, -14],
+            [3.3, -10],
+            [4.6, -4],
+            [2.3, 1],
+          ],
       workpiece ? '#8e9286' : '#7f887f',
       '#566457b0',
       0.7,
@@ -754,7 +764,7 @@ function drawHandheld(
       ctx,
       [
         [-3, -4],
-        [0, -12],
+        [0, workpiece ? -9.8 : -12],
         [2, -6],
         [0, -2],
       ],
@@ -784,7 +794,7 @@ function drawHandheld(
       ctx,
       [
         [-3.1, -6.3],
-        [-1.3, -8.7],
+        [-1.3, workpiece ? -7.7 : -8.7],
       ],
       '#dce3cd',
       0.4,
@@ -797,6 +807,188 @@ function drawHandheld(
   ctx.restore();
   // Fingers remain in front of the object, making the grip legible at map scale.
   oval(ctx, 0.7, 0.2, 1.8, 1.3, '#c2a07a');
+  ctx.restore();
+}
+
+/** A carried object reads as a single load resting in the actual grip. The
+ * ground-pile details would merge into a blob at the scale of a person's hand. */
+function drawCarriedMaterial(
+  ctx: CanvasRenderingContext2D,
+  resource: Resource,
+  recognized: boolean,
+  { leftHand, rightHand, facing }: UnitAnimationPose,
+) {
+  const angle = Math.atan2(
+    rightHand.y - leftHand.y,
+    Math.max(1, (rightHand.x - leftHand.x) * facing),
+  );
+  ctx.save();
+  ctx.translate((leftHand.x + rightHand.x) / 2, (leftHand.y + rightHand.y) / 2);
+  ctx.scale(facing, 1);
+  // Follow the hands while keeping the load near horizontal through a step.
+  ctx.rotate(Math.max(-0.35, Math.min(0.35, angle)));
+
+  if (!recognized) {
+    // Use the same shape and palette for all unrecognized resources.
+    polygon(
+      ctx,
+      [
+        [-6, 0],
+        [-7, -4],
+        [-3, -7],
+        [4, -6],
+        [7, -2],
+        [4, 1],
+      ],
+      '#777971',
+    );
+    polygon(
+      ctx,
+      [
+        [-7, -4],
+        [-3, -7],
+        [4, -6],
+        [5, -3],
+        [-2, -2],
+      ],
+      '#b5b4a2',
+    );
+  } else if (resource === 'fish' || resource === 'cookedFish') {
+    ctx.translate(1.8, -2.4);
+    ctx.scale(0.56, 0.56);
+    drawFishSprite(ctx, resource === 'cookedFish');
+  } else if (resource === 'wood') {
+    // One lifted length reads through its bark, split plane and exposed end.
+    polygon(
+      ctx,
+      [
+        [-11, -1],
+        [-12, -5],
+        [-8, -7],
+        [8, -7.7],
+        [11, -5],
+        [11, -0.5],
+        [-9, 1],
+      ],
+      '#704b33',
+    );
+    polygon(
+      ctx,
+      [
+        [-12, -5],
+        [-8, -7],
+        [8, -7.7],
+        [11, -5],
+        [-6, -3.8],
+      ],
+      '#be9463',
+    );
+    line(
+      ctx,
+      [
+        [-9, -4.8],
+        [-2, -5.7],
+        [4, -5.6],
+      ],
+      '#dfb880',
+      0.85,
+    );
+    line(
+      ctx,
+      [
+        [-8, -1.1],
+        [1, -2.3],
+        [6, -2],
+      ],
+      '#9b6945',
+      0.9,
+    );
+    polygon(
+      ctx,
+      [
+        [8, -7.7],
+        [11, -5],
+        [11, -0.5],
+        [8.4, 0.2],
+        [7.5, -3.6],
+      ],
+      '#d7b17b',
+    );
+    line(
+      ctx,
+      [
+        [9, -5.2],
+        [9.9, -3.2],
+        [9.3, -1.5],
+      ],
+      '#9a754d',
+      0.85,
+    );
+  } else if (resource === 'stone' || resource === 'ore') {
+    const ore = resource === 'ore';
+    polygon(
+      ctx,
+      [
+        [-8, -1],
+        [-8, -5.2],
+        [-2.9, -9],
+        [4, -8.2],
+        [8, -5],
+        [7, -0.8],
+        [1.4, 1.2],
+      ],
+      ore ? '#536b62' : '#68736c',
+    );
+    polygon(
+      ctx,
+      [
+        [-8, -5.2],
+        [-2.9, -9],
+        [4, -8.2],
+        [8, -5],
+        [0, -4],
+      ],
+      ore ? '#a2af92' : '#c5c7b0',
+    );
+    polygon(
+      ctx,
+      [
+        [-8, -5.2],
+        [0, -4],
+        [1.4, 1.2],
+        [-8, -1],
+      ],
+      ore ? '#72887a' : '#98a092',
+    );
+    if (ore)
+      line(
+        ctx,
+        [
+          [-3, -8],
+          [-0.2, -5.2],
+          [-2, -2.9],
+          [4.4, -1.7],
+        ],
+        '#a5bd8e',
+        1.45,
+      );
+    else
+      line(
+        ctx,
+        [
+          [-6, -5.2],
+          [-0.5, -7.6],
+          [4.5, -6.2],
+        ],
+        '#e4dfc9',
+        1,
+      );
+  } else {
+    // Other materials keep the same visual vocabulary as their ground piles.
+    ctx.translate(0, -1.8);
+    ctx.scale(0.34, 0.34);
+    drawMaterial(ctx, resource, 0, 0, recognized);
+  }
   ctx.restore();
 }
 
@@ -874,16 +1066,8 @@ function drawUnit(
   drawPainterlyBody(ctx, unit, time, equipment, pose, foreign);
   if (!newborn && !child && !sleeping && equipment.held)
     drawHandheld(ctx, equipment, time, id, pose);
-  if (unit.carry && unit.carry.amount > 0 && !sleeping) {
-    ctx.save();
-    ctx.translate(
-      (pose.leftHand.x + pose.rightHand.x) / 2,
-      (pose.leftHand.y + pose.rightHand.y) / 2 + 1,
-    );
-    ctx.scale(0.38, 0.38);
-    drawMaterial(ctx, unit.carry.resource, 0, 0, carryRecognized);
-    ctx.restore();
-  }
+  if (unit.carry && unit.carry.amount > 0 && !sleeping)
+    drawCarriedMaterial(ctx, unit.carry.resource, carryRecognized, pose);
   ctx.restore();
   if (unit.isolation && unit.isolation > 3 && unit.isolation < 30) {
     oval(ctx, -7, -32, 4.5, 4.5, '#5e755b');
@@ -1094,6 +1278,10 @@ export function drawWorld(
     target?.type === 'point' && Math.hypot(target.x - state.home.x, target.y - state.home.y) <= 10;
   drawCampground(ctx, state, isGroupActive || nearHome(selected) || nearHome(hovered));
   drawMapGroundShadows(ctx, state, viewport);
+  if (selected?.type === 'boat') {
+    const vessel = state.boats?.find((boat) => boat.id === selected.id);
+    if (vessel) drawObservedVoyage(ctx, state, vessel, atmosphereOptions?.pixelRatio);
+  }
   // Artwork can extend above its anchor. Leave a margin so crowns and smoke never pop at edges.
   const inView = (point: { x: number; y: number }) =>
     !viewport ||
@@ -1483,6 +1671,9 @@ export function drawWorld(
                 : undefined);
             const motion = motions.get(unit.id);
             const equipment = visibleUnitEquipment(state, actual);
+            const carriedResource = actual.carry?.resource;
+            const carryRecognized =
+              carriedResource !== undefined && resourceKnown(state, carriedResource);
             const range = ['combat', 'hunting'].includes(actual.action)
               ? target && 'kind' in target && equipment.held === 'spear'
                 ? 3
@@ -1534,6 +1725,8 @@ export function drawWorld(
               target,
               ready,
               equipment,
+              wideCarry:
+                carryRecognized && (carriedResource === 'wood' || carriedResource === 'spear'),
               recentEvent,
             });
             const workSource = target && 'amount' in target ? target : undefined;
@@ -1556,7 +1749,7 @@ export function drawWorld(
               unit,
               time,
               selected?.id === unit.id && hasConcept(state, 'S_02'),
-              !!unit.carry && resourceKnown(state, unit.carry.resource),
+              carryRecognized,
               custodians.get(unit.id),
               isGroupMember,
               (state.tribeEvents ?? []).some(

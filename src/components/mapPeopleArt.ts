@@ -6,12 +6,12 @@ export { isWalkingPose } from './unitAnimation';
 
 type ColorSet = { base: string; light: string; shade: string };
 const hides: ColorSet[] = [
-  { base: '#a78055', light: '#d8ba88', shade: '#756352' },
-  { base: '#a96d58', light: '#d7ab89', shade: '#7a6057' },
-  { base: '#627967', light: '#acb798', shade: '#465b50' },
-  { base: '#ad915b', light: '#dfcd9b', shade: '#84734f' },
-  { base: '#94715b', light: '#cfaf8e', shade: '#725d54' },
-  { base: '#7c8c7e', light: '#bcc6ad', shade: '#586d63' },
+  { base: '#956b43', light: '#d5ad77', shade: '#604a36' },
+  { base: '#a36750', light: '#d9aa84', shade: '#6c4741' },
+  { base: '#607762', light: '#a4b38c', shade: '#435344' },
+  { base: '#b6a174', light: '#e5d3a4', shade: '#857456' },
+  { base: '#776052', light: '#b3a089', shade: '#4d423b' },
+  { base: '#788683', light: '#b8c0ad', shade: '#50635f' },
 ];
 const skins: ColorSet[] = [
   { base: '#bd9774', light: '#e7cba5', shade: '#8c7261' },
@@ -19,6 +19,15 @@ const skins: ColorSet[] = [
   { base: '#c5a281', light: '#ebd1b0', shade: '#967760' },
   { base: '#987456', light: '#c6a685', shade: '#6b5548' },
 ];
+const hairColors = ['#332f29', '#544234', '#42372d'];
+const hideCuts = ['wrap', 'mantle', 'sewn'] as const;
+
+// The cut, dye and hair stay attached to a person across tasks and regions.
+function appearanceSeed(id: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < id.length; i++) hash = Math.imul(hash ^ id.charCodeAt(i), 16777619);
+  return hash >>> 0;
+}
 
 function ellipse(
   ctx: CanvasRenderingContext2D,
@@ -149,15 +158,15 @@ function paintBody(
   equipment: VisibleUnitEquipment,
   pose: UnitAnimationPose,
 ) {
-  const id = Array.from(unit.id).reduce((sum, c) => sum + c.charCodeAt(0), 0);
+  const id = appearanceSeed(unit.id);
   const stage = getLifeStage(unit),
     female = resolveUnitSex(unit) === 'F';
   const elder = stage === 'elder',
     child = stage === 'child',
     newborn = stage === 'newborn';
   const skin = skins[id % skins.length];
-  const hide = hides[(id + (female ? 1 : 0) + (child ? 3 : 0)) % hides.length];
-  const hair = elder ? '#d9d9ca' : ['#332f29', '#544234', '#42372d'][id % 3];
+  const hide = hides[(id >>> 3) % hides.length];
+  const hair = elder ? '#d9d9ca' : hairColors[(id >>> 9) % hairColors.length];
   const hairLight = elder ? '#fff5dc' : '#95704d';
   const sleeping = pose.kind === 'sleep';
   const step = pose.step;
@@ -336,34 +345,38 @@ function paintBody(
   ellipse(ctx, left.hand.x, left.hand.y + 0.3, 1.5, 1.8, skin.base);
   ellipse(ctx, left.hand.x - 0.45, left.hand.y - 0.15, 0.8, 1.2, skin.light);
 
-  const width = female ? 5.05 : 5.75,
-    hem = female ? 6.55 : 5.7;
+  const cut = child ? 'sewn' : hideCuts[(id >>> 16) % hideCuts.length];
+  const width = female ? 5.05 : 5.75;
+  const leftShoulder = shoulderY + (cut === 'mantle' ? -0.65 : 0.7);
+  const rightShoulder = shoulderY + (cut === 'wrap' ? 1.6 : 0.4);
+  const leftHem = (female ? 6.55 : 5.7) + (cut === 'mantle' ? 0.6 : 0);
+  const rightHem = (female ? 6.55 : 5.7) + (cut === 'wrap' ? 0.8 : 0);
   ctx.beginPath();
-  ctx.moveTo(-width + lean, shoulderY + 0.7);
+  ctx.moveTo(-width + lean, leftShoulder);
   ctx.bezierCurveTo(
     -3.8 + lean,
     shoulderY - 1.5,
     2.8 + lean,
     shoulderY - 1.45,
     width + lean,
-    shoulderY + 0.4,
+    rightShoulder,
   );
-  ctx.bezierCurveTo(5.2 + lean, -16, 4.2 + lean, -13.4, hem + 0.25, -8.9);
+  ctx.bezierCurveTo(5.2 + lean, -16, 4.2 + lean, -13.4, rightHem, -8.9);
   ctx.lineTo(4.1, -8.5);
   ctx.lineTo(2.4, -7.6);
   ctx.lineTo(0.7, -8.1);
   ctx.lineTo(-0.7, -7.4);
   ctx.lineTo(-2.5, -8.2);
   ctx.lineTo(-5.2, -7.9);
-  ctx.bezierCurveTo(-hem - 0.6, -8.4, -5.1 + lean, -13, -width + lean, shoulderY + 0.7);
+  ctx.bezierCurveTo(-leftHem, -8.4, -5.1 + lean, -13, -width + lean, leftShoulder);
   ctx.closePath();
   ctx.fillStyle = shade(ctx, hide, -6, -21, 7, -7);
   ctx.fill();
   ctx.strokeStyle = `${hide.shade}65`;
   ctx.lineWidth = 0.35;
   ctx.stroke();
-  // Large broken colour planes give the hide a painted, folded surface. The
-  // silhouette and joints, rather than tiny seam marks, carry the mobile view.
+  // Folded skins read as large planes at map scale. Keep the seam inside the
+  // same silhouette as the animated shoulders and the selectable body.
   ctx.save();
   ctx.clip();
   paintPlane(
@@ -400,77 +413,46 @@ function paintBody(
     ],
     `${hide.shade}46`,
   );
-  for (let i = 0; i < 3; i++) {
-    const x = -3.8 + ((id + i * 7) % 11) * 0.7;
-    const y = shoulderY + 2.8 + i * 3.1;
-    paintPlane(
-      ctx,
-      [
-        [x, y],
-        [x + 1.8, y - 0.3],
-        [x + 2.6, y + 0.25],
-        [x + 0.8, y + 0.75],
-      ],
-      `${hide.light}35`,
-    );
-  }
-  ctx.restore();
-  // Light stitched shoulder, worn diagonal fold and irregular hide hem.
-  stroke(
-    ctx,
-    [
-      [-3.5 + lean, shoulderY + 1],
-      [-2.9 + lean, -15.3],
-      [-4, -9.1],
-    ],
-    `${hide.light}c0`,
-    0.9,
-  );
-  stroke(
-    ctx,
-    [
-      [1.8 + lean, shoulderY + 2],
-      [0.6 + lean, -15],
-      [1.7, -9],
-    ],
-    `${hide.shade}b0`,
-    0.75,
-  );
-  stroke(
-    ctx,
-    [
-      [-2.3, -11.6],
-      [-0.4, -10.1],
-      [2.8, -10.5],
-    ],
-    hide.light,
-    0.8,
-  );
-  for (let i = 0; i < 4; i++) {
-    const y = shoulderY + 2.2 + i * 2.1;
+  if (cut === 'wrap') {
+    const fold: number[][] = [
+      [-4.4 + lean, shoulderY + 1],
+      [-1 + lean, -16.7],
+      [5.5, -11.1],
+    ];
+    paintPlane(ctx, [...fold, [5.2, -8.5], [0.4, -11.9], [-5.5, -16.2]], `${hide.shade}c2`);
+    stroke(ctx, fold, `${hide.light}df`, 1.1);
+  } else if (cut === 'mantle') {
+    const fold: number[][] = [
+      [-6.1 + lean, leftShoulder + 0.2],
+      [-1.9 + lean, shoulderY + 0.8],
+      [4.1 + lean, shoulderY + 4],
+    ];
+    paintPlane(ctx, [...fold, [0.2, -12.4], [-3.9, -13.1], [-6.7, -15.4]], `${hide.shade}e5`);
+    stroke(ctx, fold, `${hide.light}e3`, 1.45);
+    ellipse(ctx, 2.3 + lean, shoulderY + 3.6, 0.85, 0.65, '#e3c895');
+  } else {
     stroke(
       ctx,
       [
-        [-3.4 + lean, y],
-        [-2.6 + lean, y + 0.35],
+        [1.8 + lean, shoulderY + 2],
+        [0.5 + lean, -15],
+        [1.9, -9],
       ],
-      '#dbc8a0',
-      0.55,
+      `${hide.shade}d4`,
+      1.15,
     );
-  }
-  for (let i = 0; i < 5; i++) {
-    const xx = -3.8 + i * 1.8;
     stroke(
       ctx,
       [
-        [xx, -9 + (i % 3) * 0.25],
-        [xx + 0.3, -8.3 + (i % 2) * 0.35],
+        [-3.4 + lean, shoulderY + 0.9],
+        [-1.3 + lean, shoulderY + 2.5],
+        [1.7 + lean, shoulderY + 2.1],
       ],
-      hide.light,
-      0.5,
+      `${hide.light}c0`,
+      0.9,
     );
   }
-  // Leather thong, with a tied knot, rather than a ruler-straight belt.
+  // Irregular thong across the waist, with the shadow kept on the folded edge.
   stroke(
     ctx,
     [
@@ -478,45 +460,10 @@ function paintBody(
       [-0.9, -12.8],
       [5, -13.5],
     ],
-    '#776751c9',
-    0.75,
+    `${hide.shade}dc`,
+    1,
   );
-  stroke(
-    ctx,
-    [
-      [1.3, -13.1],
-      [1.8, -11.2],
-      [2.3, -13],
-    ],
-    '#d2b489',
-    0.8,
-  );
-
-  if (!child && !equipment.armor) {
-    // A broad shoulder fold makes the chest read as dressed volume at a glance.
-    paintPlane(
-      ctx,
-      [
-        [-width + lean, shoulderY + 0.6],
-        [-1.1 + lean, shoulderY + 1.3],
-        [2.4 + lean, shoulderY + 3.5],
-        [0.1 + lean, shoulderY + 5.1],
-        [-3.5 + lean, shoulderY + 3.6],
-      ],
-      `${hide.shade}5b`,
-    );
-    stroke(
-      ctx,
-      [
-        [-width + lean, shoulderY + 0.5],
-        [-1.2 + lean, shoulderY + 1.2],
-        [2.3 + lean, shoulderY + 3.5],
-      ],
-      hide.light,
-      0.9,
-    );
-    ellipse(ctx, 1.5 + lean, shoulderY + 3.3, 0.85, 0.65, '#f0d7a3');
-  }
+  ctx.restore();
 
   if (equipment.armor === 'metal') {
     ctx.beginPath();
@@ -604,9 +551,11 @@ function paintBody(
   const hx = elder ? 2 : lean * 0.65,
     hy = elder ? -24.2 : -26.6;
   const headWidth = child ? 3.5 : 3.1;
-  const look = 1;
-  // Wavy lengths behind the neck distinguish tied and loose hair without a symbol.
-  if (female && !child) {
+  const hairShape = (id >>> 24) % 4;
+  const tied = !child && (elder || (female ? hairShape >= 2 : hairShape === 3));
+  // Loose hair frames the neck, while a tied bundle breaks only the back of
+  // the silhouette. Both are within the existing selectable head bounds.
+  if (female && !child && !tied) {
     ctx.beginPath();
     ctx.moveTo(hx - 3.1, hy - 1);
     ctx.bezierCurveTo(hx - 5.5, hy + 3, hx - 3.5, hy + 6.9, hx - 0.8, hy + 7.2);
@@ -624,6 +573,37 @@ function paintBody(
       hairLight,
       0.8,
     );
+  } else if (tied) {
+    paintPlane(
+      ctx,
+      [
+        [hx - 2.4, hy - 1.5],
+        [hx - 5.5, hy - 0.2],
+        [hx - 5.8, hy + 2.5],
+        [hx - 4.5, hy + 4.3],
+        [hx - 2.8, hy + 3.3],
+      ],
+      hair,
+    );
+    stroke(
+      ctx,
+      [
+        [hx - 4.8, hy + 0.35],
+        [hx - 4.1, hy - 0.4],
+        [hx - 3.2, hy + 0.1],
+      ],
+      hairLight,
+      0.85,
+    );
+    stroke(
+      ctx,
+      [
+        [hx - 4.15, hy + 1.1],
+        [hx - 3.5, hy + 2.15],
+      ],
+      elder ? '#b8a78d' : '#b08a5f',
+      0.9,
+    );
   }
   limb(
     ctx,
@@ -637,7 +617,7 @@ function paintBody(
   // A three-quarter face: cheek, small nose and jaw in a single painted contour.
   ctx.save();
   ctx.translate(hx, hy);
-  ctx.scale(look * 1.13, 1.08);
+  ctx.scale(1.13, 1.08);
   ellipse(ctx, -headWidth + 0.1, 0.6, 0.8, 1.25, skin.shade);
   ctx.beginPath();
   ctx.moveTo(-headWidth, -0.7);
@@ -684,10 +664,11 @@ function paintBody(
     0.65,
   );
   // Hair has an uneven hairline and fine strands, not a flat disc.
+  const closeCrop = !child && !elder && !female && hairShape === 0;
   ctx.beginPath();
-  ctx.moveTo(-3.1, 1.5);
-  ctx.bezierCurveTo(-4.7, -0.7, -4.6, -3.9, -1.8, -4.8);
-  ctx.bezierCurveTo(-0.5, -5.5, 1.9, -4.7, 3, -3.2);
+  ctx.moveTo(-3.1, closeCrop ? 0.2 : 1.5);
+  ctx.bezierCurveTo(-4.7, -0.7, -4.6, -3.9, -1.8, closeCrop ? -4.35 : -4.8);
+  ctx.bezierCurveTo(-0.5, closeCrop ? -4.85 : -5.5, 1.9, -4.7, 3, -3.2);
   ctx.lineTo(2, -2.2);
   ctx.lineTo(0.9, -2.8);
   ctx.lineTo(-0.6, -2.1);
@@ -729,28 +710,6 @@ function paintBody(
     hairLight,
     0.65,
   );
-  if ((female && id % 2) || elder) {
-    ellipse(ctx, -3.5, -1.4, elder ? 1.4 : 1.7, elder ? 1.8 : 2.1, hair);
-    stroke(
-      ctx,
-      [
-        [-4.1, -2.2],
-        [-3.5, -0.3],
-      ],
-      hairLight,
-      0.8,
-    );
-    if (!elder)
-      stroke(
-        ctx,
-        [
-          [-4.7, -1.6],
-          [-2.9, -1.4],
-        ],
-        '#bd9d6c',
-        0.75,
-      );
-  }
   stroke(
     ctx,
     [

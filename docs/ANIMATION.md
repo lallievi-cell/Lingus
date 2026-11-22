@@ -27,6 +27,14 @@ Cervi, lupi, predatori alfa e mammut hanno arti e teste articolati: pascolo e al
 
 Il clock delle pose è continuo e rispetta la velocità del gioco; la pausa congela il canvas. La cronologia del disegno appartiene alla singola mappa e si azzera quando il tempo torna indietro. Nessuna cronologia grafica entra nel salvataggio.
 
+## Persone, carichi e rotta
+
+Mantelle, vesti avvolte e tuniche hanno pieghe ampie e sagome distinte. Il taglio e i capelli seguono l’identità della persona. Nel trasporto, un carico lungo già riconoscibile allarga la presa. Legno, selce, minerale, pesce crudo e pesce cotto condividono il movimento delle mani e hanno forme leggibili. I materiali sconosciuti conservano la stessa forma neutra. Il taglio laterale, il colpo basso della selce e i gesti più brevi di posa e forgia distinguono il lavoro dopo l’arrivo.
+
+Selezionare una barca della tribù in navigazione mostra il tratto rimanente della rotta effettiva su acqua esplorata. Il tratteggio si ferma al primo settore ignoto. Il rombo compare quando il punto di arrivo è osservabile lungo quel tratto.
+
+Le immagini mostrano il renderer del gioco in scene preparate. La barca segue una rotta calcolata dal motore. [Campo sul telefono](images/world-readability-camp-390.png) · [Rotta selezionata](images/world-readability-voyage-390.png)
+
 ## Verifiche
 
 Esito della revisione: **794 test del motore e dei componenti e 53 casi browser superati**, con build e formattazione valide.
