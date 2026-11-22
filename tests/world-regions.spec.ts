@@ -80,6 +80,27 @@ for (const width of [320, 1440]) {
     await expect(atlas).toHaveCount(0);
     await expect(page.locator('.sentence-slot.filled')).toHaveCount(3);
     await expect(page.locator('.map-toolbar')).toContainText('Confine verso');
+    if (width === 320) {
+      const slots = page.getByRole('group', { name: 'Spazi della frase' });
+      const strip = (await slots.boundingBox())!;
+      for (const word of ['Gruppo', 'Andare', 'Qui']) {
+        const slot = slots.getByRole('button', { name: `Modifica ${word}`, exact: true });
+        const box = (await slot.boundingBox())!;
+        expect(box.x).toBeGreaterThanOrEqual(strip.x);
+        expect(box.x + box.width).toBeLessThanOrEqual(strip.x + strip.width + 1);
+        expect(box.height).toBeGreaterThanOrEqual(44);
+      }
+      await expect(page.getByRole('button', { name: 'Raduna al campo' })).toBeInViewport();
+      const labelsFit = await page
+        .locator('.executor-selection :is(.executor-label, .recall-label)')
+        .evaluateAll((labels) =>
+          labels.every((label) => label.scrollWidth <= label.clientWidth + 1),
+        );
+      expect(labelsFit).toBe(true);
+      const speed = page.getByRole('combobox', { name: 'Velocità del tempo' });
+      await speed.selectOption('2');
+      await expect(speed).toHaveValue('2');
+    }
     const card = page.getByRole('status', { name: 'Dettagli del bersaglio' });
     if (width === 320) {
       await expect(card).toHaveCount(0);
@@ -93,6 +114,7 @@ for (const width of [320, 1440]) {
       expect(detailsBounds.x + detailsBounds.width).toBeLessThanOrEqual(minimapBounds.x);
     }
     const after = await saved(page);
+    expect(after.speed).toBe(width === 320 ? 2 : before.speed);
     expect(after.world).toEqual(before.world);
     expect(after.units).toEqual(before.units);
     expect(after.resources).toEqual(before.resources);

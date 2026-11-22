@@ -1,0 +1,233 @@
+.app .thought-rail {
+  --thought-ink: #222824;
+  --thought-muted: #545d53;
+  --thought-paper: #eee6d6;
+  --thought-rule: #b5a48c65;
+  --thought-accent: #7e4c27;
+  --thought-highlight: #e0b475;
+  min-height: 0;
+  align-items: stretch;
+  gap: 12px;
+  padding-top: 12px;
+  color: var(--thought-ink);
+}
+
+.app[data-contrast='high'] .thought-rail {
+  --thought-ink: var(--ink);
+  --thought-muted: var(--muted);
+  --thought-paper: var(--paper);
+  --thought-rule: var(--line);
+  --thought-accent: #633619;
+}
+
+.thought-rail > * {
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.thought-rail-heading {
+  margin: 0;
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--thought-rule);
+  font: 400 27px/1.08 var(--serif);
+}
+
+.thought-notebook {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.thought-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--thought-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.thought-empty > svg {
+  flex-shrink: 0;
+}
+
+.app .thought-rail .thought-spark {
+  display: grid !important;
+  grid-template-columns: 19px minmax(0, 1fr) 16px;
+  align-items: start !important;
+  gap: 9px;
+  margin: 0;
+  padding: 11px !important;
+  border: 1px solid #b58c5f !important;
+  border-radius: 5px !important;
+  background: color-mix(in srgb, var(--thought-highlight) 27%, var(--thought-paper)) !important;
+  box-shadow: none !important;
+  color: var(--thought-ink);
+  text-align: left !important;
+  font: inherit;
+}
+
+.thought-spark > svg {
+  margin-top: 1px;
+  color: var(--thought-accent);
+}
+
+.thought-spark strong,
+.thought-link strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.thought-spark small,
+.thought-link small {
+  display: block;
+  margin-top: 2px;
+  color: var(--thought-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.thought-rail .queued-intuitions {
+  margin: 0;
+  padding: 0 0 0 9px;
+  border-color: var(--thought-highlight);
+  color: var(--thought-muted);
+}
+
+.thought-rail .queued-intuitions strong {
+  color: var(--thought-ink);
+}
+
+.thought-objective {
+  min-width: 0;
+  padding: 11px 0 13px;
+  border-block: 1px solid var(--thought-rule);
+}
+
+.thought-objective-label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--thought-accent);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.thought-objective h3 {
+  margin: 0;
+  color: var(--thought-ink);
+  font: 400 22px/1.12 var(--serif);
+  text-wrap: balance;
+}
+
+.thought-objective p {
+  margin: 7px 0 11px;
+  color: var(--thought-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.thought-objective-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.thought-objective-progress progress {
+  flex: 1;
+  min-width: 0;
+  height: 4px;
+  appearance: none;
+  overflow: hidden;
+  border: 0;
+  border-radius: 2px;
+  background: var(--thought-rule);
+}
+
+.thought-objective-progress progress::-webkit-progress-bar {
+  background: var(--thought-rule);
+}
+
+.thought-objective-progress progress::-webkit-progress-value {
+  background: var(--thought-accent);
+}
+
+.thought-objective-progress progress::-moz-progress-bar {
+  background: var(--thought-accent);
+}
+
+.thought-links {
+  display: grid;
+  align-content: start;
+}
+
+.thought-link {
+  display: grid;
+  grid-template-columns: 17px minmax(0, 1fr) 15px;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 7px 3px;
+  border: 0;
+  border-bottom: 1px solid var(--thought-rule);
+  background: transparent;
+  color: var(--thought-ink);
+  font: inherit;
+  text-align: left;
+}
+
+.thought-link > svg {
+  color: var(--thought-muted);
+}
+
+.thought-link > span,
+.thought-spark > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.thought-link:hover,
+.thought-link:active {
+  background: color-mix(in srgb, var(--thought-highlight) 19%, transparent);
+}
+
+.thought-rail :is(.thought-link, .thought-spark):focus-visible {
+  outline: 2px solid var(--thought-accent);
+  outline-offset: -2px;
+}
+
+.app[data-text-size='large'] .thought-rail :is(.thought-link, .thought-spark) strong {
+  font-size: 14px;
+}
+
+@media (min-width: 861px) and (max-width: 1000px) {
+  .app .thought-rail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  .thought-rail-heading {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 860px) {
+  .app .thought-rail.mobile-visible {
+    gap: 12px !important;
+    background: var(--thought-paper) !important;
+  }
+  .thought-rail-heading {
+    font-size: 31px;
+  }
+  .thought-objective h3 {
+    font-size: 25px;
+  }
+  .thought-link strong,
+  .thought-spark strong {
+    font-size: 14px;
+  }
+}

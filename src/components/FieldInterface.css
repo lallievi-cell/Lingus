@@ -1,0 +1,141 @@
+/* The map is the stage. Dark controls frame it, while reading surfaces
+   keep ink, paper and the material of the current era. */
+.app {
+  --field-action: #e0b475;
+  --field-action-hover: #ecc48f;
+  --field-action-ink: #2c241a;
+  --control-radius: 6px;
+  --panel-radius: 8px;
+}
+
+.app:not([data-contrast='high']) {
+  --hud-surface: color-mix(in srgb, #222824 85%, var(--ui-shadow));
+  --hud-raised: color-mix(in srgb, var(--hud-surface) 78%, #a29d84);
+  --hud-ink: #fcf2dc;
+  --hud-muted: #d4ccbb;
+  --hud-line: #736e5c;
+  --surface-paper: color-mix(in srgb, var(--ui-panel) 58%, #f8f1e5);
+  --surface-ink: #252a24;
+  --surface-muted: #565b50;
+  --surface-edge: #bab098;
+}
+
+.app[class*='tier-'] {
+  background-color: color-mix(in srgb, var(--ui-panel) 72%, #e0d7c8);
+  background-image: none;
+}
+
+.app .brand {
+  gap: 8px;
+}
+
+.app .brand > svg {
+  color: var(--material-accent);
+}
+
+.app .era-heading .eyebrow {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app .language-workbench {
+  border-top: 1px solid var(--surface-edge);
+  background: var(--surface-paper);
+  box-shadow: none;
+}
+
+.app:not([data-contrast='high']) .modal .primary-button:not(:disabled) {
+  background: var(--field-action);
+  color: var(--field-action-ink);
+  border: 1px solid #a3713d;
+  border-radius: var(--control-radius);
+  box-shadow: inset 0 1px 0 #ffffff38;
+}
+
+.app:not([data-contrast='high']) .modal .primary-button:not(:disabled):hover {
+  background: var(--field-action-hover);
+}
+
+.app:not([data-contrast='high']) .command-deck .pronounce-button:not(:disabled) {
+  background: var(--surface-paper);
+  color: var(--surface-ink);
+  border: 1px solid var(--surface-edge);
+  border-radius: var(--control-radius);
+  box-shadow: none;
+}
+
+.app .modal .modal-close {
+  border-radius: var(--control-radius);
+}
+
+.app .lingus-world__target-card {
+  border-color: var(--surface-edge);
+  background: var(--surface-paper);
+  color: var(--surface-ink);
+}
+
+.app .lingus-world__target-card :is(strong, p, small) {
+  color: inherit;
+}
+
+.app .map-toolbar > span > .status-dot {
+  display: none;
+}
+
+.app .map-toolbar .compact-speed {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .app .game-layout {
+    grid-template-columns: minmax(180px, 16vw) minmax(0, 1fr) minmax(205px, 17vw);
+    padding-inline: 16px;
+    gap: 12px;
+  }
+
+  .app .map-frame {
+    border-color: var(--surface-edge);
+    border-radius: 4px;
+    box-shadow: none;
+  }
+}
+
+@media (max-width: 360px) and (orientation: portrait) {
+  .app .map-toolbar .speed-controls {
+    display: none;
+  }
+
+  .app .map-toolbar .compact-speed {
+    display: flex;
+    position: relative;
+    align-items: center;
+    height: 44px;
+    border-left: 1px solid var(--hud-line);
+    color: var(--hud-ink);
+  }
+
+  .app .compact-speed select {
+    width: 54px;
+    min-height: 44px;
+    padding: 0 18px 0 8px;
+    border: 0;
+    border-radius: 0;
+    appearance: none;
+    color-scheme: dark;
+    color: inherit;
+    background: var(--hud-raised);
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .app .compact-speed select:focus-visible {
+    outline: 2px solid var(--hud-ink);
+    outline-offset: -4px;
+  }
+
+  .app .compact-speed > svg {
+    position: absolute;
+    right: 5px;
+    pointer-events: none;
+  }
+}

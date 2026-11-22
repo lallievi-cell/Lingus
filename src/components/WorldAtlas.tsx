@@ -111,125 +111,103 @@ export function WorldAtlas({
   );
   return (
     <Modal title="Atlante del mondo" onClose={onClose} className="world-atlas-modal">
-      <p className="world-atlas-intro">
-        Le coste emergono dove la tribù è passata. Ogni regione conserva persone, scorte e lavori;
-        il tempo scorre per tutte.
-      </p>
-      <div className="world-atlas-grid" role="group" aria-label="Le regioni del mondo">
-        {cells.map((cell) => {
-          const region = world.regions[cell.id];
-          const local = region?.discovered ? regionProjection(state, cell.id) : undefined;
-          const current = cell.id === active.id;
-          const label = worldRegionLabel(state, cell.x, cell.y);
-          return (
-            <button
-              type="button"
-              key={cell.id}
-              aria-label={`${label}${current ? ', sulla mappa' : local ? ', visitata' : ', inesplorata'}`}
-              aria-pressed={selected.id === cell.id}
-              className={`world-atlas-cell ${local ? 'is-known' : 'is-unknown'} ${current ? 'is-current' : ''}`}
-              onClick={() => setSelectedId(cell.id)}
-            >
-              {local && <RegionTerrain state={local} x={cell.x} y={cell.y} />}
-              {current ? (
-                <MapPin size={18} className="world-atlas-cell-icon" />
-              ) : !local ? (
-                <span className="world-atlas-unknown-mark" aria-hidden="true">
-                  ?
-                </span>
-              ) : null}
-              <span className="world-atlas-cell-label">
-                {cell.id === world.homeRegionId
-                  ? 'Origini'
-                  : current
-                    ? 'Qui'
-                    : local
-                      ? 'Visitata'
-                      : 'Ignoto'}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-      <p className="world-atlas-legend">
-        <Compass size={14} /> Nord in alto · una regione, un chilometro
-      </p>
-      <section className="world-atlas-detail" aria-label="Regione scelta" aria-live="polite">
-        <h3>{worldRegionLabel(state, selected.x, selected.y)}</h3>
-        <p>
-          {present
-            ? 'Stai osservando questa regione.'
-            : selectedState
-              ? 'Un luogo già visitato: puoi osservarlo senza spostare le persone.'
-              : 'Un territorio ancora sconosciuto. Il suo aspetto si rivelerà durante il viaggio.'}
-        </p>
-        {!!people?.length && (
-          <p className="world-atlas-presence">
-            <Users size={14} />
-            {hasWord(state, 'O_08')
-              ? `${people.length} ${people.length === 1 ? 'compagno presente' : 'compagni presenti'}`
-              : 'La tribù è presente in questa regione.'}
+      <div className="world-atlas-layout">
+        <figure className="world-atlas-chart">
+          <div className="world-atlas-grid" role="group" aria-label="Le regioni del mondo">
+            {cells.map((cell) => {
+              const region = world.regions[cell.id];
+              const local = region?.discovered ? regionProjection(state, cell.id) : undefined;
+              const current = cell.id === active.id;
+              const home = cell.id === world.homeRegionId;
+              const label = worldRegionLabel(state, cell.x, cell.y);
+              return (
+                <button
+                  type="button"
+                  key={cell.id}
+                  aria-label={`${label}${current ? ', sulla mappa' : local ? ', visitata' : ', inesplorata'}`}
+                  aria-pressed={selected.id === cell.id}
+                  className={`world-atlas-cell ${local ? 'is-known' : 'is-unknown'} ${current ? 'is-current' : ''}`}
+                  onClick={() => setSelectedId(cell.id)}
+                >
+                  {local && <RegionTerrain state={local} x={cell.x} y={cell.y} />}
+                  {current && <MapPin size={17} className="world-atlas-cell-icon" aria-hidden />}
+                  {(home || current) && (
+                    <span className="world-atlas-cell-label" aria-hidden="true">
+                      {home ? 'Origini' : 'Qui'}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <figcaption className="world-atlas-legend">
+            <Compass size={14} aria-hidden />
+            <span>Nord in alto · una regione, un chilometro</span>
+          </figcaption>
+        </figure>
+        <section className="world-atlas-detail" aria-label="Regione scelta" aria-live="polite">
+          <h3>{worldRegionLabel(state, selected.x, selected.y)}</h3>
+          <p className="world-atlas-region-state">
+            {present ? 'Sulla mappa' : selectedState ? 'Già visitata' : 'Inesplorata'}
           </p>
-        )}
-        {pending.length > 0 && <p>Un gruppo è in viaggio verso questa regione.</p>}
-        {!present && selectedState && (
-          <button className="secondary-button" type="button" onClick={() => onFocus(selected.id)}>
-            <MapPin size={15} /> Osserva la regione
-          </button>
-        )}
-        {adjacent && (
-          <>
-            <p className="world-atlas-travel-mode">
-              {boat ? <Ship size={16} /> : <Users size={16} />}
-              {boat
-                ? 'Traversata con la barca selezionata e il suo equipaggio.'
-                : 'Viaggio a piedi con il gruppo selezionato.'}
+          {!!people?.length && (
+            <p className="world-atlas-presence">
+              <Users size={14} aria-hidden />
+              {hasWord(state, 'O_08')
+                ? `${people.length} ${people.length === 1 ? 'compagno presente' : 'compagni presenti'}`
+                : 'La tribù è presente nella regione.'}
             </p>
-            {destination ? (
-              <button
-                className="primary-button"
-                type="button"
-                disabled={!!unavailablePhrase || emptyBoat}
-                onClick={() =>
-                  onPrepare(
-                    ['S_01', 'V_01', 'O_01'],
-                    destination,
-                    boat ? { type: 'boat', id: boat.id, x: boat.x, y: boat.y } : groupAnchor,
-                  )
-                }
-              >
-                Prepara il viaggio <ArrowRight size={16} />
-              </button>
-            ) : (
-              <p className="world-atlas-travel-issue">
-                {boat
-                  ? 'Questa barca non ha una rotta navigabile fino al confine.'
-                  : 'Nessun adulto può raggiungere a piedi un passaggio su questo confine. Per attraversare il mare, seleziona una barca.'}
+          )}
+          {pending.length > 0 && <p>Un gruppo è in viaggio verso questa regione.</p>}
+          {!present && selectedState && (
+            <button className="secondary-button" type="button" onClick={() => onFocus(selected.id)}>
+              <MapPin size={15} aria-hidden /> Osserva la regione
+            </button>
+          )}
+          {adjacent && (
+            <div className="world-atlas-travel">
+              <p className="world-atlas-travel-mode">
+                {boat ? <Ship size={16} aria-hidden /> : <Users size={16} aria-hidden />}
+                {boat ? 'Traversata in barca' : 'Viaggio a piedi'}
               </p>
-            )}
-            {unavailablePhrase && <p className="world-atlas-travel-issue">{unavailablePhrase}</p>}
-            {emptyBoat && (
-              <p className="world-atlas-travel-issue">
-                Imbarca un equipaggio prima di preparare la traversata.
-              </p>
-            )}
-            {destination && (
-              <small>
-                Prepara compone la frase: il viaggio parte soltanto con Pronuncia, raggiungendo
-                davvero il confine.
-              </small>
-            )}
-          </>
-        )}
-        {!present && !adjacent && (
-          <p className="world-atlas-travel-issue">
-            Per arrivare qui, attraversa una regione confinante alla volta.
-          </p>
-        )}
-      </section>
-      <p className="world-atlas-footnote">
-        Le scorte restano nella loro regione. Portale con le persone o caricale su una barca.
-      </p>
+              {destination ? (
+                <button
+                  className="primary-button"
+                  type="button"
+                  disabled={!!unavailablePhrase || emptyBoat}
+                  onClick={() =>
+                    onPrepare(
+                      ['S_01', 'V_01', 'O_01'],
+                      destination,
+                      boat ? { type: 'boat', id: boat.id, x: boat.x, y: boat.y } : groupAnchor,
+                    )
+                  }
+                >
+                  Prepara il viaggio <ArrowRight size={16} aria-hidden />
+                </button>
+              ) : (
+                <p className="world-atlas-travel-issue">
+                  {boat
+                    ? 'La barca non può raggiungere questo confine.'
+                    : 'Il gruppo non può raggiungere a piedi questo confine. Per il mare, seleziona una barca.'}
+                </p>
+              )}
+              {unavailablePhrase && <p className="world-atlas-travel-issue">{unavailablePhrase}</p>}
+              {emptyBoat && (
+                <p className="world-atlas-travel-issue">Imbarca un equipaggio per partire.</p>
+              )}
+              {destination && !unavailablePhrase && !emptyBoat && (
+                <small>La frase viene preparata. Premi Pronuncia per partire.</small>
+              )}
+            </div>
+          )}
+          {!present && !adjacent && (
+            <p className="world-atlas-travel-issue">
+              Per arrivare qui, attraversa una regione confinante alla volta.
+            </p>
+          )}
+        </section>
+      </div>
     </Modal>
   );
 }

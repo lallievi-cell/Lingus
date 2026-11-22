@@ -3,6 +3,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   BookOpen,
+  ChevronDown,
   ChevronRight,
   CircleHelp,
   Clock3,
@@ -15,7 +16,6 @@ import {
   Home,
   Info,
   Leaf,
-  LockKeyhole,
   MapPin,
   MessageCircle,
   Pause,
@@ -51,7 +51,6 @@ import { InterfaceSettings } from './components/InterfaceSettings';
 import { useInterfacePreferences } from './components/useInterfacePreferences';
 import { PlaytestSummary } from './components/PlaytestSummary';
 import { usePlaytestRecord } from './components/usePlaytestRecord';
-import { BUILD_INFO } from './buildInfo';
 import { browserSaves, useSessionSafety } from './session/useSessionSafety';
 import { CampInventoryPanel } from './components/CampInventoryPanel';
 import {
@@ -334,6 +333,16 @@ function App() {
   const objective = getObjective(game);
   const survivalAdvice = getSurvivalAdvice(game);
   const compilation = compileSentence(game, sentence, target ?? undefined);
+  const needsOrderTarget = compilation.requiresTarget && !target;
+  const orderUsesVoice = !['law', 'dogma', 'tradition'].includes(compilation.kind ?? 'direct');
+  const needsOrderVoice = compilation.valid && orderUsesVoice && game.voice < 1;
+  const commandFeedback = !compilation.valid
+    ? compilation.message
+    : needsOrderTarget
+      ? 'Scegli un bersaglio sulla mappa.'
+      : needsOrderVoice
+        ? 'Voce esaurita. Attendi che si ricarichi.'
+        : compilation.message;
   const bankSentence = mobile && editingSlot !== null ? sentence.slice(0, editingSlot) : sentence;
   const syntax = getSyntaxSuggestions(game, bankSentence);
   const compatibleWords = new Set(syntax.tokenIds);
@@ -510,6 +519,7 @@ function App() {
                   ? `Confine verso ${worldRegionLabel(game, game.world.regions[target.regionId]?.x ?? Number(target.regionId.split(':')[0]), game.world.regions[target.regionId]?.y ?? Number(target.regionId.split(':')[1])).toLocaleLowerCase('it')}`
                   : (targetDetails?.label ?? 'Punto sulla mappa')
                 : null;
+  const commandComposed = compilation.valid && !needsOrderTarget && !needsOrderVoice;
   const livingUnits = game.units.filter(
     (u) => u.hp > 0 && (u.factionId === undefined || u.factionId === 'player'),
   );
@@ -936,13 +946,13 @@ function App() {
     setPanel(null);
     setMobileSection('map');
     if (destination) focusTarget(destination);
-    notify(
-      destination?.regionId
-        ? 'Viaggio preparato fino al confine. Controlla il gruppo e l’anteprima, poi premi Pronuncia: persone e carichi devono raggiungere il passaggio.'
-        : selection?.type === 'boat'
-          ? 'Equipaggio della barca selezionato. Scegli il mare o una riva osservata, controlla l’anteprima e premi Pronuncia.'
-          : 'Frase pronta da controllare. Apri l’anteprima per vedere chi agirà e dove, poi premi Pronuncia.',
-    );
+    if (mobile) setToast('');
+    else
+      notify(
+        selection?.type === 'boat'
+          ? 'Equipaggio selezionato. Controlla il bersaglio, poi premi Pronuncia.'
+          : 'Frase composta. Controlla il bersaglio, poi premi Pronuncia.',
+      );
   }
 
   const closePhrasebook = useCallback(() => {
@@ -1124,9 +1134,7 @@ function App() {
 
   function saveGame() {
     const result = saveNow(game, { reason: 'manual' });
-    if (result.ok) {
-      notify('Partita salvata in questo browser.');
-    } else
+    if (!result.ok)
       notify(
         result.issue?.message ?? 'Il browser non consente il salvataggio. Usa Esporta partita.',
       );
@@ -1504,16 +1512,10 @@ function App() {
           aria-label="Lingus, apri la guida"
         >
           <BrandMark />
-          <span>
-            <strong>LINGUS</strong>
-            <small>LE PAROLE COSTRUISCONO IL MONDO</small>
-          </span>
+          <strong>LINGUS</strong>
         </a>
         <div className="era-heading">
-          <span className="eyebrow">
-            CAPITOLO {['I', 'II', 'III', 'IV', 'V', 'VI'][game.tier]} <i />{' '}
-            {game.tier < 3 ? 'PALEOLITICO' : game.tier === 3 ? 'NEOLITICO' : 'ETÀ DEI METALLI'}
-          </span>
+          <span className="eyebrow">Capitolo {['I', 'II', 'III', 'IV', 'V', 'VI'][game.tier]}</span>
           <span>{ERA_NAMES[game.tier]}</span>
         </div>
         <div className="header-actions">
@@ -1604,7 +1606,6 @@ function App() {
                   : 'È giorno'}
             </span>
           )}
-          <span className="prototype-label">EDIZIONE DELLE SEI ERE · {BUILD_INFO.version}</span>
         </div>
       </div>
 
@@ -1673,20 +1674,6 @@ function App() {
           </div>
           {tab === 'tribe' ? (
             <>
-              <div className="tribe-heading">
-                <span className="eyebrow">UNA STORIA ANCORA DA DIRE</span>
-                <h2>
-                  Le prime voci<span>.</span>
-                </h2>
-                <p>
-                  {livingUnits.length === 7
-                    ? 'Sette vite.'
-                    : peopleCount === 1
-                      ? 'Una vita.'
-                      : `${peopleCount} vite.`}{' '}
-                  Un destino comune.
-                </p>
-              </div>
               <div className="tribe-summary">
                 <span>
                   <Users size={17} />
@@ -2093,15 +2080,6 @@ function App() {
               </button>
             )}
           </div>
-          <div className="map-header">
-            <div>
-              <span className="eyebrow">UN MONDO DA COMPRENDERE</span>
-              <h1>Ogni cosa attende un nome.</h1>
-            </div>
-            <div className="map-header-mark">
-              <Leaf size={16} /> Terra fertile
-            </div>
-          </div>
           <div className="map-frame">
             <WorldMap
               key={`${mapSession}:${game.world?.activeRegionId ?? 'local'}`}
@@ -2199,7 +2177,7 @@ function App() {
                   </button>
                 </>
               ) : (
-                'Osserva la valle. Scegli dove lasciare una traccia.'
+                'Scegli un bersaglio sulla mappa'
               )}
             </span>
             <div className="time-controls">
@@ -2244,6 +2222,22 @@ function App() {
                   </button>
                 ))}
               </div>
+              <label className="compact-speed">
+                <select
+                  aria-label="Velocità del tempo"
+                  value={game.speed}
+                  onChange={(event) => {
+                    const speed = Number(event.currentTarget.value);
+                    if (speed === 1 || speed === 2 || speed === 4)
+                      setGame((current) => ({ ...current, speed }));
+                  }}
+                >
+                  <option value={1}>1×</option>
+                  <option value={2}>2×</option>
+                  <option value={4}>4×</option>
+                </select>
+                <ChevronDown size={12} aria-hidden="true" />
+              </label>
             </div>
           </div>
           {selectedBuilding && (
@@ -2259,181 +2253,157 @@ function App() {
         </section>
 
         <aside
-          className={`discovery-panel ${mobileSection === 'discovery' ? 'mobile-visible' : ''}`}
+          className={`discovery-panel thought-rail ${mobileSection === 'discovery' ? 'mobile-visible' : ''}`}
+          aria-labelledby="thought-heading"
         >
-          <div className="discovery-title">
-            <Sparkles size={16} />
-            <span className="eyebrow">L’ORIZZONTE DEL PENSIERO</span>
-          </div>
-          {nextSpark ? (
-            <button className="spark-card" onClick={() => openSpark(nextSpark)}>
-              <span className="spark-orbit">
-                <Sparkles size={30} />
-              </span>
-              <span className="eyebrow">QUALCOSA STA CAMBIANDO</span>
-              <h2>Una scintilla.</h2>
-              <p>
-                {individuality
-                  ? (game.units.find((u) => u.id === nextSpark.unitId)?.name ?? 'Un compagno')
-                  : 'Un compagno'}{' '}
-                ha vissuto qualcosa che non sa ancora dire.
+          <h2 id="thought-heading" className="thought-rail-heading">
+            Pensiero
+          </h2>
+          <div className="thought-notebook">
+            {nextSpark ? (
+              <button className="spark-card thought-spark" onClick={() => openSpark(nextSpark)}>
+                <Sparkles size={19} aria-hidden="true" />
+                <span>
+                  <strong>Segui l’intuizione</strong>
+                  <small>
+                    {individuality
+                      ? (game.units.find((u) => u.id === nextSpark.unitId)?.name ?? 'Un compagno')
+                      : 'Un compagno'}{' '}
+                    ha una Scintilla.
+                  </small>
+                  <small>
+                    Svanisce tra{' '}
+                    {numbered
+                      ? `${Math.max(0, Math.ceil(nextSpark.expiresAt - game.time))} s`
+                      : 'poco tempo'}
+                  </small>
+                </span>
+                <ArrowUpRight size={16} aria-hidden="true" />
+              </button>
+            ) : (
+              <p className="thought-empty">
+                <Sparkles size={15} aria-hidden="true" /> Nessuna Scintilla attiva
               </p>
-              <span className="spark-cta">
-                Segui l’intuizione <ArrowUpRight size={16} />
-              </span>
-              <span className="spark-timer">
-                Svanisce tra{' '}
-                {numbered
-                  ? `${Math.max(0, Math.ceil(nextSpark.expiresAt - game.time))}s`
-                  : 'poco tempo'}
-              </span>
-            </button>
-          ) : (
-            <div className="quiet-card">
-              <div className="quiet-illustration">
-                <span />
-                <Sparkles size={30} />
-                <span />
+            )}
+            {queuedIntuitions > 0 && (
+              <div className="queued-intuitions" role="status">
+                <strong>
+                  Intuizioni da approfondire{numbered ? ` · ${queuedIntuitions}` : ''}
+                </strong>
+                <span>Le esperienze restano in attesa mentre segui le Scintille disponibili.</span>
               </div>
-              <h2>
-                Prima il vissuto.
-                <br />
-                Poi la parola.
-              </h2>
-              <p>
-                Le idee nascono dall’esperienza.
-                <br />
-                Lavora, esplora e segui le Scintille.
-              </p>
-              <span className="tiny-divider" />
-            </div>
-          )}
-          {queuedIntuitions > 0 && (
-            <div className="queued-intuitions" role="status">
-              <strong>Intuizioni da approfondire{numbered ? ` · ${queuedIntuitions}` : ''}</strong>
-              <span>
-                Le esperienze restano in attesa. Puoi seguire le Scintille visibili e tramandare le
-                parole già scoperte con calma.
-              </span>
-            </div>
-          )}
-          <div className="objective-card">
-            <span className="eyebrow">IL PROSSIMO PASSO</span>
-            <div className="objective-heading">
-              <span className="step-number">0{Math.min(9, game.tier + 1)}</span>
-              <h3>{objective.title}</h3>
-            </div>
-            <p>{objective.description}</p>
-            <div className="objective-progress">
-              <span
-                style={{
-                  width: `${Math.min(100, objective.progress * (objective.progress <= 1 ? 100 : 1))}%`,
-                }}
-              />
-            </div>
-            <div className="objective-count">
-              <span>Le nuove parole nascono dall’esperienza</span>
-              <b>
-                {objective.current}/{objective.total}
-              </b>
-            </div>
+            )}
+            <section className="thought-objective" aria-labelledby="thought-objective-heading">
+              <span className="thought-objective-label">Prossimo passo</span>
+              <h3 id="thought-objective-heading">{objective.title}</h3>
+              <p>{objective.description}</p>
+              <div className="thought-objective-progress">
+                <progress
+                  aria-label="Progresso dell’obiettivo"
+                  max={1}
+                  value={Math.min(1, Math.max(0, objective.progress))}
+                />
+                <span>
+                  {formatVisibleNumber(objective.current)}/{formatVisibleNumber(objective.total)}
+                </span>
+              </div>
+            </section>
           </div>
-          <button className="lexicon-overview" onClick={() => setPanel('lexicon')}>
-            <span className="book-stamp">
-              <BookOpen size={23} />
-            </span>
-            <span>
-              <strong>Il lessico della tribù</strong>
-              <small>
-                {known.length} parole · {slots} spazi di pensiero
-              </small>
-            </span>
-            <ChevronRight size={16} />
-          </button>
-          {hasWord(game, 'O_05') && (
-            <button className="side-action" onClick={() => setPanel('campfire')}>
-              <Flame size={17} />
+          <nav className="thought-links" aria-label="Istituzioni della civiltà">
+            <button className="thought-link" onClick={() => setPanel('lexicon')}>
+              <BookOpen size={17} aria-hidden="true" />
               <span>
-                Attorno al falò<small>Tramanda ciò che sai</small>
-              </span>
-              <ChevronRight size={15} />
-            </button>
-          )}
-          {hasWord(game, 'M_03') && (
-            <button className="side-action" onClick={() => setPanel('dogma')}>
-              <Shield size={17} />
-              <span>
-                La Pietra Sacra
+                <strong>Il lessico della tribù</strong>
                 <small>
-                  {game.dogmas.length}/
-                  {ownedBuildings.some((b) => b.kind === 'temple' && b.hp > 0 && b.active) ? 6 : 3}{' '}
-                  dogmi scolpiti
+                  {known.length} parole · {slots} spazi di pensiero
                 </small>
               </span>
-              <ChevronRight size={15} />
+              <ChevronRight size={15} aria-hidden="true" />
             </button>
-          )}
-          <nav className="civilization-nav" aria-label="Istituzioni della civiltà">
-            <button className="side-action" onClick={() => setPanel('recipes')}>
+            {hasWord(game, 'O_05') && (
+              <button className="thought-link" onClick={() => setPanel('campfire')}>
+                <Flame size={17} aria-hidden="true" />
+                <span>
+                  <strong>Attorno al falò</strong>
+                  <small>Tramanda ciò che sai</small>
+                </span>
+                <ChevronRight size={15} aria-hidden="true" />
+              </button>
+            )}
+            {hasWord(game, 'M_03') && (
+              <button className="thought-link" onClick={() => setPanel('dogma')}>
+                <Shield size={17} aria-hidden="true" />
+                <span>
+                  <strong>La Pietra Sacra</strong>
+                  <small>
+                    {game.dogmas.length}/
+                    {ownedBuildings.some((b) => b.kind === 'temple' && b.hp > 0 && b.active)
+                      ? 6
+                      : 3}{' '}
+                    dogmi scolpiti
+                  </small>
+                </span>
+                <ChevronRight size={15} aria-hidden="true" />
+              </button>
+            )}
+            <button className="thought-link" onClick={() => setPanel('recipes')}>
               <Glyph id="V_08" size={17} />
               <span>
-                Le frasi della materia<small>Ricette e costruzioni</small>
+                <strong>Le frasi della materia</strong>
+                <small>Ricette e costruzioni</small>
               </span>
-              <ChevronRight size={15} />
+              <ChevronRight size={15} aria-hidden="true" />
             </button>
             {hasWord(game, 'C_02') && (
-              <button className="side-action" onClick={() => setPanel('traditions')}>
+              <button className="thought-link" onClick={() => setPanel('traditions')}>
                 <Glyph id="C_02" size={17} />
                 <span>
-                  Tradizioni e mestieri<small>{game.traditions.length} frasi permanenti</small>
+                  <strong>Tradizioni e mestieri</strong>
+                  <small>{game.traditions.length} frasi permanenti</small>
                 </span>
-                <ChevronRight size={15} />
+                <ChevronRight size={15} aria-hidden="true" />
               </button>
             )}
             {hasWord(game, 'C_03') && (
-              <button className="side-action" onClick={() => setPanel('laws')}>
+              <button className="thought-link" onClick={() => setPanel('laws')}>
                 <Glyph id="O_14" size={17} />
                 <span>
-                  Il codice dello Stato<small>{game.laws.length} leggi attive</small>
+                  <strong>Il codice dello Stato</strong>
+                  <small>{game.laws.length} leggi attive</small>
                 </span>
-                <ChevronRight size={15} />
+                <ChevronRight size={15} aria-hidden="true" />
               </button>
             )}
             {hasWord(game, 'S_05') && (
-              <button className="side-action" onClick={() => setPanel('world')}>
+              <button className="thought-link" onClick={() => setPanel('world')}>
                 <Glyph id="S_05" size={17} />
                 <span>
-                  Gli altri popoli<small>Lingue e relazioni</small>
+                  <strong>Gli altri popoli</strong>
+                  <small>Lingue e relazioni</small>
                 </span>
-                <ChevronRight size={15} />
+                <ChevronRight size={15} aria-hidden="true" />
               </button>
             )}
             {game.tier >= 4 && (
-              <button className="side-action" onClick={() => setPanel('victory')}>
+              <button className="thought-link" onClick={() => setPanel('victory')}>
                 <Glyph id="V_13" size={17} />
                 <span>
-                  Il destino della civiltà<small>Tre condizioni di vittoria</small>
+                  <strong>Il destino della civiltà</strong>
+                  <small>Tre condizioni di vittoria</small>
                 </span>
-                <ChevronRight size={15} />
+                <ChevronRight size={15} aria-hidden="true" />
               </button>
             )}
             {target?.type === 'city' && (
-              <button className="side-action" onClick={() => setPanel('settlement')}>
+              <button className="thought-link" onClick={() => setPanel('settlement')}>
                 <Glyph id="S_09" size={17} />
-                <span>Osserva {targetName}</span>
-                <ChevronRight size={15} />
+                <span>
+                  <strong>Osserva {targetName}</strong>
+                </span>
+                <ChevronRight size={15} aria-hidden="true" />
               </button>
             )}
           </nav>
-          <div className="thought">
-            <span>“</span>
-            <p>
-              I limiti del mio linguaggio
-              <br />
-              sono i limiti del mio mondo.
-            </p>
-            <small>UNA CIVILTÀ IN DIVENIRE</small>
-          </div>
         </aside>
       </main>
 
@@ -2442,10 +2412,7 @@ function App() {
         aria-label="Costruttore di frasi"
       >
         <div className="composer-topline">
-          <div>
-            <span className="eyebrow">LA TUA VOCE</span>
-            <h2>Dai forma a un pensiero.</h2>
-          </div>
+          <h2>Componi la frase</h2>
           <div
             className="voice-meter"
             title="Ogni ordine diretto costa un punto Voce. Ne recuperi uno ogni 10 secondi."
@@ -2461,195 +2428,199 @@ function App() {
             </small>
           </div>
         </div>
-        <div className="workbench-tools-row">
-          <div className="executor-selection">
-            {!game.urbanized && (
-              <button
-                className={`text-button all-adults-button ${isAllAdultsAnchor(groupAnchor) || (individuality && isCustomGroupAnchor(groupAnchor)) ? 'active' : ''}`}
-                aria-pressed={
-                  isAllAdultsAnchor(groupAnchor) ||
-                  (individuality && isCustomGroupAnchor(groupAnchor))
-                }
-                onClick={() =>
-                  individuality && isCustomGroupAnchor(groupAnchor)
-                    ? setPanel('work-team')
-                    : chooseAllAdults()
-                }
-                title={
-                  individuality && isCustomGroupAnchor(groupAnchor)
-                    ? 'Rivedi le persone del gruppo scelto. La selezione è gratuita e non impartisce ordini.'
-                    : 'Seleziona tutti gli adulti disponibili, anche lontani dal campo. La selezione è gratuita e non impartisce ordini.'
-                }
-              >
-                <Users size={13} />{' '}
-                {individuality && isCustomGroupAnchor(groupAnchor)
-                  ? 'Gruppo scelto'
-                  : 'Tutti gli adulti'}
-              </button>
-            )}
-            {!game.urbanized && (
-              <button
-                className="text-button recall-tribe-button"
-                onClick={gatherAtCamp}
-                disabled={
-                  !game.started ||
-                  !!game.gameOver ||
-                  !!game.victory ||
-                  game.campfirePending ||
-                  game.voice < 1 ||
-                  !selectableTribeAdults(game).length
-                }
-                title="Richiama gli adulti al riparo vicino al campo. Costa un punto Voce e sostituisce gli incarichi in corso. I carichi trasportati restano a terra."
-              >
-                <Home size={16} />
-                <span className="recall-label">
-                  Raduna al campo<small aria-hidden="true">1 Voce</small>
-                </span>
-              </button>
-            )}
-            <div className="secondary-selection-controls">
-              {nearbySelectionControls()}
-              <span className="group-hint desktop-only-hints">
-                (oppure doppio click o tasto destro sulla mappa)
-              </span>
-            </div>
-          </div>
-          <div className="composer-library-shortcuts" aria-label="Frasi e costruzioni">
-            {libraryActions()}
-          </div>
-          {shownPhrases.length > 0 && (
-            <div
-              className="echo-shelf desktop-echo-shelf"
-              aria-label={recentPhrases.length ? 'Frasi recenti' : 'Frasi suggerite'}
-            >
-              <span className="echo-label">
-                <History size={12} />
-                {recentPhrases.length ? 'Echi:' : 'Spunti:'}
-              </span>
-              {shownPhrases.map((phrase) => {
-                const unavailable = phraseRecallIssue(game, phrase);
-                const isActive =
-                  phrase.length === sentence.length && phrase.every((id, i) => sentence[i] === id);
-                return (
-                  <button
-                    key={phrase.join('|')}
-                    type="button"
-                    className={`echo-chip ${isActive ? 'active' : ''}`}
-                    onClick={() => applyRecentPhrase(phrase)}
-                    disabled={!!unavailable}
-                    title={
-                      unavailable ??
-                      'Ricompone la frase senza eseguirla. Controlla il bersaglio selezionato, poi premi Pronuncia.'
-                    }
-                  >
-                    <span className="echo-chip-dot" />
-                    {phrase.map((id) => WORDS[id]?.label).join(' · ')}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-        <div className="composer-row">
-          <div
-            className="sentence-slots"
-            ref={sentenceSlotsRef}
-            role="group"
-            aria-label="Spazi della frase"
-            tabIndex={0}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => dropWord(e)}
-          >
-            {Array.from({ length: slots }, (_, i) => (
-              <div className="slot-group" key={i}>
-                {i > 0 && <Plus size={13} className="slot-plus" />}
+        <div className="command-deck" data-command-composed={commandComposed || undefined}>
+          <div className="workbench-tools-row">
+            <div className="executor-selection">
+              {!game.urbanized && (
                 <button
-                  className={`sentence-slot ${sentence[i] ? `filled word-${WORDS[sentence[i]]?.kind}` : ''} ${editingSlot === i ? 'editing' : ''}`}
-                  data-active={
-                    mobile &&
-                    wordBankOpen &&
-                    (editingSlot === i || (editingSlot === null && i === sentence.length))
+                  className={`text-button all-adults-button ${isAllAdultsAnchor(groupAnchor) || (individuality && isCustomGroupAnchor(groupAnchor)) ? 'active' : ''}`}
+                  aria-pressed={
+                    isAllAdultsAnchor(groupAnchor) ||
+                    (individuality && isCustomGroupAnchor(groupAnchor))
                   }
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.stopPropagation();
-                    dropWord(e, i);
-                  }}
-                  onClick={() => editSentenceSlot(i)}
-                  disabled={mobile && i > sentence.length}
-                  aria-pressed={mobile && sentence[i] ? editingSlot === i : undefined}
-                  aria-label={
-                    sentence[i]
-                      ? `${mobile ? 'Modifica' : 'Rimuovi'} ${WORDS[sentence[i]].label}`
-                      : `Spazio ${i + 1}: ${i === 0 ? 'chi?' : i === 1 ? 'cosa fa?' : 'con cosa?'}`
+                  onClick={() =>
+                    individuality && isCustomGroupAnchor(groupAnchor)
+                      ? setPanel('work-team')
+                      : chooseAllAdults()
+                  }
+                  title={
+                    individuality && isCustomGroupAnchor(groupAnchor)
+                      ? 'Rivedi le persone del gruppo scelto. La selezione è gratuita e non impartisce ordini.'
+                      : 'Seleziona tutti gli adulti disponibili, anche lontani dal campo. La selezione è gratuita e non impartisce ordini.'
                   }
                 >
-                  {sentence[i] ? (
-                    <>
-                      <Glyph id={sentence[i]} size={23} />
-                      <strong key={sentence[i]}>{WORDS[sentence[i]].label}</strong>
-                      {mobile ? (
-                        <Pencil size={11} className="slot-edit" />
-                      ) : (
-                        <X size={11} className="slot-remove" />
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <span className="slot-index">0{i + 1}</span>
-                      <span>
-                        {i === 0 ? 'Chi?' : i === 1 ? 'Cosa fa?' : i === 2 ? 'Con cosa?' : 'Come?'}
-                      </span>
-                    </>
-                  )}
+                  <Users size={13} />
+                  <span className="executor-label">
+                    {individuality && isCustomGroupAnchor(groupAnchor)
+                      ? 'Gruppo scelto'
+                      : 'Tutti gli adulti'}
+                  </span>
                 </button>
-              </div>
-            ))}
-            {game.tier < 4 && (
-              <div className="future-slot" title="Scopri nuove parole per espandere il pensiero">
-                <LockKeyhole size={16} />
-                <span>
-                  Il pensiero
-                  <br />
-                  può crescere.
+              )}
+              {!game.urbanized && (
+                <button
+                  className="text-button recall-tribe-button"
+                  onClick={gatherAtCamp}
+                  disabled={
+                    !game.started ||
+                    !!game.gameOver ||
+                    !!game.victory ||
+                    game.campfirePending ||
+                    game.voice < 1 ||
+                    !selectableTribeAdults(game).length
+                  }
+                  title="Richiama gli adulti al riparo vicino al campo. Costa un punto Voce e sostituisce gli incarichi in corso. I carichi trasportati restano a terra."
+                >
+                  <Home size={16} />
+                  <span className="recall-label">
+                    Raduna al campo<small aria-hidden="true">1 Voce</small>
+                  </span>
+                </button>
+              )}
+              <div className="secondary-selection-controls">
+                {nearbySelectionControls()}
+                <span className="group-hint desktop-only-hints">
+                  (oppure doppio click o tasto destro sulla mappa)
                 </span>
+              </div>
+            </div>
+            <div className="composer-library-shortcuts" aria-label="Frasi e costruzioni">
+              {libraryActions()}
+            </div>
+            {shownPhrases.length > 0 && (
+              <div
+                className="echo-shelf desktop-echo-shelf"
+                aria-label={recentPhrases.length ? 'Frasi recenti' : 'Frasi suggerite'}
+              >
+                <span className="echo-label">
+                  <History size={12} />
+                  {recentPhrases.length ? 'Echi:' : 'Spunti:'}
+                </span>
+                {shownPhrases.map((phrase) => {
+                  const unavailable = phraseRecallIssue(game, phrase);
+                  const isActive =
+                    phrase.length === sentence.length &&
+                    phrase.every((id, i) => sentence[i] === id);
+                  return (
+                    <button
+                      key={phrase.join('|')}
+                      type="button"
+                      className={`echo-chip ${isActive ? 'active' : ''}`}
+                      onClick={() => applyRecentPhrase(phrase)}
+                      disabled={!!unavailable}
+                      title={
+                        unavailable ??
+                        'Ricompone la frase senza eseguirla. Controlla il bersaglio selezionato, poi premi Pronuncia.'
+                      }
+                    >
+                      <span className="echo-chip-dot" />
+                      {phrase.map((id) => WORDS[id]?.label).join(' · ')}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
-          <div className="composer-actions">
-            <button
-              className="icon-button undo-button"
-              aria-label="Rimuovi ultima parola"
-              title="Rimuovi ultima parola (Backspace)"
-              disabled={!sentence.length}
-              onClick={() => setSentence((s) => s.slice(0, -1))}
+          <div className="composer-row">
+            <div
+              className="sentence-slots"
+              ref={sentenceSlotsRef}
+              role="group"
+              aria-label="Spazi della frase"
+              tabIndex={0}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => dropWord(e)}
             >
-              <Undo2 size={18} />
-            </button>
-            <button
-              className="pronounce-button"
-              onClick={pronounce}
-              disabled={
-                !game.started || sentence.length < 2 || !!game.gameOver || game.campfirePending
-              }
-              title={
-                game.campfirePending ? 'Concludi prima il consiglio al falò' : 'Pronuncia (Invio)'
-              }
-            >
-              <span>Pronuncia</span>
-              <ArrowRight size={18} />
-            </button>
+              {Array.from({ length: slots }, (_, i) => (
+                <div className="slot-group" key={i}>
+                  {i > 0 && <Plus size={13} className="slot-plus" />}
+                  <button
+                    className={`sentence-slot ${sentence[i] ? `filled word-${WORDS[sentence[i]]?.kind}` : ''} ${editingSlot === i ? 'editing' : ''}`}
+                    data-active={
+                      mobile &&
+                      wordBankOpen &&
+                      (editingSlot === i || (editingSlot === null && i === sentence.length))
+                    }
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.stopPropagation();
+                      dropWord(e, i);
+                    }}
+                    onClick={() => editSentenceSlot(i)}
+                    disabled={mobile && i > sentence.length}
+                    aria-pressed={mobile && sentence[i] ? editingSlot === i : undefined}
+                    aria-label={
+                      sentence[i]
+                        ? `${mobile ? 'Modifica' : 'Rimuovi'} ${WORDS[sentence[i]].label}`
+                        : `Spazio ${i + 1}: ${i === 0 ? 'chi?' : i === 1 ? 'cosa fa?' : 'con cosa?'}`
+                    }
+                  >
+                    {sentence[i] ? (
+                      <>
+                        <Glyph id={sentence[i]} size={23} />
+                        <strong key={sentence[i]}>{WORDS[sentence[i]].label}</strong>
+                        {mobile ? (
+                          <Pencil size={11} className="slot-edit" />
+                        ) : (
+                          <X size={11} className="slot-remove" />
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <span>
+                          {i === 0
+                            ? 'Chi?'
+                            : i === 1
+                              ? 'Cosa fa?'
+                              : i === 2
+                                ? 'Con cosa?'
+                                : 'Come?'}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="composer-actions">
+              <button
+                className="icon-button undo-button"
+                aria-label="Rimuovi ultima parola"
+                title="Rimuovi ultima parola (Backspace)"
+                disabled={!sentence.length}
+                onClick={() => setSentence((s) => s.slice(0, -1))}
+              >
+                <Undo2 size={18} />
+              </button>
+              <button
+                className="pronounce-button"
+                onClick={pronounce}
+                disabled={
+                  !game.started || sentence.length < 2 || !!game.gameOver || game.campfirePending
+                }
+                title={
+                  game.campfirePending ? 'Concludi prima il consiglio al falò' : 'Pronuncia (Invio)'
+                }
+              >
+                <span>Pronuncia</span>
+                <ArrowRight size={18} />
+              </button>
+            </div>
           </div>
         </div>
         <div
-          className={`sentence-feedback ${sentence.length >= 2 && !compilation.valid ? 'has-issue' : ''}`}
+          className={`sentence-feedback ${sentence.length >= 2 && (!compilation.valid || needsOrderVoice) ? 'has-issue' : ''}`}
+          data-draft={sentence.length >= 2 ? 'composed' : undefined}
+          data-needs-target={needsOrderTarget || undefined}
           aria-live="polite"
         >
           <span className={`feedback-dot ${compilation.valid ? 'valid' : ''}`} />
-          <span>
-            {sentence.length === 0
-              ? 'Scegli le parole, indica un bersaglio sulla mappa e premi Pronuncia.'
-              : compilation.message}
+          <span className="command-feedback-extended">
+            {sentence.length === 0 ? 'Scegli chi agisce e cosa deve fare.' : commandFeedback}
+          </span>
+          <span className="command-feedback-compact">
+            <span>{commandComposed ? (targetName ?? 'Frase composta') : commandFeedback}</span>
+            {commandComposed && orderUsesVoice && <strong>1 Voce</strong>}
           </span>
           <div className="keyboard-hints desktop-only-hints">
             <span>
@@ -2795,16 +2766,6 @@ function App() {
           </details>
         </MobileActionDock>
       </section>
-      <footer className="page-footer">
-        <span>
-          <BrandMark size={13} /> OGNI CIVILTÀ COMINCIA CON UNA PAROLA.
-        </span>
-        <span>
-          LINGUAGGIO · MEMORIA · CIVILTÀ<span className="footer-dot">·</span>Salvataggio automatico
-          locale
-        </span>
-      </footer>
-
       {unreadEvents.length > 0 && !panel && game.started && (
         <div className="life-notifications">
           <TribeEvents
@@ -3012,68 +2973,62 @@ function App() {
             </button>
           }
         >
-          <div className="welcome-emblem">
-            <BrandMark size={74} />
-          </div>
-          <span className="eyebrow">LA STORIA COMINCIA PRIMA DELLA STORIA</span>
-          <h2>
-            Il mondo inizia
-            <br />
-            con quattro parole<span>.</span>
-          </h2>
-          <p>
-            Una piccola tribù abita una valle senza nome.
-            <br />
-            Non conosce il domani. Non sa custodire il fuoco.
-            <br />
-            Ma può imparare a dirlo.
-          </p>
-          <div className="welcome-words">
-            {INNATE_WORDS.map((id) => (
-              <span key={id}>
-                <Glyph id={id} size={20} />
-                {WORDS[id].label}
-              </span>
-            ))}
-          </div>
-          <ModePicker
-            value={newMode}
-            onChange={(mode) => {
-              setNewMode(mode);
-              previewMap(newMap, newSeed, mode);
-              setPauseOnEvents(mode === 'guided');
-            }}
-          />
-          <MapPicker
-            value={newMap}
-            seed={newSeed}
-            onChange={changeMap}
-            onSeedChange={changeMapSeed}
-            onNewSeed={chooseNewSeed}
-          />
-          <label className="event-pause-setting">
-            <input
-              type="checkbox"
-              checked={pauseOnEvents}
-              onChange={(event) => setPauseOnEvents(event.target.checked)}
-            />
-            <span>
-              Pausa sulle Scintille e sugli eventi della tribù
-              <small>
-                Leggi con calma e riprendi il tempo quando sei pronto. Puoi cambiare questa scelta
-                nelle impostazioni.
+          <div className="opening-layout">
+            <div className="opening-story">
+              <div className="opening-cover">
+                <h2>Le prime parole</h2>
+                <p>
+                  Guida sette persone nella valle. Impara parole dalle loro esperienze e usale per
+                  dare ordini.
+                </p>
+              </div>
+              <ul className="opening-words" aria-label="Parole iniziali">
+                {INNATE_WORDS.map((id) => (
+                  <li key={id}>
+                    <Glyph id={id} size={19} />
+                    {WORDS[id].label}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="opening-setup">
+              <h3>Modalità di gioco</h3>
+              <ModePicker
+                value={newMode}
+                onChange={(mode) => {
+                  setNewMode(mode);
+                  previewMap(newMap, newSeed, mode);
+                  setPauseOnEvents(mode === 'guided');
+                }}
+              />
+              <MapPicker
+                value={newMap}
+                seed={newSeed}
+                onChange={changeMap}
+                onSeedChange={changeMapSeed}
+                onNewSeed={chooseNewSeed}
+              />
+              <label className="event-pause-setting">
+                <input
+                  type="checkbox"
+                  checked={pauseOnEvents}
+                  onChange={(event) => setPauseOnEvents(event.target.checked)}
+                />
+                <span>Pausa sulle Scintille e sugli eventi della tribù</span>
+              </label>
+              <div className="opening-help">
+                <button className="text-button" onClick={openGuide}>
+                  <CircleHelp size={15} /> Come si gioca
+                </button>
+                <button className="text-button" onClick={() => fileInput.current?.click()}>
+                  <Upload size={15} /> Importa una storia
+                </button>
+              </div>
+              <small className="opening-save-note">
+                La partita viene salvata in questo browser.
               </small>
-            </span>
-          </label>
-          <button className="text-button welcome-help" onClick={openGuide}>
-            Come si gioca <CircleHelp size={15} />
-          </button>
-          <button className="text-button welcome-help" onClick={() => fileInput.current?.click()}>
-            <Upload size={15} /> Importa una storia
-          </button>
-          <small className="welcome-note">
-            Sei ere · 45 parole · 20 edifici · Partita salvata nel browser
-          </small>
+            </div>
+          </div>
         </Modal>
       )}
 
