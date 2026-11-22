@@ -11,7 +11,7 @@ import {
   Globe2,
   X,
 } from 'lucide-react';
-import type { GameState, Target, WorldTarget } from '../game/types';
+import type { GameState, Resource, Target, WorldTarget } from '../game/types';
 import { getCalendar } from '../game/calendar';
 import { getWorldSize, getWorldSectorCount, sectorIndex } from '../game/worldDimensions';
 import {
@@ -70,6 +70,8 @@ interface WorldMapProps {
     time: number;
   } | null;
   focusRequest?: { x: number; y: number; nonce: number };
+  mobileDetailsOpen?: boolean;
+  onMobileDetailsOpenChange?: (open: boolean) => void;
 }
 
 type View = { zoom: number; centerX: number; centerY: number };
@@ -204,6 +206,8 @@ export function WorldMap({
   isGroupActive = false,
   orderFeedback = null,
   focusRequest,
+  mobileDetailsOpen,
+  onMobileDetailsOpenChange,
 }: WorldMapProps) {
   const containerRef = useRef<HTMLDivElement>(null),
     canvasRef = useRef<HTMLCanvasElement>(null),
@@ -222,6 +226,10 @@ export function WorldMap({
   const [ping, setPing] = useState<{ x: number; y: number; time: number } | null>(null);
   const [targetChoices, setTargetChoices] = useState<WorldTarget[]>([]);
   const [visibleTargetsOpen, setVisibleTargetsOpen] = useState(false);
+  const [boatCargoChoice, setBoatCargoChoice] = useState<{
+    boatId: string;
+    resource: Resource;
+  } | null>(null);
   const choiceRef = useRef<HTMLDivElement>(null);
   const choiceActivationRef = useRef<string | null>(null);
   const currentChoices = targetChoices
@@ -971,6 +979,7 @@ export function WorldMap({
     focusCandidate?.type === 'boat' ? liveMapChoice(state, focusCandidate) : focusCandidate;
   const label = targetLabel(state, focusedTarget ?? null);
   const details = targetPresentation(state, focusedTarget ?? null);
+  const showTargetCard = !!details && (mobileDetailsOpen === undefined || mobileDetailsOpen);
   const biomeDetails =
     focusedTarget === selectedTarget ? targetBiomePresentation(state, selectedTarget) : null;
   const transform = getTransform();
@@ -996,7 +1005,7 @@ export function WorldMap({
   return (
     <div
       ref={containerRef}
-      className={`lingus-world ${size.height < 200 ? 'is-short-map' : ''} ${dragging ? 'is-panning' : ''} ${commandReady ? 'is-targeting' : ''} ${details ? 'has-resource-focus' : ''}`}
+      className={`lingus-world ${size.height < 200 ? 'is-short-map' : ''} ${dragging ? 'is-panning' : ''} ${commandReady ? 'is-targeting' : ''} ${showTargetCard ? 'has-resource-focus' : ''}`}
     >
       <canvas
         ref={canvasRef}
@@ -1011,6 +1020,7 @@ export function WorldMap({
             setTargetChoices([]);
             hoveredRef.current = null;
             setHovered(null);
+            onMobileDetailsOpenChange?.(false);
             setVisibleTargetsOpen(true);
           }
         }}
@@ -1193,6 +1203,7 @@ export function WorldMap({
         title="Elementi visibili (E)"
         onClick={() => {
           setTargetChoices([]);
+          onMobileDetailsOpenChange?.(false);
           setVisibleTargetsOpen((open) => !open);
         }}
       >
@@ -1346,13 +1357,19 @@ export function WorldMap({
           <Crosshair size={17} strokeWidth={1.5} />
         </button>
       </div>
-      {details && (
+      {showTargetCard && details && (
         <div
-          className={`lingus-world__target-card ${biomeDetails ? 'has-biome-details' : ''} ${state.mapGeneration?.maritimeRules === 1 && (focusedTarget?.type === 'boat' || (focusedTarget?.type === 'building' && state.buildings.some((building) => building.id === focusedTarget.id && building.kind === 'harbor'))) ? 'has-maritime-controls' : ''}`}
+          className={`lingus-world__target-card ${biomeDetails ? 'has-biome-details' : ''} ${onMobileDetailsOpenChange ? 'has-dismiss-control' : ''} ${state.mapGeneration?.maritimeRules === 1 && (focusedTarget?.type === 'boat' || (focusedTarget?.type === 'building' && state.buildings.some((building) => building.id === focusedTarget.id && building.kind === 'harbor'))) ? 'has-maritime-controls' : ''}`}
           role="status"
           aria-label="Dettagli del bersaglio"
           tabIndex={0}
           onKeyDown={(event) => {
+            if (event.key === 'Escape' && onMobileDetailsOpenChange) {
+              event.preventDefault();
+              event.stopPropagation();
+              onMobileDetailsOpenChange(false);
+              return;
+            }
             if (
               [' ', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(
                 event.key,
@@ -1372,13 +1389,29 @@ export function WorldMap({
               : 'top'
           }
         >
+          {onMobileDetailsOpenChange && (
+            <button
+              type="button"
+              className="lingus-world__target-close"
+              aria-label="Chiudi dettagli del bersaglio"
+              onClick={() => onMobileDetailsOpenChange(false)}
+            >
+              <X size={15} />
+            </button>
+          )}
           <span className="lingus-world__target-stage">{details.stage}</span>
           <strong>{details.label}</strong>
           <p>{details.description}</p>
           {details.hint && <small>{details.hint}</small>}
           {focusedTarget &&
             (focusedTarget.type === 'boat' || focusedTarget.type === 'building') && (
-              <BoatPanel state={state} target={focusedTarget} onPrepare={onPrepareMaritime} />
+              <BoatPanel
+                state={state}
+                target={focusedTarget}
+                onPrepare={onPrepareMaritime}
+                cargoChoice={boatCargoChoice}
+                onCargoChoiceChange={setBoatCargoChoice}
+              />
             )}
           {biomeDetails && (
             <details className="map-biome-details" key={biomeDetails.biome}>

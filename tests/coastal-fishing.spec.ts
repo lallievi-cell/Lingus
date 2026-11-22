@@ -6,7 +6,7 @@ import { isDryLandPoint, planLandRoute } from '../src/game/landNavigation';
 import { validSave } from '../src/game/saveValidation';
 import { createBuilding } from '../src/game/simulation';
 import type { GameState } from '../src/game/types';
-import { closeWordBank } from './mobile-ui';
+import { closeWordBank, openTargetDetails } from './mobile-ui';
 
 const SAVE_KEY = 'lingus.save.v2';
 
@@ -90,10 +90,11 @@ for (const viewport of [
       .fill('Punto di pesca');
     await elements.getByRole('button', { name: /Punto di pesca/ }).click();
     await expect(elements).toHaveCount(0);
+    await expect(page.getByRole('img', { name: /Mappa della valle/ })).toBeFocused();
+    await openTargetDetails(page);
     const details = page.getByRole('status', { name: 'Dettagli del bersaglio', exact: true });
     await expect(details).toContainText('Punto di pesca');
     await expect(details).toContainText('terraferma');
-    await expect(page.getByRole('img', { name: /Mappa della valle/ })).toBeFocused();
 
     await page.getByRole('button', { name: 'Apri frasario', exact: true }).click();
     const fishing = book(page).getByRole('article', {
@@ -109,6 +110,7 @@ for (const viewport of [
     await expect(
       page.getByRole('button', { name: 'Deseleziona bersaglio', exact: true }),
     ).toBeVisible();
+    await openTargetDetails(page);
     await expect(details).toContainText('Punto di pesca');
     const prepared = await saved(page);
     expect(prepared.stats.commands).toBe(0);

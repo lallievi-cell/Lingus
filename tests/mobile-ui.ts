@@ -24,3 +24,9 @@ export async function showRecentPhrases(page: Page) {
     await tools.locator('summary').click();
   return page.locator('.echo-shelf[aria-label="Frasi recenti"]:visible');
 }
+
+/** Mobile maps keep target cards closed until the player taps the toolbar target. */
+export async function openTargetDetails(page: Page) {
+  const trigger = page.locator('.map-toolbar .map-toolbar-target[aria-expanded="false"]');
+  if (await trigger.isVisible()) await trigger.click();
+}

@@ -417,8 +417,39 @@
     system-ui,
     sans-serif;
 }
-.lingus-world__target-card.has-biome-details {
+.lingus-world__target-card.has-biome-details,
+.lingus-world__target-card.has-dismiss-control {
   pointer-events: auto;
+}
+.lingus-world__target-card.has-dismiss-control .lingus-world__target-stage,
+.lingus-world__target-card.has-dismiss-control > strong {
+  padding-right: 36px;
+}
+.lingus-world__target-close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #546652;
+  cursor: pointer;
+}
+.lingus-world__target-close:hover {
+  background: #344d3514;
+  color: #213a30;
+}
+.lingus-world__target-close:focus-visible {
+  outline: 2px solid #738b59;
+  outline-offset: -3px;
 }
 .map-biome-details {
   border-top: 1px solid #b8b89b59;

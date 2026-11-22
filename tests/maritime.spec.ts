@@ -8,7 +8,7 @@ import { createBuilding } from '../src/game/simulation';
 import { validSave } from '../src/game/saveValidation';
 import { BOAT_BUILD_COST, BOAT_SPEED } from '../src/game/maritimeConfig';
 import type { Boat, GameState } from '../src/game/types';
-import { closeWordBank } from './mobile-ui';
+import { closeWordBank, openTargetDetails } from './mobile-ui';
 
 /** Prepared technology and a coastal camp isolate the public maritime loop.
  * Every construction, boarding and voyage after setup uses normal UI orders. */
@@ -151,6 +151,7 @@ const details = (page: Page) =>
   page.getByRole('status', { name: 'Dettagli del bersaglio', exact: true });
 async function openBoat(page: Page) {
   await elements(page, 'barca');
+  await openTargetDetails(page);
   const panel = details(page).locator('details.boat-panel');
   if ((await panel.getAttribute('open')) === null)
     await panel.getByText('Equipaggio, carico e ordini', { exact: true }).click();
@@ -211,6 +212,7 @@ for (const width of [390, 1440]) {
     state.boats = [];
     await load(page, state);
     await elements(page, 'Approdo');
+    await openTargetDetails(page);
     await details(page).getByText('Barche e traversate', { exact: true }).click();
     await details(page).getByRole('button', { name: 'Prepara una barca', exact: true }).click();
     const boatPrepared = await saved(page);

@@ -381,6 +381,43 @@
     font-size: 11px;
     color: var(--hud-ink);
   }
+  .app .map-toolbar .map-toolbar-target {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    max-width: 100%;
+    flex: 0 1 auto;
+    min-height: 44px;
+    height: 44px;
+    padding: 0 8px 0 4px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--hud-ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .app .map-toolbar .map-toolbar-target > svg {
+    flex-shrink: 0;
+    color: var(--material-accent);
+  }
+  .app .map-toolbar .map-toolbar-target > strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    color: var(--hud-ink);
+  }
+  .app .map-toolbar .map-toolbar-target.has-maritime {
+    background: #ffffff0c;
+    box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--material-accent) 65%, transparent);
+  }
+  .app .map-toolbar .map-toolbar-target.active {
+    background: var(--hud-raised);
+    box-shadow: inset 0 -2px 0 var(--material-accent);
+  }
   .app .map-toolbar > span > svg,
   .app .map-toolbar .icon-button {
     flex-shrink: 0;
