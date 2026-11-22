@@ -3,6 +3,8 @@ import { freeCapacity, hasWord } from '../game/runtime';
 import type { GameState, Inventory, Resource } from '../game/types';
 import { getWorldSize } from '../game/worldDimensions';
 import { hasHomeLandAccess } from '../game/maritimeInventory';
+import { hasPhysicalCamp } from '../game/physicalCamp';
+import { isDryLandPoint } from '../game/landNavigation';
 
 export type StockLevel = 0 | 1 | 2 | 3;
 export type CampStockGroup = 'food' | 'wood' | 'stone' | 'pelt' | 'goods';
@@ -175,7 +177,7 @@ const stockGroups: { group: CampStockGroup; resources: Resource[]; offset: [numb
 
 /** Decorative stock anchors: no ground entities, collisions or inventory writes. */
 export function getCampStockSlots(state: GameState): CampStockSlot[] {
-  if (state.urbanized) return [];
+  if (state.urbanized || !hasPhysicalCamp(state)) return [];
   const worldEdge = getWorldSize(state) - 2;
   const allocated: { x: number; y: number }[] = [];
   const buildings = state.buildings.filter((building) => building.hp > 0);
@@ -195,8 +197,14 @@ export function getCampStockSlots(state: GameState): CampStockSlot[] {
         }),
       ),
     ].filter(
-      (point) => point.x >= 2 && point.x <= worldEdge && point.y >= 2 && point.y <= worldEdge,
+      (point) =>
+        point.x >= 2 &&
+        point.x <= worldEdge &&
+        point.y >= 2 &&
+        point.y <= worldEdge &&
+        (state.mapGeneration?.worldRules !== 1 || isDryLandPoint(state, point)),
     );
+    if (!candidates.length) return [];
     const clearance = (point: { x: number; y: number }) =>
       Math.min(
         ...buildings.map(

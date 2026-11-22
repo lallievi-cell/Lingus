@@ -6,6 +6,7 @@ import { resolveUnitSex } from '../game/demography';
 import { visibleUnitEquipment } from '../game/unitEquipment';
 import { getRiverFords, isLandPoint } from '../game/landNavigation';
 import { isSeaPoint } from '../game/coastGeometry';
+import { hasPhysicalCamp } from '../game/physicalCamp';
 import { isWorldPointRevealed } from '../game/worldDimensions';
 import type { GameState, MapEntity, WorldTarget } from '../game/types';
 import { groundPileFor, resourceKnown, resourcePileLabel } from './mapResourceLayout';
@@ -197,6 +198,16 @@ export function targetPresentation(
   target: WorldTarget | null,
 ): TargetPresentation | null {
   if (!target) return null;
+  if (target.type === 'point' && target.regionId && state.world) {
+    return {
+      label: 'Confine verso una regione vicina',
+      stage: 'Viaggio fra regioni',
+      kind: 'landmark',
+      description:
+        'Raggiungi il confine: persone, equipaggi e carichi passano insieme. Le scorte restano qui.',
+      hint: 'Controlla il gruppo e l’anteprima, poi premi Pronuncia. Preparare il viaggio non sposta le persone e non consuma Voce.',
+    };
+  }
   if (target.type === 'boat') {
     const boat = state.boats?.find((item) => item.id === target.id && item.hp > 0);
     const presentation = boat && getBoatPresentation(state, boat);
@@ -423,7 +434,9 @@ export function targetPresentation(
       };
     if (building?.kind === 'campfire') {
       const lit = building.active && building.hp > 0 && building.completed !== false;
-      const coversRest = Math.hypot(building.x - state.home.x, building.y - state.home.y) + 8 <= 15;
+      const camp = hasPhysicalCamp(state);
+      const coversRest =
+        camp && Math.hypot(building.x - state.home.x, building.y - state.home.y) + 8 <= 15;
       return {
         label: `${BUILDING_NAMES.campfire} · ${lit ? 'Acceso' : 'Spento'}`,
         stage: lit
@@ -445,9 +458,11 @@ export function targetPresentation(
           ? hasWord(state, 'O_08')
             ? 'Per riaccenderlo serve un’unità di legno.'
             : 'Per riaccenderlo serve legno.'
-          : coversRest
-            ? 'Il calore raggiunge tutta la zona in cui la tribù si addormenta. Controlla se la temperatura sta risalendo: una tormenta può richiedere anche ripari e pelli.'
-            : 'Una parte del giaciglio della tribù è fuori dal calore. Durante il gelo servono anche ripari o vestiti.',
+          : !camp
+            ? 'La tribù può riscaldarsi vicino al fuoco.'
+            : coversRest
+              ? 'Il calore raggiunge tutta la zona in cui la tribù si addormenta. Controlla se la temperatura sta risalendo: una tormenta può richiedere anche ripari e pelli.'
+              : 'Una parte del giaciglio della tribù è fuori dal calore. Durante il gelo servono anche ripari o vestiti.',
       };
     }
     if (building && ['storage', 'depot'].includes(building.kind))

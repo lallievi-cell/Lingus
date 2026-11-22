@@ -27,6 +27,7 @@ import { drawRegionalSieges } from './mapSiegeArt';
 import { getBattalionDisplayPoint } from './regionalLayout';
 import { foreignUnitDisposition } from './unitReadability';
 import { getCampStockSlots } from './campInventory';
+import { hasPhysicalCamp } from '../game/physicalCamp';
 import { drawCampStock } from './mapCampStockArt';
 import { drawMapGroundShadows } from './mapLighting';
 import { drawMapWorkEffects } from './mapWorkEffects';
@@ -570,7 +571,7 @@ function rock(
 export function createTerrain(
   seed: number,
   seasonIndex: number,
-  world?: Pick<GameState, 'mapGeneration' | 'sectors' | 'home'>,
+  world?: Parameters<typeof createPainterlyTerrain>[2],
 ): HTMLCanvasElement {
   return createPainterlyTerrain(seed, seasonIndex, world);
 }
@@ -1035,7 +1036,7 @@ export function drawSelection(
 }
 
 function drawCampground(ctx: CanvasRenderingContext2D, state: GameState, showBoundary: boolean) {
-  if (state.urbanized || !state.home || !showBoundary) return;
+  if (state.urbanized || !state.home || !showBoundary || !hasPhysicalCamp(state)) return;
   const p = worldPoint(state.home.x, state.home.y);
   const isNight = getCalendar(state).isNight;
 
@@ -1833,7 +1834,7 @@ export function drawWorld(
       UNIT_ART_SCALE,
     );
   }
-  if (hasConcept(state, 'O_10')) {
+  if (hasConcept(state, 'O_10') && hasPhysicalCamp(state)) {
     const p = worldPoint(state.home.x, state.home.y),
       radius = visibleBorderRadius(state);
     ctx.strokeStyle = '#a5ae6a99';

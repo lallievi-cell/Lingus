@@ -1,9 +1,11 @@
 import type { GameState, Sector } from '../game/types';
+import { hasPhysicalCamp } from '../game/physicalCamp';
 import { getWorldSectorCount, getWorldSize } from '../game/worldDimensions';
 import { createRiverArtGeometry, sampleRiverArt, traceRiverArt } from './mapRiverGeometry';
 import { paintCoastSand, paintCoastWater } from './mapCoastArt';
 
-type World = Pick<GameState, 'mapGeneration' | 'sectors' | 'home'>;
+type World = Pick<GameState, 'mapGeneration' | 'sectors' | 'home'> &
+  Partial<Pick<GameState, 'world' | 'units' | 'buildings' | 'cities' | 'resources'>>;
 type Point = { x: number; y: number };
 type Color = readonly [number, number, number];
 const WIDTH = 1200,
@@ -723,7 +725,9 @@ export function createPainterlyTerrain(
   const season = seasonIndex % 4;
   const originalSeed = world?.mapGeneration?.seed ?? seed;
   const sectors = world?.sectors ?? defaultSectors();
-  const home = world?.home ?? { x: 250, y: 250 };
+  // An uninhabited region has a bookkeeping home, not a clearing or worn paths.
+  const home =
+    world && !hasPhysicalCamp(world) ? { x: -1000, y: -1000 } : (world?.home ?? { x: 250, y: 250 });
   const worldSize = getWorldSize(world ?? {});
   const projection: Projection = {
     sx: WIDTH / worldSize,

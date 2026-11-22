@@ -217,7 +217,9 @@ function inventoryFor(s: GameState, c?: City): Inventory {
 }
 function bindCapital(s: GameState) {
   const c = capital(s);
-  if (c) c.resources = s.resources;
+  // In a connected world the actual capital may be in another region.
+  // A local province keeps its own stocks rather than becoming a second capital.
+  if (c && (!s.world || c.capital)) c.resources = s.resources;
 }
 function addLog(
   s: GameState,
@@ -3773,12 +3775,17 @@ export function finishWorldImperial(s: GameState, dt: number, seasonal = false) 
         s.revoltTension = clamp(s.revoltTension - 20);
     if (hasWord(s, 'M_04')) {
       const people = activeUnits(s);
-      const mean = people.reduce((sum, person) => sum + (person.wealth ?? 0), 0) / Math.max(1, people.length);
-      s.inequality = clamp(s.inequality + people.filter((person) => (person.wealth ?? 0) > mean).length * 0.5);
+      const mean =
+        people.reduce((sum, person) => sum + (person.wealth ?? 0), 0) / Math.max(1, people.length);
+      s.inequality = clamp(
+        s.inequality + people.filter((person) => (person.wealth ?? 0) > mean).length * 0.5,
+      );
     }
   }
   const owned = ownCities(s);
-  s.corruption = owned.length ? owned.reduce((sum, city) => sum + (city.corruption ?? 0), 0) / owned.length : 0;
+  s.corruption = owned.length
+    ? owned.reduce((sum, city) => sum + (city.corruption ?? 0), 0) / owned.length
+    : 0;
   if (s.urbanized && !owned.length)
     s.gameOver = 'Tutte le città sono state perdute. L’Impero non ha più una casa.';
   evaluateVictory(s, seasonal);

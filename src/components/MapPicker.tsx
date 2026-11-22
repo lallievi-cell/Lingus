@@ -42,9 +42,7 @@ export function MapPicker({
       <div className="map-picker-options">
         <button type="button" aria-pressed={value === 'random'} onClick={() => onChange('random')}>
           <strong>Casuale</strong>
-          <small>
-            Una regione quattro volte più ampia, con sei ambienti e otto culture da incontrare.
-          </small>
+          <small>Una regione con fiume, costa, isole vicine e otto culture da incontrare.</small>
         </button>
         <button type="button" aria-pressed={value === 'world'} onClick={() => onChange('world')}>
           <strong>Mondo</strong>
@@ -87,7 +85,7 @@ export function MapPicker({
             </small>
           ) : (
             <small id="map-seed-hint">
-              Conserva questo codice per ritrovare la valle. Vuoto: una nuova mappa casuale.
+              Conserva questo codice per ritrovare il territorio. Vuoto: una nuova mappa casuale.
             </small>
           )}
         </div>

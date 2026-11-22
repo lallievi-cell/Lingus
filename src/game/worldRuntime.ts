@@ -6,6 +6,25 @@ const localKeys = new Set<string>(WORLD_LOCAL_KEYS);
 type RegionContext = { root: GameState; regionId: string; aggregate?: boolean };
 const contexts = new WeakMap<GameState, RegionContext>();
 
+/** A regional projection keeps the observed region unchanged. */
+export function currentWorldRegionId(state: GameState): string | undefined {
+  return contexts.get(state)?.regionId ?? state.world?.activeRegionId;
+}
+
+/** Actual local views, suitable for presence checks; never mix their coordinates. */
+export function worldRegionStates(state: GameState): GameState[] {
+  const context = contexts.get(state);
+  const root = context?.root ?? state;
+  if (!root.world) return [state];
+  return Object.keys(root.world.regions)
+    .sort()
+    .flatMap((id) => {
+      if (context?.regionId === id && !context.aggregate) return [state];
+      const local = regionProjection(root, id);
+      return local ? [local] : [];
+    });
+}
+
 /** Capture references inside an already isolated command/tick transaction. */
 export function captureRegion(state: GameState): RegionState {
   return Object.fromEntries(
@@ -100,17 +119,22 @@ function regionalPayloads(state: GameState): RegionState[] {
 }
 
 export function allWorldUnits(state: GameState): Unit[] {
+  if (!state.world) return state.units;
   return regionalPayloads(state).flatMap((region) => region.units);
 }
 
 export function allWorldCities(state: GameState): City[] {
+  if (!state.world) return state.cities;
   return regionalPayloads(state).flatMap((region) => region.cities);
 }
 
 export function regionOfUnit(state: GameState, unitId: string): string | undefined {
-  const world = state.world;
+  const root = contexts.get(state)?.root ?? state;
+  const world = root.world;
   if (!world) return undefined;
-  if (state.units.some((unit) => unit.id === unitId)) return world.activeRegionId;
+  if (state.units.some((unit) => unit.id === unitId) && !contexts.get(state)?.aggregate)
+    return currentWorldRegionId(state);
+  if (root.units.some((unit) => unit.id === unitId)) return world.activeRegionId;
   return Object.keys(world.regions).find((id) =>
     world.regions[id].snapshot?.units.some((unit) => unit.id === unitId),
   );

@@ -49,6 +49,8 @@ import { VisibleWorldTargets } from './VisibleWorldTargets';
 import { targetBiomePresentation } from './biomePresentation';
 import { BoatPanel } from './BoatPanel';
 import { unitIsSeatedAboard } from './mapMaritimeArt';
+import { hasPhysicalCamp } from '../game/physicalCamp';
+import { worldRegionLabel } from './WorldAtlas';
 import './WorldMap.css';
 
 interface WorldMapProps {
@@ -87,8 +89,13 @@ function viewBounds(state: GameState) {
   const points = [
     ...sectors.map((s) => ({ x: s.x * 100 + 50, y: s.y * 100 + 50 })),
     ...(state.explored ?? []),
-    state.home ?? { x: worldSize / 2, y: worldSize / 2 },
+    ...(hasPhysicalCamp(state) ? [state.home] : []),
+    ...state.units.filter(
+      (unit) => unit.hp > 0 && (!unit.factionId || unit.factionId === 'player'),
+    ),
+    ...(state.boats ?? []).filter((boat) => boat.hp > 0 && boat.ownerId === 'player'),
   ];
+  if (!points.length) points.push({ x: worldSize / 2, y: worldSize / 2 });
   const xs = points.map((p) => sectorIndex(state, p.x));
   const ys = points.map((p) => sectorIndex(state, p.y));
   return {
@@ -97,6 +104,16 @@ function viewBounds(state: GameState) {
     maxX: (Math.max(...xs) + 1) * 100,
     maxY: (Math.max(...ys) + 1) * 100,
   };
+}
+
+/** A boat on an empty sea kilometre must not focus a fictitious camp ashore. */
+function regionFocus(state: GameState) {
+  if (hasPhysicalCamp(state)) return state.home;
+  return (
+    state.units.find((unit) => unit.hp > 0 && (!unit.factionId || unit.factionId === 'player')) ??
+    state.boats?.find((boat) => boat.hp > 0 && boat.ownerId === 'player') ??
+    state.explored.at(-1) ?? { x: getWorldSize(state) / 2, y: getWorldSize(state) / 2 }
+  );
 }
 
 function minimumZoom(state: GameState) {
@@ -155,6 +172,7 @@ function targetLabel(state: GameState, target: WorldTarget | null) {
   if (
     target.type === 'point' &&
     state.home &&
+    hasPhysicalCamp(state) &&
     Math.hypot(target.x - state.home.x, target.y - state.home.y) <= 10
   ) {
     return 'Giaciglio della tribù · Luogo del riposo notturno';
@@ -243,10 +261,12 @@ export function WorldMap({
   groupActiveRef.current = isGroupActive;
   orderFeedbackRef.current = orderFeedback;
   const worldSize = getWorldSize(state);
+  const focus = regionFocus(state);
+  const campPresent = hasPhysicalCamp(state);
   const initialView: View = {
     zoom: state.tier >= 4 ? WORLD_SIZE / worldSize : 4.5,
-    centerX: state.tier >= 4 ? worldSize / 2 : (state.home?.x ?? worldSize / 2),
-    centerY: state.tier >= 4 ? worldSize / 2 : (state.home?.y ?? worldSize / 2),
+    centerX: state.tier >= 4 ? worldSize / 2 : focus.x,
+    centerY: state.tier >= 4 ? worldSize / 2 : focus.y,
   };
   const viewRef = useRef<View>(initialView),
     previousTier = useRef(state.tier);
@@ -293,6 +313,7 @@ export function WorldMap({
       state.seasonIndex,
       state.home.x,
       state.home.y,
+      campPresent,
     ],
   );
   useEffect(() => {
@@ -835,7 +856,7 @@ export function WorldMap({
           miniCtx.lineTo(mw, (i * mh) / sectorCount);
           miniCtx.stroke();
         }
-      if (!current.urbanized && current.home) {
+      if (!current.urbanized && current.home && hasPhysicalCamp(current)) {
         miniCtx.fillStyle = '#b5974f';
         miniCtx.beginPath();
         miniCtx.arc(
@@ -971,8 +992,8 @@ export function WorldMap({
   const focusCamp = () =>
     setView({
       zoom: stateRef.current.tier >= 4 ? 2 : 4.5,
-      centerX: stateRef.current.home?.x ?? 250,
-      centerY: stateRef.current.home?.y ?? 250,
+      centerX: regionFocus(stateRef.current).x,
+      centerY: regionFocus(stateRef.current).y,
     });
   const focusCandidate = hovered && hovered.type !== 'point' ? hovered : selectedTarget;
   const focusedTarget =
@@ -1292,9 +1313,23 @@ export function WorldMap({
       <div className="lingus-world__location" aria-hidden="true">
         <MapPin size={13} strokeWidth={1.5} />
         <div>
-          <span>{state.tier >= 4 ? 'LE TERRE DELLE MOLTE VOCI' : 'LA VALLE DELLE ORIGINI'}</span>
+          <span>
+            {state.world
+              ? 'LE TERRE DEL MONDO'
+              : state.tier >= 4
+                ? 'LE TERRE DELLE MOLTE VOCI'
+                : 'LA VALLE DELLE ORIGINI'}
+          </span>
           <small>
-            {state.tier >= 4 ? 'Una lingua, molti destini' : 'Un mondo che aspetta le tue parole'}
+            {state.world
+              ? worldRegionLabel(
+                  state,
+                  state.mapGeneration?.regionX ?? 0,
+                  state.mapGeneration?.regionY ?? 0,
+                )
+              : state.tier >= 4
+                ? 'Una lingua, molti destini'
+                : 'Un mondo che aspetta le tue parole'}
           </small>
         </div>
       </div>
@@ -1313,7 +1348,13 @@ export function WorldMap({
           className="lingus-world__stocks"
           type="button"
           onClick={onInspectStocks}
-          aria-label={state.world ? 'Scorte della regione osservata' : state.urbanized ? 'Scorte della capitale' : 'Scorte del campo'}
+          aria-label={
+            state.world
+              ? 'Scorte della regione osservata'
+              : state.urbanized
+                ? 'Scorte della capitale'
+                : 'Scorte del campo'
+          }
           title="Consulta cibo, materiali e pelli già consegnati"
         >
           <PackageOpen size={17} />
@@ -1321,7 +1362,12 @@ export function WorldMap({
         </button>
       )}
       {onOpenAtlas && (
-        <button className="lingus-world__atlas" type="button" onClick={onOpenAtlas} aria-label="Atlante del mondo">
+        <button
+          className="lingus-world__atlas"
+          type="button"
+          onClick={onOpenAtlas}
+          aria-label="Atlante del mondo"
+        >
           <Globe2 size={17} />
           <span>Atlante</span>
         </button>
@@ -1351,8 +1397,8 @@ export function WorldMap({
         <button
           type="button"
           onClick={focusCamp}
-          aria-label="Torna all'accampamento"
-          title="Torna all'accampamento"
+          aria-label={campPresent ? "Torna all'accampamento" : 'Centra sul gruppo nella regione'}
+          title={campPresent ? "Torna all'accampamento" : 'Centra sul gruppo nella regione'}
         >
           <Crosshair size={17} strokeWidth={1.5} />
         </button>
@@ -1382,6 +1428,7 @@ export function WorldMap({
           }}
           data-resource-stage={details.kind}
           data-terrain-focus={details.stage === 'Terreno esplorato'}
+          data-world-boundary={focusedTarget?.regionId ? 'true' : undefined}
           data-mobile-placement={
             focusedTarget &&
             focusedTarget.y * WORLD_Y * getTransform().scale + getTransform().y < size.height / 2
@@ -1448,7 +1495,11 @@ export function WorldMap({
       <button
         className="lingus-world__minimap"
         type="button"
-        aria-label="Centra la mappa sull'accampamento"
+        aria-label={
+          campPresent
+            ? "Centra la mappa sull'accampamento"
+            : 'Centra la mappa sul gruppo nella regione'
+        }
         onClick={focusCamp}
         title="Torna alla tribù"
       >

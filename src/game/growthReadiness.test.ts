@@ -30,6 +30,35 @@ function family(): GameState {
 }
 
 describe('shared physical conditions for births', () => {
+  it('grants the original camp housing only in its native world region', () => {
+    const state = family();
+    state.mapGeneration = {
+      mode: 'random',
+      seed: 1,
+      version: 1,
+      worldSize: 1000,
+      worldRules: 1,
+      worldSeed: 1,
+      regionX: 0,
+      regionY: 0,
+    };
+    state.world = {
+      version: 1,
+      seed: 1,
+      width: 4,
+      height: 4,
+      activeRegionId: '0:0',
+      homeRegionId: '0:0',
+      regions: { '0:0': { id: '0:0', x: 0, y: 0, discovered: true } },
+      transfers: [],
+    };
+    expect(villageHousing(state)).toBe(BASE_HOUSING);
+    state.mapGeneration.regionX = 1;
+    expect(villageHousing(state)).toBe(0);
+    createReadyBuilding(state, 'house');
+    expect(villageHousing(state)).toBe(12);
+  });
+
   it('uses completed active owned housing and ignores unfinished, foreign, inactive or destroyed homes', () => {
     const state = family();
     expect(villageHousing(state)).toBe(BASE_HOUSING);

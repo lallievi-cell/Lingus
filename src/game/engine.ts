@@ -33,7 +33,13 @@ import { isSeaPoint } from './coastGeometry';
 import { handleMaritimeCommand } from './maritimeOrders';
 import { findShoreAccess } from './shoreAccess';
 import type { WorldSize } from './worldDimensions';
-import { allWorldUnits, globalWorldProjection, regionOfUnit, runInRegion, syncGlobalState } from './worldRuntime';
+import {
+  allWorldUnits,
+  globalWorldProjection,
+  regionOfUnit,
+  runInRegion,
+  syncGlobalState,
+} from './worldRuntime';
 import { issueWorldTravel } from './worldTravel';
 import { tickWorld } from './worldSimulation';
 import {
@@ -234,9 +240,18 @@ export function issueCommand(
   trace?: CommandTrace,
 ): GameState {
   if (state.world && target?.regionId !== undefined)
-    return issueWorldTravel(state, tokens, target, executorId, selectionCenter, trace, issueCommand);
+    return issueWorldTravel(
+      state,
+      tokens,
+      target,
+      executorId,
+      selectionCenter,
+      trace,
+      issueCommand,
+    );
   let s = copy(state);
-  const worldBoundary = !!s.world && target?.type === 'point' && target.id?.startsWith('world-boundary:') === true;
+  const worldBoundary =
+    !!s.world && target?.type === 'point' && target.id?.startsWith('world-boundary:') === true;
   const compiled = compileSentence(s, tokens, target);
   if (!compiled.valid) {
     log(s, compiled.message, 'warning');
@@ -694,13 +709,13 @@ export function issueCommand(
         const destination = worldBoundary
           ? target
           : args.includes('O_01')
-          ? s.home
-          : args.includes('S_05')
-            ? nearest(
-                s.cities.filter((c) => c.factionId !== 'player'),
-                u,
-              )
-            : target;
+            ? s.home
+            : args.includes('S_05')
+              ? nearest(
+                  s.cities.filter((c) => c.factionId !== 'player'),
+                  u,
+                )
+              : target;
         u.tx = destination?.x ?? s.home.x;
         u.ty = destination?.y ?? s.home.y;
       } else if (verb === 'V_02') {

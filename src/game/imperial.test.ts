@@ -123,6 +123,27 @@ function isolate(s: GameState) {
 }
 
 describe('urban demographics and physical logistics', () => {
+  it('keeps a remote world province inventory separate from its regional camp', () => {
+    const s = isolate(fixture());
+    s.world = {
+      version: 1,
+      seed: 5678,
+      width: 4,
+      height: 4,
+      activeRegionId: '1:0',
+      homeRegionId: '0:0',
+      regions: { '1:0': { id: '1:0', x: 1, y: 0, discovered: true } },
+      transfers: [],
+    };
+    const province = city(s, 'province');
+    province.resources.wood = 11;
+    s.resources.wood = 3;
+    updateImperial(s, 0, { regional: true });
+    expect(province.resources).not.toBe(s.resources);
+    expect(province.resources.wood).toBe(11);
+    expect(s.resources.wood).toBe(3);
+  });
+
   it('learns to exchange from a paid physical gift before Scambiare is known', () => {
     let s = isolate(fixture());
     delete s.words.V_11;

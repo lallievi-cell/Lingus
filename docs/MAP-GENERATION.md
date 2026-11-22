@@ -77,3 +77,7 @@ Le città e le risorse iniziali restano sulla terraferma. Le postazioni di pesca
 La geometria degli isolotti è condivisa da mare, sabbia, fertilità e navigazione. Un segmento con entrambi gli estremi asciutti non può tagliare il mare; una rotta d’acqua non può tagliare un’isola. Gli accessi alla riva verificano un solo passaggio da terra asciutta ad acqua e restano brevi. Le cache distinguono il profilo marittimo da quello costiero precedente.
 
 Importare un mondo senza questo metadato conserva la costa e la geografia già giocate. La regione resta di 1.000 × 1.000 metri; la generazione di continenti e bacini interni richiederà il successivo passaggio a più regioni descritto in [WORLD-SCALE.md](WORLD-SCALE.md).
+
+## Mondo a regioni 0.10.0
+
+La scelta esplicita **Mondo** usa `worldRules: 1`, `worldSeed`, `regionX` e `regionY`, insieme alle precedenti regole marittime. Sedici regioni da mille metri condividono poligoni globali e tratti fluviali; il seed geografico originale rimane distinto dal RNG della simulazione. Soltanto la regione iniziale nasce subito, con sette fondatori e otto culture. Le altre vengono generate al primo arrivo, con riserve finite e nessuna persona, città o scorta gratuita. La partita conserva gli archivi completi delle regioni generate e i trasferimenti in corso; non rigenera i nodi al ritorno. Casuale e Seed Zero mantengono i propri generatori. Scala, struttura comune dei continenti e limiti sono descritti in [WORLD-SCALE.md](WORLD-SCALE.md).

@@ -86,7 +86,7 @@ import { GrowthReadiness, IndividualGrowthReadiness } from './components/GrowthR
 import { GuidedCouncil, CouncilRules } from './components/GuidedCouncil';
 import { getCalendar, hasOpeningBalance, seasonStart } from './game/calendar';
 import { getWorldSize, REGION_WORLD_SIZE } from './game/worldDimensions';
-import { switchWorldRegion } from './game/worldRuntime';
+import { regionOfUnit, switchWorldRegion } from './game/worldRuntime';
 import { resolveUnitSex } from './game/demography';
 import { TeachingPanel } from './components/TeachingPanel';
 import { MobileActionDock } from './components/MobileActionDock';
@@ -258,10 +258,14 @@ function App() {
   const contextualSnapshot = useRef({ game, session: mapSession });
   const [newMode, setNewMode] = useState<'guided' | 'classic'>(game.playMode ?? 'guided');
   const [newMap, setNewMap] = useState<MapChoice>(
-    game.world ? 'world' : game.mapGeneration?.mode ?? (game.started ? 'random' : 'seed-zero'),
+    game.world ? 'world' : (game.mapGeneration?.mode ?? (game.started ? 'random' : 'seed-zero')),
   );
   const [newSeed, setNewSeed] = useState(
-    game.world ? String(game.world.seed) : game.mapGeneration ? String(game.mapGeneration.seed) : '',
+    game.world
+      ? String(game.world.seed)
+      : game.mapGeneration
+        ? String(game.mapGeneration.seed)
+        : '',
   );
   const newMapValid = newMap === 'seed-zero' || mapSeedValid(newSeed);
   const [pauseOnEvents, setPauseOnEvents] = useState(() =>
@@ -269,6 +273,7 @@ function App() {
   );
   const [dismissedEvents, setDismissedEvents] = useState<Set<string>>(() => new Set());
   const [focusRequest, setFocusRequest] = useState<{ x: number; y: number; nonce: number }>();
+  const pendingPersonInspection = useRef<string | null>(null);
   const eventSnapshot = useRef(new Set((game.tribeEvents ?? []).map((event) => event.id)));
   const sparkSnapshot = useRef(
     new Set(game.sparks.filter((spark) => !spark.deferred).map((spark) => spark.id)),
@@ -424,7 +429,7 @@ function App() {
               )),
         )));
   const targetSelectionKey = target
-    ? `${target.type}:${target.id ?? `${Math.round(target.x)},${Math.round(target.y)}`}`
+    ? `${target.type}:${target.id ?? `${Math.round(target.x)},${Math.round(target.y)}`}:${target.regionId ?? ''}`
     : '';
   useEffect(() => {
     setMobileTargetDetailsOpen(false);
@@ -432,6 +437,60 @@ function App() {
   useEffect(() => {
     if (!targetDetails || wordBankOpen) setMobileTargetDetailsOpen(false);
   }, [targetDetails, wordBankOpen]);
+  const observedWorldRegion = useRef(game.world?.activeRegionId);
+  useEffect(() => {
+    const regionId = game.world?.activeRegionId;
+    if (observedWorldRegion.current === regionId) return;
+    observedWorldRegion.current = regionId;
+    if (!regionId) return;
+    const inspected = game.units.find(
+      (unit) => unit.id === pendingPersonInspection.current && unit.hp > 0,
+    );
+    pendingPersonInspection.current = null;
+    // Crossing changes local coordinates. A selection anchored at the old edge
+    // must follow the real arriving party rather than point outside its group.
+    const boat =
+      groupAnchor.type === 'boat'
+        ? game.boats?.find((entry) => entry.id === groupAnchor.id && entry.hp > 0)
+        : undefined;
+    const companion = game.units.find(
+      (unit) =>
+        unit.hp > 0 &&
+        unit.age >= 4 &&
+        !unit.boatId &&
+        (!unit.factionId || unit.factionId === 'player'),
+    );
+    const point = inspected ?? boat ?? companion ?? game.home;
+    setGroupAnchor(
+      boat && !inspected
+        ? { type: 'boat', id: boat.id, x: boat.x, y: boat.y }
+        : { type: 'point', x: point.x, y: point.y },
+    );
+    setTarget(
+      inspected ? { type: 'unit', id: inspected.id, x: inspected.x, y: inspected.y } : null,
+    );
+    setSentence([]);
+    setExecutorId(
+      inspected && (!inspected.factionId || inspected.factionId === 'player')
+        ? inspected.id
+        : undefined,
+    );
+    setSelectingGroup(false);
+    setMobileTargetDetailsOpen(false);
+    setOrderFeedback(null);
+    setPhrasebookTab(null);
+    setTaskOutcomes([]);
+    outcomeSnapshot.current = game;
+    setFocusRequest({ x: point.x, y: point.y, nonce: Date.now() });
+    closeWordBank();
+    setMobileSection(inspected ? 'tribe' : 'map');
+    if (inspected) {
+      setTab('tribe');
+      setTribeFilter('all');
+      setTribeTask('any');
+      setPanel(null);
+    }
+  }, [game.world?.activeRegionId]);
   const targetName = selectedUnit
     ? hasWord(game, 'S_02')
       ? selectedUnit.name
@@ -818,7 +877,16 @@ function App() {
 
   function inspectPerson(id: string) {
     const unit = game.units.find((u) => u.id === id && u.hp > 0);
-    if (unit) focusTarget({ type: 'unit', id, x: unit.x, y: unit.y }, true);
+    if (unit) {
+      focusTarget({ type: 'unit', id, x: unit.x, y: unit.y }, true);
+      return;
+    }
+    const regionId = regionOfUnit(game, id);
+    if (!regionId) return;
+    const next = switchWorldRegion(game, regionId);
+    if (next === game || !next.units.some((person) => person.id === id && person.hp > 0)) return;
+    pendingPersonInspection.current = id;
+    setGame(next);
   }
 
   function focusWorldRegion(regionId: string) {
@@ -831,7 +899,11 @@ function App() {
     const companion = next.units.find(
       (unit) => unit.hp > 0 && (!unit.factionId || unit.factionId === 'player'),
     );
-    setGroupAnchor({ type: 'point', x: companion?.x ?? next.home.x, y: companion?.y ?? next.home.y });
+    setGroupAnchor({
+      type: 'point',
+      x: companion?.x ?? next.home.x,
+      y: companion?.y ?? next.home.y,
+    });
     setSelectingGroup(false);
     setFocusRequest(undefined);
     setOrderFeedback(null);
@@ -868,8 +940,8 @@ function App() {
       destination?.regionId
         ? 'Viaggio preparato fino al confine. Controlla il gruppo e l’anteprima, poi premi Pronuncia: persone e carichi devono raggiungere il passaggio.'
         : selection?.type === 'boat'
-        ? 'Equipaggio della barca selezionato. Scegli il mare o una riva osservata, controlla l’anteprima e premi Pronuncia.'
-        : 'Frase pronta da controllare. Apri l’anteprima per vedere chi agirà e dove, poi premi Pronuncia.',
+          ? 'Equipaggio della barca selezionato. Scegli il mare o una riva osservata, controlla l’anteprima e premi Pronuncia.'
+          : 'Frase pronta da controllare. Apri l’anteprima per vedere chi agirà e dove, poi premi Pronuncia.',
     );
   }
 
@@ -1105,8 +1177,14 @@ function App() {
     setHelpWordId(null);
     setCouncilInspection(false);
     setNewMode(next.playMode ?? 'classic');
-    setNewMap(next.world ? 'world' : next.mapGeneration?.mode ?? 'random');
-    setNewSeed(next.world ? String(next.world.seed) : next.mapGeneration ? String(next.mapGeneration.seed) : '');
+    setNewMap(next.world ? 'world' : (next.mapGeneration?.mode ?? 'random'));
+    setNewSeed(
+      next.world
+        ? String(next.world.seed)
+        : next.mapGeneration
+          ? String(next.mapGeneration.seed)
+          : '',
+    );
     setDismissedEvents(new Set());
     dismissBackgroundPause();
     eventSnapshot.current = new Set((next.tribeEvents ?? []).map((event) => event.id));
@@ -1188,7 +1266,7 @@ function App() {
 
   function openRestart() {
     setNewMode(game.playMode ?? 'classic');
-    setNewMap(game.world ? 'world' : game.mapGeneration?.mode ?? 'random');
+    setNewMap(game.world ? 'world' : (game.mapGeneration?.mode ?? 'random'));
     setNewSeed(String(freshMapSeed(game.world?.seed ?? game.mapGeneration?.seed)));
     setPanel('restart');
   }
@@ -1473,11 +1551,22 @@ function App() {
           <span className="live-dot" />
           <span>{game.world ? 'LE TERRE DELLE MOLTE VOCI' : 'LA VALLE DELLE PRIME VOCI'}</span>
           <span className="strip-divider">/</span>
-          <span>{game.world
-            ? worldRegionLabel(game, game.world.regions[game.world.activeRegionId].x, game.world.regions[game.world.activeRegionId].y)
-            : game.tier === 0 ? 'Terra senza nome' : 'Il nostro accampamento'}</span>
+          <span>
+            {game.world
+              ? worldRegionLabel(
+                  game,
+                  game.world.regions[game.world.activeRegionId].x,
+                  game.world.regions[game.world.activeRegionId].y,
+                )
+              : game.tier === 0
+                ? 'Terra senza nome'
+                : 'Il nostro accampamento'}
+          </span>
         </div>
-        <div className="world-resources" aria-label={game.world ? 'Scorte della regione osservata' : undefined}>
+        <div
+          className="world-resources"
+          aria-label={game.world ? 'Scorte della regione osservata' : undefined}
+        >
           {hasWord(game, 'M_02') && (
             <>
               <span title="Scorte alimentari" className="stock-summary">
@@ -2869,7 +2958,13 @@ function App() {
       )}
       {panel === 'stocks' && (
         <Modal
-          title={game.world ? 'Scorte della regione osservata' : game.urbanized ? 'Scorte della capitale' : 'Scorte del campo'}
+          title={
+            game.world
+              ? 'Scorte della regione osservata'
+              : game.urbanized
+                ? 'Scorte della capitale'
+                : 'Scorte del campo'
+          }
           onClose={closePanel}
           className="camp-inventory-modal"
         >
@@ -3454,7 +3549,11 @@ function App() {
           <p className="current-map-info" aria-label="Mappa attuale">
             {game.mapGeneration ? (
               <>
-                {game.world ? 'Mondo · sedici regioni collegate' : game.mapGeneration.mode === 'random' ? 'Mappa casuale' : 'Seed Zero'}
+                {game.world
+                  ? 'Mondo · sedici regioni collegate'
+                  : game.mapGeneration.mode === 'random'
+                    ? 'Mappa casuale'
+                    : 'Seed Zero'}
                 {' · Seed '}
                 <code>{game.world?.seed ?? game.mapGeneration.seed}</code>
                 {' · '}

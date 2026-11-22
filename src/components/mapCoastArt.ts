@@ -136,8 +136,8 @@ export function paintCoastWater(ctx: CanvasRenderingContext2D, world: CoastWorld
   const inside = outside + (seaward(coast) < 0 ? 155 : -155);
   const gradient = coast.world
     ? ctx.createLinearGradient(
-        -coast.world.regionX * size,
-        -coast.world.regionY * size,
+        0 - coast.world.regionX * size,
+        0 - coast.world.regionY * size,
         (WORLD_REGIONS - coast.world.regionX) * size,
         (WORLD_REGIONS - coast.world.regionY) * size,
       )

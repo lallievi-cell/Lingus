@@ -586,6 +586,9 @@
 /* A selected object stays visible while its explanation moves to the other
    half of a small map. Long explanations remain reachable by touch/keyboard. */
 @media (max-width: 860px) {
+  .lingus-world .lingus-world__target-card[data-world-boundary='true'] {
+    max-width: calc(100% - 112px) !important;
+  }
   .lingus-world .lingus-world__target-card {
     box-sizing: border-box;
     max-height: min(44%, 170px);
@@ -687,6 +690,35 @@
   /* Keep the zoom value available to assistive technology while all five
      map buttons retain their full touch area on the narrowest phones. */
   .lingus-world__control-stack > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    white-space: nowrap;
+    clip-path: inset(50%);
+  }
+}
+
+@media (max-width: 520px) {
+  /* The world adds an atlas button. Keep six full touch targets on one row
+     without covering either the map or each other on a 320px phone. */
+  .lingus-world:has(.lingus-world__atlas) .lingus-world__stocks,
+  .lingus-world:has(.lingus-world__atlas) .lingus-world__elements,
+  .lingus-world:has(.lingus-world__atlas) .lingus-world__atlas {
+    width: 44px;
+  }
+  .lingus-world:has(.lingus-world__atlas) .lingus-world__elements {
+    left: 56px;
+  }
+  .lingus-world:has(.lingus-world__atlas) .lingus-world__atlas {
+    left: 104px;
+  }
+  .lingus-world:has(.lingus-world__atlas) .lingus-world__stocks > span,
+  .lingus-world:has(.lingus-world__atlas) .lingus-world__elements > span,
+  .lingus-world:has(.lingus-world__atlas) .lingus-world__atlas > span,
+  .lingus-world:has(.lingus-world__atlas) .lingus-world__control-stack > span {
     position: absolute;
     width: 1px;
     height: 1px;

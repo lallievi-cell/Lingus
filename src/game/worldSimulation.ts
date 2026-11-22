@@ -1,15 +1,25 @@
 import { getCalendar } from './calendar';
 import { promoteDeferredSparks } from './discoveryPacing';
 import { updateForeignPolicy } from './foreignPolicy';
-import { finishWorldImperial, seasonalImperial, updateImperial } from './imperial';
+import {
+  beginWorldImperialSeason,
+  finishWorldImperial,
+  seasonalImperial,
+  updateImperial,
+} from './imperial';
+import { updateWorldDogmasSeason } from './dogmas';
 import { copy, hasBuilding, hasWord, isPlayerBuilding, log } from './runtime';
 import {
   finishSeasonMemory,
+  beginWorldCoreSeason,
+  finishWorldCoreSeason,
   finishWorldSimulationStep,
   population,
   seasonalCore,
+  settleWorldSeasonCouncil,
   simulationStep,
 } from './simulation';
+import type { SeasonCouncilSupport } from './simulation';
 import { captureObservedTaskResults, snapshotTaskResultInputs } from './taskResults';
 import { advanceWorldTransfers } from './worldTravel';
 import { globalWorldProjection, runInRegion, syncGlobalState } from './worldRuntime';
@@ -35,11 +45,16 @@ export function tickWorld(
     remaining -= d;
     s.seasonIndex = getCalendar(s).seasonIndex;
     const boundary = s.seasonIndex > calendar.seasonIndex;
+    if (boundary) {
+      beginWorldCoreSeason(s);
+      beginWorldImperialSeason(s);
+    }
     s.voiceProgress += d;
     while (s.voiceProgress >= 10) {
       s.voice = Math.min(hasWord(s, 'S_07') ? 5 : 3, s.voice + 1);
       s.voiceProgress -= 10;
     }
+    const support: SeasonCouncilSupport = { burntWood: 0, temple: 0, hasCampfire: false };
     // Stable order makes simulation RNG independent of atlas navigation.
     for (const id of Object.keys(s.world!.regions).sort()) {
       runInRegion(s, id, (local) => {
@@ -49,23 +64,31 @@ export function tickWorld(
         updateForeignPolicy(local, d);
         updateImperial(local, d, { regional: true });
         if (boundary) {
-          seasonalCore(local, { regional: true, global: id === s.world!.homeRegionId });
+          const regionalSupport = seasonalCore(local, { regional: true });
+          support.burntWood += regionalSupport.burntWood;
+          support.temple += regionalSupport.temple;
+          support.hasCampfire ||= regionalSupport.hasCampfire;
           seasonalImperial(local, { regional: true });
         }
         if (before) captureObservedTaskResults(before, local);
       });
     }
     advanceWorldTransfers(s);
+    if (boundary) {
+      const council = globalWorldProjection(s);
+      settleWorldSeasonCouncil(council, support);
+      syncGlobalState(s, council);
+      updateWorldDogmasSeason(s);
+    }
     const census = globalWorldProjection(s);
+    if (boundary) finishWorldCoreSeason(census);
     finishWorldSimulationStep(census, d);
     finishWorldImperial(census, d, boundary);
     promoteDeferredSparks(census);
     if (boundary && !census.campfirePending) finishSeasonMemory(census);
     if (
       archiveBefore &&
-      !census.buildings.some(
-        (b) => isPlayerBuilding(census, b) && b.kind === 'archive' && b.hp > 0,
-      )
+      !census.buildings.some((b) => isPlayerBuilding(census, b) && b.kind === 'archive' && b.hp > 0)
     ) {
       for (const memory of Object.values(census.words))
         if (memory.uses === 0) memory.retention *= 0.3;

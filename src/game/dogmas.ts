@@ -7,7 +7,7 @@ import {
 } from './calendar';
 import { dogmaWeight } from './math';
 import { refundPaidCooking } from './fishing';
-import { dropCarriedLoad } from './simulation';
+import { dropCarriedLoad, payLocalFuel } from './simulation';
 import {
   DOGMA_TARGETS,
   DOGMA_VECTOR_TOKENS,
@@ -35,6 +35,8 @@ import {
   totalFood,
 } from './runtime';
 import type { Dogma, DogmaVector, GameState, MapEntity, Resource, Target, Unit } from './types';
+import { allWorldCities, allWorldUnits, runInRegion, worldRegionStates } from './worldRuntime';
+import { planLandRoute } from './landNavigation';
 
 export const SACRED_TARGETS: string[] = [...DOGMA_TARGETS];
 export const VECTOR_TOKENS = DOGMA_VECTOR_TOKENS;
@@ -211,6 +213,12 @@ function applyOppositeBonus(s: GameState, target: string, ctx: DogmaContext, f: 
 
 /** Presence of an abstract target is a real institution or an action in the last season. */
 export function dogmaTargetPresent(s: GameState, target: string): boolean {
+  return s.world
+    ? worldRegionStates(s).some((local) => localDogmaTargetPresent(local, target))
+    : localDogmaTargetPresent(s, target);
+}
+
+function localDogmaTargetPresent(s: GameState, target: string): boolean {
   const r = resourceFor(target),
     ownBuildings = s.buildings.filter((b) => isPlayerBuilding(s, b) && b.hp > 0);
   if (target === 'O_04') return totalFood(s.resources) > 0;
@@ -259,7 +267,7 @@ export function dogmaTargetPresent(s: GameState, target: string): boolean {
     return s.entities.some((e) => e.kind === 'corpse' && e.amount > 0 && distance(e, s.home) <= 35);
   if (target === 'O_09')
     return ownBuildings.some((b) => b.kind === 'stele' || b.kind === 'archive');
-  if (target === 'O_10') return hasWord(s, 'O_10') && dogmaTargetPresent(s, 'O_01');
+  if (target === 'O_10') return hasWord(s, 'O_10') && localDogmaTargetPresent(s, 'O_01');
   if (target === 'O_13')
     return (
       ownBuildings.some((b) => b.kind === 'workshop') ||
@@ -626,10 +634,13 @@ export function inscribeDogma(state: GameState, targetId: string, vectorId: stri
   if (targetId === 'S_07' && vectorId === 'C_02') s.cohesion = clamp(s.cohesion + 30);
   if (targetId === 'O_12' && vectorId === 'M_01') s.inequality *= 0.3;
   if (targetId === 'O_06' && vectorId === 'V_02')
-    for (const f of s.factions) f.relation = clamp(f.relation - 80, -100, 100);
+    for (const local of worldRegionStates(s))
+      for (const f of local.factions) f.relation = clamp(f.relation - 80, -100, 100);
   if (targetId === 'M_05' && vectorId === 'C_02') {
-    for (const u of activeUnits(s)) if (u.caste === 'slave') u.caste = 'citizen';
-    for (const c of s.cities.filter((c) => c.factionId === 'player')) {
+    for (const u of allWorldUnits(s))
+      if (u.hp > 0 && (!u.factionId || u.factionId === 'player') && u.caste === 'slave')
+        u.caste = 'citizen';
+    for (const c of allWorldCities(s).filter((c) => c.factionId === 'player')) {
       c.cohorts.workers += c.cohorts.slaves;
       c.cohorts.slaves = 0;
     }
@@ -865,26 +876,46 @@ function immolate(s: GameState, victim: Unit) {
     amount: 1,
   });
 }
-export function updateDogmasSeason(s: GameState) {
+interface DogmaSeasonOptions {
+  regional?: boolean;
+  /** A seasonal offering is paid by one real region, never by every region. */
+  offered?: Set<string>;
+}
+export function updateDogmasSeason(s: GameState, options: DogmaSeasonOptions = {}) {
   for (const d of s.dogmas) {
-    d.age++;
-    if (!d.reforming) d.weight = dogmaWeight(d.age);
-    if (vectorFamily(d.vectorId) === 'sacrifice') {
+    if (!options.regional) {
+      d.age++;
+      if (!d.reforming) d.weight = dogmaWeight(d.age);
+    }
+    if (vectorFamily(d.vectorId) === 'sacrifice' && !options.offered?.has(d.id)) {
       if (d.targetId.startsWith('S_')) {
         const pool = d.targetId === 'S_05' ? s.units.filter((u) => u.hp > 0) : activeUnits(s);
+        const ritualSites = s.world
+          ? s.buildings.filter(
+              (building) =>
+                isPlayerBuilding(s, building) &&
+                (building.kind === 'campfire' || building.kind === 'temple') &&
+                building.active &&
+                building.hp > 0 &&
+                building.completed !== false,
+            )
+          : [];
         const victim = pool.find(
           (u) =>
             matchesCaste(s, u, d.targetId) &&
             !protectedByDogma(s, d.targetId, u) &&
-            !getDogmaEffects(s, { unit: u }).protected,
+            !getDogmaEffects(s, { unit: u }).protected &&
+            (!s.world || (!u.boatId && ritualSites.some((site) => !!planLandRoute(s, u, site)))),
         );
         if (victim && (hasBuilding(s, 'campfire') || hasBuilding(s, 'temple'))) {
+          options.offered?.add(d.id);
           const king = victim.isKing && s.government === 'monarchy',
             collapse = king && getDogmaEffects(s).kingDeathCollapse;
           immolate(s, victim);
           s.cohesion = clamp(s.cohesion + 25);
           s.attention = clamp(s.attention + 30, 0, getDogmaEffects(s).attentionCap);
-          for (const f of s.factions) f.relation = clamp(f.relation - 60, -100, 100);
+          for (const local of worldRegionStates(s))
+            for (const f of local.factions) f.relation = clamp(f.relation - 60, -100, 100);
           if (s.tier >= 4) s.revoltTension = 0;
           if (king) {
             s.kingId = null;
@@ -895,6 +926,7 @@ export function updateDogmasSeason(s: GameState) {
       } else {
         const r = resourceFor(d.targetId);
         if (d.targetId === 'O_04' && totalFood(s.resources) >= 10) {
+          options.offered?.add(d.id);
           let remaining = 10;
           for (const food of ['meat', 'food', 'cooked', 'fish', 'cookedFish'] as const) {
             const consumed = Math.min(remaining, s.resources[food] ?? 0);
@@ -904,18 +936,19 @@ export function updateDogmasSeason(s: GameState) {
           s.cohesion = clamp(s.cohesion + 15);
           s.eventTimes.sacrificeMorale = s.time + secondsForEffectiveDuration(s, s.time, 90);
         } else if (r && s.resources[r] >= 10) {
+          options.offered?.add(d.id);
           s.resources[r] -= 10;
           s.cohesion = clamp(s.cohesion + 15);
           s.eventTimes.sacrificeMorale = s.time + secondsForEffectiveDuration(s, s.time, 90);
         }
       }
     }
-    if (d.targetId === 'O_12' && d.vectorId === 'C_02') {
+    if (!options.regional && d.targetId === 'O_12' && d.vectorId === 'C_02') {
       s.cohesion = clamp(
         s.cohesion + (s.resources.coin > 0 ? Math.floor(s.resources.coin / 1000) * 5 : -30),
       );
     }
-    if (d.targetId === 'V_13' && d.vectorId === 'S_05' && d.age % 4 === 0) {
+    if (!options.regional && d.targetId === 'V_13' && d.vectorId === 'S_05' && d.age % 4 === 0) {
       const last = s.eventTimes.holyWarConquests ?? 0,
         current = s.stats.conquests ?? 0;
       if (current === last) s.cohesion = clamp(s.cohesion - 5);
@@ -924,21 +957,54 @@ export function updateDogmasSeason(s: GameState) {
   }
   if (getDogmaEffects(s).cremation)
     for (const corpse of s.entities.filter((e) => e.kind === 'corpse' && e.amount > 0)) {
-      if (s.resources.wood < 5) break;
-      s.resources.wood -= 5;
+      if (s.world) {
+        if (!payLocalFuel(s, 5, corpse.x, corpse.y)) continue;
+      } else {
+        if (s.resources.wood < 5) break;
+        s.resources.wood -= 5;
+      }
       s.burntWood += 5;
       corpse.amount = 0;
       s.attention = clamp(s.attention + 5, 0, getDogmaEffects(s).attentionCap);
     }
+  if (!options.regional) selectMonarch(s);
+}
+
+function selectMonarch(s: GameState, people = s.units) {
   const monarch = getDogmaEffects(s).monarchSelection;
   if (monarch && s.government === 'monarchy') {
     const key = monarch === 'strength' ? 'strength' : 'intelligence',
-      leader = activeUnits(s).sort((a, b) => b[key] - a[key])[0];
+      leader = people
+        .filter((unit) => unit.hp > 0 && (!unit.factionId || unit.factionId === 'player'))
+        .sort((a, b) => b[key] - a[key])[0];
     if (leader) {
-      for (const u of s.units) u.isKing = u.id === leader.id;
+      for (const u of people) u.isKing = u.id === leader.id;
       s.kingId = leader.id;
     }
   }
+}
+
+/** Global belief age and obligations; physical rites use only their own region. */
+export function updateWorldDogmasSeason(s: GameState) {
+  const offered = new Set<string>();
+  for (const d of s.dogmas) {
+    d.age++;
+    if (!d.reforming) d.weight = dogmaWeight(d.age);
+  }
+  for (const id of Object.keys(s.world!.regions).sort())
+    runInRegion(s, id, (local) => updateDogmasSeason(local, { regional: true, offered }));
+  // Monetary devotion counts actual stocks, without moving them between regions.
+  const coins = worldRegionStates(s).reduce((sum, local) => sum + local.resources.coin, 0);
+  for (const d of s.dogmas) {
+    if (d.targetId === 'O_12' && d.vectorId === 'C_02')
+      s.cohesion = clamp(s.cohesion + (coins > 0 ? Math.floor(coins / 1000) * 5 : -30));
+    if (d.targetId === 'V_13' && d.vectorId === 'S_05' && d.age % 4 === 0) {
+      const current = s.stats.conquests ?? 0;
+      if (current === (s.eventTimes.holyWarConquests ?? 0)) s.cohesion = clamp(s.cohesion - 5);
+      s.eventTimes.holyWarConquests = current;
+    }
+  }
+  selectMonarch(s, allWorldUnits(s));
 }
 /** Physical support is tied to a staffed, active building, never a global technology flag. */
 export function memorySupport(s: GameState, wordId: string) {

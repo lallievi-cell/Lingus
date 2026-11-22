@@ -50,3 +50,7 @@ La [0.9.0](RELEASE-090.md) aggiunge due piccoli isolotti alle nuove regioni, app
 Le regioni precedenti mantengono la geografia già salvata. La navigazione richiede il nuovo metadato `maritimeRules: 1` e conserva i cataloghi di quarantacinque parole e sedici risorse.
 
 Continenti, mari interni e collegamenti tra regioni restano il traguardo successivo. [WORLD-SCALE.md](WORLD-SCALE.md) spiega la distinzione tra il chilometro quadrato locale e il futuro mondo strategico.
+
+## Settimo traguardo: primo mondo a regioni
+
+La scelta **Mondo** della [0.10.0](RELEASE-0100.md) collega una griglia di quattro per quattro regioni locali: sedici chilometri quadrati, con continuità fisica di terra, coste e fiumi. L’Atlante prepara passaggi verso i vicini; compagni, equipaggi e carichi attraversano soltanto all’arrivo reale al confine. La generazione delle destinazioni è pigra e non crea scorte o popolazioni gratuite. Il calendario e la memoria sono condivisi, mentre le regioni visitate continuano i propri bilanci materiali. La topologia principale segue una struttura iniziale comune: non è ancora un generatore universale di mondi né commercio navale autonomo. I salvataggi precedenti non vengono ampliati.

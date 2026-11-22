@@ -1,7 +1,7 @@
 import { BUILDING_SPECS, INNATE_WORDS, RESOURCE_ORDER, WORDS } from './content';
 import type { GameState, Unit } from './types';
 import { WORLD_LOCAL_KEYS } from './worldTypes';
-import { isDryLandPoint } from './landNavigation';
+import { isDryLandPoint, isLandSegment } from './landNavigation';
 import { isSeaPoint, isSeaSegment } from './coastGeometry';
 import { isShoreConnection } from './shoreAccess';
 import {
@@ -1173,6 +1173,7 @@ function validWorldSave(value: RecordValue): boolean {
       !record(generation) ||
       !worldMetadata(generation) ||
       generation.worldRules !== 1 ||
+      generation.seed !== world.seed ||
       generation.worldSeed !== world.seed ||
       generation.regionX !== region.x ||
       generation.regionY !== region.y
@@ -1231,18 +1232,19 @@ function validWorldSave(value: RecordValue): boolean {
       return false;
     transferIds.add(transfer.id as string);
     const source = projections.get(transfer.from);
-    const destination = projections.get(transfer.to);
-    if (!source || !destination) return false;
+    if (!source) return false;
     const from = world.regions[transfer.from] as RecordValue;
-    const to = world.regions[transfer.to] as RecordValue;
-    const dx = (to.x as number) - (from.x as number);
-    const dy = (to.y as number) - (from.y as number);
+    const [toX, toY] = transfer.to.split(':').map(Number);
+    const dx = toX - (from.x as number);
+    const dy = toY - (from.y as number);
     const exit = transfer.exit as { x: number; y: number };
     const entry = transfer.entry as { x: number; y: number };
     if (
       Math.abs(dx) + Math.abs(dy) !== 1 ||
       Math.abs(exit.x - entry.x - dx * 1000) > 1e-6 ||
-      Math.abs(exit.y - entry.y - dy * 1000) > 1e-6
+      Math.abs(exit.y - entry.y - dy * 1000) > 1e-6 ||
+      (dx ? exit.y : exit.x) < 4 ||
+      (dx ? exit.y : exit.x) > 996
     )
       return false;
     const actors = transfer.actorIds as string[];
@@ -1252,11 +1254,21 @@ function validWorldSave(value: RecordValue): boolean {
     }
     const people = source.units as Unit[];
     const sourceState = source as unknown as GameState;
-    const destinationState = destination as unknown as GameState;
+    // Pending journeys do not generate unexplored regions. Validate the same
+    // shared physical border from metadata without manufacturing a payload.
+    const destinationState = (projections.get(transfer.to) ?? {
+      ...source,
+      mapGeneration: { ...(source.mapGeneration as RecordValue), regionX: toX, regionY: toY },
+      sectors: [],
+    }) as unknown as GameState;
+    const sourceInside = { x: exit.x - dx, y: exit.y - dy };
+    const destinationInside = { x: entry.x + dx, y: entry.y + dy };
     if (transfer.kind === 'people') {
       if (
         !isDryLandPoint(sourceState, exit) ||
         !isDryLandPoint(destinationState, entry) ||
+        !isLandSegment(sourceState, sourceInside, exit) ||
+        !isLandSegment(destinationState, entry, destinationInside) ||
         actors.some((actorId) => {
           const person = people.find((unit) => unit.id === actorId);
           return (
@@ -1271,7 +1283,7 @@ function validWorldSave(value: RecordValue): boolean {
         return false;
     } else {
       const boats = source.boats as GameState['boats'];
-      const boat = boats?.find((vessel) => actors.includes(vessel.id));
+      const boat = boats?.find((vessel) => actors[0] === vessel.id);
       if (
         !boat ||
         boat.ownerId !== 'player' ||
@@ -1281,7 +1293,9 @@ function validWorldSave(value: RecordValue): boolean {
         actors.length !== boat.passengerIds.length + 1 ||
         !boat.passengerIds.every((personId) => actors.includes(personId)) ||
         !isSeaPoint(sourceState, exit) ||
-        !isSeaPoint(destinationState, entry)
+        !isSeaPoint(destinationState, entry) ||
+        !isSeaSegment(sourceState, sourceInside, exit) ||
+        !isSeaSegment(destinationState, entry, destinationInside)
       )
         return false;
     }

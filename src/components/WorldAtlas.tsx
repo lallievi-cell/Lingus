@@ -4,6 +4,7 @@ import { hasWord } from '../game/runtime';
 import { getWorldRegionGeometry, type WorldPoint } from '../game/worldGeography';
 import { regionProjection } from '../game/worldRuntime';
 import { worldBoundaryTargets } from '../game/worldTravel';
+import { phraseRecallIssue } from '../game/syntaxAssistant';
 import type { GameState, Target } from '../game/types';
 import { Modal } from './Modal';
 import './WorldAtlas.css';
@@ -83,17 +84,26 @@ export function WorldAtlas({
   });
   const selected = cells.find((cell) => cell.id === selectedId) ?? active;
   const selectedRegion = world.regions[selected.id];
-  const selectedState = selectedRegion?.discovered ? regionProjection(state, selected.id) : undefined;
+  const selectedState = selectedRegion?.discovered
+    ? regionProjection(state, selected.id)
+    : undefined;
   const adjacent = Math.abs(selected.x - active.x) + Math.abs(selected.y - active.y) === 1;
   const boatSelection = [selectedTarget, groupAnchor].find(
-    (target) => target?.type === 'boat' && state.boats?.some(
-      (boat) => boat.id === target.id && boat.ownerId === 'player' && boat.hp > 0,
-    ),
+    (target) =>
+      target?.type === 'boat' &&
+      state.boats?.some(
+        (boat) => boat.id === target.id && boat.ownerId === 'player' && boat.hp > 0,
+      ),
   );
-  const boat = boatSelection ? state.boats?.find((entry) => entry.id === boatSelection.id) : undefined;
-  const destinations = adjacent ? worldBoundaryTargets(state, selected.id, boat?.id) : [];
+  const boat = boatSelection
+    ? state.boats?.find((entry) => entry.id === boatSelection.id)
+    : undefined;
+  const destinations = adjacent
+    ? worldBoundaryTargets(state, selected.id, boat?.id, groupAnchor)
+    : [];
   const destination = destinations[0];
-  const needsHere = !hasWord(state, 'O_01');
+  const unavailablePhrase = phraseRecallIssue(state, ['S_01', 'V_01', 'O_01']);
+  const emptyBoat = !!boat && boat.passengerIds.length === 0;
   const present = selected.id === active.id;
   const pending = world.transfers.filter((transfer) => transfer.to === selected.id);
   const people = selectedState?.units.filter(
@@ -121,58 +131,105 @@ export function WorldAtlas({
               onClick={() => setSelectedId(cell.id)}
             >
               {local && <RegionTerrain state={local} x={cell.x} y={cell.y} />}
-              {current ? <MapPin size={18} className="world-atlas-cell-icon" /> : !local ? (
-                <span className="world-atlas-unknown-mark" aria-hidden="true">?</span>
+              {current ? (
+                <MapPin size={18} className="world-atlas-cell-icon" />
+              ) : !local ? (
+                <span className="world-atlas-unknown-mark" aria-hidden="true">
+                  ?
+                </span>
               ) : null}
               <span className="world-atlas-cell-label">
-                {cell.id === world.homeRegionId ? 'Origini' : current ? 'Qui' : local ? 'Visitata' : 'Ignoto'}
+                {cell.id === world.homeRegionId
+                  ? 'Origini'
+                  : current
+                    ? 'Qui'
+                    : local
+                      ? 'Visitata'
+                      : 'Ignoto'}
               </span>
             </button>
           );
         })}
       </div>
-      <p className="world-atlas-legend"><Compass size={14} /> Nord in alto · una regione, un chilometro</p>
+      <p className="world-atlas-legend">
+        <Compass size={14} /> Nord in alto · una regione, un chilometro
+      </p>
       <section className="world-atlas-detail" aria-label="Regione scelta" aria-live="polite">
         <h3>{worldRegionLabel(state, selected.x, selected.y)}</h3>
         <p>
-          {present ? 'Stai osservando questa regione.' : selectedState
-            ? 'Un luogo già visitato: puoi osservarlo senza spostare le persone.'
-            : 'Un territorio ancora sconosciuto. Il suo aspetto si rivelerà durante il viaggio.'}
+          {present
+            ? 'Stai osservando questa regione.'
+            : selectedState
+              ? 'Un luogo già visitato: puoi osservarlo senza spostare le persone.'
+              : 'Un territorio ancora sconosciuto. Il suo aspetto si rivelerà durante il viaggio.'}
         </p>
-        {!!people?.length && <p className="world-atlas-presence"><Users size={14} />
-          {hasWord(state, 'O_08') ? `${people.length} ${people.length === 1 ? 'compagno presente' : 'compagni presenti'}` : 'La tribù è presente in questa regione.'}
-        </p>}
+        {!!people?.length && (
+          <p className="world-atlas-presence">
+            <Users size={14} />
+            {hasWord(state, 'O_08')
+              ? `${people.length} ${people.length === 1 ? 'compagno presente' : 'compagni presenti'}`
+              : 'La tribù è presente in questa regione.'}
+          </p>
+        )}
         {pending.length > 0 && <p>Un gruppo è in viaggio verso questa regione.</p>}
         {!present && selectedState && (
           <button className="secondary-button" type="button" onClick={() => onFocus(selected.id)}>
             <MapPin size={15} /> Osserva la regione
           </button>
         )}
-        {adjacent && <>
-          <p className="world-atlas-travel-mode">
-            {boat ? <Ship size={16} /> : <Users size={16} />}
-            {boat ? 'Traversata con la barca selezionata e il suo equipaggio.' : 'Viaggio a piedi con il gruppo selezionato.'}
-          </p>
-          {destination ? <button
-            className="primary-button"
-            type="button"
-            disabled={needsHere}
-            onClick={() => onPrepare(
-              ['S_01', 'V_01', 'O_01'],
-              destination,
-              boat ? { type: 'boat', id: boat.id, x: boat.x, y: boat.y } : groupAnchor,
+        {adjacent && (
+          <>
+            <p className="world-atlas-travel-mode">
+              {boat ? <Ship size={16} /> : <Users size={16} />}
+              {boat
+                ? 'Traversata con la barca selezionata e il suo equipaggio.'
+                : 'Viaggio a piedi con il gruppo selezionato.'}
+            </p>
+            {destination ? (
+              <button
+                className="primary-button"
+                type="button"
+                disabled={!!unavailablePhrase || emptyBoat}
+                onClick={() =>
+                  onPrepare(
+                    ['S_01', 'V_01', 'O_01'],
+                    destination,
+                    boat ? { type: 'boat', id: boat.id, x: boat.x, y: boat.y } : groupAnchor,
+                  )
+                }
+              >
+                Prepara il viaggio <ArrowRight size={16} />
+              </button>
+            ) : (
+              <p className="world-atlas-travel-issue">
+                {boat
+                  ? 'Questa barca non ha una rotta navigabile fino al confine.'
+                  : 'Nessun adulto può raggiungere a piedi un passaggio su questo confine. Per attraversare il mare, seleziona una barca.'}
+              </p>
             )}
-          >Prepara il viaggio <ArrowRight size={16} /></button> : <p className="world-atlas-travel-issue">
-            {boat ? 'Questa barca non ha una rotta navigabile fino al confine.' : 'Nessun adulto può raggiungere a piedi un passaggio su questo confine. Per attraversare il mare, seleziona una barca.'}
-          </p>}
-          {needsHere && <p className="world-atlas-travel-issue">La tribù deve conoscere «Qui» per preparare questo viaggio.</p>}
-          {destination && <small>Prepara compone la frase: il viaggio parte soltanto con Pronuncia, raggiungendo davvero il confine.</small>}
-        </>}
-        {!present && !adjacent && <p className="world-atlas-travel-issue">
-          Per arrivare qui, attraversa una regione confinante alla volta.
-        </p>}
+            {unavailablePhrase && <p className="world-atlas-travel-issue">{unavailablePhrase}</p>}
+            {emptyBoat && (
+              <p className="world-atlas-travel-issue">
+                Imbarca un equipaggio prima di preparare la traversata.
+              </p>
+            )}
+            {destination && (
+              <small>
+                Prepara compone la frase: il viaggio parte soltanto con Pronuncia, raggiungendo
+                davvero il confine.
+              </small>
+            )}
+          </>
+        )}
+        {!present && !adjacent && (
+          <p className="world-atlas-travel-issue">
+            Per arrivare qui, attraversa una regione confinante alla volta.
+          </p>
+        )}
       </section>
-      <p className="world-atlas-footnote">Le scorte restano nella loro regione. Portale con le persone o caricale su una barca.</p>
+      <p className="world-atlas-footnote">
+        Le scorte restano nella loro regione. Portale con le persone o caricale su una barca.
+      </p>
     </Modal>
   );
 }

@@ -1,26 +1,25 @@
 # Scala del mondo e navigazione
 
-La mappa della 0.8.0 è una regione di **1.000 × 1.000 metri**, con un mare lungo uno dei quattro lati. Il seed sceglie orientamento e linea di costa. Questa geografia non genera continenti o mari interni.
+La scelta **Mondo**, introdotta nella 0.10.0, collega **sedici regioni da 1.000 × 1.000 metri**, in una griglia di quattro per quattro: **16 km²**. **Casuale** conserva la regione costiera della 0.9.0; **Seed Zero** conserva la valle originaria. La scelta della geografia resta indipendente da Guidata e Classica. Le partite precedenti non vengono ampliate.
 
-La 0.9.0 conserva questa scala locale e introduce primi isolotti nella fascia marina, raggiungibili con barche reali. Gli isolotti sono luoghi di spedizione e raccolta; non rappresentano un continente o un mondo già esteso a più regioni.
+## Una geografia condivisa
 
-## Perché un mondo richiede più regioni
+Il Mondo comprende due grandi masse terrestri, cinque isole e un bacino interno. Coste, confini terrestri e fiumi sono derivati dalle stesse coordinate globali: il bordo di una regione continua in quella vicina. Grafica e percorsi usano la medesima geometria. Le forme principali seguono una struttura iniziale comune; il seed varia i dettagli delle rive e le risorse. Non è ancora un generatore di ogni possibile disposizione di continenti.
 
-Un chilometro quadrato offre spazio al campo, al lavoro, alle culture vicine e a piccoli collegamenti costieri. Continenti, arcipelaghi articolati e mari interni richiedono un territorio strategico più ampio.
+Il campo iniziale conserva sette fondatori e otto culture. Le altre regioni vengono generate all’arrivo, senza duplicare persone, città o scorte. Le loro risorse sono nodi finiti. Questa prima espansione non popola automaticamente ogni continente con nuove culture e non introduce commercio navale o colonizzazione marittima autonoma delle altre società.
 
-Allargare semplicemente il quadrato della simulazione a quattro chilometri per lato moltiplicherebbe l’area per sedici: la griglia di navigazione da quattro metri passerebbe da 63.001 a 1.002.001 nodi, e mantenere la densità attuale porterebbe a decine di migliaia di oggetti. La superficie del terreno, limitata a 3.600 × 2.400 pixel, avrebbe inoltre meno dettaglio locale. Copiare e salvare tutto questo a ogni aggiornamento sarebbe una scelta onerosa sui telefoni.
+## Osservazione e viaggio
 
-La direzione scelta è quindi avere **due scale collegate**:
+L’**Atlante** si apre dalla mappa. Le regioni sconosciute non rivelano terreno o risorse. Osservare una regione già visitata cambia la visuale e lascia le persone al loro posto.
 
-- **Regione locale:** distanze di lavoro, persone, risorse finite, edifici, guadi e approdi alla scala attuale.
-- **Mondo strategico:** più regioni terrestri e marine, con continuità di coste e fiumi, isole e bacini interni. Il dettaglio locale viene generato e mantenuto quando serve.
+Per viaggiare, scegli un gruppo o una barca con equipaggio, apri l’Atlante e prepara il passaggio verso una regione adiacente. La preparazione compone **Gruppo · Andare · Qui** e sceglie un vero punto del confine: l’ordine parte con **Pronuncia** e costa la Voce ordinaria. Non esiste un trasferimento istantaneo tra caselle.
 
-Una griglia iniziale di otto per otto regioni sarebbe un possibile prototipo di 64 km², non una dimensione definitiva del mondo né una funzione già disponibile nella 0.9.0. Il numero di regioni e le distanze strategiche andranno scelti insieme ai tempi di navigazione e ai rifornimenti, dopo prove effettive.
+Il gruppo raggiunge fisicamente il bordo sulla terraferma, oppure l’equipaggio naviga lungo una rotta d’acqua. Il passaggio conserva identità, salute, bisogni, carichi personali e stiva; le scorte lasciate nella regione di partenza restano lì. Il primo arrivo asciutto può stabilire un bivacco di riferimento, senza alloggi o materiali gratuiti. I contingenti cittadini, gli eserciti e le carovane non attraversano ancora i confini mondiali.
 
-## Condizioni per l’espansione successiva
+## Simulazione e limiti
 
-Il passaggio di scala deve mantenere la stessa identità di persone, barche, carichi e risorse quando si attraversa un confine regionale. Le culture lontane devono consumare e produrre attraverso bilanci materiali verificabili; una regione inattiva non può ricevere scorte gratuite o rigenerare i nodi esauriti.
+Il mondo condivide calendario, Voce, linguaggio e memoria. Le regioni generate continuano a simulare bisogni, lavoro e bilanci locali anche fuori dalla visuale. Non vengono rigenerate quando si torna; riserve esaurite e oggetti costruiti restano salvati. I soli territori mai visitati restano privi di simulazione materiale.
 
-La persistenza dovrà conservare seed e versione della geografia, aggiungendo gli scostamenti reali dalla generazione iniziale. Il limite attuale di importazione e il sistema di salvataggio vanno valutati prima di accumulare decine di regioni complete. Anche cache del terreno, nebbia, selezione e ricerca dei percorsi dovranno lavorare per zone, mantenendo limiti di memoria espliciti.
+La griglia di navigazione e la superficie del terreno restano locali, con il limite grafico di 3.600 × 2.400 pixel. Il mondo è limitato a sedici regioni: non è ancora una simulazione illimitata, un sistema di chunk scaricati o una rappresentazione compressa delle sole differenze rispetto al seed. Il salvataggio conserva i dati completi delle regioni generate.
 
-L’atlante sarà una rappresentazione di geografia e collegamenti realmente utilizzabili. La 0.9.0 non presenta una mappa mondiale illustrata come se il transito tra regioni fosse già implementato.
+Le prove tecniche di geometria, trasferimenti, calendario e persistenza sono distinte dalle campagne ordinarie prolungate, rimandate su richiesta. Espandere ulteriormente la scala richiede misurare memoria, salvataggi, rifornimenti e tempi di traversata sui telefoni. [RELEASE-0100.md](RELEASE-0100.md) descrive questa prima implementazione.

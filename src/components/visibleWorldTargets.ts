@@ -2,6 +2,7 @@ import type { GameState, WorldTarget } from '../game/types';
 import { getCalendar } from '../game/calendar';
 import { getRiverFords } from '../game/landNavigation';
 import { isSeaPoint } from '../game/coastGeometry';
+import { hasPhysicalCamp } from '../game/physicalCamp';
 import { BUILDING_NAMES } from '../game/content';
 import { getGroundPiles, resourcePileLabel } from './mapResourceLayout';
 import { isVisibleAt, hasConcept } from './mapDrawing';
@@ -40,9 +41,10 @@ export const VISIBLE_TARGET_CATEGORIES: { id: VisibleTargetCategory; label: stri
   { id: 'places', label: 'Luoghi' },
 ];
 
-function relativePlace(point: { x: number; y: number }, home: { x: number; y: number }) {
-  const dx = point.x - home.x,
-    dy = point.y - home.y;
+function relativePlace(point: { x: number; y: number }, state: GameState) {
+  if (!hasPhysicalCamp(state)) return 'Nella regione';
+  const dx = point.x - state.home.x,
+    dy = point.y - state.home.y;
   if (Math.hypot(dx, dy) <= 10) return 'Al campo';
   const vertical = Math.abs(dy) > 4 ? (dy < 0 ? 'nord' : 'sud') : '',
     horizontal = Math.abs(dx) > 4 ? (dx < 0 ? 'ovest' : 'est') : '';
@@ -66,7 +68,7 @@ export function getVisibleWorldTargets(
     category: VisibleTargetCategory,
     label: string,
     target: WorldTarget,
-    detail = relativePlace(target, state.home),
+    detail = relativePlace(target, state),
     display: { x: number; y: number } = target,
   ) => {
     if (!inView(display) || !isVisibleAt(state, target.x, target.y)) return;
@@ -85,7 +87,7 @@ export function getVisibleWorldTargets(
       'people',
       visibleUnitName(state, unit),
       { type: 'unit', id: unit.id, x: unit.x, y: unit.y },
-      `${lifeStageLabel(unit)} · ${relativePlace(unit, state.home)}`,
+      `${lifeStageLabel(unit)} · ${relativePlace(unit, state)}`,
     );
   }
   const piles = getGroundPiles(state);
@@ -104,7 +106,7 @@ export function getVisibleWorldTargets(
       'places',
       'Guado del fiume',
       { type: 'point', id: ford.id, x: ford.x, y: ford.y },
-      `Attraversamento a piedi · ${relativePlace(ford, state.home)}`,
+      `Attraversamento a piedi · ${relativePlace(ford, state)}`,
     );
   for (const entity of state.entities) {
     if (
@@ -128,7 +130,7 @@ export function getVisibleWorldTargets(
       entity.kind === 'corpse' || entity.kind === 'seedling' ? 'places' : 'resources',
       presentation.label,
       { type: 'entity', id: entity.id, x: entity.x, y: entity.y },
-      `${presentation.stage} · ${relativePlace(entity, state.home)}`,
+      `${presentation.stage} · ${relativePlace(entity, state)}`,
     );
   }
   if (!state.urbanized) {
@@ -141,15 +143,16 @@ export function getVisibleWorldTargets(
         'buildings',
         label,
         { type: 'building', id: building.id, x: building.x, y: building.y },
-        `${status} · ${relativePlace(building, state.home)}`,
+        `${status} · ${relativePlace(building, state)}`,
       );
     }
-    add(
-      'places',
-      'Giaciglio della tribù',
-      { type: 'point', ...state.home },
-      'Riposo e ritorno al campo',
-    );
+    if (hasPhysicalCamp(state))
+      add(
+        'places',
+        'Giaciglio della tribù',
+        { type: 'point', ...state.home },
+        'Riposo e ritorno al campo',
+      );
   }
   for (const city of state.cities) {
     if (city.factionId === 'ruins') continue;
@@ -191,7 +194,7 @@ export function getVisibleWorldTargets(
         'travel',
         presentation.label,
         { type: 'boat', id: boat.id, x: boat.x, y: boat.y },
-        `${presentation.stage} · ${relativePlace(boat, state.home)}`,
+        `${presentation.stage} · ${relativePlace(boat, state)}`,
       );
     }
   const order = VISIBLE_TARGET_CATEGORIES.map((category) => category.id);

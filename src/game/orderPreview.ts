@@ -72,19 +72,21 @@ export function getOrderPreview(
             : undefined;
         const sailingDestination =
           unit.action === 'sailing' ? (boat?.landing ?? boat?.destination) : undefined;
-        const destination: Target | undefined = sailingDestination
-          ? { type: 'point', ...sailingDestination }
-          : harbor
-            ? { type: 'building', id: harbor.id, x: harbor.x, y: harbor.y }
-            : boat
-              ? { type: 'boat', id: boat.id, x: boat.x, y: boat.y }
-              : entity
-                ? { type: 'entity', id: entity.id, x: entity.x, y: entity.y }
-                : building
-                  ? { type: 'building', id: building.id, x: building.x, y: building.y }
-                  : unit.tx !== undefined && unit.ty !== undefined
-                    ? { type: 'point', x: unit.tx, y: unit.ty }
-                    : undefined;
+        const destination: Target | undefined = target?.regionId
+          ? { ...target }
+          : sailingDestination
+            ? { type: 'point', ...sailingDestination }
+            : harbor
+              ? { type: 'building', id: harbor.id, x: harbor.x, y: harbor.y }
+              : boat
+                ? { type: 'boat', id: boat.id, x: boat.x, y: boat.y }
+                : entity
+                  ? { type: 'entity', id: entity.id, x: entity.x, y: entity.y }
+                  : building
+                    ? { type: 'building', id: building.id, x: building.x, y: building.y }
+                    : unit.tx !== undefined && unit.ty !== undefined
+                      ? { type: 'point', x: unit.tx, y: unit.ty }
+                      : undefined;
         return destination
           ? [
               [
@@ -138,7 +140,10 @@ export function getOrderPreview(
   let behaviour = '';
   const actions = unitIds.map((id) => next.units.find((unit) => unit.id === id)?.action);
   const numbered = hasWord(state, 'O_08');
-  if (['S_08', 'S_09'].includes(predicate.subject)) behaviour = compilation.message;
+  if (target?.regionId)
+    behaviour =
+      'Il gruppo raggiunge il confine seguendo un percorso reale. Persone, barca e carichi passano nella regione vicina soltanto all’arrivo; le scorte lasciate qui restano qui.';
+  else if (['S_08', 'S_09'].includes(predicate.subject)) behaviour = compilation.message;
   else if (compilation.kind === 'tradition')
     behaviour =
       'Stabilisce un incarico da ripetere. Gli addetti lo svolgono quando turno, bisogni e regole lo permettono e ci sono posti liberi. Con Notte, il lavoro si svolge nelle ore buie.';

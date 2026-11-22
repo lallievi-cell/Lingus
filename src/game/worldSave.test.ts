@@ -7,6 +7,7 @@ import { emptyInventory } from './content';
 import { BOAT_BUILD_COST } from './maritimeConfig';
 import { recordKnowledgeDiscovery } from './knowledgeHistory';
 import { WORLD_LOCAL_KEYS, type RegionState } from './worldTypes';
+import { switchWorldRegion } from './worldRuntime';
 import type { GameState } from './types';
 
 const worldScene = () => createInitialState(42, 'classic', 'random', 1000, true);
@@ -67,6 +68,7 @@ describe('connected world save schema', () => {
   it('requires complete compatible metadata and rejects unsupported world versions', () => {
     const state = worldScene();
     for (const patch of [
+      { seed: 43 },
       { worldRules: 2 },
       { worldSeed: undefined },
       { worldSeed: 43 },
@@ -110,6 +112,13 @@ describe('connected world save schema', () => {
     for (const amount of [-1, null, '3', Number.NaN, undefined]) {
       const invalid = structuredClone(state);
       Object.assign(invalid.world!.regions['1:0'].snapshot!.resources, { wood: amount });
+      expect(validSave(invalid)).toBe(false);
+    }
+    for (const resource of ['fish', 'cookedFish'] as const) {
+      const invalid = structuredClone(state);
+      delete (invalid.world!.regions['1:0'].snapshot!.resources as Partial<GameState['resources']>)[
+        resource
+      ];
       expect(validSave(invalid)).toBe(false);
     }
     for (const patch of [
@@ -190,8 +199,7 @@ describe('connected world save schema', () => {
     const neighbour = addNeighbour(state);
     const view = { ...state, ...neighbour, world: undefined };
     const y = Array.from({ length: 19 }, (_, index) => 25 + index * 50).find(
-      (y) =>
-        isDryLandPoint(state, { x: 1000, y }) && isDryLandPoint(view, { x: 0, y }),
+      (y) => isDryLandPoint(state, { x: 1000, y }) && isDryLandPoint(view, { x: 0, y }),
     );
     expect(y).toBeDefined();
     state.world!.transfers.push({
@@ -224,6 +232,41 @@ describe('connected world save schema', () => {
     const settled = structuredClone(state);
     settled.units[0].cityId = settled.cities[0].id;
     expect(validSave(settled)).toBe(false);
+  });
+
+  it('persists a pending crossing without generating or revealing its destination', () => {
+    const state = worldScene();
+    const destination = {
+      ...state,
+      mapGeneration: { ...state.mapGeneration!, regionX: 1, regionY: 0 },
+      sectors: [],
+    };
+    const y = Array.from({ length: 99 }, (_, index) => 10 + index * 10).find(
+      (y) => isDryLandPoint(state, { x: 1000, y }) && isDryLandPoint(destination, { x: 0, y }),
+    );
+    expect(y).toBeDefined();
+    state.world!.transfers.push({
+      id: 'pending-unvisited',
+      from: '0:0',
+      to: '1:0',
+      kind: 'people',
+      actorIds: [state.units[0].id],
+      exit: { x: 1000, y: y! },
+      entry: { x: 0, y: y! },
+    });
+    const serialized = JSON.stringify(state);
+    expect(validSave(state)).toBe(true);
+    expect(validSave(JSON.parse(serialized))).toBe(true);
+    expect(JSON.stringify(state)).toBe(serialized);
+    expect(Object.keys(state.world!.regions)).toEqual(['0:0']);
+
+    const nonAdjacent = structuredClone(state);
+    nonAdjacent.world!.transfers[0].to = '2:0';
+    expect(validSave(nonAdjacent)).toBe(false);
+    const corner = structuredClone(state);
+    corner.world!.transfers[0].exit.y = 0;
+    corner.world!.transfers[0].entry.y = 0;
+    expect(validSave(corner)).toBe(false);
   });
 
   it('keeps a crossing vessel and every passenger together on an actual sea border', () => {
@@ -261,12 +304,27 @@ describe('connected world save schema', () => {
     });
     expect(validSave(state)).toBe(true);
     expect(validSave(JSON.parse(JSON.stringify(state)))).toBe(true);
+    const ungenerated = structuredClone(state);
+    delete ungenerated.world!.regions['1:0'];
+    expect(validSave(ungenerated)).toBe(true);
+    expect(validSave(JSON.parse(JSON.stringify(ungenerated)))).toBe(true);
+    const observedNeighbour = switchWorldRegion(state, '1:0');
+    expect(validSave(observedNeighbour)).toBe(true);
+    const invalidArchivedCargo = structuredClone(observedNeighbour);
+    invalidArchivedCargo.world!.regions['0:0'].snapshot!.boats![0].resources.fish = -1;
+    expect(validSave(invalidArchivedCargo)).toBe(false);
+    const invalidArchivedPassenger = structuredClone(observedNeighbour);
+    invalidArchivedPassenger.world!.regions['0:0'].snapshot!.boats![0].passengerIds = [];
+    expect(validSave(invalidArchivedPassenger)).toBe(false);
     const missingPassenger = structuredClone(state);
     missingPassenger.world!.transfers[0].actorIds = [boatId];
     expect(validSave(missingPassenger)).toBe(false);
     const extraPassenger = structuredClone(state);
     extraPassenger.world!.transfers[0].actorIds.push(state.units[1].id);
     expect(validSave(extraPassenger)).toBe(false);
+    const wrongActorOrder = structuredClone(state);
+    wrongActorOrder.world!.transfers[0].actorIds.reverse();
+    expect(validSave(wrongActorOrder)).toBe(false);
     const wrongMedium = structuredClone(state);
     wrongMedium.world!.transfers[0].kind = 'people';
     expect(validSave(wrongMedium)).toBe(false);

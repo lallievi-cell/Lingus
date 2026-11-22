@@ -133,7 +133,7 @@ import type {
   Tier,
   Unit,
 } from './types';
-import { allWorldCities, allWorldUnits } from './worldRuntime';
+import { allWorldCities, allWorldUnits, currentWorldRegionId } from './worldRuntime';
 
 /** Parameters the GDD does not numerically specify; kept explicit for review. */
 export const CORE_DEFAULTS = {
@@ -375,7 +375,7 @@ function localFuel(s: GameState, x: number, y: number) {
       (!maritimeEnabled(s) || !!planLandRoute(s, { x, y }, e)),
   );
 }
-function payLocalFuel(s: GameState, required: number, x: number, y: number) {
+export function payLocalFuel(s: GameState, required: number, x: number, y: number) {
   const home = hasHomeLandAccess(s, { x, y });
   if (
     (home ? s.resources.wood : 0) + localFuel(s, x, y).reduce((n, e) => n + e.amount, 0) <
@@ -2714,10 +2714,38 @@ export function updateAnimals(s: GameState, dt: number) {
     }
   }
 }
-export function seasonalCore(
-  s: GameState,
-  options: { regional?: boolean; global?: boolean } = {},
-) {
+export interface SeasonCouncilSupport {
+  burntWood: number;
+  temple: number;
+  hasCampfire: boolean;
+}
+
+export function beginWorldCoreSeason(s: GameState) {
+  s.stats.seasonsSurvived++;
+  s.nightCount++;
+}
+
+export function settleWorldSeasonCouncil(s: GameState, support: SeasonCouncilSupport) {
+  if (!support.hasCampfire) {
+    s.attention = 0;
+    return;
+  }
+  const live = activeUnits(s);
+  const hunger = live.reduce((n, u) => n + u.hunger, 0) / Math.max(1, live.length);
+  const elders = live.filter((u) => u.age >= ELDER_AGE).length;
+  const fx = getDogmaEffects(s);
+  s.attention = getCouncilAttention(
+    s,
+    support.burntWood,
+    elders * fx.elderAttention,
+    hunger,
+    fx.attentionCap,
+    support.temple,
+  ).total;
+  s.campfirePending = true;
+}
+
+export function seasonalCore(s: GameState, options: { regional?: boolean; global?: boolean } = {}) {
   const season = seasonOf(s),
     // Settlement runs after time crosses the boundary. Weather and spring
     // regeneration use the new season; costs, spoilage and harvest close the old one.
@@ -2932,23 +2960,14 @@ export function seasonalCore(
       }
     if (b.kind === 'temple') s.attention = clamp(s.attention + 20 * efficiency, 0, fx.attentionCap);
   }
-  if (globalSeason && hasBuilding(s, 'campfire')) {
-    const hunger =
-        activeUnits(s).reduce((n, u) => n + u.hunger, 0) / Math.max(1, activeUnits(s).length),
-      elders = activeUnits(s).filter((u) => u.age >= ELDER_AGE).length;
-    const temple = s.buildings
+  const councilSupport: SeasonCouncilSupport = {
+    burntWood: s.burntWood,
+    hasCampfire: hasBuilding(s, 'campfire'),
+    temple: s.buildings
       .filter((b) => isPlayerBuilding(s, b) && b.kind === 'temple')
-      .reduce((n, b) => n + 20 * (villageWork.get(b.id) ?? 0), 0);
-    s.attention = getCouncilAttention(
-      s,
-      s.burntWood,
-      elders * fx.elderAttention,
-      hunger,
-      fx.attentionCap,
-      temple,
-    ).total;
-    s.campfirePending = true;
-  } else if (globalSeason) s.attention = 0;
+      .reduce((n, b) => n + 20 * (villageWork.get(b.id) ?? 0), 0),
+  };
+  if (globalSeason) settleWorldSeasonCouncil(s, councilSupport);
   s.burntWood = 0;
   if (spring) {
     s.disasters.drought = false;
@@ -2960,7 +2979,8 @@ export function seasonalCore(
           Math.floor(e.x / 100) === sector.x &&
           Math.floor(e.y / 100) === sector.y,
       );
-      const fractionKey = `FAUNA_FRACTION:${sector.id}`;
+      const region = currentWorldRegionId(s);
+      const fractionKey = `FAUNA_FRACTION:${region ? `${region}:` : ''}${sector.id}`;
       const expected =
         animals.length === 0
           ? 0
@@ -3065,8 +3085,13 @@ export function seasonalCore(
     s.recentTrauma = { tag: 'STAT_PLAGUE', time: s.time };
     log(s, 'Un’epidemia colpisce il trenta per cento della comunità.', 'danger');
   }
-  if (!globalSeason) return;
+  if (!globalSeason) return councilSupport;
   updateDogmasSeason(s);
+  finishSeasonProgression(s);
+  return councilSupport;
+}
+
+function finishSeasonProgression(s: GameState) {
   const threshold = [0, 6, 8, 16, 25, 35][s.tier],
     stable = availableWords(s).filter((w) => s.words[w].retention >= 50).length;
   if (stable < threshold) {
@@ -3077,6 +3102,11 @@ export function seasonalCore(
     s.lockedSlot = false;
   }
   log(s, `${getSeason(s).name}, anno ${getSeason(s).year}: una nuova stagione.`);
+}
+
+/** Global vocabulary pressure is assessed after every regional rite finished. */
+export function finishWorldCoreSeason(s: GameState) {
+  finishSeasonProgression(s);
 }
 export function finishSeasonMemory(s: GameState) {
   const fx = getDogmaEffects(s);
@@ -3127,11 +3157,7 @@ export function finishSeasonMemory(s: GameState) {
   }
   advanceTier(s);
 }
-export function simulationStep(
-  s: GameState,
-  dt: number,
-  options: { regional?: boolean } = {},
-) {
+export function simulationStep(s: GameState, dt: number, options: { regional?: boolean } = {}) {
   for (const city of s.cities.filter(
     (c) => c.factionId !== 'player' && activeUnits(s).some((u) => distance(u, c) <= 30),
   )) {

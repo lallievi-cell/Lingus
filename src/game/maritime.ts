@@ -15,6 +15,7 @@ import {
 import { distance, hasWord, log, nextId } from './runtime';
 import { sectorIndex } from './worldDimensions';
 import { hasHomeLandAccess } from './maritimeInventory';
+import { hasPhysicalCamp } from './physicalCamp';
 import type { Boat, Building, GameState, MapEntity, Resource, Unit } from './types';
 
 export { BOAT_BUILD_COST, BOAT_BUILD_SECONDS, BOAT_CARGO_CAPACITY, BOAT_SPEED };
@@ -462,9 +463,19 @@ function interpolate(unit: Unit, from: SeaPoint, to: SeaPoint, dt: number) {
   return fraction >= 1;
 }
 function finishLanding(state: GameState, unit: Unit, boat: Boat) {
+  const land = boat.landing!;
+  // The first real landfall establishes a local bivouac, without supplies or
+  // housing. A bookkeeping point in a previously empty sea region is no camp.
+  if (
+    state.mapGeneration?.worldRules === 1 &&
+    !hasPhysicalCamp(state) &&
+    !state.units.some(
+      (other) => other.hp > 0 && player(other) && !other.boatId && isDryLandPoint(state, other),
+    )
+  )
+    state.home = { ...land };
   boat.passengerIds = boat.passengerIds.filter((id) => id !== unit.id);
   unit.boatId = undefined;
-  const land = boat.landing!;
   unit.x = land.x;
   unit.y = land.y;
   idle(state, unit);

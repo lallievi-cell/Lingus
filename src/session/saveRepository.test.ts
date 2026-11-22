@@ -18,12 +18,23 @@ class MemoryStorage implements SaveStorage {
   writes: string[] = [];
   failKeys = new Set<string>();
   failReads = false;
+  quotaCharacters = Infinity;
+  quotaFailures: string[] = [];
+  get characters() {
+    return [...this.data].reduce((sum, [key, value]) => sum + key.length + value.length, 0);
+  }
   getItem(key: string) {
     if (this.failReads) throw new Error('Storage blocked');
     return this.data.get(key) ?? null;
   }
   setItem(key: string, value: string) {
     if (this.failKeys.has(key)) throw new DOMException('Storage quota', 'QuotaExceededError');
+    const old = this.data.get(key);
+    const characters = this.characters - (old === undefined ? 0 : key.length + old.length);
+    if (characters + key.length + value.length > this.quotaCharacters) {
+      this.quotaFailures.push(key);
+      throw new DOMException('Storage quota', 'QuotaExceededError');
+    }
     this.writes.push(key);
     this.data.set(key, value);
   }
@@ -179,6 +190,83 @@ describe('recoverable browser saves', () => {
     expect(repo.save(gameAt(20))).toMatchObject({ ok: false, lastSavedAt: first.lastSavedAt });
     expect(storage.data.get(SAVE_KEY)).toBe(original);
     expect(repo.list()[0].game.time).toBe(10);
+    expect(repo.load().game?.time).toBe(10);
+  });
+
+  it('reduces only older automatic backups when the journal exhausts the quota', () => {
+    const { storage, repo } = fixture();
+    expect(repo.archive(gameAt(5)).ok).toBe(true);
+    const damaged = '{original damaged history}';
+    storage.data.set(SAVE_DAMAGED_HISTORY_KEY, damaged);
+    for (const time of [10, 20, 30]) expect(repo.save(gameAt(time)).ok).toBe(true);
+    const archived = repo.list().find((entry) => entry.kind === 'archive')!;
+    const previous = storage.data.get(SAVE_KEY)!;
+    storage.quotaCharacters = storage.characters + 500;
+
+    const result = repo.save(gameAt(40));
+
+    expect(result).toMatchObject({ ok: true, issue: null });
+    expect(result.warning).toContain('copie automatiche');
+    expect(storage.quotaFailures).toContain(SAVE_HISTORY_KEY);
+    expect(repo.load().game?.time).toBe(40);
+    const backups = repo.list().filter((entry) => entry.kind === 'backup');
+    expect(backups.map((entry) => entry.game.time)).toEqual([30, 20]);
+    expect(backups[0].raw).toBe(previous);
+    expect(repo.list().find((entry) => entry.kind === 'archive')).toEqual(archived);
+    expect(storage.data.get(SAVE_DAMAGED_HISTORY_KEY)).toBe(damaged);
+  });
+
+  it('also makes room when a growing primary save exceeds quota after the journal fits', () => {
+    const { storage, repo } = fixture();
+    for (const time of [10, 20, 30]) expect(repo.save(gameAt(time)).ok).toBe(true);
+    const previous = storage.data.get(SAVE_KEY)!;
+    // Room for one more journal entry, but not the larger incoming primary.
+    storage.quotaCharacters = storage.characters + JSON.stringify(previous).length + 500;
+    const growing = gameAt(40);
+    growing.logs[0].text += 'x'.repeat(Math.ceil(previous.length / 2));
+
+    const result = repo.save(growing);
+
+    expect(result.ok).toBe(true);
+    expect(result.warning).toContain('copie automatiche');
+    expect(storage.quotaFailures[0]).toBe(SAVE_KEY);
+    expect(repo.load().raw).toBe(serializeGame(growing));
+    const backups = repo.list().filter((entry) => entry.kind === 'backup');
+    expect(backups.map((entry) => entry.game.time)).toEqual([30, 20]);
+    expect(backups[0].raw).toBe(previous);
+  });
+
+  it('refuses to drop the only previous copy or an archive to force a successful save', () => {
+    const { storage, repo } = fixture();
+    expect(repo.archive(gameAt(5)).ok).toBe(true);
+    const first = repo.save(gameAt(10));
+    const before = new Map(storage.data);
+    storage.quotaCharacters = storage.characters + 500;
+
+    expect(repo.save(gameAt(20))).toMatchObject({
+      ok: false,
+      issue: { kind: 'write-failed' },
+      lastSavedAt: first.lastSavedAt,
+    });
+    expect(storage.data).toEqual(before);
+    expect(repo.load().game?.time).toBe(10);
+    expect(repo.list().map((entry) => entry.game.time)).toEqual([5]);
+  });
+
+  it('preserves a damaged journal if its quarantine cannot fit in storage', () => {
+    const { storage, repo } = fixture();
+    expect(repo.save(gameAt(10)).ok).toBe(true);
+    const damaged = JSON.stringify({ version: 1, entries: [{ invalid: true }] });
+    storage.data.set(SAVE_HISTORY_KEY, damaged);
+    const before = new Map(storage.data);
+    storage.quotaCharacters = storage.characters + 1;
+
+    expect(repo.save(gameAt(20))).toMatchObject({
+      ok: false,
+      issue: { kind: 'write-failed' },
+    });
+    expect(storage.data).toEqual(before);
+    expect(storage.data.get(SAVE_HISTORY_KEY)).toBe(damaged);
     expect(repo.load().game?.time).toBe(10);
   });
 

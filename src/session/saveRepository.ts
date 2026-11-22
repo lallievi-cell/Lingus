@@ -120,7 +120,7 @@ function candidates(history: History): SaveCandidate[] {
 }
 
 function writeIssue(error: unknown): SaveIssue {
-  const quota = error instanceof Error && /quota/i.test(error.name);
+  const quota = quotaExceeded(error);
   return {
     kind: 'write-failed',
     message: quota
@@ -129,7 +129,16 @@ function writeIssue(error: unknown): SaveIssue {
   };
 }
 
-function writeHistory(storage: SaveStorage, history: History, entries: StoredCopy[]) {
+function quotaExceeded(error: unknown) {
+  return error instanceof Error && /quota/i.test(error.name);
+}
+
+function writeHistory(
+  storage: SaveStorage,
+  history: History,
+  entries: StoredCopy[],
+  preserveArchives = false,
+) {
   // Never discard unreadable historical data while repairing the journal.
   if (history.damagedRaw) {
     const quarantined = storage.getItem(SAVE_DAMAGED_HISTORY_KEY);
@@ -138,10 +147,28 @@ function writeHistory(storage: SaveStorage, history: History, entries: StoredCop
     storage.setItem(SAVE_DAMAGED_HISTORY_KEY, history.damagedRaw);
   }
   const bounded = entries.filter((entry, index) => {
-    const limit = entry.kind === 'backup' ? SAVE_BACKUP_LIMIT : SAVE_ARCHIVE_LIMIT;
+    const limit =
+      entry.kind === 'backup'
+        ? SAVE_BACKUP_LIMIT
+        : preserveArchives
+          ? Infinity
+          : SAVE_ARCHIVE_LIMIT;
     return entries.slice(0, index).filter((other) => other.kind === entry.kind).length < limit;
   });
   storage.setItem(SAVE_HISTORY_KEY, JSON.stringify({ version: 1, entries: bounded }));
+  return bounded;
+}
+
+/** Only automatic older copies may yield space; the last active game stays recoverable. */
+function withoutOldestBackup(entries: StoredCopy[], previous: string | null) {
+  const protectedCopy =
+    entries.find((entry) => entry.kind === 'backup' && entry.raw === previous) ??
+    entries.find((entry) => entry.kind === 'backup');
+  for (let index = entries.length - 1; index >= 0; index--) {
+    if (entries[index].kind === 'backup' && entries[index] !== protectedCopy)
+      return entries.filter((_, at) => at !== index);
+  }
+  return undefined;
 }
 
 function prependCopy(
@@ -244,13 +271,35 @@ export function createSaveRepository(
           },
           lastSavedAt: null,
         };
+      let history: History | undefined;
+      let entries: StoredCopy[] | undefined;
+      let reducedBackups = false;
       if (validPrevious && previous !== raw) {
-        const history = readHistory(storage);
-        writeHistory(storage, history, prependCopy(history, 'backup', previous!, previousTime));
+        history = readHistory(storage);
+        entries = prependCopy(history, 'backup', previous!, previousTime);
       }
-      // setItem is atomic: if it throws, the active item is still the previous copy.
-      storage.setItem(SAVE_KEY, raw);
+      for (;;) {
+        try {
+          if (history && entries) entries = writeHistory(storage, history, entries, true);
+          // setItem is atomic: a failed primary write leaves the old slot intact.
+          storage.setItem(SAVE_KEY, raw);
+          break;
+        } catch (error) {
+          if (!quotaExceeded(error)) throw error;
+          history ??= readHistory(storage);
+          entries ??= history.entries;
+          const reduced = withoutOldestBackup(entries, validPrevious ? previous : null);
+          if (!reduced) throw error;
+          entries = reduced;
+          reducedBackups = true;
+        }
+      }
       const at = now();
+      const warnings = reducedBackups
+        ? [
+            'Per liberare spazio sono state ridotte le copie automatiche più vecchie. La partita precedente e le storie archiviate sono conservate.',
+          ]
+        : [];
       try {
         const metadata: SaveMetadata = {
           version: 1,
@@ -259,16 +308,17 @@ export function createSaveRepository(
           reason: options.reason ?? 'auto',
         };
         storage.setItem(SAVE_METADATA_KEY, JSON.stringify(metadata));
-        return { ok: true, issue: null, lastSavedAt: at };
       } catch {
-        return {
-          ok: true,
-          issue: null,
-          lastSavedAt: at,
-          warning:
-            'La partita è salvata, ma non è stato possibile registrare la data dell’ultimo salvataggio.',
-        };
+        warnings.push(
+          'La partita è salvata, ma non è stato possibile registrare la data dell’ultimo salvataggio.',
+        );
       }
+      return {
+        ok: true,
+        issue: null,
+        lastSavedAt: at,
+        ...(warnings.length ? { warning: warnings.join(' ') } : {}),
+      };
     } catch (error) {
       return { ok: false, issue: writeIssue(error), lastSavedAt: previousTime };
     }
