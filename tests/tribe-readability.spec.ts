@@ -139,20 +139,26 @@ test('sex, life stages and physical danger are visible before Io and Numero, whi
   await expect(details).not.toContainText(/Ilo|\d/);
   await page.getByRole('button', { name: /^Gruppo:/ }).click();
   await page.getByRole('button', { name: /^Colpire:/ }).click();
-  const map = page.getByRole('img', { name: /Mappa della valle/ });
-  const bounds = await map.boundingBox();
-  expect(bounds).not.toBeNull();
-  const scale = Math.max(bounds!.width / 1200, bounds!.height / 800) * 4.5;
-  await map.click({
-    position: { x: bounds!.width / 2 + 10 * 2.4 * scale, y: bounds!.height / 2 - 3 * scale },
-  });
+  // The fixture has one resource. Select it by its public description so the
+  // test can verify work eligibility independently of the canvas layout.
+  await page.getByRole('button', { name: 'Elementi visibili', exact: true }).click();
+  const elements = page.getByRole('region', { name: 'Elementi visibili sulla mappa' });
+  await elements
+    .getByRole('combobox', { name: 'Tipo di elemento visibile' })
+    .selectOption('resources');
+  await elements.getByRole('button', { name: /^Un ostacolo senza nome/ }).click();
+  await expect(elements).toHaveCount(0);
+  await expect(details).toContainText('Un ostacolo senza nome');
   await page.getByRole('button', { name: 'Pronuncia', exact: true }).click();
   const saved = await saveAndRead(page);
   expect(saved.stats.commands).toBe(1);
   expect(
     saved.units
       .filter((unit: { age: number }) => unit.age >= 4)
-      .every((unit: { action: string }) => unit.action === 'gathering'),
+      .every(
+        (unit: { action: string; targetId?: string }) =>
+          unit.action === 'gathering' && unit.targetId === saved.entities[0].id,
+      ),
   ).toBe(true);
   expect(
     saved.units
