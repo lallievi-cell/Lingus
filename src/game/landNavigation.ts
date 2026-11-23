@@ -9,6 +9,7 @@ import {
   type CoastGeometry,
 } from './coastGeometry';
 import {
+  BIOME_PROFILES,
   terrainPointAtEffort,
   terrainSegmentEffort,
   terrainTravelCost,
@@ -32,7 +33,16 @@ const BUCKET_SIZE = 16;
 const GRID_STEP = 4;
 const EPSILON = 1e-8;
 type Segment = { a: LandPoint; b: LandPoint };
-type Grid = { land: Uint8Array; checked: Uint8Array; edges: Uint8Array };
+type Grid = {
+  land: Uint8Array;
+  checked: Uint8Array;
+  edges: Uint8Array;
+  /** 0 = unmeasured, 1 = the shore contour needs exact edge integration. */
+  coastRates?: Uint8Array;
+};
+const gridTravelRates = [
+  ...new Set(Object.values(BIOME_PROFILES).map((biome) => biome.travelCost)),
+];
 type Model = {
   worldSize: number;
   maritime: boolean;
@@ -327,7 +337,11 @@ function crossedSegments(model: Model, a: LandPoint, b: LandPoint) {
   return result;
 }
 function clearSegment(model: Model, a: LandPoint, b: LandPoint) {
-  if (!pointOnLand(model, a) || !pointOnLand(model, b)) return false;
+  return pointOnLand(model, a) && pointOnLand(model, b) && clearBetweenLandPoints(model, a, b);
+}
+
+/** Endpoints already checked by route attachment or the occupancy grid. */
+function clearBetweenLandPoints(model: Model, a: LandPoint, b: LandPoint) {
   if (model.coast && !isCoastLandSegment(model.coast, a, b)) return false;
   const dx = b.x - a.x,
     dy = b.y - a.y;
@@ -394,6 +408,11 @@ function gridFor(model: Model) {
       land,
       checked: new Uint8Array(model.nodeCount),
       edges: new Uint8Array(model.nodeCount),
+      // Midpoints are shared by both directions (and by crossing diagonals).
+      // A byte per half-grid position bounds storage for a 1000 m coastal map
+      // to about 250 kB, even after all possible edges have been visited.
+      coastRates:
+        model.coast && model.terrain ? new Uint8Array((model.gridSide * 2 - 1) ** 2) : undefined,
     };
   }
   return model.grid;
@@ -414,7 +433,9 @@ function connectedNode(model: Model, point: LandPoint) {
         candidates.push({ node, distance: distance(point, nodePoint(model, node)) });
     }
   candidates.sort((a, b) => a.distance - b.distance || a.node - b.node);
-  return candidates.find((entry) => clearSegment(model, point, nodePoint(model, entry.node)))?.node;
+  return candidates.find((entry) =>
+    clearBetweenLandPoints(model, point, nodePoint(model, entry.node)),
+  )?.node;
 }
 
 class MinHeap {
@@ -470,18 +491,31 @@ function segmentEffort(model: Model, from: LandPoint, to: LandPoint) {
   return model.terrain ? terrainSegmentEffort(model.terrain, from, to) : distance(from, to);
 }
 
-function gridEdgeEffort(model: Model, x: number, y: number, dx: number, dy: number) {
+function gridEdgeEffort(model: Model, grid: Grid, x: number, y: number, dx: number, dy: number) {
   const length = GRID_STEP * (dx && dy ? Math.SQRT2 : 1);
   if (!model.terrain) return length;
-  if (model.coast) {
-    const from = { x: x * GRID_STEP, y: y * GRID_STEP },
-      to = { x: (x + dx) * GRID_STEP, y: (y + dy) * GRID_STEP },
-      middle = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+  if (model.coast && grid.coastRates) {
+    const midX = 2 * x + dx;
+    const midY = 2 * y + dy;
+    const midpoint = midY * (model.gridSide * 2 - 1) + midX;
+    let rate = grid.coastRates[midpoint];
     // Only the narrow physical shore contour can cross a grid edge in its
-    // interior; retain its exact integral without taxing inland A* searches.
-    return coastInlandDistance(model.coast, middle) < 42
-      ? terrainSegmentEffort(model.terrain, from, to)
-      : length * terrainTravelCost(model.terrain, middle);
+    // interior. Repeated searches reuse the exact inland rate at each edge.
+    if (!rate) {
+      const middle = { x: (midX * GRID_STEP) / 2, y: (midY * GRID_STEP) / 2 };
+      rate =
+        coastInlandDistance(model.coast, middle) < 42
+          ? 1
+          : gridTravelRates.indexOf(terrainTravelCost(model.terrain, middle)) + 2;
+      grid.coastRates[midpoint] = rate;
+    }
+    return rate === 1
+      ? terrainSegmentEffort(
+          model.terrain,
+          { x: x * GRID_STEP, y: y * GRID_STEP },
+          { x: (x + dx) * GRID_STEP, y: (y + dy) * GRID_STEP },
+        )
+      : length * gridTravelRates[rate - 2];
   }
   // 4 m divides the 100 m sector width: a grid edge never crosses a biome
   // boundary in its interior. Its midpoint gives the exact interval cost.
@@ -522,19 +556,44 @@ function directTerrainRouteIsOptimal(model: Model, start: LandPoint, end: LandPo
   return true;
 }
 
+let searchScratch:
+  | {
+      costs: Float64Array;
+      previous: Int32Array;
+      closed: Uint8Array;
+      distances: Float64Array;
+      side: number;
+    }
+  | undefined;
+
 function shortestGridPath(model: Model, start: number, goal: number) {
   const key = `${start}:${goal}`;
   if (model.routes.has(key)) return model.routes.get(key)!;
-  const grid = gridFor(model),
-    target = nodePoint(model, goal);
-  const costs = new Float64Array(model.nodeCount);
-  costs.fill(Infinity);
+  const grid = gridFor(model);
+  // Searches run synchronously and never nest. Reuse one workspace and the
+  // exact Euclidean heuristic for each possible grid displacement.
+  if (!searchScratch || searchScratch.costs.length < model.nodeCount) {
+    const distances = new Float64Array(model.nodeCount);
+    for (let y = 0; y < model.gridSide; y++)
+      for (let x = 0; x < model.gridSide; x++)
+        distances[y * model.gridSide + x] = Math.hypot(x * GRID_STEP, y * GRID_STEP);
+    searchScratch = {
+      costs: new Float64Array(model.nodeCount),
+      previous: new Int32Array(model.nodeCount),
+      closed: new Uint8Array(model.nodeCount),
+      distances,
+      side: model.gridSide,
+    };
+  }
+  const { costs, previous, closed, distances, side } = searchScratch;
+  const targetX = goal % model.gridSide,
+    targetY = Math.floor(goal / model.gridSide);
+  costs.fill(Infinity, 0, model.nodeCount);
   costs[start] = 0;
-  const previous = new Int32Array(model.nodeCount);
-  previous.fill(-1);
-  const closed = new Uint8Array(model.nodeCount),
-    heap = new MinHeap();
-  heap.push(start, distance(nodePoint(model, start), target));
+  previous[start] = -1;
+  closed.fill(0, 0, model.nodeCount);
+  const heap = new MinHeap();
+  heap.push(start, distance(nodePoint(model, start), nodePoint(model, goal)));
   let found = false;
   while (heap.size) {
     const current = heap.pop()!.node;
@@ -545,8 +604,8 @@ function shortestGridPath(model: Model, start: number, goal: number) {
     }
     closed[current] = 1;
     const x = current % model.gridSide,
-      y = Math.floor(current / model.gridSide),
-      origin = nodePoint(model, current);
+      y = Math.floor(current / model.gridSide);
+    let origin: LandPoint | undefined;
     for (let index = 0; index < directions.length; index++) {
       const [dx, dy] = directions[index],
         nx = x + dx,
@@ -557,14 +616,16 @@ function shortestGridPath(model: Model, start: number, goal: number) {
       const bit = 1 << index;
       if (!(grid.checked[current] & bit)) {
         grid.checked[current] |= bit;
-        if (clearSegment(model, origin, nodePoint(model, node))) grid.edges[current] |= bit;
+        origin ??= nodePoint(model, current);
+        if (clearBetweenLandPoints(model, origin, nodePoint(model, node)))
+          grid.edges[current] |= bit;
       }
       if (!(grid.edges[current] & bit)) continue;
-      const cost = costs[current] + gridEdgeEffort(model, x, y, dx, dy);
+      const cost = costs[current] + gridEdgeEffort(model, grid, x, y, dx, dy);
       if (cost >= costs[node]) continue;
       costs[node] = cost;
       previous[node] = current;
-      heap.push(node, cost + distance(nodePoint(model, node), target));
+      heap.push(node, cost + distances[Math.abs(ny - targetY) * side + Math.abs(nx - targetX)]);
     }
   }
   let result: readonly LandPoint[] | null = null;
@@ -595,7 +656,7 @@ function smoothPath(model: Model, start: LandPoint, points: readonly LandPoint[]
     let next = points.length - 1;
     while (
       next > index &&
-      (!clearSegment(model, current, points[next]) ||
+      (!clearBetweenLandPoints(model, current, points[next]) ||
         (cumulative &&
           segmentEffort(model, current, points[next]) >
             cumulative[next] - (index ? cumulative[index - 1] : 0) + EPSILON))
@@ -648,7 +709,7 @@ function computeLandRoute(state: GameState, model: Model, start: LandPoint, end:
   )
     return null;
   if (distance(start, end) <= EPSILON) return [];
-  const direct = clearSegment(model, start, end);
+  const direct = clearBetweenLandPoints(model, start, end);
   if (direct && directTerrainRouteIsOptimal(model, start, end)) return [{ ...end }];
   const first = connectedNode(model, start),
     last = connectedNode(model, end);

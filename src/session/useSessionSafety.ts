@@ -7,7 +7,7 @@ import {
   type SetStateAction,
 } from 'react';
 import type { GameState } from '../game/types';
-import { serializeGame, tick } from '../game/engine';
+import { tick } from '../game/engine';
 import {
   createSaveRepository,
   SAVE_CONFLICT_MESSAGE,
@@ -72,10 +72,10 @@ export function useSessionSafety(
           lastSavedAt: null,
         });
       }
-      const result = browserSaves.save(state, { ...options, expectedRaw: baseline });
+      const { raw, ...result } = browserSaves.save(state, { ...options, expectedRaw: baseline });
       // Keep the exact snapshot we wrote. Reading the slot here could accidentally
       // adopt a different tab's intervening write as our own baseline.
-      if (result.ok) expectedRaw.current = serializeGame(state);
+      if (result.ok && raw !== undefined) expectedRaw.current = raw;
       return recordSaveResult(result);
     },
     [recordSaveResult],
@@ -139,14 +139,18 @@ export function useSessionSafety(
   useEffect(() => {
     if (simulationSuspended) return;
     let previous = performance.now();
+    const intervalMs = 250;
+    const maxElapsed = (2 * intervalMs) / 1000;
     const timer = window.setInterval(() => {
       const now = performance.now();
-      const elapsed = Math.min(2, (now - previous) / 1000);
+      // A long frame must not turn the next update into a larger batch of
+      // simulation steps. Allow ordinary timer drift but drop an old backlog.
+      const elapsed = Math.min(maxElapsed, (now - previous) / 1000);
       previous = now;
       // Browser timers can be throttled. Hidden time never becomes catch-up damage.
       if (document.visibilityState === 'hidden') return;
       setGame((state) => tick(state, elapsed));
-    }, 250);
+    }, intervalMs);
     return () => window.clearInterval(timer);
   }, [simulationSuspended, setGame]);
 

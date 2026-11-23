@@ -343,6 +343,23 @@ describe('recoverable browser saves', () => {
     expect(repo.list()[0].game.time).toBe(10);
   });
 
+  it('preserves an archive written by another tab after warming the save cache', () => {
+    const { storage, repo } = fixture();
+    const original = repo.save(gameAt(10));
+    const changed = repo.save(gameAt(20), { expectedRaw: original.raw });
+    expect(changed.raw).toBe(storage.data.get(SAVE_KEY));
+
+    const otherTab = createSaveRepository(() => storage);
+    expect(otherTab.archive(gameAt(5)).ok).toBe(true);
+
+    expect(repo.save(gameAt(30), { expectedRaw: changed.raw }).ok).toBe(true);
+    expect(repo.list().map((entry) => [entry.kind, entry.game.time])).toEqual([
+      ['backup', 20],
+      ['archive', 5],
+      ['backup', 10],
+    ]);
+  });
+
   it('returns recoverable storage failures without throwing or fabricating successful writes', () => {
     const denied = createSaveRepository(() => {
       throw new Error('Storage inaccessible');

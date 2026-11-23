@@ -262,7 +262,10 @@ export function evaluateDiscoveries(s: GameState, u: Unit) {
     ].filter((recipe) => recipe.every((t) => hasWord(s, t)));
     if (!recipes.length || !u.eventMemory.some((e) => e.wordIds.includes(wordId))) continue;
     const craft = u.tension![wordId] ?? 0,
-      tension = tc + craft;
+      // A completed meal with food left at the source is direct evidence for
+      // Portare, even if the witness has no other recent experiences.
+      freshSurplus = wordId === 'V_04' && u.lastEventAt!.ENV_SURPLUS === s.time,
+      tension = freshSurplus ? Math.max(100, tc + craft) : tc + craft;
     s.tension[wordId] = Math.max(0, tension);
     if (tension < 100) continue;
     const event = u.eventMemory.filter((e) => e.wordIds.includes(wordId)).at(-1)!;
@@ -836,7 +839,6 @@ export function consume(s: GameState, u: Unit, e?: MapEntity) {
   }
   if (e && ['deer', 'wolf', 'alpha', 'mammoth'].includes(e.kind) && s.time - s.lastHunt <= 60)
     recordEvent(s, u, 'ENV_HUNT_MEAL', 100, ['O_04']);
-  if (u.hunger <= 0 && e && hasWord(s, 'O_01')) recordEvent(s, u, 'ENV_SURPLUS', 60, ['V_04']);
   if (hasWord(s, 'O_05')) recordCraft(s, u, 'V_07');
   recordPersonalExperience(s, u, 'meal');
   return true;
@@ -1910,6 +1912,8 @@ export function processWork(s: GameState, u: Unit, dt: number) {
     if (!workCycle(s, u, dt, 1.5)) return;
     const ate = consume(s, u, e);
     if (u.hp <= 0) return;
+    if (ate && u.hunger <= 0 && e.amount > 0 && hasWord(s, 'O_01'))
+      recordEvent(s, u, 'ENV_SURPLUS', 60, ['V_04']);
     if (!ate || u.hunger <= 0 || (conserve && u.hunger < 60)) resetInstinct(u, s);
     return;
   }
@@ -2444,12 +2448,6 @@ export function updateUnits(s: GameState, dt: number) {
       recordEvent(s, u, 'ENV_STARVATION', 15, ['M_02'], 1);
     if (s.entities.some((e) => e.kind === 'corpse' && e.amount > 0 && distance(e, u) <= 10))
       recordEvent(s, u, 'ENV_CORPSE', 80, ['O_06'], 1);
-    if (
-      u.hunger <= 0 &&
-      edibleEntities(s, u).some((e) => distance(u, e) <= 2) &&
-      hasWord(s, 'O_01')
-    )
-      recordEvent(s, u, 'ENV_SURPLUS', 60, ['V_04'], 1);
     if (s.cohesion < 25) recordEvent(s, u, 'ENV_COHESION_CRITICAL', 100, ['M_03'], 1);
     if (u.age >= CORE_DEFAULTS.sageDiscoveryAgeSeasons && hasWord(s, 'O_05') && hasWord(s, 'M_02'))
       recordEvent(s, u, 'ENV_ELDER', 100, ['S_04'], 30);

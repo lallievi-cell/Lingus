@@ -209,6 +209,20 @@ export function coastSegmentCuts(
 
 export function isCoastLandSegment(coast: CoastGeometry, a: CoastPoint, b: CoastPoint): boolean {
   if (![a.x, a.y, b.x, b.y].every(Number.isFinite)) return false;
+  if (coast.world) {
+    const startClearance = worldLandDistance(coast.world, a) - 0.25;
+    if (startClearance <= 0) return false;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const lengthSquared = dx * dx + dy * dy + 1e-8;
+    // Signed distance can fall by at most one metre per metre walked.
+    if (startClearance * startClearance > lengthSquared) return true;
+    const endClearance = worldLandDistance(coast.world, b) - 0.25;
+    if (endClearance <= 0) return false;
+    // Overlapping dry radii certify the full segment without shoreline cuts.
+    const clearance = startClearance + endClearance;
+    if (clearance * clearance > lengthSquared) return true;
+  }
   // The union contains every mainland segment. Island boundaries cannot
   // change this result, so avoid their cuts on ordinary mainland walks.
   // Worlds without islands retain the original 0.8 calculation below.

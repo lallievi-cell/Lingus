@@ -25,6 +25,8 @@ Il rinvio della tormenta è una calibrazione esplicita della Guidata, indicata n
 
 ## Che cosa fa Portare
 
+Dopo aver appreso Qui, un pasto consumato sul posto fino a fame zero con cibo ancora alla fonte è sufficiente a far nascere la Scintilla «Il cibo che rimane», anche per un testimone con poca tensione recente. Per imparare Portare occorre risolverla con Mangiare e Qui. Consumare scorte già consegnate o l’ultima porzione della fonte non costituisce l’esperienza del cibo avanzato.
+
 Portare può prelevare da un cumulo già estratto oppure estrarre direttamente dall'albero o dalla roccia e riportare il materiale alla tana. Senza bersaglio esplicito, sceglie il candidato compatibile più vicino: non applica una priorità generale ai cumuli. Colpire lascia invece il materiale sul terreno. Gli animali vivi devono essere abbattuti prima di trasportarne la carne; le bacche e le carcasse possono essere raccolte direttamente.
 
 Un ordine nuovo interrompe il compito e lascia il vecchio carico sul posto (A-35). Le risorse consegnate aumentano le scorte solo all'arrivo.

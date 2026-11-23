@@ -34,7 +34,9 @@ export function OpeningGuide({
   const cold = living.some((unit) => unit.temp <= 20 && thermalConditionsAt(state, unit).delta < 0);
   const starving = living.some((unit) => unit.hunger >= 95);
   const personal = getPersonalDiscoveryProgress(state);
-  let action: 'spark' | 'teach' | 'growth' | undefined;
+  const surplus = state.sparks.find((spark) => spark.wordId === 'V_04');
+  let sparkAction: { id: string; label: string } | undefined;
+  let action: 'teach' | 'growth' | undefined;
   let title: string, text: string;
   if (cold) {
     title = 'La tribù sta gelando';
@@ -50,19 +52,27 @@ export function OpeningGuide({
   } else if (personal?.ready && onSpark) {
     title = 'Un’esperienza personale';
     text = personal.hint + ' Non serve allontanare un compagno dal gruppo.';
-    action = 'spark';
+    if (personal.sparkId) sparkAction = { id: personal.sparkId, label: 'Scopri Io' };
   } else if (!hasWord(state, 'O_03') || !hasWord(state, 'O_02')) {
     title = hasWord(state, 'O_03') ? 'Prova anche una roccia' : 'Comincia da un albero';
     text = hasWord(state, 'O_03')
       ? 'Componi Gruppo · Colpire e indica una roccia vicina. Le schegge resteranno a terra e il lavoro potrà far nascere una Scintilla. Al calare del buio torna al giaciglio.'
       : 'Componi Gruppo · Colpire, scegli un albero vicino e premi Pronuncia. Il legno tagliato resterà a terra. Prova anche su una roccia e segui le prime Scintille.';
-  } else if (!hasWord(state, 'O_01') && !hasWord(state, 'S_02')) {
+  } else if (!hasWord(state, 'O_01')) {
     title = 'Rientrare al calare del buio';
     text = `Quando arriva il buio usa Raduna al campo: è un ordine di Andare che costa una Voce. Camminare al buio fa comprendere Notte. Dormire vicini per ${guided ? 'una notte' : 'due notti'} può far nascere la Scintilla di Qui.${personal ? ' Per Io conta anche un’esperienza personale: un compagno che mangia di propria iniziativa mentre gli altri non hanno fame può avere l’intuizione, senza essere isolato.' : ''}`;
   } else if (!hasWord(state, 'V_04')) {
-    title = 'Mangiare prima di trasportare';
-    text =
-      'Gruppo · Mangiare su un cespuglio fa mangiare sul posto. Apri le Scintille: scoprendo Portare imparerai a riportare cibo e materiali al campo.';
+    if (surplus) {
+      title = 'Il cibo che rimane';
+      text = surplus.deferred
+        ? 'La tribù ha notato le bacche rimaste dopo il pasto. Risolvi le Scintille già aperte per passare a questa intuizione.'
+        : 'La tribù ha notato le bacche rimaste dopo il pasto. Apri la Scintilla per dare una parola a questa esperienza.';
+      if (!surplus.deferred) sparkAction = { id: surplus.id, label: 'Apri Il cibo che rimane' };
+    } else {
+      title = 'Mangiare prima di trasportare';
+      text =
+        'Usa Gruppo · Mangiare su un cespuglio ricco di bacche e lascia finire il pasto. Quando qualcuno si sazia sul posto e avanzano ancora bacche, cerca la Scintilla «Il cibo che rimane». Le porzioni prese dalle scorte del campo non contano.';
+    }
   } else if (!fire && !hasWord(state, 'O_05')) {
     title = 'Prepara il primo fuoco';
     text = `Porta legno e pietra al campo. Poi componi Gruppo · Scheggiare · Pietra: fabbricare utensili può far nascere la Scintilla del Fuoco.${guided ? ' In Guidata gli addetti ripetono trasporti e fabbricazione di utensili durante il giorno, finché ci sono risorse e spazio.' : ' In Classica ogni viaggio o manufatto richiede un nuovo ordine.'} Per accendere il primo Falò servono cinque unità di legno.`;
@@ -127,8 +137,8 @@ export function OpeningGuide({
   }
   const autumn = calendar.season === 2 && !fire;
   const nextAction =
-    action === 'spark' && personal?.sparkId && onSpark
-      ? { label: 'Scopri Io', run: () => onSpark(personal.sparkId!) }
+    sparkAction && onSpark
+      ? { label: sparkAction.label, run: () => onSpark(sparkAction.id) }
       : action === 'teach' && onTeach
         ? { label: 'Tramanda', run: onTeach }
         : action === 'growth' && onGrowth

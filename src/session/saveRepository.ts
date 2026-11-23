@@ -39,6 +39,7 @@ export type SaveWriteResult = {
   lastSavedAt: number | null;
   warning?: string;
 };
+type SaveCommitResult = SaveWriteResult & { raw?: string };
 export type SaveWriteOptions = {
   allowReplaceInvalid?: boolean;
   reason?: SaveReason;
@@ -67,8 +68,7 @@ function fingerprint(raw: string) {
   return `${raw.length}:${(hash >>> 0).toString(16)}`;
 }
 
-function readHistory(storage: SaveStorage): History {
-  const raw = storage.getItem(SAVE_HISTORY_KEY);
+function parseHistory(raw: string | null): History {
   if (!raw) return { entries: [] };
   try {
     const value = JSON.parse(raw);
@@ -155,8 +155,9 @@ function writeHistory(
           : SAVE_ARCHIVE_LIMIT;
     return entries.slice(0, index).filter((other) => other.kind === entry.kind).length < limit;
   });
-  storage.setItem(SAVE_HISTORY_KEY, JSON.stringify({ version: 1, entries: bounded }));
-  return bounded;
+  const raw = JSON.stringify({ version: 1, entries: bounded });
+  storage.setItem(SAVE_HISTORY_KEY, raw);
+  return { raw, entries: bounded };
 }
 
 /** Only automatic older copies may yield space; the last active game stays recoverable. */
@@ -191,12 +192,36 @@ export function createSaveRepository(
   storageProvider: () => SaveStorage = () => localStorage,
   now: () => number = () => Date.now(),
 ) {
+  // Reuse validation only while localStorage still contains the exact bytes
+  // already checked here. Imports, other tabs and damaged writes still read
+  // through storage and go back through the same validators.
+  let validPrimary: string | null = null;
+  let cachedHistory: { raw: string | null; history: History } | undefined;
+  const readHistory = (storage: SaveStorage): History => {
+    const raw = storage.getItem(SAVE_HISTORY_KEY);
+    if (cachedHistory?.raw === raw) return cachedHistory.history;
+    const history = parseHistory(raw);
+    cachedHistory = { raw, history };
+    return history;
+  };
+  const storeHistory = (
+    storage: SaveStorage,
+    previous: History,
+    entries: StoredCopy[],
+    preserveArchives = false,
+  ) => {
+    const saved = writeHistory(storage, previous, entries, preserveArchives);
+    cachedHistory = { raw: saved.raw, history: { entries: saved.entries } };
+    return saved.entries;
+  };
+
   const load = (): SaveLoadResult => {
     let raw: string | null = null;
     try {
       const storage = storageProvider();
       raw = storage.getItem(SAVE_KEY);
       const game = raw === null ? null : parseGame(raw);
+      validPrimary = game ? raw : null;
       const history = readHistory(storage);
       const issue: SaveIssue | null =
         raw !== null && !game
@@ -236,7 +261,7 @@ export function createSaveRepository(
     }
   };
 
-  const save = (game: GameState, options: SaveWriteOptions = {}): SaveWriteResult => {
+  const save = (game: GameState, options: SaveWriteOptions = {}): SaveCommitResult => {
     let previousTime: number | null = null;
     const raw = validRawGame(game);
     if (raw === null)
@@ -259,8 +284,11 @@ export function createSaveRepository(
           issue: { kind: 'conflict', message: SAVE_CONFLICT_MESSAGE },
           lastSavedAt: previousTime,
         };
-      const validPrevious = previous !== null ? parseGame(previous) : null;
-      if (previous !== null && !validPrevious && !options.allowReplaceInvalid)
+      const validPrevious =
+        previous !== null && (previous === validPrimary || parseGame(previous) !== null)
+          ? previous
+          : null;
+      if (previous !== null && validPrevious === null && !options.allowReplaceInvalid)
         return {
           ok: false,
           issue: {
@@ -274,21 +302,22 @@ export function createSaveRepository(
       let history: History | undefined;
       let entries: StoredCopy[] | undefined;
       let reducedBackups = false;
-      if (validPrevious && previous !== raw) {
+      if (validPrevious !== null && validPrevious !== raw) {
         history = readHistory(storage);
-        entries = prependCopy(history, 'backup', previous!, previousTime);
+        entries = prependCopy(history, 'backup', validPrevious, previousTime);
       }
       for (;;) {
         try {
-          if (history && entries) entries = writeHistory(storage, history, entries, true);
+          if (history && entries) entries = storeHistory(storage, history, entries, true);
           // setItem is atomic: a failed primary write leaves the old slot intact.
           storage.setItem(SAVE_KEY, raw);
+          validPrimary = raw;
           break;
         } catch (error) {
           if (!quotaExceeded(error)) throw error;
           history ??= readHistory(storage);
           entries ??= history.entries;
-          const reduced = withoutOldestBackup(entries, validPrevious ? previous : null);
+          const reduced = withoutOldestBackup(entries, validPrevious);
           if (!reduced) throw error;
           entries = reduced;
           reducedBackups = true;
@@ -315,6 +344,7 @@ export function createSaveRepository(
       }
       return {
         ok: true,
+        raw,
         issue: null,
         lastSavedAt: at,
         ...(warnings.length ? { warning: warnings.join(' ') } : {}),
@@ -339,7 +369,7 @@ export function createSaveRepository(
       const storage = storageProvider();
       const history = readHistory(storage);
       const at = now();
-      writeHistory(storage, history, prependCopy(history, 'archive', raw, at));
+      storeHistory(storage, history, prependCopy(history, 'archive', raw, at));
       return { ok: true, issue: null, lastSavedAt: at };
     } catch (error) {
       return { ok: false, issue: writeIssue(error), lastSavedAt: null };
@@ -367,7 +397,7 @@ export function createSaveRepository(
       const storage = storageProvider();
       const history = readHistory(storage);
       if (!history.entries.some((entry) => entry.id === candidateId)) return false;
-      writeHistory(
+      storeHistory(
         storage,
         history,
         history.entries.filter((entry) => entry.id !== candidateId),

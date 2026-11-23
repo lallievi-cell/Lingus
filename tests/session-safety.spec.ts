@@ -124,6 +124,27 @@ test('leaving the app pauses and saves once, with no hidden catch-up before an e
   expect(returned.paused).toBe(true);
 });
 
+test('a delayed browser callback does not run a large catch-up batch at speed 4x', async ({
+  page,
+}) => {
+  const at = new Date('2026-01-01T00:00:00Z');
+  await page.clock.install({ time: at });
+  await page.clock.pauseAt(new Date(at.getTime() + 1000));
+  await restore(page);
+  await page.getByRole('button', { name: 'Velocità 4x', exact: true }).click();
+  await page.getByRole('button', { name: 'Riprendi il tempo', exact: true }).click();
+  await page.clock.fastForward(30_000);
+  // Once scheduling is regular again, every 250ms callback advances a
+  // second at 4x, in addition to the two seconds from the delayed callback.
+  await page.clock.runFor(1000);
+  await page.getByRole('button', { name: 'Impostazioni e salvataggi' }).click();
+  await page.getByRole('button', { name: /Salva adesso/ }).click();
+  const saved = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!), SAVE_KEY);
+  expect(saved.time).toBeCloseTo(6, 6);
+  expect(saved.speed).toBe(4);
+  expect(saved.paused).toBe(false);
+});
+
 test('Enter pronounces the same movement order as the button while time is paused', async ({
   page,
 }) => {

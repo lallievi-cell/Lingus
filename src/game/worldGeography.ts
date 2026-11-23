@@ -180,12 +180,6 @@ function model(points: readonly WorldPoint[]) {
   }
   return value;
 }
-function outsideBound(ring: RingModel, point: WorldPoint) {
-  return -Math.hypot(
-    Math.max(ring.minX - point.x, 0, point.x - ring.maxX),
-    Math.max(ring.minY - point.y, 0, point.y - ring.maxY),
-  );
-}
 /** Even–odd membership permits the concave continental bays; unlike the old
  * offshore ellipse helper this does not assume a convex polygon. */
 function ringDistance(points: readonly WorldPoint[], point: WorldPoint) {
@@ -214,8 +208,12 @@ function landDistance(landmass: WorldLandmass, point: WorldPoint) {
 export function worldLandDistance(geometry: WorldRegionGeometry, point: WorldPoint) {
   let nearest = -Infinity;
   for (const landmass of geometry.landmasses) {
-    const bound = outsideBound(model(landmass.points), point);
-    if (bound < 0 && bound <= nearest) continue;
+    const ring = model(landmass.points);
+    const dx = Math.max(ring.minX - point.x, 0, point.x - ring.maxX);
+    const dy = Math.max(ring.minY - point.y, 0, point.y - ring.maxY);
+    // Once on land, a ring outside its bounding box will never improve
+    // the signed distance. For water queries, retain the exact upper bound.
+    if ((dx > 0 || dy > 0) && (nearest >= 0 || -Math.hypot(dx, dy) <= nearest)) continue;
     nearest = Math.max(nearest, landDistance(landmass, point));
   }
   return nearest;
@@ -224,10 +222,18 @@ export function worldLandmassAt(
   geometry: WorldRegionGeometry,
   point: WorldPoint,
 ): string | undefined {
-  return geometry.landmasses.find(
-    (landmass) =>
-      outsideBound(model(landmass.points), point) === 0 && landDistance(landmass, point) > 0.25,
-  )?.id;
+  for (const landmass of geometry.landmasses) {
+    const ring = model(landmass.points);
+    if (
+      point.x >= ring.minX &&
+      point.x <= ring.maxX &&
+      point.y >= ring.minY &&
+      point.y <= ring.maxY &&
+      landDistance(landmass, point) > 0.25
+    )
+      return landmass.id;
+  }
+  return undefined;
 }
 
 /** All contour crossings are among edge-parallel offsets and vertex circles.
@@ -252,7 +258,9 @@ export function worldSegmentCuts(
   const minY = Math.min(a.y, b.y) - radius,
     maxY = Math.max(a.y, b.y) + radius;
   for (const landmass of geometry.landmasses)
-    for (const points of [landmass.points, ...landmass.holes])
+    for (const points of [landmass.points, ...landmass.holes]) {
+      const ring = model(points);
+      if (ring.maxX < minX || ring.minX > maxX || ring.maxY < minY || ring.minY > maxY) continue;
       for (let index = 0; index < points.length; index++) {
         const p = points[index],
           q = points[(index + 1) % points.length];
@@ -288,6 +296,7 @@ export function worldSegmentCuts(
             }
           }
       }
+    }
   return cuts.sort((left, right) => left - right);
 }
 
