@@ -603,20 +603,22 @@
   }
   .lingus-world .lingus-world__target-card {
     box-sizing: border-box;
-    max-height: min(44%, 170px);
+    --target-card-height: min(44%, 170px);
+    max-height: min(var(--target-card-height), max(44px, var(--target-card-space)));
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;
   }
   .lingus-world .lingus-world__target-card[data-mobile-placement='top'] {
     /* Scorte, Elementi and zoom occupy the first 44px touch row. */
-    top: 60px !important;
-    max-height: min(44%, 170px, calc(100% - 68px));
+    top: var(--target-card-top, 60px) !important;
+    --target-card-space: calc(var(--target-map-y) - var(--target-card-top, 60px) - 10px);
   }
   .lingus-world .lingus-world__target-card[data-mobile-placement='bottom'] {
     top: auto !important;
     bottom: 8px !important;
     max-width: calc(100% - 112px) !important;
+    --target-card-space: calc(100% - var(--target-map-y) - 18px);
   }
   .lingus-world .lingus-world__target-card p {
     display: block !important;
@@ -626,7 +628,7 @@
     overflow: visible !important;
   }
   .lingus-world .lingus-world__target-card.has-biome-details:has(.map-biome-details[open]) {
-    max-height: min(52%, 230px, calc(100% - 68px));
+    --target-card-height: min(52%, 230px);
   }
   .lingus-world__target-card:focus-visible {
     outline: 2px solid #738b59;

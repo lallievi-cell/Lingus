@@ -244,6 +244,8 @@ export function WorldMap({
   const [ping, setPing] = useState<{ x: number; y: number; time: number } | null>(null);
   const [targetChoices, setTargetChoices] = useState<WorldTarget[]>([]);
   const [visibleTargetsOpen, setVisibleTargetsOpen] = useState(false);
+  const visibleTargetsButtonRef = useRef<HTMLButtonElement>(null);
+  const restoreCanvasFocus = useRef(false);
   const [boatCargoChoice, setBoatCargoChoice] = useState<{
     boatId: string;
     resource: Resource;
@@ -292,6 +294,12 @@ export function WorldMap({
   const geographyKey = JSON.stringify([state.mapGeneration, geography]);
   const campKey = campPresent ? `${state.home.x},${state.home.y}` : null;
   const terrain = usePaintedTerrain(stateRef, geographyKey, state.seasonIndex % 4, campKey);
+  useEffect(() => {
+    if (!terrain || !restoreCanvasFocus.current) return;
+    restoreCanvasFocus.current = false;
+    if (document.activeElement === visibleTargetsButtonRef.current)
+      canvasRef.current?.focus({ preventScroll: true });
+  }, [terrain]);
   useEffect(() => {
     if (focusRequest)
       setView((previous) => ({
@@ -990,6 +998,12 @@ export function WorldMap({
   const biomeDetails =
     focusedTarget === selectedTarget ? targetBiomePresentation(state, selectedTarget) : null;
   const transform = getTransform();
+  const targetMapY = focusedTarget
+    ? focusedTarget.y * WORLD_Y * transform.scale + transform.y
+    : size.height / 2;
+  // Leave the band below the map tools for the guide and keep the target in view.
+  const mobileCardPlacement =
+    targetMapY < size.height / 2 + Math.min(30, size.height * 0.08) ? 'bottom' : 'top';
   const visibleTargets = visibleTargetsOpen
     ? getVisibleWorldTargets(state, {
         minX: -transform.x / transform.scale / WORLD_X,
@@ -1000,7 +1014,14 @@ export function WorldMap({
     : [];
   const closeVisibleTargets = () => {
     setVisibleTargetsOpen(false);
-    canvasRef.current?.focus({ preventScroll: true });
+    if (terrain) {
+      canvasRef.current?.focus({ preventScroll: true });
+    } else {
+      // A hidden canvas cannot receive focus. Keep it on the trigger until
+      // the map is ready, or until the player chooses another control.
+      visibleTargetsButtonRef.current?.focus({ preventScroll: true });
+      restoreCanvasFocus.current = true;
+    }
   };
   const mapSpan = Math.round(
     53 /
@@ -1202,6 +1223,7 @@ export function WorldMap({
         }}
       />
       <button
+        ref={visibleTargetsButtonRef}
         className="lingus-world__elements"
         type="button"
         aria-label="Elementi visibili"
@@ -1209,6 +1231,9 @@ export function WorldMap({
         aria-controls={visibleTargetsOpen ? 'visible-world-targets' : undefined}
         aria-keyshortcuts="E"
         title="Elementi visibili (E)"
+        onBlur={() => {
+          restoreCanvasFocus.current = false;
+        }}
         onClick={() => {
           setTargetChoices([]);
           onMobileDetailsOpenChange?.(false);
@@ -1421,12 +1446,8 @@ export function WorldMap({
           data-resource-stage={details.kind}
           data-terrain-focus={details.stage === 'Terreno esplorato'}
           data-world-boundary={focusedTarget?.regionId ? 'true' : undefined}
-          data-mobile-placement={
-            focusedTarget &&
-            focusedTarget.y * WORLD_Y * getTransform().scale + getTransform().y < size.height / 2
-              ? 'bottom'
-              : 'top'
-          }
+          style={{ '--target-map-y': `${targetMapY}px` } as React.CSSProperties}
+          data-mobile-placement={mobileCardPlacement}
         >
           {onMobileDetailsOpenChange && (
             <button

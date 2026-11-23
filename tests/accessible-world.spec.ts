@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 /** Isolated map fixtures exercise selection and paint scheduling, not campaign progress. */
-async function showWorld(page: Page, waitForAtlas = true) {
+async function showWorld(page: Page, { waitForAtlas = true, waitForTerrain = true } = {}) {
   await page.addInitScript(() => {
     const original = CanvasRenderingContext2D.prototype.setTransform;
     Object.assign(window, { mapPaints: 0 });
@@ -108,8 +108,10 @@ async function showWorld(page: Page, waitForAtlas = true) {
     });
     render();
   }, waitForAtlas);
-  await expect(page.getByRole('img', { name: /Mappa della valle/ })).toBeVisible();
-  await page.waitForFunction(() => (window as unknown as { mapPaints: number }).mapPaints > 0);
+  if (waitForTerrain) {
+    await expect(page.getByRole('img', { name: /Mappa della valle/ })).toBeVisible();
+    await page.waitForFunction(() => (window as unknown as { mapPaints: number }).mapPaints > 0);
+  }
 }
 
 const paintCount = (page: Page) =>
@@ -183,6 +185,49 @@ test('a browser without OffscreenCanvas still paints the terrain', async ({ page
   await showWorld(page);
   expect(await terrainSources(page)).toEqual(['canvas']);
 });
+
+for (const moveFocus of [false, true]) {
+  test(`closing visible elements during initial paint ${moveFocus ? 'keeps focus on a newly chosen control' : 'returns focus to the map when ready'}`, async ({
+    page,
+  }) => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/art/meadow-brush.webp', async (route) => {
+      await gate;
+      await route.continue();
+    });
+    const canvas = page.getByRole('img', { name: /Mappa della valle/ });
+    const trigger = page.getByRole('button', { name: 'Elementi visibili', exact: true });
+    const zoom = page.getByRole('button', { name: 'Ingrandisci la mappa' });
+    try {
+      await showWorld(page, { waitForTerrain: false });
+      await expect(page.getByRole('status')).toContainText('Preparazione del terreno');
+      await trigger.click();
+      await page.getByRole('button', { name: /Un ostacolo senza nome/ }).click();
+      await expect(page.getByRole('region', { name: 'Elementi visibili sulla mappa' })).toHaveCount(
+        0,
+      );
+      await expect(canvas).toBeHidden();
+      await expect(trigger).toBeFocused();
+      expect(await page.evaluate(() => JSON.parse(document.body.dataset.worldSelection!))).toEqual({
+        type: 'entity',
+        id: 'keyboard-tree',
+        x: 242,
+        y: 246,
+      });
+      if (moveFocus) {
+        await zoom.click();
+        await expect(zoom).toBeFocused();
+      }
+    } finally {
+      release();
+    }
+    await page.waitForFunction(() => (window as unknown as { mapPaints: number }).mapPaints > 0);
+    await expect(moveFocus ? zoom : canvas).toBeFocused();
+  });
+}
 
 test('keyboard selection exposes only visible known descriptions and returns the real target', async ({
   page,
@@ -261,7 +306,7 @@ test('an atlas that finishes loading after pause repaints once and then settles'
     await gate;
     await route.continue();
   });
-  await showWorld(page, false);
+  await showWorld(page, { waitForAtlas: false });
   await page.waitForTimeout(100);
   const before = await paintCount(page);
   release();
