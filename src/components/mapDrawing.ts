@@ -13,7 +13,7 @@ import { getCustodianStatuses, type CustodianStatus } from '../game/custodianSta
 import { getLifeStage } from '../game/demography';
 import { visibleUnitEquipment, type VisibleUnitEquipment } from '../game/unitEquipment';
 import { getGroundPiles, groundPileFor, resourceKnown, type GroundPile } from './mapResourceLayout';
-import { createPainterlyTerrain } from './mapTerrainArt';
+import { createPainterlyTerrain, type TerrainImage } from './mapTerrainArt';
 import { drawPainterlyNature } from './mapNatureArt';
 import { drawPainterlyBuilding } from './mapBuildingArt';
 import { drawPainterlyBody } from './mapPeopleArt';
@@ -48,7 +48,7 @@ export const MAP_HEIGHT = 800;
 export const WORLD_SIZE = 500;
 export const SPRITE_SCALE = 0.2;
 /** People need a readable silhouette at the normal phone camera distance. */
-export const UNIT_ART_SCALE = 0.3;
+export const UNIT_ART_SCALE = 0.34;
 export const worldPoint = (x: number, y: number) => ({ x: x * 2.4, y: y * 1.6 });
 export const hasConcept = (state: GameState, id: string) => (state.words[id]?.retention ?? 0) > 0;
 export function isVisibleAt(state: GameState, x: number, y: number) {
@@ -573,8 +573,9 @@ export function createTerrain(
   seed: number,
   seasonIndex: number,
   world?: Parameters<typeof createPainterlyTerrain>[2],
+  brush?: HTMLImageElement | null,
 ): HTMLCanvasElement {
-  return createPainterlyTerrain(seed, seasonIndex, world);
+  return createPainterlyTerrain(seed, seasonIndex, world, brush);
 }
 
 function drawEntity(
@@ -589,6 +590,10 @@ function drawEntity(
   const { x, y } = worldPoint(entity.x, entity.y);
   ctx.save();
   ctx.translate(x, y);
+  if (entity.kind === 'tree')
+    drawNatureFooting(ctx, entity.amount > 0 ? 21 : 10, seasonIndex, true);
+  if (entity.kind === 'berries' || entity.kind === 'stone' || entity.kind === 'ore')
+    drawNatureFooting(ctx, entity.kind === 'berries' ? 14 : 17, seasonIndex, false);
   if (entity.kind === 'fishery') drawFisheryMarker(ctx, !unknown);
   else drawPainterlyNature(ctx, entity, time, seasonIndex, unknown, animationContext);
   ctx.restore();
@@ -598,6 +603,36 @@ function drawEntity(
     ctx.fillRect(x - 15, y + 18, 30, 3);
     ctx.fillStyle = '#b4805a';
     ctx.fillRect(x - 15, y + 18, 30 * ratio, 3);
+  }
+}
+
+function drawNatureFooting(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  seasonIndex: number,
+  rooted: boolean,
+) {
+  ctx.save();
+  ctx.translate(0.7, -0.7);
+  ctx.scale(width, width * 0.31);
+  const dirt = ctx.createRadialGradient(-0.16, 0.1, 0.05, 0, 0, 1);
+  const winter = seasonIndex % 4 === 3;
+  dirt.addColorStop(0, winter ? '#343c3abf' : '#343225c7');
+  dirt.addColorStop(0.52, winter ? '#5d625a86' : '#51483484');
+  dirt.addColorStop(0.82, winter ? '#777c6c30' : '#64543839');
+  dirt.addColorStop(1, '#6b573200');
+  oval(ctx, 0, 0, 1, 1, dirt);
+  ctx.restore();
+
+  if (rooted) {
+    ctx.strokeStyle = winter ? '#857e63b5' : '#706045be';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.moveTo(-2, -1);
+    ctx.quadraticCurveTo(-width * 0.22, -0.5, -width * 0.59, 2.5);
+    ctx.moveTo(2, -1);
+    ctx.quadraticCurveTo(width * 0.28, 1, width * 0.46, 3.1);
+    ctx.stroke();
   }
 }
 
@@ -1052,9 +1087,10 @@ function drawUnit(
   ctx.translate(2, 2.5);
   ctx.scale(newborn ? 5 : child ? 6 : 8, 3.2);
   const contact = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
-  contact.addColorStop(0, '#33452b48');
-  contact.addColorStop(0.5, '#33452b22');
-  contact.addColorStop(1, '#33452b00');
+  contact.addColorStop(0, '#252a1d96');
+  contact.addColorStop(0.43, '#30342158');
+  contact.addColorStop(0.78, '#34392826');
+  contact.addColorStop(1, '#34392800');
   oval(ctx, 0, 0, 1, 1, contact);
   ctx.restore();
   // Keep the feet, selection and warning markers at the real map position.
@@ -1248,7 +1284,7 @@ function drawCampground(ctx: CanvasRenderingContext2D, state: GameState, showBou
 export function drawWorld(
   ctx: CanvasRenderingContext2D,
   state: GameState,
-  terrain: HTMLCanvasElement,
+  terrain: TerrainImage,
   time: number,
   selected: WorldTarget | null,
   hovered: WorldTarget | null,
@@ -2050,17 +2086,7 @@ export function drawWorld(
       ctx.stroke();
     }
   }
-  for (let sy = 0; sy < sectorCount; sy++)
-    for (let sx = 0; sx < sectorCount; sx++)
-      if (!isVisibleAt(state, sx * 100 + 50, sy * 100 + 50)) {
-        ctx.fillStyle = '#e3e1cbf5';
-        ctx.fillRect(
-          (sx * mapWidth) / sectorCount,
-          (sy * mapHeight) / sectorCount,
-          mapWidth / sectorCount + 0.5,
-          mapHeight / sectorCount + 0.5,
-        );
-      }
+  drawUnchartedGround(ctx, state, sectorCount, mapWidth, mapHeight, viewport);
 
   // Twilight comes from the simulation, so pausing also pauses the day.
   const seasonTime = calendar.canonicalPhase;
@@ -2096,21 +2122,6 @@ export function drawWorld(
 
   drawMapAtmosphere(ctx, state, time, viewport, atmosphereOptions);
 
-  // Unexplored margins fade into the paper rather than a hard black RTS mask.
-  const vignette = ctx.createRadialGradient(
-    mapWidth / 2,
-    mapHeight / 2 + 5 * worldScale,
-    280 * worldScale,
-    mapWidth / 2,
-    mapHeight / 2 + 5 * worldScale,
-    720 * worldScale,
-  );
-  vignette.addColorStop(0, '#e9e6cd00');
-  vignette.addColorStop(0.55, '#e9e6cd00');
-  vignette.addColorStop(1, '#e9e6cddd');
-  ctx.fillStyle = vignette;
-  ctx.fillRect(0, 0, mapWidth, mapHeight);
-
   // A few birds provide scale, never gameplay information.
   ctx.strokeStyle = '#546d534d';
   ctx.lineWidth = 1.1;
@@ -2122,5 +2133,60 @@ export function drawWorld(
     ctx.quadraticCurveTo(x - 2, y - 4 - Math.sin(time * 2) * 2, x, y);
     ctx.quadraticCurveTo(x + 2, y - 4 - Math.sin(time * 2) * 2, x + 4, y - 2);
     ctx.stroke();
+  }
+}
+
+function drawUnchartedGround(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  sectorCount: number,
+  width: number,
+  height: number,
+  viewport?: { minX: number; minY: number; maxX: number; maxY: number },
+) {
+  const column = width / sectorCount;
+  const row = height / sectorCount;
+  const paper = '#bdb69a';
+  const visible = (x: number, y: number) =>
+    x >= 0 &&
+    x < sectorCount &&
+    y >= 0 &&
+    y < sectorCount &&
+    isVisibleAt(state, x * 100 + 50, y * 100 + 50);
+  const feather = (x: number, y: number, dx: number, dy: number, w: number, h: number) => {
+    const fade = ctx.createLinearGradient(x, y, x + dx, y + dy);
+    fade.addColorStop(0, paper);
+    fade.addColorStop(1, '#bdb69a00');
+    ctx.fillStyle = fade;
+    ctx.fillRect(x + Math.min(0, dx), y + Math.min(0, dy), w, h);
+  };
+
+  for (let sy = 0; sy < sectorCount; sy++) {
+    for (let sx = 0; sx < sectorCount; sx++) {
+      if (
+        viewport &&
+        (sx * 100 > viewport.maxX ||
+          (sx + 1) * 100 < viewport.minX ||
+          sy * 100 > viewport.maxY ||
+          (sy + 1) * 100 < viewport.minY)
+      )
+        continue;
+      const x = sx * column;
+      const y = sy * row;
+      if (!visible(sx, sy)) {
+        // Never blend the uncharted side with the hidden terrain cache.
+        ctx.fillStyle = paper;
+        ctx.fillRect(x, y, column + 0.5, row + 0.5);
+      } else if (state.tier < 4) {
+        const xFade = column * 0.071;
+        const yFade = row * 0.071;
+        if (sx > 0 && !visible(sx - 1, sy)) feather(x, y, xFade, 0, xFade, row);
+        if (sx < sectorCount - 1 && !visible(sx + 1, sy))
+          feather(x + column, y, -xFade, 0, xFade, row);
+        if (sy > 0 && !visible(sx, sy - 1)) feather(x, y, 0, yFade, column, yFade);
+        if (sy < sectorCount - 1 && !visible(sx, sy + 1))
+          feather(x, y + row, 0, -yFade, column, yFade);
+      }
+    }
   }
 }

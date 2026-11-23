@@ -12,6 +12,8 @@ import './components/MobileComposition.css';
 import './components/InterfacePolish.css';
 import './components/FieldInterface.css';
 import './components/ThoughtRail.css';
+import './components/DioramaShell.css';
+import './components/DioramaComposer.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

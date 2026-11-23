@@ -10,13 +10,14 @@ import type { GameState } from '../game/types';
 import { WORLD_REGIONS } from '../game/worldGeography';
 import { isWorldPointRevealed } from '../game/worldDimensions';
 
+type Painter = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 type Viewport = { minX: number; minY: number; maxX: number; maxY: number };
 type CoastView = CoastWorld & Pick<GameState, 'disasters' | 'paused' | 'time' | 'tier'>;
 const horizontal = (coast: CoastGeometry) => coast.side === 'north' || coast.side === 'south';
 const seaward = (coast: CoastGeometry) =>
   coast.side === 'north' || coast.side === 'west' ? -1 : 1;
 
-function traceShore(ctx: CanvasRenderingContext2D, coast: CoastGeometry) {
+function traceShore(ctx: Painter, coast: CoastGeometry) {
   ctx.beginPath();
   if (coast.world) {
     for (const edge of coastEdges(coast)) {
@@ -30,7 +31,7 @@ function traceShore(ctx: CanvasRenderingContext2D, coast: CoastGeometry) {
   );
 }
 
-function traceIsland(ctx: CanvasRenderingContext2D, points: readonly CoastPoint[], begin = true) {
+function traceIsland(ctx: Painter, points: readonly CoastPoint[], begin = true) {
   if (begin) ctx.beginPath();
   points.forEach((point, index) =>
     index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y),
@@ -43,13 +44,13 @@ const islandCenter = (points: readonly CoastPoint[]) => ({
   y: points.reduce((sum, point) => sum + point.y, 0) / points.length,
 });
 
-function traceAllShores(ctx: CanvasRenderingContext2D, coast: CoastGeometry) {
+function traceAllShores(ctx: Painter, coast: CoastGeometry) {
   traceShore(ctx, coast);
   for (const island of coast.islands ?? []) traceIsland(ctx, island.points, false);
 }
 
 /** The edge is the navigation polyline; no smoothed curve can hide a dry bay. */
-function traceSea(ctx: CanvasRenderingContext2D, coast: CoastGeometry) {
+function traceSea(ctx: Painter, coast: CoastGeometry) {
   if (coast.world) {
     // Sea is the complement of the actual land polygons. Inner rings are
     // physical inland seas, and a region border never becomes a beach.
@@ -79,7 +80,7 @@ function traceSea(ctx: CanvasRenderingContext2D, coast: CoastGeometry) {
 }
 
 /** Cached before the river, so sand cannot make a false dam at its mouth. */
-export function paintCoastSand(ctx: CanvasRenderingContext2D, world: CoastWorld, winter: boolean) {
+export function paintCoastSand(ctx: Painter, world: CoastWorld, winter: boolean) {
   const coast = createCoastGeometry(world);
   if (!coast) return;
   ctx.save();
@@ -124,7 +125,7 @@ export function paintCoastSand(ctx: CanvasRenderingContext2D, world: CoastWorld,
 
 /** Paint after the river: the same physical sea clips the river into an estuary.
  * This runs only when the existing bounded terrain cache is regenerated. */
-export function paintCoastWater(ctx: CanvasRenderingContext2D, world: CoastWorld, winter: boolean) {
+export function paintCoastWater(ctx: Painter, world: CoastWorld, winter: boolean) {
   const coast = createCoastGeometry(world);
   if (!coast) return;
   ctx.save();

@@ -1518,6 +1518,98 @@ function App() {
           <span className="eyebrow">Capitolo {['I', 'II', 'III', 'IV', 'V', 'VI'][game.tier]}</span>
           <span>{ERA_NAMES[game.tier]}</span>
         </div>
+        <nav className="mobile-nav-bar" aria-label="Sezioni di gioco">
+          <button
+            type="button"
+            className={`mobile-nav-btn ${mobileSection === 'map' ? 'active' : ''}`}
+            aria-current={mobileSection === 'map' ? 'page' : undefined}
+            onClick={() => setMobileSection('map')}
+          >
+            <Compass size={19} aria-hidden="true" />
+            <span>Mappa</span>
+          </button>
+          <button
+            type="button"
+            className={`mobile-nav-btn ${mobileSection === 'tribe' ? 'active' : ''}`}
+            aria-current={mobileSection === 'tribe' ? 'page' : undefined}
+            onClick={() => setMobileSection('tribe')}
+          >
+            <Users size={19} aria-hidden="true" />
+            <span className="nav-section-label">
+              Tribù <small>({peopleCount})</small>
+            </span>
+          </button>
+          <button
+            type="button"
+            className={`mobile-nav-btn ${mobileSection === 'discovery' ? 'active' : ''}`}
+            aria-current={mobileSection === 'discovery' ? 'page' : undefined}
+            onClick={() => setMobileSection('discovery')}
+          >
+            <Sparkles size={19} aria-hidden="true" />
+            <span>Pensiero</span>
+            {nextSpark && <span className="mobile-spark-dot" />}
+          </button>
+        </nav>
+        <div className="world-strip">
+          <div className="world-location">
+            <span className="live-dot" />
+            <span>{game.world ? 'LE TERRE DELLE MOLTE VOCI' : 'LA VALLE DELLE PRIME VOCI'}</span>
+            <span className="strip-divider">/</span>
+            <span>
+              {game.world
+                ? worldRegionLabel(
+                    game,
+                    game.world.regions[game.world.activeRegionId].x,
+                    game.world.regions[game.world.activeRegionId].y,
+                  )
+                : game.tier === 0
+                  ? 'Terra senza nome'
+                  : 'Il nostro accampamento'}
+            </span>
+          </div>
+          <div
+            className="world-resources"
+            aria-label={game.world ? 'Scorte della regione osservata' : undefined}
+          >
+            {hasWord(game, 'M_02') && (
+              <>
+                <span title="Scorte alimentari" className="stock-summary">
+                  <AppleIcon />
+                  <small>Cibo</small>
+                  <span className="stock-value">
+                    {stockQuantity(
+                      game.resources.food +
+                        game.resources.meat +
+                        game.resources.cooked +
+                        (game.resources.fish ?? 0) +
+                        (game.resources.cookedFish ?? 0),
+                    )}
+                  </span>
+                </span>
+                <span title="Legno disponibile" className="stock-summary">
+                  <TreePine size={15} />
+                  <small>Legno</small>
+                  <span className="stock-value">{stockQuantity(game.resources.wood)}</span>
+                </span>
+                <span title="Pietra disponibile" className="stock-summary">
+                  <Glyph id="O_02" size={15} />
+                  <small>Pietra</small>
+                  <span className="stock-value">{stockQuantity(game.resources.stone, true)}</span>
+                </span>
+              </>
+            )}
+            {hasWord(game, 'C_01') && (
+              <span className="season-chip">
+                {season.isNight ? <Glyph id="C_01" size={15} /> : <Sun size={15} />}
+                {hasWord(game, 'M_02')
+                  ? `${season.name}${numbered ? ` · Anno ${season.year}` : ''}`
+                  : season.isNight
+                    ? 'È notte'
+                    : 'È giorno'}
+              </span>
+            )}
+          </div>
+        </div>
         <div className="header-actions">
           <button className="text-button guide-button" onClick={openGuide}>
             <CircleHelp size={16} />
@@ -1548,67 +1640,6 @@ function App() {
         </div>
       </header>
 
-      <div className="world-strip">
-        <div className="world-location">
-          <span className="live-dot" />
-          <span>{game.world ? 'LE TERRE DELLE MOLTE VOCI' : 'LA VALLE DELLE PRIME VOCI'}</span>
-          <span className="strip-divider">/</span>
-          <span>
-            {game.world
-              ? worldRegionLabel(
-                  game,
-                  game.world.regions[game.world.activeRegionId].x,
-                  game.world.regions[game.world.activeRegionId].y,
-                )
-              : game.tier === 0
-                ? 'Terra senza nome'
-                : 'Il nostro accampamento'}
-          </span>
-        </div>
-        <div
-          className="world-resources"
-          aria-label={game.world ? 'Scorte della regione osservata' : undefined}
-        >
-          {hasWord(game, 'M_02') && (
-            <>
-              <span title="Scorte alimentari" className="stock-summary">
-                <AppleIcon />
-                <small>Cibo</small>
-                <span className="stock-value">
-                  {stockQuantity(
-                    game.resources.food +
-                      game.resources.meat +
-                      game.resources.cooked +
-                      (game.resources.fish ?? 0) +
-                      (game.resources.cookedFish ?? 0),
-                  )}
-                </span>
-              </span>
-              <span title="Legno disponibile" className="stock-summary">
-                <TreePine size={15} />
-                <small>Legno</small>
-                <span className="stock-value">{stockQuantity(game.resources.wood)}</span>
-              </span>
-              <span title="Pietra disponibile" className="stock-summary">
-                <Glyph id="O_02" size={15} />
-                <small>Pietra</small>
-                <span className="stock-value">{stockQuantity(game.resources.stone, true)}</span>
-              </span>
-            </>
-          )}
-          {hasWord(game, 'C_01') && (
-            <span className="season-chip">
-              {season.isNight ? <Glyph id="C_01" size={15} /> : <Sun size={15} />}
-              {hasWord(game, 'M_02')
-                ? `${season.name}${numbered ? ` · Anno ${season.year}` : ''}`
-                : season.isNight
-                  ? 'È notte'
-                  : 'È giorno'}
-            </span>
-          )}
-        </div>
-      </div>
-
       {!panel && (
         <SessionStatus
           status={saveStatus}
@@ -1621,38 +1652,8 @@ function App() {
           }}
         />
       )}
-      <nav className="mobile-nav-bar" aria-label="Sezioni di gioco">
-        <button
-          type="button"
-          className={`mobile-nav-btn ${mobileSection === 'map' ? 'active' : ''}`}
-          aria-current={mobileSection === 'map' ? 'page' : undefined}
-          onClick={() => setMobileSection('map')}
-        >
-          <Compass size={15} />
-          <span>Mappa</span>
-        </button>
-        <button
-          type="button"
-          className={`mobile-nav-btn ${mobileSection === 'tribe' ? 'active' : ''}`}
-          aria-current={mobileSection === 'tribe' ? 'page' : undefined}
-          onClick={() => setMobileSection('tribe')}
-        >
-          <Users size={15} />
-          <span>Tribù ({peopleCount})</span>
-        </button>
-        <button
-          type="button"
-          className={`mobile-nav-btn ${mobileSection === 'discovery' ? 'active' : ''}`}
-          aria-current={mobileSection === 'discovery' ? 'page' : undefined}
-          onClick={() => setMobileSection('discovery')}
-        >
-          <Sparkles size={15} />
-          <span>Pensiero</span>
-          {nextSpark && <span className="mobile-spark-dot" />}
-        </button>
-      </nav>
 
-      <main className="game-layout">
+      <main className="game-layout" data-mobile-section={mobileSection}>
         <aside className={`tribe-panel ${mobileSection === 'tribe' ? 'mobile-visible' : ''}`}>
           <div className="side-tabs" role="tablist" aria-label="Pannello della tribù">
             <button
@@ -1842,7 +1843,6 @@ function App() {
                         key={unit.id}
                         state={game}
                         unit={unit}
-                        index={livingUnits.indexOf(unit)}
                         selected={target?.id === unit.id}
                         custodian={custodianByUnit.get(unit.id)}
                         onActivate={() => {
@@ -2177,7 +2177,7 @@ function App() {
                   </button>
                 </>
               ) : (
-                'Scegli un bersaglio sulla mappa'
+                'Scegli un bersaglio'
               )}
             </span>
             <div className="time-controls">
@@ -2405,6 +2405,19 @@ function App() {
             )}
           </nav>
         </aside>
+        {toast && (
+          <div className="toast" role="status">
+            <Sparkles size={16} aria-hidden="true" />
+            <span>{toast}</span>
+            <button
+              className="icon-button small"
+              aria-label="Nascondi notifica"
+              onClick={() => setToast('')}
+            >
+              <X size={14} aria-hidden="true" />
+            </button>
+          </div>
+        )}
       </main>
 
       <section
@@ -2798,20 +2811,6 @@ function App() {
           </button>
         </div>
       )}
-      {toast && (
-        <div className="toast" role="status">
-          <Sparkles size={16} />
-          {toast}
-          <button
-            className="icon-button small"
-            aria-label="Nascondi notifica"
-            onClick={() => setToast('')}
-          >
-            <X size={14} />
-          </button>
-        </div>
-      )}
-
       {panel === 'work-team' && (
         <WorkTeamPicker
           state={game}

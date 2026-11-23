@@ -637,8 +637,8 @@ function animalBody(
   const random = randomFrom(variant * 381 + 4829);
   const mammoth = kind === 'mammoth',
     wolf = kind === 'wolf' || kind === 'alpha';
-  const dark = mammoth ? '#493a2b' : wolf ? '#35463f' : '#67452d';
-  const coat = mammoth ? '#8e6945' : wolf ? '#879486' : '#b48550';
+  const dark = mammoth ? '#493a2b' : wolf ? '#35403b' : '#624534';
+  const coat = mammoth ? '#8e6945' : wolf ? '#6e7769' : '#a8784d';
   if (dead) {
     shade(ctx, 3, 2, mammoth ? 43 : 28, 9, 0.23);
     const size = mammoth ? 1.5 : kind === 'alpha' ? 1.2 : 1;
@@ -761,212 +761,369 @@ function animalBody(
     }
     return;
   }
-  const gradient = ctx.createLinearGradient(-16, -29, 15, -7);
-  gradient.addColorStop(0, winter && wolf ? '#d3d4bb' : wolf ? '#c9cbb2' : '#e0b575');
-  gradient.addColorStop(0.36, coat);
-  gradient.addColorStop(1, dark);
+  if (wolf) wolfBody(ctx, winter);
+  else deerBody(ctx, winter);
+}
+
+function deerBody(ctx: CanvasRenderingContext2D, winter: boolean) {
+  const coat = ctx.createLinearGradient(-13, -27, 8, -8);
+  coat.addColorStop(0, winter ? '#bcaa8b' : '#d9aa71');
+  coat.addColorStop(0.47, winter ? '#967d65' : '#a8784d');
+  coat.addColorStop(1, '#624534');
   ctx.beginPath();
-  if (wolf) {
-    ctx.moveTo(-21, -15);
-    ctx.bezierCurveTo(-22, -26, -8, -26, 1, -22);
-    ctx.bezierCurveTo(12, -26, 17, -23, 17, -16);
-    ctx.bezierCurveTo(13, -7, 10, -5, 5, -8);
-    ctx.bezierCurveTo(-5, -4, -18, -7, -21, -15);
-  } else {
-    ctx.moveTo(-21, -16);
-    ctx.bezierCurveTo(-19, -25, -4, -25, 6, -20);
-    ctx.bezierCurveTo(14, -21, 18, -15, 14, -10);
-    ctx.bezierCurveTo(6, -5, -20, -9, -21, -16);
-  }
+  ctx.moveTo(-21.8, -16.4);
+  ctx.bezierCurveTo(-21.7, -24.5, -16.3, -26.5, -10.9, -25.1);
+  ctx.bezierCurveTo(-5, -23.1, -0.7, -22.5, 4.7, -24.5);
+  ctx.quadraticCurveTo(13.2, -27.3, 15.9, -19.6);
+  ctx.quadraticCurveTo(19.7, -12.3, 12, -8.4);
+  ctx.bezierCurveTo(5.5, -7.8, 2.9, -12.5, -8.7, -12.1);
+  ctx.quadraticCurveTo(-16, -7.7, -21.8, -16.4);
   ctx.closePath();
-  ctx.fillStyle = gradient;
+  ctx.fillStyle = coat;
   ctx.fill();
-  ctx.strokeStyle = dark + 'bb';
-  ctx.lineWidth = 0.65;
-  ctx.stroke();
-  if (wolf) {
-    polygon(
-      ctx,
-      [
-        [-20, -18],
-        [-15, -24],
-        [-9, -22],
-        [-4, -25],
-        [2, -22],
-        [9, -24],
-        [15, -20],
-        [8, -17],
-        [-3, -19],
-        [-10, -16],
-      ],
-      '#4c5b4e',
-    );
-    polygon(
-      ctx,
-      [
-        [-16, -11],
-        [-6, -12],
-        [1, -10],
-        [10, -11],
-        [5, -8],
-        [-7, -7],
-      ],
-      '#c5c4a5',
-    );
-    ellipse(ctx, 9, -16.3, 4.8, 6.5, '#c9c5aa70', -0.3);
-    stroke(
-      ctx,
-      [
-        [-17, -22],
-        [-8, -23],
-        [0, -20],
-      ],
-      '#dee0c39c',
-      1.2,
-    );
-  } else {
-    polygon(
-      ctx,
-      [
-        [-17, -14],
-        [-8, -14],
-        [0, -10],
-        [10, -11],
-        [9, -8],
-        [-7, -10],
-      ],
-      '#ecdbb1',
-    );
-    ellipse(ctx, -12, -18.5, 7, 4.3, '#e2bc7d66', -0.2);
-    ellipse(ctx, 8, -15, 5.5, 6, '#8c603a5c', -0.2);
-    stroke(
-      ctx,
-      [
-        [-17, -21],
-        [-9, -23],
-        [-1, -22],
-      ],
-      '#f0ce935c',
-      1.3,
-    );
-  }
-  for (let i = 0; i < 25; i++) {
-    const x = -17 + random() * 28,
-      y = -12 - random() * 8;
-    stroke(
-      ctx,
-      [
-        [x, y],
-        [x + 1 + random(), y + 1.4],
-      ],
-      i % 3 ? '#3e4d3640' : wolf ? '#e5e4c59c' : '#f2d49890',
-      0.6,
-    );
-  }
+  ctx.save();
+  ctx.clip();
+  polygon(
+    ctx,
+    [
+      [-21.4, -18.5],
+      [-18.7, -22.3],
+      [-13.2, -22.5],
+      [-9.8, -20.6],
+      [-11.6, -16.3],
+      [-15.1, -12],
+      [-19.4, -12.7],
+    ],
+    '#d7be947d',
+  );
+  polygon(
+    ctx,
+    [
+      [-18.3, -13.4],
+      [-13.1, -15.7],
+      [-2.7, -14.8],
+      [4.2, -12.2],
+      [10.5, -14],
+      [10.5, -8],
+      [-11.4, -9.6],
+    ],
+    '#dcc39d90',
+  );
+  polygon(
+    ctx,
+    [
+      [0.7, -19.1],
+      [8.4, -24.5],
+      [15.8, -21],
+      [16.6, -16],
+      [14.3, -11.2],
+      [9.8, -9],
+      [7.6, -15.1],
+    ],
+    '#69453168',
+  );
+  stroke(
+    ctx,
+    [
+      [-18.8, -24.4],
+      [-11.6, -24.5],
+      [-4.6, -23],
+      [1.9, -23.4],
+    ],
+    '#f4cc8d8c',
+    1.07,
+  );
+  stroke(
+    ctx,
+    [
+      [-3.7, -16.3],
+      [0.2, -15.8],
+      [2.7, -14.9],
+    ],
+    '#6d493c92',
+    0.77,
+  );
+  stroke(
+    ctx,
+    [
+      [11.2, -20.4],
+      [9.28, -16.7],
+      [10.42, -13.8],
+    ],
+    '#d9b18491',
+    1.2,
+  );
+  ctx.restore();
+}
+
+function wolfBody(ctx: CanvasRenderingContext2D, winter: boolean) {
+  const coat = ctx.createLinearGradient(-11, -27, 7, -9);
+  coat.addColorStop(0, winter ? '#a8ac9d' : '#939d91');
+  coat.addColorStop(0.59, winter ? '#737a71' : '#5f6b61');
+  coat.addColorStop(1, '#35403b');
+  ctx.beginPath();
+  ctx.moveTo(-21.2, -14.6);
+  ctx.bezierCurveTo(-22, -23.5, -14.4, -25.7, -8.1, -24.1);
+  ctx.quadraticCurveTo(0.3, -22.5, 5.5, -25.4);
+  ctx.lineTo(8.6, -27.4);
+  ctx.lineTo(9.2, -25.8);
+  ctx.quadraticCurveTo(17.8, -28.2, 17.3, -16.6);
+  ctx.lineTo(15.7, -12.1);
+  ctx.lineTo(13.7, -12.4);
+  ctx.quadraticCurveTo(11.4, -7.7, 6, -8.35);
+  ctx.quadraticCurveTo(2.4, -10.5, -7.9, -13.1);
+  ctx.quadraticCurveTo(-17.9, -7.6, -21.2, -14.6);
+  ctx.closePath();
+  ctx.fillStyle = coat;
+  ctx.fill();
+  ctx.save();
+  ctx.clip();
+  polygon(
+    ctx,
+    [
+      [-20.7, -20.7],
+      [-15.2, -25],
+      [-7.25, -23.9],
+      [-0.7, -22.6],
+      [7.9, -27],
+      [13.9, -24.3],
+      [9.89, -20.8],
+      [1.2, -18.3],
+      [-5.6, -20.5],
+      [-12.7, -19.1],
+    ],
+    '#303c37bf',
+  );
+  polygon(
+    ctx,
+    [
+      [-22.6, -15.2],
+      [-16.7, -20.2],
+      [-12.7, -18.9],
+      [-11.5, -15.2],
+      [-14.2, -10.8],
+      [-18.8, -10.33],
+    ],
+    '#b0afa08d',
+  );
+  polygon(
+    ctx,
+    [
+      [5.5, -21.6],
+      [10.8, -24.15],
+      [16.1, -21],
+      [16.35, -15.3],
+      [12.1, -13.1],
+      [10.4, -8.91],
+      [7.5, -11.07],
+      [6.5, -15.7],
+      [3.3, -15.9],
+    ],
+    winter ? '#d4d4c2a6' : '#acae9c93',
+  );
+  polygon(
+    ctx,
+    [
+      [-13.5, -16],
+      [-2.3, -16.9],
+      [5.4, -14.7],
+      [7.64, -11.52],
+      [-7.95, -12.7],
+    ],
+    '#d4c6a17e',
+  );
+  stroke(
+    ctx,
+    [
+      [-18.3, -22.6],
+      [-13.34, -23.46],
+      [-7.78, -22.4],
+    ],
+    '#c8c6a3a1',
+    0.85,
+  );
+  stroke(
+    ctx,
+    [
+      [4.84, -22.5],
+      [3.5, -19.36],
+      [7.38, -17.17],
+    ],
+    '#d7cdb1a4',
+    0.79,
+  );
+  stroke(
+    ctx,
+    [
+      [9.36, -21.71],
+      [8.75, -18.3],
+      [11.13, -16.5],
+    ],
+    '#e4dbc5a6',
+    0.66,
+  );
+  ctx.restore();
 }
 
 function deerHead(ctx: CanvasRenderingContext2D, variant: number, angle: number, alert: boolean) {
   ctx.save();
   ctx.translate(9, -17);
   ctx.rotate(angle);
-  const coat = ctx.createLinearGradient(-2, -16, 17, 9);
-  coat.addColorStop(0, '#e6bf85');
-  coat.addColorStop(0.46, '#b98a54');
-  coat.addColorStop(1, '#694d32');
+  const coat = ctx.createLinearGradient(6, -15, 12, 5);
+  coat.addColorStop(0, '#d9b182');
+  coat.addColorStop(0.45, '#a77551');
+  coat.addColorStop(1, '#644638');
   ctx.beginPath();
-  ctx.moveTo(-4, 7);
-  ctx.bezierCurveTo(3, 4, 3, -12, 8, -15);
-  ctx.bezierCurveTo(12, -18, 18, -13, 21, -10);
-  ctx.lineTo(23, -8);
-  ctx.lineTo(18, -6);
-  ctx.lineTo(11, -7);
-  ctx.bezierCurveTo(9, 0, 7, 9, -4, 7);
+  ctx.moveTo(-4.85, 7);
+  ctx.bezierCurveTo(1.5, 1.7, 1.69, -10.8, 7.4, -14.39);
+  ctx.quadraticCurveTo(11.5, -17.3, 16.97, -12.43);
+  ctx.lineTo(22.83, -9.38);
+  ctx.quadraticCurveTo(24.32, -7.31, 21.26, -6.47);
+  ctx.lineTo(15.55, -6.2);
+  ctx.lineTo(11.7, -8);
+  ctx.bezierCurveTo(9.4, -4.83, 8.73, 4.89, 5.62, 7.61);
+  ctx.quadraticCurveTo(0.15, 10.27, -4.85, 7);
   ctx.closePath();
   ctx.fillStyle = coat;
   ctx.fill();
+  polygon(
+    ctx,
+    [
+      [17.69, -10.9],
+      [22.1, -9.39],
+      [22.54, -7.18],
+      [16.52, -6.58],
+      [12.6, -8.74],
+    ],
+    '#d5bb947b',
+  );
+  polygon(
+    ctx,
+    [
+      [12.58, -9.96],
+      [11.51, -4.84],
+      [8.7, 1.5],
+      [5.56, 6.83],
+      [0.72, 7.82],
+      [4.8, 3.1],
+      [6.2, -3.93],
+      [8.21, -8.63],
+    ],
+    '#e6cca88f',
+  );
   stroke(
     ctx,
     [
-      [-3, 7],
-      [3, 3],
-      [7, -6],
+      [4.23, -8.2],
+      [5.7, -11.3],
+      [9.19, -13.28],
     ],
-    '#d9c39b',
-    1.7,
+    '#f1cc978a',
+    1.07,
+  );
+
+  const earTip = alert ? -23.75 : -21.16;
+  polygon(
+    ctx,
+    [
+      [9.72, -12.06],
+      [4.13, -15.28],
+      [0.65, earTip],
+      [5.23, earTip + 1.1],
+      [10.39, -16.65],
+    ],
+    '#a87e58',
   );
   polygon(
     ctx,
     [
-      [9, -12],
-      [2, -17],
-      [1, alert ? -23 : -21],
-      [9, -18],
-      [11, -14],
+      [8.67, -14.11],
+      [4.34, -16.07],
+      [2.43, earTip + 1.69],
+      [7.04, earTip + 3.36],
     ],
-    '#a28b60',
+    '#674a3c',
   );
   polygon(
     ctx,
     [
-      [14, -13],
-      [16, alert ? -23 : -20],
-      [20, -20],
-      [17, -14],
+      [12.58, -13.12],
+      [15.11, earTip + 2],
+      [19.83, earTip + 0.99],
+      [18.16, -15.38],
+      [15.65, -12.39],
     ],
-    '#b69b6f',
+    '#b9956d',
   );
-  ellipse(ctx, 17, -11.4, 1.05, 0.9, '#282d23');
-  ellipse(ctx, 16.75, -11.7, 0.3, 0.3, '#fff0cb');
-  ellipse(ctx, 22, -8.5, 1.2, 0.85, '#352f27');
+  stroke(
+    ctx,
+    [
+      [14.52, -15.8],
+      [17.13, earTip + 2.6],
+    ],
+    '#785a48',
+    0.95,
+  );
+  ellipse(ctx, 22.42, -8.41, 1.37, 1.05, '#41332b', 0.22);
+  stroke(
+    ctx,
+    [
+      [14.78, -11.7],
+      [16.17, -11.25],
+    ],
+    '#423328',
+    1.32,
+  );
+  ellipse(ctx, 15.27, -11.68, 0.31, 0.29, '#f0d298');
   if (variant % 3 !== 1) {
     stroke(
       ctx,
       [
-        [10, -15],
-        [7, -21],
-        [7, -26],
-        [5, -29],
+        [10.67, -14.72],
+        [8.15, -19.87],
+        [7.65, -25.6],
+        [4.91, -30.34],
       ],
-      '#6b6246',
-      0.9,
+      '#625747',
+      1.51,
     );
     stroke(
       ctx,
       [
-        [7, -22],
-        [2, -25],
-        [1, -28],
+        [8.14, -21.36],
+        [4.16, -23.43],
+        [1.65, -28.76],
       ],
-      '#6b6246',
-      0.75,
+      '#756449',
+      1.13,
     );
     stroke(
       ctx,
       [
-        [7, -24],
-        [11, -27],
+        [7.76, -24.59],
+        [11.31, -28.89],
       ],
-      '#6b6246',
-      0.7,
+      '#8c7b5f',
+      0.87,
     );
     stroke(
       ctx,
       [
-        [14, -15],
-        [16, -23],
-        [20, -27],
+        [13.33, -15.9],
+        [15.81, -22.94],
+        [20.23, -28.32],
       ],
-      '#827452',
-      0.8,
+      '#94826a',
+      1.11,
     );
     stroke(
       ctx,
       [
-        [16, -22],
-        [14, -26],
+        [15.81, -22.94],
+        [14.81, -26.86],
       ],
-      '#827452',
-      0.7,
+      '#94826a',
+      0.81,
     );
   }
   ctx.restore();
@@ -974,84 +1131,131 @@ function deerHead(ctx: CanvasRenderingContext2D, variant: number, angle: number,
 
 function wolfHead(ctx: CanvasRenderingContext2D, winter: boolean, angle: number, bite: number) {
   ctx.save();
-  ctx.translate(11, -18);
+  ctx.translate(10.5, -17.85);
   ctx.rotate(angle);
-  const coat = ctx.createLinearGradient(-6, -12, 19, 8);
-  coat.addColorStop(0, winter ? '#d9deca' : '#c7c9ad');
-  coat.addColorStop(0.45, '#8b9785');
-  coat.addColorStop(1, '#394b41');
+  const coat = ctx.createLinearGradient(-1, -10.85, 14, 6.34);
+  coat.addColorStop(0, winter ? '#bfc0af' : '#a8aa99');
+  coat.addColorStop(0.49, '#737e73');
+  coat.addColorStop(1, '#3d4944');
   ctx.beginPath();
-  ctx.moveTo(-6, -4);
-  ctx.bezierCurveTo(-3, -12, 4, -10, 7, -4);
-  ctx.lineTo(19, 2);
-  ctx.lineTo(21, 5);
-  ctx.lineTo(9, 6);
-  ctx.bezierCurveTo(4, 10, -3, 9, -6, -4);
+  ctx.moveTo(-8.05, -5.28);
+  ctx.bezierCurveTo(-4.89, -9.24, 2.95, -11.3, 6.3, -6.41);
+  ctx.lineTo(10.23, -2.6);
+  ctx.lineTo(20.29, 0.36);
+  ctx.lineTo(21.19, 2.69);
+  ctx.lineTo(15.22, 4.23);
+  ctx.lineTo(9.54, 4.11);
+  ctx.lineTo(7.53, 6.9);
+  ctx.lineTo(4.45, 5.97);
+  ctx.lineTo(2.97, 8.19);
+  ctx.quadraticCurveTo(-3.63, 7.88, -8.05, -5.28);
   ctx.closePath();
   ctx.fillStyle = coat;
   ctx.fill();
   polygon(
     ctx,
     [
-      [0, -3],
-      [-1, -14],
-      [6, -7],
-      [9, -11],
-      [11, -2],
+      [-6.33, -5.25],
+      [-3.76, -8.06],
+      [1.45, -9.15],
+      [5.78, -7.82],
+      [8.67, -4.38],
+      [5.15, -3.23],
+      [2.1, -5.22],
+      [-3.63, -2.27],
     ],
-    '#43594a',
+    '#3f483fba',
   );
   polygon(
     ctx,
     [
-      [1, -6],
-      [1, -11],
-      [4.4, -7],
+      [1.11, -3.44],
+      [5.71, -2.68],
+      [10.5, -0.45],
+      [15.41, 1.02],
+      [19.65, 0.88],
+      [18.63, 2.5],
+      [10.37, 3.45],
+      [6.52, 6.1],
+      [3.31, 4.9],
+      [2.55, 6.36],
+      [-0.04, 2.97],
     ],
-    '#c0b69a',
+    '#d0c7abad',
+  );
+  polygon(
+    ctx,
+    [
+      [0.62, -7.94],
+      [-0.93, -14.34],
+      [1.33, -15],
+      [4.93, -9.43],
+      [7.3, -12.66],
+      [9.35, -11.16],
+      [8.63, -5.9],
+    ],
+    '#454c42',
+  );
+  polygon(
+    ctx,
+    [
+      [1.36, -8.86],
+      [0.54, -13.6],
+      [3.35, -10.36],
+    ],
+    '#a3957b',
   );
   if (bite > 0.1) {
     polygon(
       ctx,
       [
-        [8, 6],
-        [19, 4.5],
-        [17, 5 + bite * 4.3],
-        [8, 7 + bite * 2],
+        [7.93, 3.63],
+        [19.38, 2.5],
+        [16.8, 4 + bite * 4.7],
+        [10.22, 5 + bite * 3.1],
       ],
-      '#493d32',
+      '#463834',
     );
     polygon(
       ctx,
       [
-        [17, 5],
-        [15.7, 7.1],
-        [15, 5.2],
+        [14.69, 3.42],
+        [17.12, 3.14],
+        [15.41, 5.7],
       ],
-      '#dcd3b8',
+      '#e0d4af',
     );
     stroke(
       ctx,
       [
-        [8, 8 + bite],
-        [17, 5 + bite * 4.3],
+        [9.36, 5.1 + bite * 2.78],
+        [16.8, 4 + bite * 4.7],
       ],
-      '#b9b69b',
-      1.1,
+      '#b0ab95',
+      1.05,
     );
-  } else
+  } else {
     stroke(
       ctx,
       [
-        [7, 6],
-        [15, 6],
+        [9.61, 3.61],
+        [18.73, 2.8],
       ],
-      '#b9b69b',
-      1.3,
+      '#50584c',
+      0.91,
     );
-  ellipse(ctx, 20, 3, 1.7, 1.3, '#26352b');
-  ellipse(ctx, 9.5, -2, 1, 0.8, '#242e26');
-  ellipse(ctx, 9.25, -2.2, 0.25, 0.25, '#f0df9e');
+  }
+  ellipse(ctx, 20.28, 1.08, 1.54, 1.5, '#27322b', -0.32);
+  stroke(
+    ctx,
+    [
+      [7.24, -3.18],
+      [9.34, -2.31],
+    ],
+    '#28322a',
+    1.23,
+  );
+  ellipse(ctx, 8.48, -2.72, 0.46, 0.39, '#d2ad68');
   ctx.restore();
 }
 

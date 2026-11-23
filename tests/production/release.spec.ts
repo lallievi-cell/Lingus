@@ -26,7 +26,11 @@ test('the built release loads its real assets under the Pages subpath and expose
   const asset = await request.get('art/valley-natural-atlas.png');
   expect(asset.ok()).toBe(true);
   expect(asset.headers()['content-type']).toContain('image/png');
+  const brushResponse = page.waitForResponse('**/art/meadow-brush.webp');
   await page.goto('./');
+  const brush = await brushResponse;
+  expect(brush.ok()).toBe(true);
+  expect(brush.headers()['content-type']).toContain('image/webp');
   await expect(page.getByRole('img', { name: /Mappa della valle/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Riprendi il tempo', exact: true })).toContainText(
     'In pausa',

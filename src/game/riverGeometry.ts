@@ -123,7 +123,10 @@ export function sampleRiverArt(geometry: RiverArtGeometry, distance: number) {
   };
 }
 
-export function traceRiverArt(ctx: CanvasRenderingContext2D, geometry: RiverArtGeometry) {
+export function traceRiverArt(
+  ctx: Pick<CanvasRenderingContext2D, 'beginPath' | 'moveTo' | 'lineTo'>,
+  geometry: RiverArtGeometry,
+) {
   ctx.beginPath();
   geometry.points.forEach((point, index) => {
     if (!index) ctx.moveTo(point.x, point.y);

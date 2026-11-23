@@ -1,4 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
+import { MAP_HEIGHT, MAP_WIDTH, SPRITE_SCALE, worldPoint } from '../src/components/mapDrawing';
+import type { GameState } from '../src/game/types';
 import { closeWordBank, openWordBank, showRecentPhrases } from './mobile-ui';
 
 async function beginPaused(page: Page, seed?: string) {
@@ -11,7 +13,9 @@ async function beginPaused(page: Page, seed?: string) {
 async function readSave(page: Page) {
   await page.getByRole('button', { name: 'Impostazioni e salvataggi' }).click();
   await page.getByRole('button', { name: /Salva adesso/ }).click();
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('lingus.save.v2')!));
+  const saved = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('lingus.save.v2')!) as GameState,
+  );
   await page.getByRole('button', { name: 'Chiudi finestra' }).click();
   return saved;
 }
@@ -124,9 +128,8 @@ async function selectGround(page: Page, position: { x: number; y: number }) {
   const map = page.getByRole('img', { name: /Mappa della valle/ });
   await map.click({ position });
   const overlaps = page.getByRole('group', { name: 'Scegli tra gli elementi sovrapposti' });
-  // Seed 518 places two trees under this destination, reproducing the
-  // missing-target path seen in the original CI trace.
   await expect(overlaps).toBeVisible();
+  await expect(overlaps.getByRole('button', { name: 'Un ostacolo senza nome' })).toHaveCount(2);
   await overlaps.getByRole('button', { name: 'Punto sul terreno', exact: true }).click();
   await expect(overlaps).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Deseleziona bersaglio' })).toBeVisible();
@@ -136,13 +139,31 @@ async function selectGround(page: Page, position: { x: number; y: number }) {
 test('quick group selection, echoes and keyboard controls affect real orders', async ({ page }) => {
   await beginPaused(page, '518');
   const map = page.getByRole('img', { name: /Mappa della valle/ });
-  const bounds = (await map.boundingBox())!;
-  const scale = Math.max(bounds.width / 1200, bounds.height / 800) * 4.5;
-  const farPoint = {
-    x: bounds.width / 2 - 35 * 2.4 * scale,
-    y: bounds.height / 2 - 35 * 1.6 * scale,
+  await expect(map).toBeVisible();
+  const opening = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('lingus.save.v2')!) as GameState,
+  );
+  // Seed 518 has a pair of nearby trees beyond the camp group radius.
+  // Aim at the midpoint of their crowns so actual silhouettes overlap
+  // even when a taller canvas makes the fixed pixel hit padding smaller.
+  const trees = opening.entities.filter(
+    (entity) => entity.kind === 'tree' && ['entity-8', 'entity-13'].includes(entity.id),
+  );
+  expect(trees).toHaveLength(2);
+  const midpoint = worldPoint((trees[0].x + trees[1].x) / 2, (trees[0].y + trees[1].y) / 2);
+  const crown = { x: midpoint.x, y: midpoint.y - 45 * SPRITE_SCALE };
+  const home = worldPoint(opening.home.x, opening.home.y);
+  const mapUnit = worldPoint(1, 1);
+  const project = async (point: { x: number; y: number }) => {
+    // Composing exposes the order preview, so take fresh canvas bounds.
+    const bounds = (await map.boundingBox())!;
+    const scale = Math.max(bounds.width / MAP_WIDTH, bounds.height / MAP_HEIGHT) * 4.5;
+    return {
+      x: bounds.width / 2 + (point.x - home.x) * scale,
+      y: bounds.height / 2 + (point.y - home.y) * scale,
+    };
   };
-  await map.dblclick({ position: farPoint });
+  await map.dblclick({ position: await project(crown) });
   await expect(
     page
       .getByRole('status')
@@ -152,7 +173,7 @@ test('quick group selection, echoes and keyboard controls affect real orders', a
   await page.getByRole('button', { name: /^Andare:/ }).click();
   // A group anchor chooses executors. It does not resolve an overlapping
   // destination: choose the terrain through the same public flow as a player.
-  await selectGround(page, farPoint);
+  await selectGround(page, await project(crown));
   await page.getByRole('button', { name: 'Pronuncia', exact: true }).click();
   await expect(
     page
@@ -162,15 +183,18 @@ test('quick group selection, echoes and keyboard controls affect real orders', a
   const rejected = await readSave(page);
   expect(rejected.stats.commands).toBe(0);
   expect(rejected.voice).toBe(3);
-  await map.click({ button: 'right', position: { x: bounds.width / 2, y: bounds.height / 2 } });
-  await selectGround(page, farPoint);
+  await map.click({ button: 'right', position: await project(home) });
+  await selectGround(page, await project(crown));
   await page.getByRole('button', { name: 'Pronuncia', exact: true }).click();
   const ordered = await readSave(page);
   expect(ordered.stats.commands).toBe(1);
   expect(ordered.voice).toBe(2);
-  expect(
-    ordered.units.filter((unit: { action: string }) => unit.action === 'moving').length,
-  ).toBeGreaterThan(0);
+  const moving = ordered.units.filter((unit) => unit.action === 'moving');
+  expect(moving.length).toBeGreaterThan(0);
+  for (const unit of moving) {
+    expect(unit.tx).toBeCloseTo(crown.x / mapUnit.x, 0);
+    expect(unit.ty).toBeCloseTo(crown.y / mapUnit.y, 0);
+  }
   await page.keyboard.press('Escape');
   await expect(page.locator('.sentence-slot.filled')).toHaveCount(0);
   await page
@@ -181,7 +205,7 @@ test('quick group selection, echoes and keyboard controls affect real orders', a
   await page.keyboard.press('Backspace');
   await expect(page.locator('.sentence-slot.filled')).toHaveCount(1);
   await page.getByRole('button', { name: /^Andare:/ }).click();
-  await selectGround(page, farPoint);
+  await selectGround(page, await project(crown));
   await page.keyboard.press('Digit3');
   await expect(page.getByRole('button', { name: 'Velocità 4x' })).toHaveAttribute(
     'aria-pressed',

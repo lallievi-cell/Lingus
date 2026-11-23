@@ -18,6 +18,7 @@ async function showWorld(page: Page, waitForAtlas = true) {
     const { default: DOM } = await import('/node_modules/.vite/deps/react-dom.js');
     const { WorldMap } = await import('/src/components/WorldMap.tsx');
     const { createGame } = await import('/src/game/engine.ts');
+    const { seasonStart } = await import('/src/game/calendar.ts');
     const { ensureNaturalAtlas } = await import('/src/components/mapNaturalAtlas.ts');
     let state = createGame(6842, 'guided');
     Object.assign(state, { started: true, paused: true, time: 20 });
@@ -86,6 +87,10 @@ async function showWorld(page: Page, waitForAtlas = true) {
         state = { ...state, units: [{ ...state.units[0], x: 252 }] };
         render();
       },
+      startSummer() {
+        state = { ...state, seasonIndex: 1, time: seasonStart(state, 1) };
+        render();
+      },
       startWorldClock() {
         state = { ...state, paused: false };
         render();
@@ -109,6 +114,75 @@ async function showWorld(page: Page, waitForAtlas = true) {
 
 const paintCount = (page: Page) =>
   page.evaluate(() => (window as unknown as { mapPaints: number }).mapPaints);
+
+async function trackTerrain(page: Page, worker: boolean) {
+  await page.addInitScript((worker) => {
+    if (!worker) Object.defineProperty(window, 'OffscreenCanvas', { value: undefined });
+    const original = CanvasRenderingContext2D.prototype.drawImage;
+    const observed = new Set<CanvasImageSource>();
+    const sources: string[] = [];
+    Object.assign(window, { paintedTerrainSources: sources });
+    CanvasRenderingContext2D.prototype.drawImage = function (...args) {
+      const image = args[0];
+      if (
+        this.canvas.classList.contains('lingus-world__canvas') &&
+        this.canvas.closest('#world-fixture') &&
+        (image instanceof ImageBitmap || image instanceof HTMLCanvasElement) &&
+        image.width === 3600 &&
+        image.height === 2400 &&
+        !observed.has(image)
+      ) {
+        observed.add(image);
+        sources.push(image instanceof ImageBitmap ? 'bitmap' : 'canvas');
+      }
+      return original.apply(this, args as Parameters<typeof original>);
+    };
+  }, worker);
+}
+
+const terrainSources = (page: Page) =>
+  page.evaluate(
+    () => (window as unknown as { paintedTerrainSources: string[] }).paintedTerrainSources,
+  );
+
+test('the map stays interactive with its previous terrain while the next season paints', async ({
+  page,
+}) => {
+  let release!: () => void;
+  let holdNextSeason = false;
+  let summerRequests = 0;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/art/meadow-brush.webp', async (route) => {
+    if (holdNextSeason) {
+      summerRequests++;
+      await gate;
+    }
+    await route.continue();
+  });
+  await trackTerrain(page, true);
+  try {
+    await showWorld(page);
+    expect(await terrainSources(page)).toEqual(['bitmap']);
+    const before = await paintCount(page);
+    holdNextSeason = true;
+    await page.evaluate(() => (window as unknown as { startSummer(): void }).startSummer());
+    await expect.poll(() => summerRequests).toBe(1);
+    await page.getByRole('button', { name: 'Ingrandisci la mappa' }).click();
+    await expect.poll(() => paintCount(page)).toBeGreaterThan(before);
+    expect(await terrainSources(page)).toEqual(['bitmap']);
+  } finally {
+    release();
+  }
+  await expect.poll(() => terrainSources(page)).toEqual(['bitmap', 'bitmap']);
+});
+
+test('a browser without OffscreenCanvas still paints the terrain', async ({ page }) => {
+  await trackTerrain(page, false);
+  await showWorld(page);
+  expect(await terrainSources(page)).toEqual(['canvas']);
+});
 
 test('keyboard selection exposes only visible known descriptions and returns the real target', async ({
   page,

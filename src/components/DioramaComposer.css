@@ -1,0 +1,407 @@
+/* The phrase sits in an inset track. Inscribed words and the voice action
+   have the warmest values, with library and group controls set into the rim. */
+.app:not([data-contrast='high']) .language-workbench {
+  --deck-body: color-mix(in srgb, #1c1d18 83%, var(--ui-shadow, #75664a));
+  --deck-recess: #191a16;
+  --deck-rim: color-mix(in srgb, #5e5139 50%, var(--ui-frame, #99856b));
+  --deck-ink: #f2e7d1;
+  --deck-muted: #cec1a9;
+  --deck-inscription: #382c1c;
+  color: var(--deck-ink);
+  background: linear-gradient(110deg, #353025, var(--deck-body) 42%, #25251f) !important;
+  border-top: 1px solid var(--deck-rim) !important;
+  box-shadow: inset 0 1px 0 #e4be7930 !important;
+}
+
+.app:not([data-contrast='high']) .language-workbench :is(.composer-topline h2, .voice-meter small) {
+  color: var(--deck-ink);
+}
+
+.app:not([data-contrast='high'])
+  .language-workbench
+  :is(
+    .voice-meter > span:first-child,
+    .group-hint,
+    .echo-label,
+    .keyboard-hints,
+    .sentence-feedback
+  ) {
+  color: var(--deck-muted);
+}
+
+.app:not([data-contrast='high']) .language-workbench .voice-pip {
+  color: #b8aa8e;
+  background: var(--deck-recess);
+  border-color: #695a43;
+}
+
+.app:not([data-contrast='high']) .language-workbench .voice-pip.filled {
+  color: #28231a;
+  background: #d9b16e;
+  border-color: #e6c58b;
+}
+
+.app:not([data-contrast='high']) .language-workbench .sentence-slots {
+  padding: 3px !important;
+  border: 1px solid #84705080;
+  border-radius: 5px;
+  background: var(--deck-recess);
+  box-shadow: inset 0 2px 3px #0a0b0a90;
+  scrollbar-color: #a78b6190 transparent;
+}
+
+.app:not([data-contrast='high']) .language-workbench .slot-plus {
+  color: #b99e72;
+}
+
+.app:not([data-contrast='high']) .language-workbench .sentence-slot {
+  background: linear-gradient(165deg, #333126, #26251f) !important;
+  border: 1px dashed #a18a63 !important;
+  border-radius: 3px !important;
+  color: var(--deck-muted) !important;
+  box-shadow: none !important;
+}
+
+.app:not([data-contrast='high']) .language-workbench .sentence-slot:disabled {
+  background: #22231d !important;
+  color: #aaa193 !important;
+  border-color: #756a56 !important;
+}
+
+.app:not([data-contrast='high']) .language-workbench .sentence-slot:not(.filled) > span {
+  color: inherit !important;
+  font-size: inherit !important;
+}
+
+.app:not([data-contrast='high']) .language-workbench .sentence-slot.filled {
+  --word-clay: #d4bc8c;
+  --word-engraving: #98734a;
+  color: var(--deck-inscription) !important;
+  background: linear-gradient(135deg, #fff4db65, #412c1712), var(--word-clay) !important;
+  border: 1px solid var(--word-engraving) !important;
+  box-shadow:
+    inset 0 1px 0 #ffe8bbad,
+    inset 0 -3px 0 var(--word-engraving),
+    0 2px 2px #0007 !important;
+}
+
+.app:not([data-contrast='high']) .language-workbench .sentence-slot.filled.word-S {
+  --word-clay: #b6c5a1;
+  --word-engraving: #637750;
+}
+
+.app:not([data-contrast='high']) .language-workbench .sentence-slot.filled.word-O {
+  --word-clay: #b8c9cb;
+  --word-engraving: #627e82;
+}
+
+.app:not([data-contrast='high']) .language-workbench .sentence-slot.filled:is(.word-M, .word-C) {
+  --word-clay: #d1b9c6;
+  --word-engraving: #8b697c;
+}
+
+.app:not([data-contrast='high']) .language-workbench .sentence-slot.filled :is(strong, svg) {
+  color: var(--deck-inscription);
+}
+
+.app:not([data-contrast='high'])
+  .language-workbench
+  .sentence-slot:is(.editing, [data-active='true']) {
+  outline: 2px solid #f5cb82;
+  outline-offset: -2px;
+}
+
+.app:not([data-contrast='high'])
+  .language-workbench
+  :is(
+    .composer-actions .undo-button,
+    .executor-selection > .text-button,
+    .phrasebook-access,
+    .mobile-words-toggle,
+    .mobile-target-strip button
+  ) {
+  color: var(--deck-ink) !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  box-shadow: none !important;
+}
+
+.app:not([data-contrast='high'])
+  .language-workbench
+  :is(
+    .executor-selection > .text-button.active,
+    .phrasebook-access[aria-expanded='true'],
+    .mobile-words-toggle
+  ) {
+  background: #15171396 !important;
+  border-color: #8a7451 !important;
+  border-radius: 4px;
+}
+
+.app:not([data-contrast='high']) .language-workbench .recall-label small {
+  color: #d9bf93;
+}
+
+.app:not([data-contrast='high'])
+  .language-workbench
+  :is(.composer-actions .undo-button, .executor-selection > .text-button):disabled {
+  color: #b3a48b !important;
+}
+
+.app:not([data-contrast='high'])
+  .language-workbench
+  .composer-actions
+  .pronounce-button:not(:disabled) {
+  color: #2b2014 !important;
+  background: linear-gradient(160deg, #f4ce8f, #d29b58 83%) !important;
+  border: 1px solid #f4ce8f !important;
+  border-bottom-color: #9e6a38 !important;
+  border-radius: 4px !important;
+  box-shadow:
+    inset 0 1px 0 #ffe2ad,
+    inset 0 -2px 0 #9d632f !important;
+}
+
+.app:not([data-contrast='high']) .language-workbench .composer-actions .pronounce-button:disabled {
+  color: #c6bba5 !important;
+  background: #312f28 !important;
+  border: 1px solid #746750 !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+}
+
+.app:not([data-contrast='high'])
+  .language-workbench
+  :is(.mobile-voice, .sentence-feedback.has-issue) {
+  color: #f0c789 !important;
+}
+
+.app:not([data-contrast='high']) .language-workbench .sentence-feedback .command-feedback-compact {
+  color: var(--deck-muted);
+}
+
+.app:not([data-contrast='high'])
+  .language-workbench
+  .sentence-feedback.has-issue
+  .command-feedback-compact {
+  color: #f0c789;
+}
+
+.app:not([data-contrast='high'])
+  .language-workbench
+  :is(button, [tabindex], summary):focus-visible {
+  outline: 2px solid #f4d19e;
+  outline-offset: -2px;
+}
+
+.app:not([data-contrast='high'])
+  .language-workbench
+  .mobile-word-sheet
+  :is(button, input):focus-visible {
+  outline-color: #624522;
+}
+
+@media (min-width: 861px) {
+  .app:not([data-contrast='high']) .language-workbench {
+    padding: 8px clamp(16px, 3vw, 44px) 6px;
+  }
+
+  .app:not([data-contrast='high']) .language-workbench .command-deck {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 14px;
+  }
+
+  .app:not([data-contrast='high']) .language-workbench .composer-row {
+    grid-column: 1 / -1;
+  }
+
+  .app:not([data-contrast='high']) .language-workbench .desktop-echo-shelf {
+    grid-column: 1 / -1;
+  }
+
+  .app:not([data-contrast='high']) .language-workbench .composer-topline h2 {
+    font-size: 22px;
+    margin-left: 0;
+  }
+
+  .app:not([data-contrast='high']) .language-workbench .sentence-slots {
+    gap: 7px;
+  }
+
+  .app:not([data-contrast='high']) .language-workbench .sentence-slot {
+    height: 42px;
+  }
+
+  .app:not([data-contrast='high']) .language-workbench .sentence-feedback kbd {
+    color: #ead6ac;
+    background: #1f211b;
+    border-color: #74654c;
+  }
+
+  .app:not([data-contrast='high'])
+    .language-workbench
+    :is(
+      .lexicon-label,
+      .lexicon-label > span,
+      .word-filters button,
+      .word-bank-lexicon,
+      .syntax-next,
+      .contextual-ready-hint,
+      .contextual-law-hint,
+      .contextual-empty,
+      .secondary-selection-controls
+    ) {
+    color: var(--deck-muted);
+  }
+
+  .app:not([data-contrast='high'])
+    .language-workbench
+    :is(.lexicon-label > span, .word-filters button.active) {
+    color: var(--deck-ink);
+  }
+
+  .app:not([data-contrast='high']) .language-workbench .word-shelf {
+    min-height: 0;
+  }
+
+  .app:not([data-contrast='high']) .language-workbench .contextual-word-options {
+    border-color: #8a745164;
+  }
+}
+
+@media (min-width: 1120px), (min-width: 861px) and (max-height: 660px) {
+  .app .language-workbench {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 32%);
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    gap: 0 clamp(12px, 1.6vw, 24px);
+  }
+
+  .app
+    .language-workbench
+    > :is(.composer-topline, .command-deck, .sentence-feedback, .order-preview) {
+    grid-column: 1;
+    min-width: 0;
+  }
+
+  .app .language-workbench .mobile-word-sheet .contextual-word-shelf {
+    grid-area: 1 / 2 / -1 / 3;
+    align-self: stretch;
+    border-inline-start: 1px solid var(--deck-rim, var(--line));
+    padding-inline-start: clamp(12px, 1.6vw, 24px);
+  }
+
+  .app .language-workbench .contextual-word-options {
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .app .language-workbench .contextual-word-options .word-filters {
+    gap: 8px;
+  }
+
+  .app .language-workbench .sentence-slots {
+    overflow-x: auto;
+  }
+
+  .app .language-workbench .sentence-slots .slot-group {
+    flex: 1 0 min-content;
+    min-width: 100px;
+  }
+
+  .app .language-workbench .sentence-slots .sentence-slot {
+    width: 100%;
+  }
+}
+
+@media (max-width: 860px) {
+  .app:not([data-contrast='high']) .language-workbench {
+    padding-inline: 9px !important;
+  }
+
+  .app:not([data-contrast='high']) .language-workbench .mobile-dock-header {
+    border-top: 1px solid #8c76556e;
+  }
+
+  .app:not([data-contrast='high']) .language-workbench .mobile-dock-header .mobile-words-toggle {
+    min-width: 79px;
+  }
+
+  .app .language-workbench .executor-selection > button .executor-label {
+    font-size: inherit !important;
+  }
+
+  .app:not([data-contrast='high']) .language-workbench .order-preview summary {
+    color: var(--deck-muted);
+    background: #332e24;
+    border-color: #9a8060;
+    border-radius: 4px;
+  }
+
+  .app:not([data-contrast='high'])
+    .language-workbench:has(.mobile-word-sheet:not([hidden]))
+    .mobile-words-toggle {
+    color: #f7d18e !important;
+    border-color: #bd9761 !important;
+  }
+}
+
+@media (max-width: 860px) and (orientation: portrait) {
+  /* On the two-word opening track, read through the slots straight to the
+     verb action. Longer phrases retain the full width for their vocabulary. */
+  .app .language-workbench .command-deck:has(.slot-group:nth-child(2):last-child) {
+    grid-template-columns: minmax(0, 1fr) 96px;
+    grid-template-rows: auto 44px;
+  }
+
+  .app .language-workbench .command-deck:has(.slot-group:nth-child(2):last-child) .sentence-slots {
+    grid-area: 1 / 1;
+  }
+
+  .app
+    .language-workbench
+    .command-deck:has(.slot-group:nth-child(2):last-child)
+    .composer-actions {
+    display: contents !important;
+  }
+
+  .app
+    .language-workbench
+    .command-deck:has(.slot-group:nth-child(2):last-child)
+    .pronounce-button {
+    grid-area: 1 / 2;
+    align-self: center;
+    height: 100% !important;
+  }
+
+  .app .language-workbench .command-deck:has(.slot-group:nth-child(2):last-child) .undo-button {
+    grid-area: 2 / 2;
+    justify-self: end;
+  }
+
+  .app
+    .language-workbench
+    .command-deck:has(.slot-group:nth-child(2):last-child)
+    .executor-selection {
+    grid-column: 1 / -1;
+    width: calc(100% - 52px);
+  }
+
+  .app
+    .language-workbench
+    .command-deck:has(.slot-group:nth-child(2):last-child)
+    .executor-selection
+    > button {
+    justify-content: start;
+    padding-inline: 9px !important;
+  }
+}
+
+@media (max-width: 860px) and (max-height: 540px) and (orientation: landscape) {
+  .app:not([data-contrast='high']) .language-workbench .mobile-dock-header {
+    margin-top: 0;
+    border-top: 0;
+  }
+}

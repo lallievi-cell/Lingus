@@ -7,7 +7,7 @@ import {
   Sparkles,
   TriangleAlert,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { ADULT_AGE, WORDS } from '../game/content';
 import type { CustodianStatus } from '../game/custodianStatus';
 import { getLifeStage, resolveUnitSex } from '../game/demography';
@@ -24,26 +24,18 @@ import {
 import './TribeReadability.css';
 import { UnitWorkStatus } from './WorkStatus';
 import { describeHealth, describeHunger } from './semanticReadability';
+import { paintTribePortrait } from './mapPeopleArt';
 
 interface Props {
   state: GameState;
   unit: Unit;
-  index: number;
   selected: boolean;
   custodian?: CustodianStatus;
   onActivate: () => void;
   children?: ReactNode;
 }
 
-export function TribeMemberCard({
-  state,
-  unit,
-  index,
-  selected,
-  custodian,
-  onActivate,
-  children,
-}: Props) {
+export function TribeMemberCard({ state, unit, selected, custodian, onActivate, children }: Props) {
   const named = hasWord(state, 'S_02');
   const numbered = hasWord(state, 'O_08');
   const sex = resolveUnitSex(unit);
@@ -53,6 +45,12 @@ export function TribeMemberCard({
   const warnings = allWarnings.filter((warning) => warning.kind === 'cold');
   const spark = state.sparks.some((s) => !s.deferred && s.unitId === unit.id);
   const metadataId = `unit-metadata-${unit.id}`;
+  const portrait = useRef<HTMLCanvasElement>(null);
+  const { id, sex: portraitSex } = unit;
+  useEffect(() => {
+    const ctx = portrait.current?.getContext('2d');
+    if (ctx) paintTribePortrait(ctx, id, stage, portraitSex);
+  }, [id, stage, portraitSex]);
   return (
     <div className="tribe-member" data-expanded={selected}>
       <button
@@ -70,15 +68,13 @@ export function TribeMemberCard({
         aria-describedby={`${metadataId} unit-vitals-${unit.id}`}
         title={`${lifeStageLabel(unit)} · ${sexLabel(unit)}. ${unitLifeHint(unit)}${allWarnings.length ? ` ${allWarnings.map((w) => w.label).join(' · ')}.` : ''}`}
       >
-        <span
-          className={`unit-portrait portrait-${index % 7} person-${sex.toLowerCase()} life-${stage}`}
+        <canvas
+          ref={portrait}
+          width={108}
+          height={130}
+          className="unit-portrait"
           aria-hidden="true"
-        >
-          <span className="portrait-head" />
-          <span className="portrait-body" />
-          {stage === 'elder' && <span className="elder-hair" />}
-          {stage === 'newborn' && <span className="newborn-wrap" />}
-        </span>
+        />
         <span className="unit-info">
           <strong>{visibleUnitName(state, unit)}</strong>
           <span className="person-metadata" id={metadataId}>

@@ -159,10 +159,11 @@ function buildCutout(
       pixels.data[i + 1] = green;
       pixels.data[i + 2] = blue;
       if (unknown) {
-        const luminance = red * 0.29 + green * 0.59 + blue * 0.12;
-        pixels.data[i] = luminance * 0.9 + red * 0.1;
-        pixels.data[i + 1] = luminance * 0.94 + green * 0.1;
-        pixels.data[i + 2] = luminance * 0.88 + blue * 0.1;
+        // Unknown silhouettes keep a quiet neutral pigment instead of
+        // appearing like unpainted plaster against a painted world.
+        pixels.data[i] = luminance * 0.69 + red * 0.29 + 3;
+        pixels.data[i + 1] = luminance * 0.69 + green * 0.29 + (vegetation ? 8 : 3);
+        pixels.data[i + 2] = luminance * 0.69 + blue * 0.29 + 2;
         continue;
       }
       if (!vegetation || green < red * 0.9 || green < blue * 1.05 || season === 0) continue;

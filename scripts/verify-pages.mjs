@@ -32,7 +32,7 @@ for (let attempt = 0; attempt < 12; attempt++) {
     ) {
       throw new Error('The page and its build metadata are not the same release yet');
     }
-    for (const path of [script[1], 'art/valley-natural-atlas.png']) {
+    for (const path of [script[1], 'art/valley-natural-atlas.png', 'art/meadow-brush.webp']) {
       const response = await fetch(new URL(path, site), {
         method: 'HEAD',
         signal: AbortSignal.timeout(15_000),

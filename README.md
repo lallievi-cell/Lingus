@@ -38,6 +38,8 @@ Le nuove storie propongono una **mappa casuale di 1.000 × 1.000 metri**, quattr
 
 La barra propone **Solo compatibili** fin dal primo capitolo: dopo ogni parola mostra le continuazioni ammesse dalla grammatica conosciuta. **Tutte**, i tipi e la ricerca restano disponibili. Una frase completa può essere pronunciata anche lasciando vuoti altri spazi. La cronologia ricompone le ultime otto frasi accettate senza eseguirle: controlla il bersaglio e poi pronuncia.
 
+Dopo **Qui**, fai mangiare il gruppo sul posto. Se un compagno termina il pasto sazio e nella fonte resta ancora cibo, nasce la Scintilla **Il cibo che rimane**. Aprila e collega **Mangiare** e **Qui** per imparare **Portare**. Un pasto dalle scorte del campo soddisfa la fame senza fornire questo indizio.
+
 Apri **Anteprima dell’ordine** per verificare esecutori, destinazioni, costi e attività interrotte prima di pronunciare. **Filtri e priorità** organizza la tribù per bisogni e attività; le schede spiegano incarichi e pause. Il pulsante con la foglia accanto al tempo apre la **preparazione stagionale**: manutenzione, cibo, carne cruda e riparo. Gli avvisi sulle parole perdute indicano come rivivere l’esperienza. Se sulla mappa più elementi si sovrappongono, puoi scegliere esplicitamente quale selezionare. Dettagli e limiti delle stime in [UI-QUALITY-OF-LIFE.md](docs/UI-QUALITY-OF-LIFE.md).
 
 Le schede della tribù mostrano la risorsa e la fase dell’attività, anche da chiuse: **Raccoglie legno**, **Estrae pietra**, **Porta legno al campo**. La [revisione 0.3.8](docs/RELEASE-038.md) aggiunge anche profondità al terreno, ombre coerenti, correnti nel fiume ed effetti sincronizzati con passi e colpi.

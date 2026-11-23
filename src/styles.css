@@ -500,94 +500,11 @@ button:not(:disabled):hover {
   border-top: 1px solid #dcdcc9;
 }
 .unit-portrait {
-  width: 31px;
-  height: 34px;
-  position: relative;
   display: block;
-  border-radius: 48% 48% 42% 42%;
-  background: #ddd3bd;
-  overflow: hidden;
   flex-shrink: 0;
-  border: 1px solid #ccc3ad;
-  box-shadow: inset 0 0 8px #b9ad9220;
-}
-.portrait-head {
-  display: block;
-  position: absolute;
-  top: 8px;
-  left: 10px;
-  width: 10px;
-  height: 13px;
-  background: #c69265;
-  border-radius: 4px 4px 5px 5px;
-  box-shadow: 0 -4px 0 #4b4937;
-}
-.portrait-body {
-  position: absolute;
-  bottom: -2px;
-  left: 3px;
-  width: 24px;
-  height: 13px;
-  background: #757958;
-  border-radius: 13px 13px 0 0;
-}
-.portrait-1 {
-  background: #cbd5c2;
-}
-.portrait-1 .portrait-body {
-  background: #587461;
-}
-.portrait-1 .portrait-head {
-  background: #bd966f;
-  box-shadow:
-    0 -4px 0 #4a4838,
-    3px -1px 0 #4a4838;
-}
-.portrait-2 {
-  background: #d5c7ac;
-}
-.portrait-2 .portrait-body {
-  background: #a48963;
-}
-.portrait-3 {
-  background: #ded5c1;
-}
-.portrait-3 .portrait-body {
-  background: #7f7255;
-}
-.portrait-4 {
-  background: #c8cabb;
-}
-.portrait-4 .portrait-head {
-  background: #ac7e58;
-  box-shadow: 0 -4px 0 #343f33;
-}
-.portrait-4 .portrait-body {
-  background: #515b48;
-}
-.portrait-5 {
-  background: #d5d5c0;
-}
-.portrait-5 .portrait-head {
-  background: #c89c77;
-  box-shadow: 0 -4px 0 #b6b4a1;
-}
-.portrait-5 .portrait-body {
-  background: #766e5d;
-}
-.portrait-6 {
-  background: #ded6b7;
-}
-.portrait-6 .portrait-head {
-  top: 11px;
-  width: 9px;
-  height: 11px;
-}
-.portrait-6 .portrait-body {
-  height: 10px;
-  width: 20px;
-  left: 5px;
-  background: #9d9b70;
+  border: 1px solid #8f7c5d;
+  border-radius: 4px 4px 2px 2px;
+  background: radial-gradient(ellipse at 43% 35%, #f3dbac 12%, #a99d7d 100%);
 }
 .unit-info {
   min-width: 0;
@@ -631,15 +548,6 @@ button:not(:disabled):hover {
 .spark-indicator {
   color: #b08b3e;
   animation: sparkPulse 2s infinite;
-}
-.elder-hair {
-  position: absolute;
-  top: 4px;
-  left: 7px;
-  width: 16px;
-  height: 8px;
-  border-radius: 7px 7px 3px 3px;
-  background: #c2c2ac;
 }
 .cohesion-block {
   padding: 12px 0 0;

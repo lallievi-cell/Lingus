@@ -18,6 +18,18 @@
   cursor: grab;
   touch-action: none;
 }
+.lingus-world__terrain-status {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  padding: 8px 12px;
+  color: var(--hud-ink, #fcf2dc);
+  background: var(--hud-surface, #24231e);
+  border: 1px solid var(--hud-line, #736e5c);
+  font-size: 13px;
+  white-space: nowrap;
+  pointer-events: none;
+}
 .lingus-world__stocks,
 .lingus-world__atlas {
   position: absolute;

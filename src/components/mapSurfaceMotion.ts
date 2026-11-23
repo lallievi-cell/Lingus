@@ -3,9 +3,10 @@ import { isWorldPointRevealed } from '../game/worldDimensions';
 import { createRiverArtGeometry, sampleRiverArt, type RiverArtGeometry } from './mapRiverGeometry';
 import { coastInlandDistance, createCoastGeometry } from '../game/coastGeometry';
 import { getCoastHighlights } from './mapCoastArt';
+import type { TerrainImage } from './mapTerrainArt';
 
 type Viewport = { minX: number; minY: number; maxX: number; maxY: number };
-const geometries = new WeakMap<HTMLCanvasElement, RiverArtGeometry>();
+const geometries = new WeakMap<TerrainImage, RiverArtGeometry>();
 
 /** Current highlights share the exact painted river, never an approximate second path. */
 export function getRiverHighlights(
@@ -52,7 +53,7 @@ export function getRiverHighlights(
 export function drawMapSurfaceMotion(
   ctx: CanvasRenderingContext2D,
   state: GameState,
-  terrain: HTMLCanvasElement,
+  terrain: TerrainImage,
   time: number,
   viewport?: Viewport,
   reducedMotion = false,

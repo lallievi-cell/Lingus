@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Crosshair,
   Minus,
@@ -15,7 +15,6 @@ import type { GameState, Resource, Target, WorldTarget } from '../game/types';
 import { getCalendar } from '../game/calendar';
 import { getWorldSize, getWorldSectorCount, sectorIndex } from '../game/worldDimensions';
 import {
-  createTerrain,
   drawWorld,
   entityNames,
   isVisibleAt,
@@ -44,6 +43,7 @@ import { anchoredPinchView, type MapPinchAnchor } from './mapGestures';
 import { getCampStockSlots } from './campInventory';
 import { CAMP_STOCK_ART_BOUNDS } from './mapCampStockArt';
 import { ensureNaturalAtlas } from './mapNaturalAtlas';
+import { usePaintedTerrain } from './usePaintedTerrain';
 import { getVisibleWorldTargets } from './visibleWorldTargets';
 import { VisibleWorldTargets } from './VisibleWorldTargets';
 import { targetBiomePresentation } from './biomePresentation';
@@ -289,33 +289,9 @@ export function WorldMap({
   const geography = state.sectors
     .map((sector) => `${sector.x},${sector.y}:${sector.biome}`)
     .join('|');
-  const mapMode = state.mapGeneration?.mode;
-  const mapSeed = state.mapGeneration?.seed;
-  const coastalRules = state.mapGeneration?.coastalRules;
-  const maritimeRules = state.mapGeneration?.maritimeRules;
-  const worldRules = state.mapGeneration?.worldRules;
-  const worldSeed = state.mapGeneration?.worldSeed;
-  const regionX = state.mapGeneration?.regionX;
-  const regionY = state.mapGeneration?.regionY;
-  const terrain = useMemo(
-    () => createTerrain(mapMode === 'random' ? mapSeed! : 6842, state.seasonIndex, state),
-    [
-      mapMode,
-      mapSeed,
-      coastalRules,
-      maritimeRules,
-      worldRules,
-      worldSeed,
-      regionX,
-      regionY,
-      worldSize,
-      geography,
-      state.seasonIndex,
-      state.home.x,
-      state.home.y,
-      campPresent,
-    ],
-  );
+  const geographyKey = JSON.stringify([state.mapGeneration, geography]);
+  const campKey = campPresent ? `${state.home.x},${state.home.y}` : null;
+  const terrain = usePaintedTerrain(stateRef, geographyKey, state.seasonIndex % 4, campKey);
   useEffect(() => {
     if (focusRequest)
       setView((previous) => ({
@@ -341,6 +317,18 @@ export function WorldMap({
     update();
     preference.addEventListener('change', update);
     return () => preference.removeEventListener('change', update);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    // Load the natural sprites concurrently with the terrain. Completion also
+    // invalidates a paused scene, without a polling loop.
+    void ensureNaturalAtlas().then(() => {
+      if (active) invalidateFrameRef.current();
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -759,7 +747,7 @@ export function WorldMap({
   useEffect(() => {
     const canvas = canvasRef.current,
       mini = minimapRef.current;
-    if (!canvas || !mini) return;
+    if (!canvas || !mini || !terrain) return;
     const ctx = canvas.getContext('2d', { alpha: false }),
       miniCtx = mini.getContext('2d');
     if (!ctx || !miniCtx) return;
@@ -962,8 +950,6 @@ export function WorldMap({
             suspendOrResume();
           });
     if (containerRef.current) observer?.observe(containerRef.current);
-    // Asset completion invalidates even a paused scene; no polling is needed.
-    void ensureNaturalAtlas().then(schedule);
     schedule();
     return () => {
       disposed = true;
@@ -1030,6 +1016,7 @@ export function WorldMap({
     >
       <canvas
         ref={canvasRef}
+        style={terrain ? undefined : { visibility: 'hidden' }}
         tabIndex={0}
         className="lingus-world__canvas"
         aria-label="Mappa della valle: seleziona risorse, abitanti e luoghi per dare un ordine alla tribù. Premi E per gli elementi visibili."
@@ -1310,6 +1297,11 @@ export function WorldMap({
           </div>
         </div>
       )}
+      {!terrain && (
+        <span className="lingus-world__terrain-status" role="status">
+          Preparazione del terreno…
+        </span>
+      )}
       <div className="lingus-world__location" aria-hidden="true">
         <MapPin size={13} strokeWidth={1.5} />
         <div>
@@ -1506,7 +1498,11 @@ export function WorldMap({
         <span>
           {state.tier >= 4 ? 'LA REGIONE' : 'LE TERRE ESPLORATE'} <span>↗</span>
         </span>
-        <canvas ref={minimapRef} aria-hidden="true" />
+        <canvas
+          ref={minimapRef}
+          aria-hidden="true"
+          style={terrain ? undefined : { visibility: 'hidden' }}
+        />
       </button>
     </div>
   );
