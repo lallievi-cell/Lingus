@@ -1,0 +1,415 @@
+.app :is(.tribe-panel, .thought-rail) {
+  --journal-ink: #29271f;
+  --journal-secondary: #544b3a;
+  --journal-pigment: #845131;
+  --journal-rule: #a68a63;
+  --journal-page: color-mix(in srgb, #f4ebdb 78%, var(--ui-panel));
+  --journal-stock: color-mix(in srgb, #f9f1df 75%, var(--ui-panel));
+  --journal-edge: color-mix(in srgb, var(--journal-rule) 50%, var(--journal-page));
+  --journal-line: color-mix(in srgb, var(--journal-rule) 35%, var(--journal-page));
+  color: var(--journal-ink);
+}
+
+.app[data-contrast='high'] :is(.tribe-panel, .thought-rail) {
+  --journal-ink: var(--surface-ink);
+  --journal-secondary: var(--surface-muted);
+  --journal-pigment: #653b1e;
+  --journal-rule: #715d46;
+  --journal-page: var(--surface-paper);
+  --journal-stock: #fff9e9;
+}
+
+.app .game-layout > :is(.tribe-panel, .thought-rail) {
+  background: var(--journal-page);
+  scrollbar-color: var(--journal-edge) var(--journal-page);
+}
+
+.app .tribe-panel .side-tabs {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0 9px !important;
+  border-bottom: 1px solid var(--journal-rule);
+}
+
+.app .tribe-panel .side-tabs button {
+  justify-content: start;
+  min-height: 44px;
+  padding: 4px 0 6px;
+  color: var(--journal-secondary);
+  font-size: 12px;
+  white-space: normal;
+}
+
+.app .tribe-panel .side-tabs button.active {
+  border-bottom-color: var(--journal-pigment);
+  color: var(--journal-ink);
+}
+
+.app .tribe-panel .side-tabs button:first-child {
+  font: 400 clamp(23px, 2vw, 28px) / 1.08 var(--serif, Georgia);
+  overflow-wrap: anywhere;
+}
+
+.app .tribe-panel .side-tabs button span {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 18px;
+  padding-inline: 3px;
+  border: 1px solid var(--journal-line);
+  border-radius: 3px;
+  background: transparent;
+  font: 600 10px / 1 var(--sans, sans-serif);
+  color: var(--journal-secondary);
+}
+
+.app .tribe-panel .tribe-summary {
+  flex-wrap: wrap;
+  column-gap: 8px;
+  row-gap: 3px;
+  border-bottom-color: var(--journal-line);
+}
+
+.app .tribe-panel .tribe-summary :is(span, b) {
+  color: var(--journal-secondary);
+}
+
+.app .tribe-panel .tribe-summary .text-danger {
+  color: #823b26;
+}
+
+.app .tribe-panel .tribe-tools {
+  color: var(--journal-secondary);
+  border-color: var(--journal-edge);
+  border-radius: 4px;
+}
+
+.app .tribe-panel .unit-list {
+  padding-top: 5px;
+}
+
+.app .tribe-panel .unit-list .readable-person {
+  display: grid;
+  grid-template-columns: clamp(40px, 3.9vw, 62px) minmax(0, 1fr) 16px;
+  align-items: start;
+  gap: 9px !important;
+  min-height: 70px !important;
+  height: auto !important;
+  padding: 8px !important;
+  border: 1px solid var(--journal-edge) !important;
+  border-radius: 4px !important;
+  color: var(--journal-ink);
+  background: linear-gradient(145deg, var(--journal-stock), var(--journal-page)) !important;
+  box-shadow: inset 0 1px 0 #fff7 !important;
+}
+
+.app .tribe-panel .unit-list .readable-person.person-at-risk {
+  border-inline-start: 3px solid #995335 !important;
+}
+
+.app .tribe-panel .unit-list .readable-person:hover,
+.app .tribe-panel .unit-list .readable-person.selected {
+  background: linear-gradient(145deg, var(--journal-stock), #e2cfad) !important;
+  border-color: var(--journal-pigment) !important;
+}
+
+.app .tribe-panel .tribe-member[data-expanded='true'] {
+  border-color: var(--journal-pigment);
+  background: var(--journal-stock);
+  box-shadow: inset 2px 0 0 var(--journal-pigment);
+  border-radius: 4px;
+}
+
+.app .tribe-panel .tribe-member[data-expanded='true'] > .readable-person {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.app .tribe-panel .tribe-member > .person-details {
+  padding: 12px;
+  border-top-color: var(--journal-edge);
+}
+
+.app .tribe-panel .person-details .selected-person-name {
+  color: var(--journal-ink);
+  font: 400 21px/1.1 var(--serif, Georgia);
+}
+
+.app .tribe-panel .member-portrait {
+  display: block;
+  overflow: hidden;
+  position: relative;
+  align-self: start;
+  aspect-ratio: 108 / 130;
+  border: 1px solid #80664b;
+  border-radius: 3px;
+  background:
+    radial-gradient(ellipse at 34% 18%, #a88158, transparent 70%),
+    linear-gradient(145deg, #4d3e31, #292b26);
+}
+
+.app .tribe-panel .member-portrait::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  box-shadow: inset 0 0 0 1px #e4cf9d55;
+  pointer-events: none;
+}
+
+.app .tribe-panel .member-portrait .unit-portrait {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.app .tribe-panel .member-indicators {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 8px;
+  padding-top: 5px;
+  color: var(--journal-pigment);
+}
+
+.app .tribe-panel .unit-list .readable-person .unit-info {
+  display: flex;
+  flex-flow: column nowrap;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+.app .tribe-panel .unit-list .readable-person .unit-info > strong {
+  display: block;
+  color: var(--journal-ink);
+  font: 400 17px/1.1 var(--serif, Georgia);
+  overflow-wrap: anywhere;
+}
+
+.app
+  .tribe-panel
+  .unit-list
+  .unit-info
+  > :is(.person-metadata, .person-work-status, .member-vitals) {
+  color: var(--journal-secondary);
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+}
+
+.app .tribe-panel .unit-info .person-metadata {
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 3px 5px;
+}
+
+.app .tribe-panel .unit-info > .person-work-status {
+  font-weight: 650;
+}
+
+.app .tribe-panel .unit-info > .member-vitals {
+  gap: 4px 10px;
+  margin-top: 1px;
+  padding-top: 5px;
+  border-top: 1px solid var(--journal-line);
+}
+
+.app .tribe-panel .unit-info > .person-warning {
+  align-items: flex-start;
+}
+
+.app .tribe-panel .unit-info > .person-warning svg {
+  flex: 0 0 auto;
+}
+
+.app :is(.tribe-panel, .thought-rail) :is(button, summary):focus-visible {
+  outline: 2px solid var(--journal-pigment);
+  outline-offset: -2px;
+}
+
+.app .thought-rail {
+  --thought-ink: var(--journal-ink);
+  --thought-muted: var(--journal-secondary);
+  --thought-paper: var(--journal-page);
+  --thought-rule: var(--journal-line);
+  --thought-accent: var(--journal-pigment);
+}
+
+.app .thought-rail-heading {
+  border-block-end: 1px solid var(--journal-rule);
+  padding-bottom: 7px;
+  font-size: clamp(28px, 2.4vw, 34px);
+}
+
+.app .thought-rail .thought-notebook {
+  gap: 9px;
+}
+
+.app .thought-rail .thought-objective {
+  --objective-track: #71634d;
+  --objective-fill: #f9dca1;
+  color: var(--hud-ink);
+  border: 1px solid #92764d;
+  border-radius: 4px;
+  padding: 13px 12px;
+  background:
+    linear-gradient(95deg, #211f1bef 0%, #28251ce0 56%, #242219a8),
+    url('/art/thought-flint.webp') center right / cover,
+    #2b281e;
+}
+
+.app .thought-objective-label {
+  color: #f2ce95;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.app .thought-objective h3 {
+  color: inherit;
+  font-size: clamp(23px, 2vw, 29px);
+  line-height: 1.08;
+  text-wrap: initial;
+}
+
+.app .thought-objective p {
+  margin: 8px 0 14px;
+  color: #f0e5cc;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.app .thought-objective-progress progress {
+  height: 5px;
+  background: var(--objective-track);
+}
+
+.app .thought-objective-progress progress::-webkit-progress-bar {
+  background: var(--objective-track);
+}
+
+.app .thought-objective-progress progress::-webkit-progress-value {
+  background: var(--objective-fill);
+}
+
+.app .thought-objective-progress progress::-moz-progress-bar {
+  background: var(--objective-fill);
+}
+
+.app .thought-rail .thought-empty {
+  padding: 2px 3px 3px;
+}
+
+.app .thought-rail .thought-links {
+  gap: 6px;
+}
+
+.app .thought-rail .thought-link {
+  grid-template-columns: 23px minmax(0, 1fr) 14px;
+  gap: 7px;
+  padding: 8px 7px;
+  border: 1px solid var(--journal-edge);
+  border-radius: 4px;
+  background: var(--journal-stock);
+}
+
+.app .thought-rail .thought-link:hover,
+.app .thought-rail .thought-link:active {
+  border-color: var(--journal-pigment);
+  background: color-mix(in srgb, var(--journal-stock) 76%, #d9b87e);
+}
+
+.app .thought-rail .thought-link > svg:first-child {
+  color: var(--journal-pigment);
+}
+
+.app .thought-rail .thought-spark {
+  grid-template-columns: 26px minmax(0, 1fr) 16px;
+  align-items: center !important;
+  min-height: 48px;
+  border-radius: 4px !important;
+  border-color: var(--journal-pigment) !important;
+  background: linear-gradient(125deg, #eecb8b, var(--journal-stock)) !important;
+}
+
+.app .thought-rail .thought-spark strong {
+  font: 400 22px/1.12 var(--serif, Georgia);
+}
+
+.app[data-contrast='high'] .thought-rail .thought-objective {
+  --objective-track: #ddd1b9;
+  --objective-fill: #593822;
+  color: var(--journal-ink);
+  background: var(--journal-stock);
+}
+
+.app[data-contrast='high'] .thought-objective-label {
+  color: var(--journal-pigment);
+}
+
+@media (max-width: 860px) {
+  .app .game-layout > :is(.tribe-panel, .thought-rail).mobile-visible {
+    background: var(--journal-page) !important;
+  }
+
+  .app .tribe-panel .side-tabs button:first-child,
+  .app .thought-rail-heading {
+    font-size: 34px;
+  }
+
+  .app .tribe-panel .unit-list .readable-person {
+    grid-template-columns: clamp(54px, 18vw, 75px) minmax(0, 1fr) 18px;
+    padding: 10px !important;
+    gap: 12px !important;
+  }
+
+  .app .tribe-panel .unit-list .readable-person .unit-info > strong {
+    font-size: 23px;
+  }
+
+  .app .thought-rail .thought-objective {
+    min-height: 152px;
+    padding: 16px 17px;
+  }
+
+  .app .thought-objective h3 {
+    font-size: 31px;
+  }
+}
+
+@media (min-width: 360px) and (max-width: 860px) {
+  .app .thought-rail .thought-links {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .app .thought-rail .thought-link {
+    grid-template-columns: minmax(0, 1fr) 15px;
+    grid-template-rows: auto 1fr;
+    align-items: start;
+    gap: 8px 4px;
+    padding: 10px;
+    min-height: 76px;
+  }
+
+  .app .thought-rail .thought-link > span {
+    grid-area: 2 / 1 / 3 / 3;
+  }
+}
+
+@media (min-width: 630px) and (max-width: 860px) {
+  .app .tribe-panel.mobile-visible .unit-list {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .app .tribe-panel.mobile-visible .tribe-member[data-expanded='true'] {
+    grid-column: 1 / -1;
+  }
+}

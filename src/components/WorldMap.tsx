@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import type { GameState, Resource, Target, WorldTarget } from '../game/types';
 import { getCalendar } from '../game/calendar';
-import { getWorldSize, getWorldSectorCount, sectorIndex } from '../game/worldDimensions';
+import { getWorldSize, sectorIndex } from '../game/worldDimensions';
 import {
   drawWorld,
   entityNames,
@@ -44,6 +44,7 @@ import { getCampStockSlots } from './campInventory';
 import { CAMP_STOCK_ART_BOUNDS } from './mapCampStockArt';
 import { ensureNaturalAtlas } from './mapNaturalAtlas';
 import { usePaintedTerrain } from './usePaintedTerrain';
+import { createMapChartPainter } from './mapChart';
 import { getVisibleWorldTargets } from './visibleWorldTargets';
 import { VisibleWorldTargets } from './VisibleWorldTargets';
 import { targetBiomePresentation } from './biomePresentation';
@@ -769,6 +770,7 @@ export function WorldMap({
       if (!disposed && pageVisible && inViewport && !animation)
         animation = requestAnimationFrame(draw);
     };
+    const drawChart = createMapChartPainter();
     const draw = (timestamp: number) => {
       animation = 0;
       if (disposed || !pageVisible || !inViewport) return;
@@ -791,8 +793,12 @@ export function WorldMap({
       ctx.translate(t.x, t.y);
       ctx.scale(t.scale, t.scale);
       const current = stateRef.current;
-      const worldSize = getWorldSize(current);
-      const sectorCount = getWorldSectorCount(current);
+      const viewport = {
+        minX: -t.x / t.scale / WORLD_X,
+        minY: -t.y / t.scale / WORLD_Y,
+        maxX: (width - t.x) / t.scale / WORLD_X,
+        maxY: (height - t.y) / t.scale / WORLD_Y,
+      };
       drawWorld(
         ctx,
         current,
@@ -811,113 +817,11 @@ export function WorldMap({
         groupActiveRef.current,
         pingRef.current,
         orderFeedbackRef.current,
-        {
-          minX: -t.x / t.scale / WORLD_X,
-          minY: -t.y / t.scale / WORLD_Y,
-          maxX: (width - t.x) / t.scale / WORLD_X,
-          maxY: (height - t.y) / t.scale / WORLD_Y,
-        },
+        viewport,
         motionSessionRef.current,
         { reducedMotion: reducedMotionRef.current, pixelRatio: dpr },
       );
-      const mw = 134,
-        mh = 88;
-      if (mini.width !== mw * dpr) {
-        mini.width = mw * dpr;
-        mini.height = mh * dpr;
-      }
-      miniCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      miniCtx.clearRect(0, 0, mw, mh);
-      miniCtx.drawImage(terrain, 0, 0, mw, mh);
-      for (let sy = 0; sy < sectorCount; sy++)
-        for (let sx = 0; sx < sectorCount; sx++) {
-          if (!isVisibleAt(current, sx * 100 + 50, sy * 100 + 50)) {
-            miniCtx.fillStyle = '#dfe0cdec';
-            miniCtx.fillRect(
-              (sx * mw) / sectorCount,
-              (sy * mh) / sectorCount,
-              mw / sectorCount + 0.5,
-              mh / sectorCount + 0.5,
-            );
-          }
-        }
-      miniCtx.strokeStyle = '#89957444';
-      miniCtx.lineWidth = 0.5;
-      if (current.tier >= 4)
-        for (let i = 1; i < sectorCount; i++) {
-          miniCtx.beginPath();
-          miniCtx.moveTo((i * mw) / sectorCount, 0);
-          miniCtx.lineTo((i * mw) / sectorCount, mh);
-          miniCtx.moveTo(0, (i * mh) / sectorCount);
-          miniCtx.lineTo(mw, (i * mh) / sectorCount);
-          miniCtx.stroke();
-        }
-      if (!current.urbanized && current.home && hasPhysicalCamp(current)) {
-        miniCtx.fillStyle = '#b5974f';
-        miniCtx.beginPath();
-        miniCtx.arc(
-          (current.home.x / worldSize) * mw,
-          (current.home.y / worldSize) * mh,
-          2.2,
-          0,
-          Math.PI * 2,
-        );
-        miniCtx.fill();
-        miniCtx.strokeStyle = '#5a7343';
-        miniCtx.lineWidth = 0.6;
-        miniCtx.stroke();
-      }
-      current.units
-        .filter(
-          (u) =>
-            u.hp > 0 &&
-            !unitIsSeatedAboard(current, u) &&
-            isVisibleAt(current, u.x, u.y) &&
-            (!current.urbanized ||
-              (u.factionId !== undefined && u.factionId !== 'player') ||
-              u.isKing ||
-              ['delegating', 'frontline', 'frontline-returning'].includes(u.action)),
-        )
-        .forEach((u) => {
-          miniCtx.fillStyle = u.factionId && u.factionId !== 'player' ? '#a2694e' : '#61764a';
-          miniCtx.beginPath();
-          miniCtx.arc((u.x / worldSize) * mw, (u.y / worldSize) * mh, 1.5, 0, Math.PI * 2);
-          miniCtx.fill();
-        });
-      for (const boat of current.boats ?? []) {
-        if (boat.hp <= 0 || !isVisibleAt(current, boat.x, boat.y)) continue;
-        const x = (boat.x / worldSize) * mw,
-          y = (boat.y / worldSize) * mh;
-        miniCtx.fillStyle = boat.status === 'building' ? '#b69560' : '#725337';
-        miniCtx.beginPath();
-        miniCtx.ellipse(x, y, 2.8, 1.4, 0, 0, Math.PI * 2);
-        miniCtx.fill();
-        miniCtx.strokeStyle = '#f2dfad';
-        miniCtx.lineWidth = 0.5;
-        miniCtx.stroke();
-      }
-      current.cities
-        .filter((c) => isVisibleAt(current, c.x, c.y))
-        .forEach((c) => {
-          miniCtx.fillStyle = c.factionId === 'player' ? '#536c45' : '#a47a58';
-          miniCtx.fillRect((c.x / worldSize) * mw - 2, (c.y / worldSize) * mh - 2, 4, 4);
-        });
-      current.battalions
-        .filter((b) => b.hp > 0 && isVisibleAt(current, b.x, b.y))
-        .forEach((b) => {
-          miniCtx.fillStyle = b.factionId === 'player' ? '#52694a' : '#a46f52';
-          miniCtx.beginPath();
-          miniCtx.arc((b.x / worldSize) * mw, (b.y / worldSize) * mh, 1.6, 0, Math.PI * 2);
-          miniCtx.fill();
-        });
-      miniCtx.strokeStyle = '#fffbe5dd';
-      miniCtx.lineWidth = 1;
-      miniCtx.strokeRect(
-        (-t.x / t.scale / WORLD_X / worldSize) * mw + 0.5,
-        (-t.y / t.scale / WORLD_Y / worldSize) * mh + 0.5,
-        (width / t.scale / WORLD_X / worldSize) * mw - 1,
-        (height / t.scale / WORLD_Y / worldSize) * mh - 1,
-      );
+      drawChart(miniCtx, current, terrain, viewport, dpr);
       // A paused canvas has no animation work until a real input changes it.
       // Running scenes retain the existing maximum of thirty draws per second.
       if (
@@ -1517,7 +1421,10 @@ export function WorldMap({
         title="Torna alla tribù"
       >
         <span>
-          {state.tier >= 4 ? 'LA REGIONE' : 'LE TERRE ESPLORATE'} <span>↗</span>
+          {state.tier >= 4 ? 'Mappa regionale' : 'Mappa locale'}
+          <span aria-hidden="true">
+            <Crosshair size={11} strokeWidth={1.45} />
+          </span>
         </span>
         <canvas
           ref={minimapRef}

@@ -79,6 +79,48 @@ function traceSea(ctx: Painter, coast: CoastGeometry) {
   for (const island of coast.islands ?? []) traceIsland(ctx, island.points, false);
 }
 
+/** Salt and current marks are stamped into the same terrain cache as the shore. */
+function paintShoreGrain(ctx: Painter, coast: CoastGeometry, winter: boolean, sea: boolean) {
+  const shadows: [number, number, number, number][] = [];
+  const light: [number, number, number, number][] = [];
+  for (const [index, { a, b, inward }] of coastEdges(coast).entries()) {
+    const dx = b.x - a.x,
+      dy = b.y - a.y;
+    const length = Math.hypot(dx, dy);
+    if (length < 1) continue;
+    const tx = dx / length,
+      ty = dy / length;
+    const nx = ty * inward,
+      ny = -tx * inward;
+    const count = Math.ceil(length / (sea ? 5 : 3.7));
+    for (let mark = 0; mark < count; mark++) {
+      // Each mark uses the real tangent and a different tide or sediment height.
+      const phase = ((index * 67 + mark * 133) % 101) / 101;
+      const foam = sea && phase < 0.27;
+      const depth = sea ? (foam ? 0.7 + phase * 9 : 2 + phase * 34) : -(1.6 + phase * 12);
+      const along = (mark + 0.27 + phase * 0.43) * (length / count);
+      const x = a.x + tx * along + nx * depth;
+      const y = a.y + ty * along + ny * depth;
+      const span = foam ? 1.2 + phase * 5.5 : sea ? 0.5 + phase * 2.4 : 0.22 + phase * 0.76;
+      const stroke: (typeof shadows)[number] = [x, y, tx * span, ty * span];
+      if (!foam && mark % 3 === 0) shadows.push(stroke);
+      else light.push(stroke);
+    }
+  }
+  const draw = (marks: typeof light, width: number, pigment: string) => {
+    ctx.beginPath();
+    for (const [x, y, dx, dy] of marks) {
+      ctx.moveTo(x - dx * 0.65, y - dy * 0.65);
+      ctx.lineTo(x + dx, y + dy);
+    }
+    ctx.lineWidth = width;
+    ctx.strokeStyle = pigment;
+    ctx.stroke();
+  };
+  draw(shadows, sea ? 0.52 : 0.59, sea ? '#234f5886' : '#655e426e');
+  draw(light, sea ? 0.38 : 0.32, sea ? (winter ? '#e3eeeb90' : '#e0efcf96') : '#f5e6bc9e');
+}
+
 /** Cached before the river, so sand cannot make a false dam at its mouth. */
 export function paintCoastSand(ctx: Painter, world: CoastWorld, winter: boolean) {
   const coast = createCoastGeometry(world);
@@ -87,9 +129,12 @@ export function paintCoastSand(ctx: Painter, world: CoastWorld, winter: boolean)
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   for (const [width, color] of [
-    [30, winter ? '#d0d4bf55' : '#b9b38355'],
-    [19, winter ? '#e4e3cf' : '#d7c694'],
-    [8, winter ? '#e8e6d2' : '#e4d5aa'],
+    [39, winter ? '#b6bbac32' : '#99916a39'],
+    [32, winter ? '#c2cbc03d' : '#ab9e6552'],
+    [25, winter ? '#cdd2c774' : '#c2aa797a'],
+    [20, winter ? '#dae0d2a2' : '#d0b985ac'],
+    [11, winter ? '#cbd5c3a0' : '#bca56d76'],
+    [6, winter ? '#a3b2a9a7' : '#9180626d'],
   ] as const) {
     traceShore(ctx, coast);
     ctx.lineWidth = width;
@@ -99,11 +144,11 @@ export function paintCoastSand(ctx: Painter, world: CoastWorld, winter: boolean)
   for (const island of coast.islands ?? []) {
     const center = islandCenter(island.points);
     traceIsland(ctx, island.points);
-    ctx.fillStyle = winter ? '#d2d7bd' : '#b7b782';
+    ctx.fillStyle = winter ? '#c3cec1' : '#aaa575';
     ctx.fill();
     for (const [width, color] of [
-      [10, winter ? '#e1dfc4' : '#d7c694'],
-      [3.2, '#e5d6ae'],
+      [12, winter ? '#dde0d1' : '#c8b583'],
+      [4.4, winter ? '#a5b4ac' : '#a4986d'],
     ] as const) {
       traceIsland(ctx, island.points);
       ctx.lineWidth = width;
@@ -113,14 +158,48 @@ export function paintCoastSand(ctx: Painter, world: CoastWorld, winter: boolean)
     traceIsland(
       ctx,
       island.points.map((point) => ({
-        x: center.x + (point.x - center.x) * 0.58,
-        y: center.y + (point.y - center.y) * 0.58,
+        x: center.x + (point.x - center.x) * 0.62,
+        y: center.y + (point.y - center.y) * 0.62,
       })),
     );
-    ctx.fillStyle = winter ? '#bbc9ad55' : '#8da06e66';
+    ctx.fillStyle = winter ? '#a9c2ac55' : '#7c946e66';
     ctx.fill();
   }
+  paintShoreGrain(ctx, coast, winter, false);
   ctx.restore();
+}
+
+/** Small pigment strokes are anchored in global metres across regional seams. */
+function paintOpenWater(ctx: Painter, coast: CoastGeometry, winter: boolean) {
+  const size = coast.worldSize;
+  const worldX = (coast.world?.regionX ?? 0) * size;
+  const worldY = (coast.world?.regionY ?? 0) * size;
+  const spacing = 10;
+  for (const [kind, pigment] of [
+    [0, winter ? '#203b5a46' : '#15394740'],
+    [1, winter ? '#e3eef154' : '#c1e6d154'],
+  ] as const) {
+    ctx.beginPath();
+    // Take a small margin so a ripple crossing a seam is visible on both sides.
+    for (let gy = Math.floor((worldY - 8) / spacing); gy * spacing < worldY + size + 8; gy++) {
+      for (let gx = Math.floor((worldX - 8) / spacing); gx * spacing < worldX + size + 8; gx++) {
+        const salt = Math.imul(gx, 0x85ebca77) ^ Math.imul(gy, 0x9e3779b1);
+        const grain = Math.imul(salt ^ (salt >>> 16), 0xc2b2ae3d) >>> 0;
+        if ((grain & 7) >= 6 || ((grain >>> 6) & 1) !== kind) continue;
+        const phase = ((grain >>> 8) & 255) / 255;
+        const x = gx * spacing - worldX + ((grain >>> 16) & 7);
+        const y = gy * spacing - worldY + ((grain >>> 26) & 7);
+        const span = 0.56 + phase ** 2 * 4.2;
+        const slope = ((((grain >>> 22) & 7) - 3) * span) / 11;
+        ctx.moveTo(x - span, y + 0.3 + slope);
+        ctx.lineTo(x - span * 0.28, y - phase * 0.43);
+        ctx.lineTo(x + span, y - slope);
+      }
+    }
+    ctx.lineWidth = 0.24;
+    ctx.strokeStyle = pigment;
+    ctx.stroke();
+  }
 }
 
 /** Paint after the river: the same physical sea clips the river into an estuary.
@@ -134,7 +213,7 @@ export function paintCoastWater(ctx: Painter, world: CoastWorld, winter: boolean
   else ctx.clip();
   const size = coast.worldSize;
   const outside = seaward(coast) < 0 ? 0 : size;
-  const inside = outside + (seaward(coast) < 0 ? 155 : -155);
+  const inside = outside + (seaward(coast) < 0 ? 160 : -160);
   const gradient = coast.world
     ? ctx.createLinearGradient(
         0 - coast.world.regionX * size,
@@ -145,64 +224,32 @@ export function paintCoastWater(ctx: Painter, world: CoastWorld, winter: boolean
     : horizontal(coast)
       ? ctx.createLinearGradient(0, outside, 0, inside)
       : ctx.createLinearGradient(outside, 0, inside, 0);
-  gradient.addColorStop(0, winter ? '#547e86' : '#376879');
-  gradient.addColorStop(0.65, winter ? '#719c9a' : '#52888c');
-  gradient.addColorStop(1, winter ? '#a0b9a9' : '#8aaa9a');
+  gradient.addColorStop(0, winter ? '#254b65' : '#194557');
+  gradient.addColorStop(0.52, winter ? '#40687a' : '#316e77');
+  gradient.addColorStop(1, winter ? '#779398' : '#518f86');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  for (const [width, color] of [
-    [39, '#94b9a635'],
-    [22, winter ? '#b8ccbc66' : '#bad1af60'],
-    [5, '#e5e8ce70'],
-    [1.2, '#edf0d7a8'],
-  ] as const) {
-    traceAllShores(ctx, coast);
-    ctx.lineWidth = width;
-    ctx.strokeStyle = color;
+
+  // Layered, low-opacity washes soften the depth transition while the exact
+  // shoreline clip still defines the physical sea, including bays and islands.
+  traceAllShores(ctx, coast);
+  for (let step = 0; step < 33; step++) {
+    const depth = (step / 32) ** 1.7;
+    const red = (winter ? 113 : 63) + depth * (winter ? 99 : 146);
+    const green = (winter ? 164 : 149) + depth * (winter ? 51 : 57);
+    const blue = (winter ? 181 : 146) + depth * (winter ? 28 : 14);
+    const alpha = 0.024 + depth * 0.095;
+    ctx.lineWidth = 112 - step * 3.4;
+    ctx.strokeStyle = `rgba(${red}, ${green}, ${blue}, ${alpha})`;
     ctx.stroke();
   }
-  if (coast.world) {
-    // A bounded number of pigment strokes follows the same polygon normals.
-    // The terrain cache owns these strokes; animation allocates no surface.
-    for (const [index, edge] of coastEdges(coast).entries()) {
-      const dx = edge.b.x - edge.a.x,
-        dy = edge.b.y - edge.a.y;
-      const length = Math.hypot(dx, dy);
-      if (!length) continue;
-      const count = Math.ceil(length / 18);
-      for (let mark = 0; mark < count; mark++) {
-        const fraction = (mark + 0.35) / count;
-        const across = 15 + ((index * 17 + mark * 13) % 52);
-        const x = edge.a.x + dx * fraction + (dy * edge.inward * across) / length,
-          y = edge.a.y + dy * fraction - (dx * edge.inward * across) / length;
-        ctx.beginPath();
-        ctx.moveTo(x - 2.7, y);
-        ctx.lineTo(x + 2.7, y - 0.3);
-        ctx.lineWidth = 0.23;
-        ctx.strokeStyle = mark % 2 ? '#c5d7bf28' : '#2f697026';
-        ctx.stroke();
-      }
-    }
-  }
-  // Broken translucent strokes give water depth without a second large texture.
-  for (let index = 1; index < coast.points.length; index++) {
-    const a = coast.points[index - 1],
-      b = coast.points[index];
-    for (let mark = 0; mark < 4; mark++) {
-      const fraction = (mark + 0.35) / 4;
-      const across = (15 + ((index * 17 + mark * 13) % 52)) * seaward(coast);
-      const x = a.x + (b.x - a.x) * fraction + (horizontal(coast) ? 0 : across),
-        y = a.y + (b.y - a.y) * fraction + (horizontal(coast) ? across : 0);
-      ctx.beginPath();
-      ctx.moveTo(x - 2.7, y);
-      ctx.lineTo(x + 2.7, y - 0.3);
-      ctx.lineWidth = 0.23;
-      ctx.strokeStyle = mark % 2 ? '#c5d7bf28' : '#2f697026';
-      ctx.stroke();
-    }
-  }
+  ctx.lineWidth = 1.6;
+  ctx.strokeStyle = winter ? '#ebf0df92' : '#e7e5c479';
+  ctx.stroke();
+  paintOpenWater(ctx, coast, winter);
+  paintShoreGrain(ctx, coast, winter, true);
   ctx.restore();
 }
 

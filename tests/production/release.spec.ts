@@ -27,14 +27,26 @@ test('the built release loads its real assets under the Pages subpath and expose
   expect(asset.ok()).toBe(true);
   expect(asset.headers()['content-type']).toContain('image/png');
   const brushResponse = page.waitForResponse('**/art/meadow-brush.webp');
+  const frameResponse = page.waitForResponse('**/art/frame-slate.webp');
   await page.goto('./');
   const brush = await brushResponse;
   expect(brush.ok()).toBe(true);
   expect(brush.headers()['content-type']).toContain('image/webp');
+  const frame = await frameResponse;
+  expect(frame.ok()).toBe(true);
+  expect(frame.headers()['content-type']).toContain('image/webp');
   await expect(page.getByRole('img', { name: /Mappa della valle/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Riprendi il tempo', exact: true })).toContainText(
     'In pausa',
   );
+  const [flint] = await Promise.all([
+    page.waitForResponse('**/art/thought-flint.webp'),
+    page.getByRole('button', { name: 'Pensiero', exact: true }).click(),
+  ]);
+  expect(flint.ok()).toBe(true);
+  expect(flint.headers()['content-type']).toContain('image/webp');
+  await expect(page.getByRole('heading', { name: 'Pensiero', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Mappa', exact: true }).click();
   await page.getByRole('button', { name: 'Apri frasario', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Frasario', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Espandi frasario', exact: true }).click();

@@ -77,29 +77,32 @@ function fordSprite(winter: boolean, variant: number) {
   ctx.lineJoin = 'round';
   // Diffuse exposed gravel continues onto the bank, without constructed edges.
   for (const side of [-1, 1]) {
-    wash(side * 8.3, -0.1, 4.1, 3.3, winter ? '#c9c5b538' : '#bba77540');
-    wash(side * 11.2, 0.4, 3.1, 2.4, winter ? '#c4cbba20' : '#b6aa8028');
+    wash(side * 8.3, -0.1, 4.1, 3.3, winter ? '#c9c5b594' : '#c9ab7598');
+    wash(side * 11.2, 0.4, 3.1, 2.4, winter ? '#c4cbba38' : '#b6aa8046');
   }
-  // The sand-and-gravel bed fades into flowing water along both sides.
-  wash(0, 0, 8.6, 4.8, winter ? '#c2d1bf67' : '#c4bd8b70');
-  wash(-1.3, 0.5, 6.2, 3.2, winter ? '#d2d9bf28' : '#b9b98b25');
-  for (let i = 0; i < 36; i++) {
-    const x = -5.9 + random() * 11.8;
-    const y = -3.9 + random() * 7.8;
-    const radius = 0.19 + random() * 0.27;
-    oval(x + 0.08, y + 0.08, radius * 1.12, radius * 0.55, '#365c4a27');
-    oval(x, y, radius, radius * 0.43, winter ? '#c4c8b69c' : '#b2b08caa');
-    oval(x - radius * 0.2, y - radius * 0.1, radius * 0.6, radius * 0.15, '#e6e1ba77');
+  // The crossing is a submerged strip with loosely grouped gravel.
+  wash(0, -0.2, 8.9, 4.65, winter ? '#b0c9bf80' : '#a5b78a95');
+  wash(-1.3, 0.5, 6.7, 2.9, winter ? '#d7decb63' : '#d2ca9462');
+  for (let i = 0; i < 60; i++) {
+    const x = -10.0 + random() * 20.0;
+    const y = (random() + random() - 1) * (3.3 - Math.abs(x) * 0.12);
+    const radius = 0.14 + random() ** 2 * 0.59;
+    const sand = winter ? '#ced8c7d0' : '#d2bd8bce';
+    const shale = winter ? '#8badaaba' : '#768c78c5';
+    oval(x + 0.08, y + 0.12, radius * 1.25, radius * 0.58, '#213f4471');
+    oval(x, y, radius, radius * 0.46, i % 3 === 0 ? shale : sand);
+    oval(x - radius * 0.24, y - radius * 0.16, radius * 0.55, radius * 0.15, '#f1e3b99d');
   }
-  // The pale ripple runs with the river, perpendicular to the walkers' route.
-  for (let i = 0; i < 8; i++) {
-    const x = -5.5 + i * 1.55;
-    const y = (i % 2 ? -3.9 : 2.5) + random() * 0.45;
+  // Pale hooks mark the current along the shallow strip.
+  for (let i = 0; i < 17; i++) {
+    const x = -5.6 + random() * 11.2;
+    const y = (i % 2 ? -3.7 : 1.6) + random() * 0.85;
+    const flow = 0.4 + random() * 1.15;
     ctx.beginPath();
     ctx.moveTo(x, y);
-    ctx.quadraticCurveTo(x + 0.15, y + 0.6, x - 0.08, y + 1.25);
-    ctx.strokeStyle = '#e3edda80';
-    ctx.lineWidth = 0.11;
+    ctx.quadraticCurveTo(x + 0.2, y + flow * 0.46, x - 0.04, y + flow);
+    ctx.strokeStyle = '#e5f3ddab';
+    ctx.lineWidth = 0.1 + random() * 0.17;
     ctx.stroke();
   }
   // Two variants for each season state are the complete, bounded working set.

@@ -1,5 +1,5 @@
-/* The phrase sits in an inset track. Inscribed words and the voice action
-   have the warmest values, with library and group controls set into the rim. */
+/* The phrase sits in cut stone. A warm inlay marks the next slot and the
+   full voice action brightens when the phrase can actually be used. */
 .app:not([data-contrast='high']) .language-workbench {
   --deck-body: color-mix(in srgb, #1c1d18 83%, var(--ui-shadow, #75664a));
   --deck-recess: #191a16;
@@ -8,9 +8,18 @@
   --deck-muted: #cec1a9;
   --deck-inscription: #382c1c;
   color: var(--deck-ink);
-  background: linear-gradient(110deg, #353025, var(--deck-body) 42%, #25251f) !important;
+  background:
+    linear-gradient(
+      110deg,
+      #383024d6,
+      color-mix(in srgb, var(--deck-body) 83%, transparent) 46%,
+      #1c211dd9
+    ),
+    var(--frame-grain) center / 380px !important;
   border-top: 1px solid var(--deck-rim) !important;
-  box-shadow: inset 0 1px 0 #e4be7930 !important;
+  box-shadow:
+    inset 0 2px 0 #e4be7934,
+    inset 0 4px 0 #101511bd !important;
 }
 
 .app:not([data-contrast='high']) .language-workbench :is(.composer-topline h2, .voice-meter small) {
@@ -45,8 +54,8 @@
   padding: 3px !important;
   border: 1px solid #84705080;
   border-radius: 5px;
-  background: var(--deck-recess);
-  box-shadow: inset 0 2px 3px #0a0b0a90;
+  background: linear-gradient(180deg, #141310, var(--deck-recess) 48%, #0c110e);
+  box-shadow: inset 0 2px 4px #000b;
   scrollbar-color: #a78b6190 transparent;
 }
 
@@ -55,11 +64,22 @@
 }
 
 .app:not([data-contrast='high']) .language-workbench .sentence-slot {
-  background: linear-gradient(165deg, #333126, #26251f) !important;
-  border: 1px dashed #a18a63 !important;
+  background:
+    linear-gradient(165deg, #393328ea, #292924ed),
+    var(--frame-grain) center / 250px !important;
+  border: 1px solid #736344 !important;
   border-radius: 3px !important;
   color: var(--deck-muted) !important;
-  box-shadow: none !important;
+  box-shadow: inset 0 1px 3px #080906aa !important;
+}
+
+.app:not([data-contrast='high']) .language-workbench .sentence-slot[data-next='true'] {
+  color: #fff0d3 !important;
+  border-color: #be9863 !important;
+  border-inline-start-width: 3px !important;
+  background:
+    linear-gradient(125deg, #5f492fc9, #2e2922ee 73%),
+    var(--frame-grain) left center / 250px !important;
 }
 
 .app:not([data-contrast='high']) .language-workbench .sentence-slot:disabled {
@@ -74,34 +94,63 @@
 }
 
 .app:not([data-contrast='high']) .language-workbench .sentence-slot.filled {
-  --word-clay: #d4bc8c;
-  --word-engraving: #98734a;
   color: var(--deck-inscription) !important;
-  background: linear-gradient(135deg, #fff4db65, #412c1712), var(--word-clay) !important;
-  border: 1px solid var(--word-engraving) !important;
+}
+
+.app:not([data-contrast='high'])
+  .language-workbench
+  :is(.sentence-slot.filled, .word-tile:not(.word-forgotten, :disabled)) {
+  --word-clay: #e2ba81;
+  --word-engraving: #624233;
+  background:
+    linear-gradient(151deg, #fff1cb5c, #382a191a 60%),
+    var(--frame-grain) center / 240px,
+    var(--word-clay) !important;
+  background-blend-mode: normal, soft-light;
+  border-color: color-mix(in srgb, var(--word-engraving) 70%, var(--word-clay)) !important;
   box-shadow:
-    inset 0 1px 0 #ffe8bbad,
-    inset 0 -3px 0 var(--word-engraving),
-    0 2px 2px #0007 !important;
+    inset 0 1px 0 #ffedccdc,
+    inset 1px 0 0 #feeed4a4,
+    inset 0 -3px 0 #302a1e48,
+    0 2px 2px #0005 !important;
 }
 
-.app:not([data-contrast='high']) .language-workbench .sentence-slot.filled.word-S {
-  --word-clay: #b6c5a1;
-  --word-engraving: #637750;
+.app:not([data-contrast='high']) .language-workbench :is(.filled, .word-tile).word-S {
+  --word-clay: #bbc7a6;
+  --word-engraving: #536044;
 }
 
-.app:not([data-contrast='high']) .language-workbench .sentence-slot.filled.word-O {
-  --word-clay: #b8c9cb;
-  --word-engraving: #627e82;
+.app:not([data-contrast='high']) .language-workbench :is(.filled, .word-tile).word-O {
+  --word-clay: #b3cac9;
+  --word-engraving: #4f6769;
 }
 
-.app:not([data-contrast='high']) .language-workbench .sentence-slot.filled:is(.word-M, .word-C) {
-  --word-clay: #d1b9c6;
-  --word-engraving: #8b697c;
+.app:not([data-contrast='high']) .language-workbench :is(.filled, .word-tile):is(.word-M, .word-C) {
+  --word-clay: #d0bbc9;
+  --word-engraving: #765b70;
 }
 
 .app:not([data-contrast='high']) .language-workbench .sentence-slot.filled :is(strong, svg) {
   color: var(--deck-inscription);
+}
+
+.app:not([data-contrast='high']) .language-workbench :is(.word-glyph, .sentence-slot.filled > svg) {
+  filter: drop-shadow(0 1px 0 #fff1dcb3);
+}
+
+.app:not([data-contrast='high'])
+  .language-workbench
+  .word-tile.word-compatible:not(.word-suggested, .word-forgotten) {
+  border-color: #537863 !important;
+  box-shadow:
+    inset 0 1px 0 #ffedccdc,
+    inset 0 -3px 0 #406c54da,
+    0 2px 2px #0005 !important;
+}
+
+.app:not([data-contrast='high']) .language-workbench .word-tile.word-suggested:not(:disabled) {
+  --word-clay: #f0ca88;
+  border-color: #aa6327 !important;
 }
 
 .app:not([data-contrast='high'])
@@ -152,14 +201,29 @@
   .language-workbench
   .composer-actions
   .pronounce-button:not(:disabled) {
+  color: #ffe4b0 !important;
+  background: linear-gradient(143deg, #4a3a2c, #29251f) !important;
+  border: 1px solid #ab8558 !important;
+  border-radius: 3px !important;
+  box-shadow: inset 0 1px 0 #edbb7f3b !important;
+}
+
+.app:not([data-contrast='high'])
+  .language-workbench
+  .command-deck[data-command-composed='true']
+  .composer-actions
+  .pronounce-button:not(:disabled) {
   color: #2b2014 !important;
-  background: linear-gradient(160deg, #f4ce8f, #d29b58 83%) !important;
-  border: 1px solid #f4ce8f !important;
-  border-bottom-color: #9e6a38 !important;
-  border-radius: 4px !important;
+  background:
+    linear-gradient(160deg, #ffe3ab62, #67391126),
+    var(--frame-grain) center / 180px,
+    #e6ac67 !important;
+  background-blend-mode: normal, soft-light;
+  border-color: #efc88c !important;
+  border-bottom-color: #996733 !important;
   box-shadow:
     inset 0 1px 0 #ffe2ad,
-    inset 0 -2px 0 #9d632f !important;
+    inset 0 -3px 0 #9d632f !important;
 }
 
 .app:not([data-contrast='high']) .language-workbench .composer-actions .pronounce-button:disabled {

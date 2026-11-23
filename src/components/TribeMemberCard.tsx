@@ -1,12 +1,4 @@
-import {
-  Apple,
-  ChevronDown,
-  Heart,
-  MessageCircle,
-  Snowflake,
-  Sparkles,
-  TriangleAlert,
-} from 'lucide-react';
+import { Apple, ChevronDown, Heart, MessageCircle, Snowflake, Sparkles } from 'lucide-react';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { ADULT_AGE, WORDS } from '../game/content';
 import type { CustodianStatus } from '../game/custodianStatus';
@@ -68,13 +60,9 @@ export function TribeMemberCard({ state, unit, selected, custodian, onActivate, 
         aria-describedby={`${metadataId} unit-vitals-${unit.id}`}
         title={`${lifeStageLabel(unit)} · ${sexLabel(unit)}. ${unitLifeHint(unit)}${allWarnings.length ? ` ${allWarnings.map((w) => w.label).join(' · ')}.` : ''}`}
       >
-        <canvas
-          ref={portrait}
-          width={108}
-          height={130}
-          className="unit-portrait"
-          aria-hidden="true"
-        />
+        <span className="member-portrait" aria-hidden="true">
+          <canvas ref={portrait} width={108} height={130} className="unit-portrait" />
+        </span>
         <span className="unit-info">
           <strong>{visibleUnitName(state, unit)}</strong>
           <span className="person-metadata" id={metadataId}>
@@ -114,33 +102,30 @@ export function TribeMemberCard({ state, unit, selected, custodian, onActivate, 
           )}
           {warnings.length > 0 && (
             <span className="person-warning">
-              {warnings[0].kind === 'cold' ? <Snowflake size={11} /> : <TriangleAlert size={11} />}
+              <Snowflake size={13} aria-hidden="true" />
               {warnings.map((w) => w.label).join(' · ')}
             </span>
           )}
         </span>
-        {custodian && (
-          <MessageCircle
-            size={14}
-            className={`custodian-indicator ${custodian.risk}`}
-            aria-label={lastCustodianLabel(unit)}
-          >
-            <title>
-              {lastCustodianLabel(unit)}:{' '}
-              {custodian.wordIds.map((id) => WORDS[id].label).join(', ')}
-            </title>
-          </MessageCircle>
-        )}
-        {spark ? (
-          <Sparkles size={16} className="spark-indicator" />
-        ) : (
-          <span
-            className="unit-health"
-            title={describeHealth(unit.hp, numbered)}
-            style={{ '--health': `${unit.hp}%` } as React.CSSProperties}
-          />
-        )}
-        {!spark && <ChevronDown size={16} aria-hidden="true" className="member-expand-icon" />}
+        <span className="member-indicators">
+          {spark ? (
+            <Sparkles size={16} aria-hidden="true" className="spark-indicator" />
+          ) : (
+            <ChevronDown size={16} aria-hidden="true" className="member-expand-icon" />
+          )}
+          {custodian && (
+            <MessageCircle
+              size={14}
+              className={`custodian-indicator ${custodian.risk}`}
+              aria-label={lastCustodianLabel(unit)}
+            >
+              <title>
+                {lastCustodianLabel(unit)}:{' '}
+                {custodian.wordIds.map((id) => WORDS[id].label).join(', ')}
+              </title>
+            </MessageCircle>
+          )}
+        </span>
       </button>
       {selected && children}
     </div>

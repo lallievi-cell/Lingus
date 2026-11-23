@@ -14,6 +14,7 @@ import './components/FieldInterface.css';
 import './components/ThoughtRail.css';
 import './components/DioramaShell.css';
 import './components/DioramaComposer.css';
+import './components/ValleyJournals.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

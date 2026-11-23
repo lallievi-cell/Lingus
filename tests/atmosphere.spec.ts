@@ -9,8 +9,10 @@ async function showStormMap(page: Page) {
     const rootModule = await import('/node_modules/.vite/deps/react-dom_client.js');
     const { createRoot } = rootModule.default;
     const { createGame } = await import('/src/game/engine.ts');
+    const { seasonLength } = await import('/src/game/calendar.ts');
     const { WorldMap } = await import('/src/components/WorldMap.tsx');
-    const initial = createGame(6842);
+    const initial = createGame(6842, 'classic');
+    const cycle = seasonLength(initial, 0);
     Object.assign(initial, { started: true, paused: false, time: 20 });
     initial.disasters.storm = true;
     initial.units = [];
@@ -27,10 +29,10 @@ async function showStormMap(page: Page) {
     function WeatherSamples() {
       const [state, setState] = React.useState(initial);
       React.useEffect(() => {
-        // Supply successive simulation snapshots through WorldMap's public prop.
-        // The empty scene leaves only weather capable of changing the visible pixels.
+        // Supply successive snapshots at the same solar phase so the test
+        // measures weather motion independently of the changing light.
         const interval = window.setInterval(
-          () => setState((previous) => ({ ...previous, time: previous.time + 0.25 })),
+          () => setState((previous) => ({ ...previous, time: previous.time + cycle })),
           100,
         );
         return () => window.clearInterval(interval);

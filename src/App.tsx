@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } fro
 import {
   ArrowRight,
   ArrowUpRight,
+  AudioLines,
   BookOpen,
   ChevronDown,
   ChevronRight,
@@ -1654,7 +1655,10 @@ function App() {
       )}
 
       <main className="game-layout" data-mobile-section={mobileSection}>
-        <aside className={`tribe-panel ${mobileSection === 'tribe' ? 'mobile-visible' : ''}`}>
+        <aside
+          className={`tribe-panel ${mobileSection === 'tribe' ? 'mobile-visible' : ''}`}
+          aria-label="La tribù"
+        >
           <div className="side-tabs" role="tablist" aria-label="Pannello della tribù">
             <button
               role="tab"
@@ -1945,14 +1949,6 @@ function App() {
                 onCompose={preparePhrase}
                 onRecipes={() => setPanel('recipes')}
               />
-              <div className="tribe-footnote">
-                <Wind size={21} />
-                <p>
-                  Prima delle città,
-                  <br />
-                  prima dei nomi. <em>Insieme.</em>
-                </p>
-              </div>
             </>
           ) : (
             <div className="chronicle-panel">
@@ -2260,7 +2256,7 @@ function App() {
             Pensiero
           </h2>
           <div className="thought-notebook">
-            {nextSpark ? (
+            {nextSpark && (
               <button className="spark-card thought-spark" onClick={() => openSpark(nextSpark)}>
                 <Sparkles size={19} aria-hidden="true" />
                 <span>
@@ -2280,10 +2276,6 @@ function App() {
                 </span>
                 <ArrowUpRight size={16} aria-hidden="true" />
               </button>
-            ) : (
-              <p className="thought-empty">
-                <Sparkles size={15} aria-hidden="true" /> Nessuna Scintilla attiva
-              </p>
             )}
             {queuedIntuitions > 0 && (
               <div className="queued-intuitions" role="status">
@@ -2308,6 +2300,11 @@ function App() {
                 </span>
               </div>
             </section>
+            {!nextSpark && (
+              <p className="thought-empty">
+                <Sparkles size={15} aria-hidden="true" /> Nessuna Scintilla attiva
+              </p>
+            )}
           </div>
           <nav className="thought-links" aria-label="Istituzioni della civiltà">
             <button className="thought-link" onClick={() => setPanel('lexicon')}>
@@ -2549,6 +2546,7 @@ function App() {
                   {i > 0 && <Plus size={13} className="slot-plus" />}
                   <button
                     className={`sentence-slot ${sentence[i] ? `filled word-${WORDS[sentence[i]]?.kind}` : ''} ${editingSlot === i ? 'editing' : ''}`}
+                    data-next={i === sentence.length || undefined}
                     data-active={
                       mobile &&
                       wordBankOpen &&
@@ -2616,7 +2614,7 @@ function App() {
                 }
               >
                 <span>Pronuncia</span>
-                <ArrowRight size={18} />
+                <AudioLines size={18} aria-hidden="true" />
               </button>
             </div>
           </div>

@@ -30,10 +30,12 @@ export function getRiverHighlights(
     (!coast || coastInlandDistance(coast, point) > 0.25);
   const highlights = [];
   for (let i = 0; i < count; i++) {
-    const distance = ((i / count) * geometry.length + clock * 1.1) % geometry.length;
+    const speed = 1.15 + (i % 4) * 0.13;
+    const distance = ((i / count) * geometry.length + clock * speed) % geometry.length;
     const a = sampleRiverArt(geometry, distance);
-    const b = sampleRiverArt(geometry, Math.min(geometry.length, distance + 1.5 + (i % 3) * 0.4));
-    const offset = ((i % 3) - 1) * 0.55;
+    const b = sampleRiverArt(geometry, distance + 1.3 + (i % 5) * 0.49);
+    if (a.dx * b.dx + a.dy * b.dy < 0.88) continue;
+    const offset = ((i % 5) - 2) * 1.08;
     const from = { x: a.x - a.dy * offset, y: a.y + a.dx * offset };
     const to = { x: b.x - b.dy * offset, y: b.y + b.dx * offset };
     if (!visible(from) || !visible(to)) continue;
@@ -43,7 +45,7 @@ export function getRiverHighlights(
       x2: to.x,
       y2: to.y,
       opacity:
-        (state.seasonIndex % 4 === 3 ? 0.12 : 0.22) *
+        (state.seasonIndex % 4 === 3 ? 0.25 : 0.36) *
         (0.45 + 0.55 * (0.5 + 0.5 * Math.sin(clock * 0.8 + i * 2.4))),
     });
   }
@@ -69,8 +71,8 @@ export function drawMapSurfaceMotion(
   if (!highlights.length && !waves.length) return;
   ctx.save();
   ctx.lineCap = 'round';
-  ctx.lineWidth = 0.35;
-  ctx.strokeStyle = '#e2eee0';
+  ctx.lineWidth = 0.48;
+  ctx.strokeStyle = '#def4e8';
   const alpha = ctx.globalAlpha;
   for (const mark of highlights) {
     ctx.globalAlpha = alpha * mark.opacity;
@@ -79,13 +81,18 @@ export function drawMapSurfaceMotion(
     ctx.lineTo(mark.x2 * 2.4, mark.y2 * 1.6);
     ctx.stroke();
   }
-  ctx.lineWidth = 0.55;
-  ctx.strokeStyle = '#e9edd5';
+  ctx.lineWidth = 0.65;
+  ctx.strokeStyle = '#f3f5d6';
   for (const mark of waves) {
     ctx.globalAlpha = alpha * mark.opacity;
     ctx.beginPath();
     ctx.moveTo(mark.a.x * 2.4, mark.a.y * 1.6);
-    ctx.lineTo(mark.b.x * 2.4, mark.b.y * 1.6);
+    ctx.quadraticCurveTo(
+      (mark.a.x + mark.b.x) * 1.2,
+      (mark.a.y + mark.b.y) * 0.8 - 0.72,
+      mark.b.x * 2.4,
+      mark.b.y * 1.6,
+    );
     ctx.stroke();
   }
   ctx.restore();

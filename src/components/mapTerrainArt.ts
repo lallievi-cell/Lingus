@@ -611,6 +611,37 @@ function paintBiomeAccents(
   ctx.restore();
 }
 
+const riverPaint = [
+  {
+    depth: ['#386973', '#30676b', '#2b5764'],
+    bank: '#a88a5b',
+    shelf: '#89a889',
+    bed: '#51918b',
+    glint: '#dcf0d5',
+  },
+  {
+    depth: ['#386b70', '#38706f', '#2c5962'],
+    bank: '#b29461',
+    shelf: '#99b495',
+    bed: '#5c9990',
+    glint: '#e8f0cd',
+  },
+  {
+    depth: ['#396469', '#3b6e71', '#325460'],
+    bank: '#977452',
+    shelf: '#8fa78c',
+    bed: '#54878a',
+    glint: '#eef0d4',
+  },
+  {
+    depth: ['#3f6b81', '#4a7c88', '#3b6278'],
+    bank: '#b7bbab',
+    shelf: '#aec8c3',
+    bed: '#7aa3a8',
+    glint: '#e1f1ef',
+  },
+] as const;
+
 function paintRiver(
   ctx: Painter,
   seed: number,
@@ -619,69 +650,117 @@ function paintRiver(
   world?: Geography,
 ) {
   const { sx: SX, sy: SY, worldSize } = projection;
-  const random = randomStream(seed ^ 0x724e38a5),
-    winter = season === 3;
   const geometry = createRiverArtGeometry(world);
-  const trace = () => traceRiverArt(ctx, geometry);
+  if (!geometry.length) return;
+  const paint = riverPaint[season];
+  const random = randomStream(seed ^ 0x724e38a5);
+  const winter = season === 3;
   ctx.save();
   ctx.scale(SX, SY);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  const water = ctx.createLinearGradient(0, 0, worldSize, worldSize);
-  water.addColorStop(0, winter ? '#849f9b' : '#557e77');
-  water.addColorStop(0.5, winter ? '#a7bab1' : '#7d9e8b');
-  water.addColorStop(1, winter ? '#94b4b2' : '#597f79');
-  for (const [color, width] of [
-    ['#65755520', 25],
-    [winter ? '#d9decb70' : '#b2a47e80', 19],
-    ['#35534c44', 14.2],
-    [winter ? '#edf1dc55' : '#d6c59270', 13.1],
-    [water, 12],
-    [winter ? '#d2ded02a' : '#a3b49a18', 5],
+
+  const water = ctx.createLinearGradient(0, 0, worldSize, worldSize * 0.8);
+  paint.depth.forEach((pigment, index) => water.addColorStop(index * 0.5, pigment));
+
+  // The 12-metre channel is the shared river line, with transparent
+  // sediments outside it and narrower colour washes over the deep current.
+  traceRiverArt(ctx, geometry);
+  for (const [width, color] of [
+    [36, '#425c4330'],
+    [28, `${paint.bank}36`],
+    [22, `${paint.bank}70`],
+    [18.5, `${paint.bank}ac`],
+    [14.5, '#3d493bef'],
+    [13.2, `${paint.bank}b2`],
+    [12, paint.shelf],
+    [10.2, paint.bed],
+    [8.1, water],
   ] as const) {
-    trace();
     ctx.strokeStyle = color;
     ctx.lineWidth = width;
     ctx.stroke();
   }
-  // Layered strokes keep the banks joined even when the inside bend is
-  // tighter than the stream width; an offset outline would fold over itself.
-  // Samples follow the very same curve used by the paint, including Seed Zero.
-  for (let i = 0; i < Math.ceil(geometry.length * 1.4); i++) {
-    const sample = sampleRiverArt(geometry, random() * geometry.length);
-    const offset = (random() - 0.5) * 7;
-    const x = sample.x - sample.dy * offset,
-      y = sample.y + sample.dx * offset;
-    const span = 0.8 + random() * 1.5;
-    ctx.strokeStyle = i % 4 ? '#d4dfc73a' : '#3f6c6640';
-    ctx.lineWidth = 0.12 + random() * 0.15;
+
+  // The bright strand follows the channel instead of the diagonal map gradient.
+  // It only moves a little within the river bed, including around a tight corner.
+  ctx.beginPath();
+  geometry.points.forEach((p, index) => {
+    const before = geometry.points[Math.max(0, index - 1)];
+    const after = geometry.points[Math.min(geometry.points.length - 1, index + 1)];
+    const dx = after.x - before.x,
+      dy = after.y - before.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const d = 0.88 * Math.sin((p.x + p.y) * 0.055) + 0.72 * Math.cos(p.y * 0.13);
+    const x = p.x - (dy * d) / length;
+    const y = p.y + (dx * d) / length;
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.lineWidth = 3.6;
+  ctx.strokeStyle = `${paint.bed}69`;
+  ctx.stroke();
+  ctx.lineWidth = 1.4;
+  ctx.strokeStyle = `${paint.glint}24`;
+  ctx.stroke();
+
+  // Bent glints and submerged silt brushwork are painted once in the worker.
+  for (let index = 0; index < Math.ceil(geometry.length / 1.8); index++) {
+    const distance = random() * geometry.length;
+    const span = 0.6 + random() * 3.1;
+    const a = sampleRiverArt(geometry, distance);
+    const b = sampleRiverArt(geometry, distance + span);
+    if (a.dx * b.dx + a.dy * b.dy < 0.88) continue;
+    const gravel = index % 3 === 0;
+    const offset = gravel ? (index % 2 ? -1 : 1) * (3.3 + random() * 1.9) : (random() - 0.5) * 6.8;
+    const x = a.x - a.dy * offset;
+    const y = a.y + a.dx * offset;
+    const endX = b.x - b.dy * offset;
+    const endY = b.y + b.dx * offset;
     ctx.beginPath();
     ctx.moveTo(x, y);
     ctx.quadraticCurveTo(
-      x + sample.dx * 0.8 - sample.dy * 0.2,
-      y + sample.dy * 0.8 + sample.dx * 0.2,
-      x + sample.dx * span,
-      y + sample.dy * span,
+      (x + endX) * 0.5 + a.dy * 0.17,
+      (y + endY) * 0.5 - a.dx * 0.17,
+      endX,
+      endY,
     );
+    ctx.strokeStyle = gravel
+      ? index % 2
+        ? `${paint.bank}a0`
+        : '#234e5469'
+      : `${paint.glint}${index % 5 === 0 ? '7c' : '36'}`;
+    ctx.lineWidth = 0.14 + random() * 0.29;
     ctx.stroke();
   }
-  for (let i = 0; i < Math.ceil(geometry.length / 2); i++) {
+
+  // Small bank accents are longitudinal, with longer cover only away from tight bends.
+  for (let index = 0; index < Math.ceil(geometry.length / 3.6); index++) {
     const distance = random() * geometry.length;
     const sample = sampleRiverArt(geometry, distance);
-    const before = sampleRiverArt(geometry, distance - 12);
-    const after = sampleRiverArt(geometry, distance + 12);
-    // Do not put bank vegetation across the water at a tight inner bend.
-    if (before.dx * after.dx + before.dy * after.dy < 0.94) continue;
-    const bank = (random() > 0.5 ? 1 : -1) * (8.5 + random() * 2);
-    const x = sample.x - sample.dy * bank,
-      y = sample.y + sample.dx * bank;
-    dab(ctx, x, y + 0.2, 0.4 + random() * 0.5, 0.12, winter ? '#d8ddc84d' : '#d2c39a55');
-    ctx.strokeStyle = winter ? '#7b8c765c' : '#60745070';
-    ctx.lineWidth = 0.2;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.quadraticCurveTo(x - 0.15, y - 0.5, x + (random() - 0.5) * 0.5, y - 0.8 - random() * 0.4);
-    ctx.stroke();
+    const before = sampleRiverArt(geometry, distance - 9);
+    const after = sampleRiverArt(geometry, distance + 9);
+    if (before.dx * after.dx + before.dy * after.dy < 0.9) continue;
+    const offset = (index % 2 ? -1 : 1) * (7.7 + random() * 6.1);
+    const x = sample.x - sample.dy * offset;
+    const y = sample.y + sample.dx * offset;
+    const tilt = Math.atan2(sample.dy, sample.dx);
+    const radius = 0.3 + random() * 0.85;
+    dab(ctx, x + 0.13, y + 0.2, radius * 1.19, 0.19, '#534f3974', tilt);
+    dab(ctx, x - 0.17, y - 0.07, radius, 0.19, winter ? '#d6d9d0ae' : '#dfcb9dad', tilt);
+    if (index % 4 !== 0 || Math.abs(offset) < 10) continue;
+    const blade = winter ? '#839789a0' : '#597c4da9';
+    const stem = winter ? '#dae3d564' : '#a4ae669c';
+    for (let sprout = -1; sprout <= 1; sprout++) {
+      const rootX = x + sprout * 0.29;
+      const h = 0.52 + random() * 0.9;
+      ctx.beginPath();
+      ctx.moveTo(rootX, y);
+      ctx.quadraticCurveTo(rootX - sprout * 0.02, y - h * 0.71, rootX + sprout * 0.28, y - h);
+      ctx.lineWidth = 0.17;
+      ctx.strokeStyle = sprout === 0 ? stem : blade;
+      ctx.stroke();
+    }
   }
   ctx.restore();
 }

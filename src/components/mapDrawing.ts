@@ -29,7 +29,13 @@ import { foreignUnitDisposition } from './unitReadability';
 import { getCampStockSlots } from './campInventory';
 import { hasPhysicalCamp } from '../game/physicalCamp';
 import { drawCampStock } from './mapCampStockArt';
-import { drawMapGroundShadows } from './mapLighting';
+import {
+  drawMapGroundShadows,
+  drawMapPersonShadow,
+  drawMapSceneLight,
+  fogPigment,
+  getGroundLight,
+} from './mapLighting';
 import { drawMapWorkEffects } from './mapWorkEffects';
 import { drawMapSurfaceMotion } from './mapSurfaceMotion';
 import { drawRiverFords } from './mapFordArt';
@@ -1306,6 +1312,7 @@ export function drawWorld(
   const mapWidth = MAP_WIDTH * worldScale,
     mapHeight = MAP_HEIGHT * worldScale;
   const sectorCount = getWorldSectorCount(state);
+  const sun = getGroundLight(state);
   ctx.drawImage(terrain, 0, 0, mapWidth, mapHeight);
   drawMapSurfaceMotion(ctx, state, terrain, time, viewport, atmosphereOptions?.reducedMotion);
   drawRiverFords(ctx, state, viewport);
@@ -1313,7 +1320,7 @@ export function drawWorld(
   const nearHome = (target: WorldTarget | null) =>
     target?.type === 'point' && Math.hypot(target.x - state.home.x, target.y - state.home.y) <= 10;
   drawCampground(ctx, state, isGroupActive || nearHome(selected) || nearHome(hovered));
-  drawMapGroundShadows(ctx, state, viewport);
+  drawMapGroundShadows(ctx, state, viewport, sun);
   if (selected?.type === 'boat') {
     const vessel = state.boats?.find((boat) => boat.id === selected.id);
     if (vessel) drawObservedVoyage(ctx, state, vessel, atmosphereOptions?.pixelRatio);
@@ -1669,7 +1676,13 @@ export function drawWorld(
         (u.factionId !== undefined && u.factionId !== 'player') ||
         u.isKing ||
         ['delegating', 'frontline', 'frontline-returning'].includes(u.action)),
-  ))
+  )) {
+    if (!overviewNature) {
+      const stage = getLifeStage(unit);
+      const size =
+        unit.action === 'sleeping' || stage === 'child' || stage === 'newborn' ? 0.55 : 1;
+      drawMapPersonShadow(ctx, unit, sun, size);
+    }
     objects.push({
       y: unit.y + 0.3,
       draw: () =>
@@ -1804,6 +1817,7 @@ export function drawWorld(
           UNIT_ART_SCALE,
         ),
     });
+  }
   const visibleCities = state.cities.filter(
     (c) =>
       (!viewport ||
@@ -2018,6 +2032,7 @@ export function drawWorld(
       },
     });
   objects.sort((a, b) => a.y - b.y).forEach((o) => o.draw());
+  const fog = drawMapSceneLight(ctx, state, calendar.canonicalPhase, mapWidth, mapHeight, viewport);
   drawRegionalSieges(ctx, state, time, { ...atmosphereOptions, viewport });
   for (const caption of cityCaptions) caption();
   for (const spark of state.sparks) {
@@ -2086,39 +2101,16 @@ export function drawWorld(
       ctx.stroke();
     }
   }
-  drawUnchartedGround(ctx, state, sectorCount, mapWidth, mapHeight, viewport);
-
-  // Twilight comes from the simulation, so pausing also pauses the day.
-  const seasonTime = calendar.canonicalPhase;
-  const darkness =
-    seasonTime < 54
-      ? 0
-      : seasonTime < 65
-        ? (seasonTime - 54) / 11
-        : seasonTime < 84
-          ? 1
-          : (90 - seasonTime) / 6;
-  if (darkness > 0) {
-    ctx.fillStyle = `rgba(35,53,66,${darkness * 0.38})`;
-    ctx.fillRect(0, 0, mapWidth, mapHeight);
-    for (const fire of state.buildings.filter(
-      (b) =>
-        b.kind === 'campfire' &&
-        b.active &&
-        b.hp > 0 &&
-        b.completed !== false &&
-        inView(b) &&
-        isVisibleAt(state, b.x, b.y),
-    )) {
-      const p = worldPoint(fire.x, fire.y);
-      const light = ctx.createRadialGradient(p.x, p.y, 1, p.x, p.y, 36);
-      light.addColorStop(0, `rgba(245,188,98,${darkness * 0.26})`);
-      light.addColorStop(0.55, `rgba(245,188,98,${darkness * 0.08})`);
-      light.addColorStop(1, '#f5bc6200');
-      ctx.fillStyle = light;
-      ctx.fillRect(p.x - 36, p.y - 36, 72, 72);
-    }
-  }
+  drawUnchartedGround(
+    ctx,
+    state,
+    sectorCount,
+    mapWidth,
+    mapHeight,
+    fogPigment(fog),
+    fogPigment(fog, 0),
+    viewport,
+  );
 
   drawMapAtmosphere(ctx, state, time, viewport, atmosphereOptions);
 
@@ -2142,11 +2134,12 @@ function drawUnchartedGround(
   sectorCount: number,
   width: number,
   height: number,
+  paper: string,
+  clearPaper: string,
   viewport?: { minX: number; minY: number; maxX: number; maxY: number },
 ) {
   const column = width / sectorCount;
   const row = height / sectorCount;
-  const paper = '#bdb69a';
   const visible = (x: number, y: number) =>
     x >= 0 &&
     x < sectorCount &&
@@ -2156,7 +2149,7 @@ function drawUnchartedGround(
   const feather = (x: number, y: number, dx: number, dy: number, w: number, h: number) => {
     const fade = ctx.createLinearGradient(x, y, x + dx, y + dy);
     fade.addColorStop(0, paper);
-    fade.addColorStop(1, '#bdb69a00');
+    fade.addColorStop(1, clearPaper);
     ctx.fillStyle = fade;
     ctx.fillRect(x + Math.min(0, dx), y + Math.min(0, dy), w, h);
   };

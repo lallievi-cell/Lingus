@@ -6,6 +6,7 @@
   --diorama-muted: #d7c7ac;
   --diorama-accent: #dcb478;
   --diorama-edge: #776543;
+  --frame-grain: url('/art/frame-slate.webp');
 }
 
 .app:not([data-contrast='high']) {
@@ -28,6 +29,13 @@
     color-mix(in srgb, var(--hud-surface) 86%, var(--hud-raised)),
     var(--hud-surface)
   );
+}
+
+.app:not([data-contrast='high']) .topbar {
+  background:
+    linear-gradient(108deg, #41362bd9 0%, #24241fe0 34%, #19211bef 100%),
+    var(--frame-grain) center top / 380px;
+  box-shadow: inset 0 -1px 0 #ebc58f29;
 }
 
 .app .topbar .brand {
@@ -357,6 +365,70 @@
 .app .map-frame .lingus-world__minimap canvas {
   border-color: var(--hud-line);
   border-radius: 0;
+}
+
+.app:not([data-contrast='high'])
+  :is(
+    .map-toolbar,
+    .map-frame .lingus-world__control-stack,
+    .map-frame .lingus-world__minimap,
+    .map-frame .lingus-world__stocks,
+    .map-frame .lingus-world__elements,
+    .map-frame .lingus-world__atlas
+  ) {
+  background:
+    linear-gradient(155deg, #38342cda, #1a201be8),
+    var(--frame-grain) center / 260px;
+  box-shadow:
+    inset 0 1px 0 #e9c39142,
+    inset 0 -1px 0 #0d110d,
+    0 3px 9px #221d1858;
+}
+
+.app .map-frame .lingus-world__minimap > span {
+  align-items: center;
+  gap: 3px;
+  font-weight: 650;
+}
+
+.app .map-frame .lingus-world__minimap > span > span {
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--material-accent);
+}
+
+.app .map-frame .lingus-world__minimap > span svg {
+  width: 11px;
+  height: 11px;
+}
+
+.app:not([data-contrast='high']) .map-frame .lingus-world__target-card {
+  border: 1px solid #9d8766;
+  border-inline-start: 3px solid #a66d44;
+  background: linear-gradient(135deg, #faf1dc, #ece1c9 80%) !important;
+  color: #342e25;
+  box-shadow:
+    inset 0 0 0 1px #f9f3dfb5,
+    0 4px 13px #181a1463 !important;
+}
+
+.app:not([data-contrast='high']) .map-frame .lingus-world__target-stage {
+  color: #72503a;
+  font-weight: 750;
+}
+
+.app:not([data-contrast='high'])
+  .map-frame
+  :is(
+    .lingus-world__minimap,
+    .lingus-world__stocks,
+    .lingus-world__elements,
+    .lingus-world__atlas
+  ):focus-visible,
+.app:not([data-contrast='high']) .map-frame .lingus-world__control-stack > button:focus-visible {
+  outline: 2px solid var(--diorama-accent);
+  outline-offset: -2px;
 }
 
 @media (min-width: 861px) {
